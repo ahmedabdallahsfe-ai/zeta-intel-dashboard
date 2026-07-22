@@ -33,36 +33,50 @@ document.addEventListener("DOMContentLoaded", () => {
   renderTopBar(metadata, dashboard);
   wireDashboardExport();
 
+  const records = CacheStore.getRecords();
+  const hasRecords = !!records;
+
   Loader.setMessage("Building aggregations...");
-  Analytics.init(CacheStore.getRecords(), dashboard.dimensions);
-  const selfCheck = Analytics.selfCheck(dashboard.kpis);
-  window.__selfCheck = selfCheck; // surfaced in the Data Quality panel
+  if (hasRecords) {
+    Analytics.init(records, dashboard.dimensions);
+    const selfCheck = Analytics.selfCheck(dashboard.kpis);
+    window.__selfCheck = selfCheck; // surfaced in the Data Quality panel
+  } else {
+    window.__selfCheck = { pass: true, checks: [] };
+  }
 
   Loader.setMessage("Creating dashboard layout...");
   buildLayout();
   wireChartExportDelegation();
 
-  const filterBarEl = document.getElementById("filter-bar");
-  const chipsEl = document.getElementById("filter-chips");
-  Filters.init(filterBarEl, chipsEl, dashboard.dimensions, (filterState) => {
-    // Per-section busy indicator: cheap at today's row counts (recompute
-    // is well under 100ms) but keeps every section honest if the dataset
-    // grows large enough for the recompute to become perceptible.
-    markAllSectionsRecomputing(true);
+  if (hasRecords) {
+    const filterBarEl = document.getElementById("filter-bar");
+    const chipsEl = document.getElementById("filter-chips");
+    Filters.init(filterBarEl, chipsEl, dashboard.dimensions, (filterState) => {
+      // Per-section busy indicator: cheap at today's row counts (recompute
+      // is well under 100ms) but keeps every section honest if the dataset
+      // grows large enough for the recompute to become perceptible.
+      markAllSectionsRecomputing(true);
 
-    const t0 = CONFIG.debug ? performance.now() : 0;
-    const result = Analytics.run(filterState);
-    if (CONFIG.debug) console.log(`[Perf] Analytics.run(): ${(performance.now() - t0).toFixed(1)}ms for ${CacheStore.getRecords().rows.length.toLocaleString()} records`);
+      const t0 = CONFIG.debug ? performance.now() : 0;
+      const result = Analytics.run(filterState);
+      if (CONFIG.debug) console.log(`[Perf] Analytics.run(): ${(performance.now() - t0).toFixed(1)}ms for ${records.rows.length.toLocaleString()} records`);
 
-    _lastFilterState = filterState;
-    filenameSuffix = Exporter.filenameSuffixFromFilters(filterState);
-    renderAll(result, dashboard.dimensions, filterState);
-    // Cascading filters: disable options in every OTHER dropdown that
-    // can't produce any rows given the filters just applied. Computed by
-    // Analytics.run() in the same single pass as the aggregation itself.
-    Filters.applyAvailability(result.availableOptions);
-    markAllSectionsRecomputing(false);
-  });
+      _lastFilterState = filterState;
+      filenameSuffix = Exporter.filenameSuffixFromFilters(filterState);
+      renderAll(result, dashboard.dimensions, filterState);
+      // Cascading filters: disable options in every OTHER dropdown that
+      // can't produce any rows given the filters just applied. Computed by
+      // Analytics.run() in the same single pass as the aggregation itself.
+      Filters.applyAvailability(result.availableOptions);
+      markAllSectionsRecomputing(false);
+    });
+  } else {
+    // View-only mode (no records.data.js): render June snapshot from
+    // pre-computed dashboard.data.js directly — all KPIs, charts, tables
+    // and RF narrative are fully visible; interactive filtering is disabled.
+    renderAll(dashboard, dashboard.dimensions, {});
+  }
 
   Loader.hide();
   wireNotSeenModal();
