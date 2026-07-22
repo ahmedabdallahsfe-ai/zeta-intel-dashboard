@@ -308,29 +308,33 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
   // ── KPI cards — aggregate teamKpis for the resolved team set ─────────────────────
   if (activeTeams && tkData.teamKpis) {
     const agg = { totalRows:0, covCount:0, rfCount:0, notSeen:0,
-                  tgtVis:0, actVis:0, reps:0, custs:0 };
+                  tgtVis:0, actVis:0, reps:0, resigned:0, custs:0 };
     for (const team of activeTeams) {
       const tk = tkData.teamKpis[team];
       if (!tk) continue;
-      agg.totalRows += tk._totalRows    || 0;
-      agg.covCount  += tk._covCount     || 0;
-      agg.rfCount   += tk._rfCount      || 0;
-      agg.notSeen   += tk._notSeenCount || 0;
-      agg.tgtVis    += tk.totalTargetVisits    || 0;
-      agg.actVis    += tk.totalActualVisits     || 0;
-      agg.reps      += tk.activeEmployees       || 0;
-      agg.custs     += tk.totalUniqueCustomers  || 0;
+      agg.totalRows += tk._totalRows         || 0;
+      agg.covCount  += tk._covCount          || 0;
+      agg.rfCount   += tk._rfCount           || 0;
+      agg.notSeen   += tk._notSeenCount      || 0;
+      agg.tgtVis    += tk.totalTargetVisits  || 0;
+      agg.actVis    += tk.totalActualVisits  || 0;
+      agg.reps      += tk.activeEmployees    || 0;
+      agg.resigned  += tk.resignedEmployees  || 0;
+      agg.custs     += tk.totalUniqueCustomers || 0;
     }
     const tot = agg.totalRows || 1;
     result.kpis = Object.assign({}, dashboard.kpis, {
-      coveragePct:         agg.covCount / tot,
-      rightFreqPct:        agg.rfCount  / tot,
-      activeEmployees:     agg.reps,
-      totalTargetVisits:   agg.tgtVis,
-      totalActualVisits:   agg.actVis,
-      visitAchievementPct: agg.tgtVis ? agg.actVis / agg.tgtVis : null,
-      notSeenCount:        agg.notSeen,
-      notSeenPct:          agg.notSeen / tot,
+      coveragePct:          agg.covCount / tot,
+      rightFreqPct:         agg.rfCount  / tot,
+      activeReps:           agg.reps,
+      resignedReps:         agg.resigned,
+      totalUniqueCustomers: agg.custs,
+      customersPerRep:      agg.reps > 0 ? agg.custs / agg.reps : 0,
+      totalTargetVisits:    agg.tgtVis,
+      totalActualVisits:    agg.actVis,
+      visitAchievementPct:  agg.tgtVis ? agg.actVis / agg.tgtVis : null,
+      notSeenCount:         agg.notSeen,
+      notSeenPct:           agg.notSeen / tot,
     });
     // Suppress deltas — filtered KPIs have no meaningful prior-period comparison
     result.kpiDeltas = {};
