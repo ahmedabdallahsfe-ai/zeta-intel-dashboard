@@ -72,13 +72,18 @@ document.addEventListener("DOMContentLoaded", () => {
       markAllSectionsRecomputing(false);
     });
   } else {
-    // View-only mode (no records.data.js): show the full filter bar (populated
-    // from dashboard.dimensions) so the UI looks identical to the local version.
-    // Filter changes fire a no-op callback — data stays as the June snapshot.
+    // View-only mode (no records.data.js): filters apply client-side to the
+    // pre-computed arrays (teamComparison, leaderboards, managerRanking,
+    // quarterlyCustomerCoverage). KPI summary and trends stay as the full
+    // June snapshot — they require raw records to recompute.
     const filterBarEl = document.getElementById("filter-bar");
     const chipsEl = document.getElementById("filter-chips");
-    Filters.init(filterBarEl, chipsEl, dashboard.dimensions, () => {
-      // Without records.data.js we cannot recompute; snapshot stays fixed.
+    Filters.init(filterBarEl, chipsEl, dashboard.dimensions, (filterState) => {
+      const hasFilters = Object.values(filterState).some(v => Array.isArray(v) && v.length > 0);
+      const filtered = hasFilters
+        ? applyViewOnlyFilters(dashboard, dashboard.dimensions, filterState)
+        : dashboard;
+      renderAll(filtered, dashboard.dimensions, filterState);
     });
     // Render the pre-computed June snapshot directly.
     renderAll(dashboard, dashboard.dimensions, {});
@@ -266,6 +271,47 @@ function buildLayout() {
 
 /** Re-render every section from a fresh Analytics.run() result. Called on
  * initial load and on every filter change. */
+/**
+ * View-only mode: filter pre-computed cache arrays by the active filter state.
+ */
+function applyViewOnlyFilters(dashboard, dims, filterState) {
+  const result = Object.assign({}, dashboard);
+  const act = {};
+  const dimMap = {
+    team: "teams", businessUnit: "businessUnits", nsm: "nsms",
+    areaManager: "areaManagers", manager: "managers", employee: "employeeNames",
+  };
+  for (const [key, dimKey] of Object.entries(dimMap)) {
+    const idxs = filterState[key];
+    if (idxs && idxs.length) act[key] = new Set(idxs.map(i => dims[dimKey][i]));
+  }
+  if (act.team) {
+    result.teamComparison = dashboard.teamComparison.filter(r => act.team.has(r.team));
+  }
+  if (act.manager) {
+    result.managerRanking = dashboard.managerRanking.filter(r => act.manager.has(r.name));
+  }
+  if (act.areaManager) {
+    result.areaManagerRanking = dashboard.areaManagerRanking.filter(r => act.areaManager.has(r.name));
+  }
+  if (act.team || act.manager || act.employee) {
+    const lbOk = r => (!act.team || act.team.has(r.team))
+                   && (!act.manager || act.manager.has(r.manager))
+                   && (!act.employee || act.employee.has(r.employee));
+    result.leaderboards = {
+      top:    dashboard.leaderboards.top.filter(lbOk),
+      bottom: dashboard.leaderboards.bottom.filter(lbOk),
+    };
+  }
+  if (act.team || act.employee) {
+    result.quarterlyCustomerCoverage = dashboard.quarterlyCustomerCoverage.filter(r =>
+      (!act.team || act.team.has(r.team)) &&
+      (!act.employee || act.employee.has(r.name))
+    );
+  }
+  return result;
+}
+
 function renderAll(result, dims, filterState) {
   UI.renderKpiCards(sections.kpis, result.kpis, result.kpiDeltas, result.trend.series);
 
