@@ -30,7 +30,9 @@ const CacheStore = (() => {
     dashboard = window[CONFIG.cache.dashboardVar] || null;
     metadata = window[CONFIG.cache.metadataVar] || null;
     records = window[CONFIG.cache.recordsVar] || null;
-    ready = Boolean(dashboard && metadata && records);
+    // records.data.js is optional (used for filter recomputation only).
+    // Dashboard renders from pre-computed cache even without it.
+    ready = Boolean(dashboard && metadata);
     return ready;
   }
 
