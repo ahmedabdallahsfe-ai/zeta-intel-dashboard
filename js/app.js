@@ -42,7 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const selfCheck = Analytics.selfCheck(dashboard.kpis);
     window.__selfCheck = selfCheck; // surfaced in the Data Quality panel
   } else {
-    window.__selfCheck = { pass: true, checks: [] };
+    window.__selfCheck = { ok: true, mismatches: [] };
   }
 
   Loader.setMessage("Creating dashboard layout...");
