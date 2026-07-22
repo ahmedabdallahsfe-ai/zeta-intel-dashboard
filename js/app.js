@@ -277,15 +277,12 @@ function buildLayout() {
 function applyViewOnlyFilters(dashboard, dims, filterState) {
   const result = Object.assign({}, dashboard);
 
-  // Map filter index arrays → name Sets for fast lookup
+  // filterState values are name strings (not indices) — use them directly
   const act = {};
-  const dimMap = {
-    team: "teams", businessUnit: "businessUnits", nsm: "nsms",
-    areaManager: "areaManagers", manager: "managers", employee: "employeeNames",
-  };
-  for (const [key, dimKey] of Object.entries(dimMap)) {
-    const idxs = filterState[key];
-    if (idxs && idxs.length) act[key] = new Set(idxs.map(i => dims[dimKey][i]));
+  const filterKeys = ["team", "businessUnit", "nsm", "areaManager", "manager", "employee"];
+  for (const key of filterKeys) {
+    const vals = filterState[key];
+    if (vals && vals.length) act[key] = new Set(vals);
   }
 
   // ── Resolve active teams from hierarchy filters ──────────────────────────────────────────
