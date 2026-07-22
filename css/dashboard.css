@@ -1,0 +1,1461 @@
+/*
+ * dashboard.css
+ * Phase 1: minimal styling for the pipeline-status placeholder page.
+ * Full executive dashboard styling (KPI cards, charts, tables, responsive
+ * grid, print/PDF layout) is delivered in Phase 4. Kept in its own file
+ * per project rules -- no inline <style> in dashboard.html.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  background: #F4F6F9;
+  color: #0F172A;
+}
+
+.topbar {
+  background: #0F2942;
+  color: #FFFFFF;
+  padding: 12px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Left cluster: logo + divider + title */
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-logo {
+  height: 48px;
+  width: auto;
+  flex-shrink: 0;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 4px 10px;
+  box-sizing: content-box;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 36px;
+  background: rgba(255,255,255,0.25);
+  flex-shrink: 0;
+}
+
+.topbar h1 {
+  font-size: 17px;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* Right cluster: actions */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.health-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.health-healthy { background: #0A8A5F; color: #fff; }
+.health-caution { background: #D97706; color: #fff; }
+.health-warning { background: #EA580C; color: #fff; }
+.health-error   { background: #DC2626; color: #fff; }
+
+.container {
+  max-width: 960px;
+  margin: 32px auto;
+  padding: 0 20px;
+}
+
+.card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 15px;
+  color: #0F2942;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.stat {
+  background: #F4F6F9;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.stat .value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #2563EB;
+}
+
+.stat .label {
+  font-size: 12px;
+  color: #64748B;
+  margin-top: 4px;
+}
+
+.notice {
+  border-left: 4px solid #2563EB;
+  background: #DBEAFE;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1D4ED8;
+}
+
+ul.issue-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #475569;
+}
+
+ul.issue-list li {
+  margin-bottom: 4px;
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(244, 246, 249, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 1000;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid #DBEAFE;
+  border-top-color: #2563EB;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 13px;
+  color: #64748B;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Phase 3: filter bar, sections, KPI cards, charts, tables
+   (Layout/functionality pass -- final visual polish is Phase 4.)
+   ========================================================================== */
+
+.container {
+  max-width: 1400px;
+}
+
+/* --- Filter bar --- */
+.filter-bar-wrap {
+  background: #FFFFFF;
+  border-bottom: 1px solid #E2E8F0;
+  padding: 12px 28px;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 140px;
+}
+
+.filter-label {
+  font-size: 11px;
+  color: #64748B;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.filter-field select {
+  padding: 6px 8px;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #F8FAFC;
+  color: #0F172A;
+  min-width: 140px;
+  max-width: 220px;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #DBEAFE;
+  color: #1D4ED8;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chip-remove {
+  font-weight: 700;
+}
+
+.filter-clear-all {
+  background: none;
+  border: 1px solid #E2E8F0;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #64748B;
+  cursor: pointer;
+}
+
+/* --- Dashboard sections --- */
+.dashboard-section {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: opacity 0.15s ease;
+}
+
+.dashboard-section.recomputing {
+  opacity: 0.55;
+}
+
+.section-header h2 {
+  margin: 0 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+
+.section-body h3 {
+  font-size: 13px;
+  color: #334155;
+  margin: 0 0 8px;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.three-col {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 24px;
+}
+
+/* ==========================================================================
+   KPI Cards — 9 cards in one responsive row.
+   Strategy:
+     • Default (< 1300px): 3-col grid, cards use horizontal layout
+       (label+value left, sparkline right). Full breathing room.
+     • Medium (≥ 1300px): auto-fill with 160px minimum — typically 9 across
+       on 1440-1920px screens.
+     • Both modes use the same compact-column card style so the label text
+       is always horizontal and readable, not rotating vertically.
+   ========================================================================== */
+#sec-kpis .section-body {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+@media (min-width: 1300px) {
+  #sec-kpis .section-body {
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    gap: 12px;
+  }
+}
+
+/* Card base: compact column layout — label on top, value below, delta, sparkline at bottom.
+   Column layout ensures labels are ALWAYS horizontal regardless of card width. */
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 14px 16px 12px;
+  min-height: 120px;
+  box-sizing: border-box;
+}
+
+/* Text content block */
+.kpi-info {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Label: 2-line max, ellipsis if still too long */
+.kpi-label {
+  font-size: 10.5px;
+  color: #64748B;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #2563EB;
+  line-height: 1.2;
+  margin-top: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sparkline sits below the value block — smaller in compact mode */
+.kpi-sparkline {
+  display: block;
+  flex-shrink: 0;
+  width: 100%;
+  height: 28px;
+  color: #CBD5E1;
+  margin-top: 4px;
+}
+
+.kpi-card:hover .kpi-sparkline {
+  color: #2563EB;
+}
+
+/* On 3-col layout (< 1300px): larger cards with full sparkline */
+@media (max-width: 1299px) {
+  .kpi-card {
+    padding: 18px 20px 14px;
+    min-height: 140px;
+  }
+  .kpi-label {
+    font-size: 11.5px;
+  }
+  .kpi-value {
+    font-size: 26px;
+    margin-top: 6px;
+  }
+  .kpi-sparkline {
+    height: 36px;
+  }
+}
+
+/* --- Charts --- */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.chart-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.chart-card-header h3 {
+  font-size: 13px;
+  color: #334155;
+  margin: 0;
+}
+
+.chart-export-btn {
+  padding: 3px 9px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #64748B;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.chart-export-btn:hover {
+  background: #DBEAFE;
+  color: #1D4ED8;
+  border-color: #93C5FD;
+}
+
+.chart-wrap {
+  position: relative;
+  height: 260px;
+}
+
+.chart-wrap-wide {
+  height: 320px;
+}
+
+.chart-card-small .chart-wrap {
+  height: 200px;
+}
+
+/* --- Tables --- */
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.table-search {
+  padding: 6px 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  font-size: 13px;
+  width: 200px;
+}
+
+.table-export-btn {
+  padding: 6px 12px;
+  border: 1px solid #2563EB;
+  color: #2563EB;
+  background: #FFFFFF;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.table-export-btn:hover {
+  background: #DBEAFE;
+}
+
+.table-scroll {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+}
+
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  background: #0F2942;
+  color: #FFFFFF;
+  padding: 9px 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.data-table thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table thead th.sortable:hover {
+  background: #16324F;
+}
+
+.sort-arrow::after {
+  content: "\2195";
+  margin-left: 4px;
+  opacity: 0.6;
+  font-size: 11px;
+}
+
+.sorted-asc .sort-arrow::after {
+  content: "\2191";
+  opacity: 1;
+}
+
+.sorted-desc .sort-arrow::after {
+  content: "\2193";
+  opacity: 1;
+}
+
+.data-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0; /* required with table-layout:fixed for ellipsis to work */
+}
+
+.data-table tbody tr:hover {
+  background: #F8FAFC;
+}
+
+/* ── Name + Avatar cell ─────────────────────────────────────── */
+.name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.name-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: #0F172A;
+  line-height: 1.3;
+}
+.name-subtitle {
+  font-size: 11px;
+  color: #64748B;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  margin-top: 1px;
+}
+
+.table-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #64748B;
+}
+
+.pagination-controls button {
+  padding: 5px 10px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 6px;
+}
+
+.pagination-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- Data quality / vacancy issue lists --- */
+.dq-error { color: #DC2626; }
+.dq-warn { color: #D97706; }
+.dq-ok { color: #0A8A5F; }
+
+/* --- Responsive: laptop / tablet --- */
+@media (max-width: 1100px) {
+  .three-col { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 800px) {
+  .two-col, .three-col { grid-template-columns: 1fr; }
+  .filter-bar { gap: 10px; }
+  .filter-field, .filter-field select { min-width: 120px; }
+  .topbar { flex-direction: column; align-items: flex-start; }
+  .topbar-brand { flex-wrap: wrap; }
+}
+
+/* ==========================================================================
+   Multi-select checkbox dropdowns (Power BI / Tableau style)
+   .ms-wrap wraps everything; .ms-panel is the floating dropdown.
+   ========================================================================== */
+
+/* Wrapper: sits in the filter bar flex row, same as .filter-field */
+.ms-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 140px;
+}
+
+/* Trigger button — looks like a native <select> */
+.ms-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #F8FAFC;
+  color: #0F172A;
+  min-width: 140px;
+  max-width: 220px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  font-family: inherit;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.ms-btn:hover,
+.ms-btn:focus-visible {
+  border-color: #93C5FD;
+  background: #FFFFFF;
+  outline: none;
+}
+
+/* Count badge inside button */
+.ms-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2563EB;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+/* Chevron arrow — always right-aligned inside the button */
+.ms-arrow {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #64748B;
+}
+
+/* Dropdown panel */
+.ms-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  min-width: 200px;
+  max-width: 280px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Search box at the top of the panel */
+.ms-search {
+  margin: 8px 8px 0;
+  padding: 6px 8px;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #0F172A;
+  background: #F8FAFC;
+  outline: none;
+  font-family: inherit;
+}
+
+.ms-search:focus {
+  border-color: #93C5FD;
+  background: #FFFFFF;
+}
+
+/* Thin divider between "Select All" and the item list */
+.ms-divider {
+  height: 1px;
+  background: #F1F5F9;
+  margin: 4px 8px;
+  flex-shrink: 0;
+}
+
+/* Scrollable list container */
+.ms-list {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+/* Each row: label wrapping a checkbox + text */
+.ms-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #0F172A;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.08s ease;
+}
+
+.ms-item:hover {
+  background: #F1F5F9;
+}
+
+.ms-item input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  accent-color: #2563EB;
+  cursor: pointer;
+}
+
+/* "Select All" row — slightly bolder */
+.ms-selectall {
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 12px;
+  color: #334155;
+}
+
+/* Hidden by search filter — keeps layout stable */
+.ms-item.ms-hidden-search {
+  display: none;
+}
+
+/* Cascade-hidden (cross-filtered out): completely hidden, not just grayed */
+.ms-item.ms-unavailable {
+  display: none;
+  cursor: not-allowed;
+}
+
+.ms-item.ms-unavailable:hover {
+  background: transparent;
+}
+
+.ms-item.ms-unavailable input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Phase 4: export controls, visual polish, print stylesheet
+   ========================================================================== */
+
+/* --- Topbar "Export Dashboard as PDF" --- */
+.topbar-export-btn {
+  padding: 6px 14px;
+  border: 1px solid #2E4B68;
+  background: #16324F;
+  color: #FFFFFF;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease;
+}
+
+.topbar-export-btn:hover {
+  background: #1E4569;
+}
+
+/* --- KPI card polish: a subtle lift + top accent bar so the six headline
+   numbers read as the dashboard's primary focal point --- */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 4px;
+  border-radius: 16px 0 0 16px;
+  background: #2563EB;
+}
+
+.kpi-card:hover {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+/* --- KPI delta chip: period-over-period change, colored by whether the
+   direction is good or bad for THIS metric (see config.js `polarity`).
+   Kept as text + arrow rather than icon glyphs -- no icon library is
+   vendored in this project and the house style avoids emoji, so an
+   arrow + colored number reads cleanly with zero new dependencies. --- */
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.kpi-delta-arrow {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.kpi-delta-good {
+  color: #0A8A5F;
+}
+
+.kpi-delta-bad {
+  color: #DC2626;
+}
+
+.kpi-delta-neutral {
+  color: #64748B;
+}
+
+.kpi-delta-caption {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-top: 1px;
+}
+
+/* kpi-sparkline styles live with the KPI card block above */
+
+/* --- Section header: a visible divider under the title, consistent
+   across every section on the page --- */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #EEF2F7;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+/* --- Table row zebra striping for readability on wide tables --- */
+.data-table tbody tr:nth-child(even) {
+  background: #FBFCFE;
+}
+
+.data-table tbody tr:nth-child(even):hover,
+.data-table tbody tr:hover {
+  background: #F1F5F9;
+}
+
+/* --- Chart card polish: subtle inset frame so charts feel like distinct
+   panels within a section, matching the KPI card treatment --- */
+.chart-card {
+  background: #FBFCFE;
+  border: 1px solid #EEF2F7;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+/* ==========================================================================
+   Print stylesheet -- drives "Export Dashboard as PDF" (window.print()).
+   Goal: the printed/PDF output reads like a report of the CURRENT
+   filtered view, not a screenshot of an interactive app -- so every
+   control that only makes sense on screen (search boxes, sort/pagination,
+   export buttons themselves, the loading overlay) is hidden, and content
+   containers switch from scrolling panes to fully-expanded static content.
+   ========================================================================== */
+@media print {
+  .filter-bar-wrap,
+  .loading-overlay,
+  .topbar-export-btn,
+  .chart-export-btn,
+  .table-search,
+  .table-export-btn,
+  .table-pagination,
+  .ms-panel {
+    display: none !important;
+  }
+
+  body {
+    background: #FFFFFF;
+  }
+
+  .topbar {
+    background: #FFFFFF !important;
+    color: #0F172A !important;
+    border-bottom: 2px solid #0F2942;
+  }
+
+  .topbar-logo {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .container {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .dashboard-section {
+    box-shadow: none;
+    border: 1px solid #E2E8F0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .table-scroll {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .data-table thead th {
+    position: static; /* sticky header has no meaning on a printed page */
+  }
+
+  .chart-wrap, .chart-wrap-wide {
+    height: 220px; /* keep charts compact so more sections fit per page */
+  }
+
+  a[href]::after {
+    content: none; /* suppress browsers' default "print URL after link" */
+  }
+}
+
+/* ── Not-Seen Customers Modal ───────────────────────────────── */
+.ns-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15,25,42,.55);
+  backdrop-filter: blur(3px);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+.ns-modal-overlay.open {
+  display: flex;
+}
+.ns-modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0,0,0,.22);
+  width: min(92vw, 1100px);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ns-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid #E2E8F0;
+  background: #0F2942;
+  color: #fff;
+  flex-shrink: 0;
+}
+.ns-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ns-modal-badge {
+  background: #DC2626;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+}
+.ns-modal-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  opacity: .8;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.ns-modal-close:hover { opacity: 1; background: rgba(255,255,255,.12); }
+.ns-modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #F1F5F9;
+  flex-shrink: 0;
+  background: #F8FAFC;
+}
+.ns-modal-search {
+  flex: 1;
+  padding: 7px 12px;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+.ns-modal-search:focus { border-color: #2563EB; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+.ns-modal-export {
+  padding: 7px 16px;
+  background: #0A8A5F;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ns-modal-export:hover { background: #077A52; }
+.ns-modal-body {
+  overflow: auto;
+  flex: 1;
+}
+.ns-modal-body .data-table { table-layout: fixed; }
+.ns-modal-body .data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.ns-modal-body .data-table tbody td {
+  font-size: 12px;
+  padding: 7px 10px;
+}
+.ns-modal-footer {
+  padding: 10px 20px;
+  border-top: 1px solid #F1F5F9;
+  font-size: 12px;
+  color: #64748B;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  background: #F8FAFC;
+}
+.ns-modal-pagination { display: flex; gap: 6px; }
+.ns-modal-pagination button {
+  padding: 4px 12px;
+  border: 1px solid #CBD5E1;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ns-modal-pagination button:disabled { opacity: .4; cursor: default; }
+.ns-modal-pagination button:not(:disabled):hover { background: #F1F5F9; }
+.kpi-card[data-kpi="notSeenCount"],
+.kpi-card[data-kpi="notSeenPct"] {
+  cursor: pointer;
+  transition: box-shadow .15s, transform .15s;
+}
+.kpi-card[data-kpi="notSeenCount"]:hover,
+.kpi-card[data-kpi="notSeenPct"]:hover {
+  box-shadow: 0 6px 20px rgba(220,38,38,.18);
+  transform: translateY(-2px);
+}
+
+/* ── KOL Coverage Table ─────────────────────────────────────────────────── */
+.kol-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.kol-rag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.kol-green  { background: #0A8A5F; }
+.kol-amber  { background: #D97706; }
+.kol-red    { background: #DC2626; }
+
+.kol-legend-note {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+.kol-table thead th {
+  font-size: 11px;
+  padding: 8px 10px;
+}
+
+.kol-pct-cell {
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 6px !important;
+}
+
+.kol-pct-cell.kol-green { background: #DCFCE7; color: #065F46; }
+.kol-pct-cell.kol-amber { background: #FEF3C7; color: #92400E; }
+.kol-pct-cell.kol-red   { background: #FEE2E2; color: #991B1B; }
+
+.kol-not-seen-btn {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #DC2626;
+  cursor: pointer;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.kol-not-seen-btn:hover { color: #991B1B; }
+
+.kol-zero-ns {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0A8A5F;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RF NARRATIVE INTELLIGENCE PANEL
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Section subtitle ── */
+.section-subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted, #6b7280);
+  margin-left: 12px;
+  font-weight: 400;
+}
+
+/* ── Severity colour tokens ── */
+/* WIN  ≥80% → green  */
+/* WATCH 60-79% → amber */
+/* ALERT <60% → red   */
+
+.rf-sev-win-text    { color: #0A8A5F; }
+.rf-sev-watch-text  { color: #D97706; }
+.rf-sev-alert-text  { color: #DC2626; }
+
+.rf-sev-win-bg      { background: #ECFDF5; border-left: 4px solid #0A8A5F; }
+.rf-sev-watch-bg    { background: #FFFBEB; border-left: 4px solid #D97706; }
+.rf-sev-alert-bg    { background: #FEF2F2; border-left: 4px solid #DC2626; }
+
+.rf-sev-win-border   { border-color: #0A8A5F !important; }
+.rf-sev-watch-border { border-color: #D97706 !important; }
+.rf-sev-alert-border { border-color: #DC2626 !important; }
+
+.rf-sev-win-badge   { background: #0A8A5F; color: #fff; }
+.rf-sev-watch-badge { background: #D97706; color: #fff; }
+.rf-sev-alert-badge { background: #DC2626; color: #fff; }
+
+/* bar fill colours */
+.rf-bar-fill.rf-sev-win   { background: #0A8A5F; }
+.rf-bar-fill.rf-sev-watch { background: #D97706; }
+.rf-bar-fill.rf-sev-alert { background: #DC2626; }
+
+/* pill colours */
+.rf-pill.rf-sev-win   { background: #ECFDF5; border-color: #0A8A5F; color: #065F46; }
+.rf-pill.rf-sev-watch { background: #FFFBEB; border-color: #D97706; color: #92400E; }
+.rf-pill.rf-sev-alert { background: #FEF2F2; border-color: #DC2626; color: #991B1B; }
+
+/* ── Headline strip ── */
+.rf-headline {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.rf-headline-badge {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.rf-headline-text { flex: 1; }
+
+/* ── Insight grid ── */
+.rf-insight-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.rf-panel {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+.rf-panel-full  { grid-column: 1 / -1; }
+.rf-panel-half  { grid-column: span 1; }
+
+.rf-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary, #111827);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Class bars ── */
+.rf-bar-list     { display: flex; flex-direction: column; gap: 8px; }
+
+.rf-bar-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 52px 80px;
+  align-items: center;
+  gap: 8px;
+}
+
+.rf-bar-label {
+  font-size: 12px;
+  color: var(--color-text-primary, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rf-bar-track {
+  height: 8px;
+  background: var(--color-border, #e5e7eb);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rf-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.35s ease;
+}
+
+.rf-bar-value {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.rf-bar-count {
+  font-size: 11px;
+  color: var(--color-text-muted, #6b7280);
+}
+
+/* ── Specialty pills ── */
+.rf-pill-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid;
+  border-radius: 16px;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.rf-pill strong { font-weight: 700; }
+
+/* ── Employee tables ── */
+.rf-emp-block { }
+.rf-block-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary, #374151);
+  margin-bottom: 8px;
+}
+
+.rf-emp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.rf-emp-table thead th {
+  background: var(--color-bg-alt, #f9fafb);
+  color: var(--color-text-secondary, #374151);
+  font-weight: 600;
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+.rf-emp-table tbody tr:nth-child(even) { background: var(--color-bg-alt, #f9fafb); }
+.rf-emp-table tbody td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  vertical-align: middle;
+}
+.rf-rank  { font-weight: 700; color: var(--color-text-muted, #6b7280); width: 28px; }
+.fw-bold  { font-weight: 700; }
+.rf-muted { color: var(--color-text-muted, #6b7280); font-size: 11px; }
+
+/* ── Probation / experience split ── */
+.rf-exp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.rf-exp-card {
+  border: 2px solid;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.rf-exp-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-secondary, #374151);
+  margin-bottom: 4px;
+}
+.rf-exp-pct {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.rf-exp-meta {
+  font-size: 11px;
+  color: var(--color-text-muted, #6b7280);
+  margin-bottom: 8px;
+}
+.rf-exp-advice {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-primary, #111827);
+}
+
+/* ── At-risk block ── */
+.rf-at-risk {
+  border-width: 2px !important;
+  border-style: solid !important;
+}
+.rf-at-risk-stat {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.rf-at-risk-denom {
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--color-text-muted, #6b7280);
+}
+.rf-at-risk-msg {
+  font-size: 13px;
+  line-height: 1.55;
+  margin-top: 10px;
+  color: var(--color-text-primary, #111827);
+}
+
+/* ── Action plan ── */
+.rf-action-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rf-action-item {
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 8px 12px;
+  background: var(--color-bg-alt, #f9fafb);
+  border-radius: 6px;
+  border-left: 3px solid var(--color-border, #e5e7eb);
+}
+.rf-action-item strong { font-weight: 700; }
+
+/* ── Responsive collapse for narrow screens ── */
+@media (max-width: 900px) {
+  .rf-insight-grid { grid-template-columns: 1fr; }
+  .rf-panel-half   { grid-column: 1 / -1; }
+  .rf-bar-row      { grid-template-columns: 110px 1fr 48px 70px; }
+}
