@@ -72,9 +72,15 @@ document.addEventListener("DOMContentLoaded", () => {
       markAllSectionsRecomputing(false);
     });
   } else {
-    // View-only mode (no records.data.js): render June snapshot from
-    // pre-computed dashboard.data.js directly — all KPIs, charts, tables
-    // and RF narrative are fully visible; interactive filtering is disabled.
+    // View-only mode (no records.data.js): show the full filter bar (populated
+    // from dashboard.dimensions) so the UI looks identical to the local version.
+    // Filter changes fire a no-op callback — data stays as the June snapshot.
+    const filterBarEl = document.getElementById("filter-bar");
+    const chipsEl = document.getElementById("filter-chips");
+    Filters.init(filterBarEl, chipsEl, dashboard.dimensions, () => {
+      // Without records.data.js we cannot recompute; snapshot stays fixed.
+    });
+    // Render the pre-computed June snapshot directly.
     renderAll(dashboard, dashboard.dimensions, {});
   }
 
