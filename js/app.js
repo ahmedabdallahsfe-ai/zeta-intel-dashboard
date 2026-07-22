@@ -276,6 +276,8 @@ function buildLayout() {
  */
 function applyViewOnlyFilters(dashboard, dims, filterState) {
   const result = Object.assign({}, dashboard);
+
+  // Map filter index arrays → name Sets for fast lookup
   const act = {};
   const dimMap = {
     team: "teams", businessUnit: "businessUnits", nsm: "nsms",
@@ -285,33 +287,103 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
     const idxs = filterState[key];
     if (idxs && idxs.length) act[key] = new Set(idxs.map(i => dims[dimKey][i]));
   }
-  if (act.team) {
-    result.teamComparison = dashboard.teamComparison.filter(r => act.team.has(r.team));
+
+  // ── Resolve active teams from hierarchy filters ──────────────────────────────────────────
+  // BU / NSM / AM selections expand to the set of teams they contain.
+  // Hierarchy maps come from window.DASHBOARD_TEAM_KPIS (the small sidecar
+  // file loaded in view-only mode) or from dashboard itself if pre-embedded.
+  const tkData = window.DASHBOARD_TEAM_KPIS || dashboard;
+  let activeTeams = null; // null = no team-level restriction
+  if (act.team || act.businessUnit || act.nsm || act.areaManager) {
+    activeTeams = new Set();
+    if (act.team) act.team.forEach(t => activeTeams.add(t));
+    if (act.businessUnit && tkData.buToTeams) {
+      act.businessUnit.forEach(bu => (tkData.buToTeams[bu] || []).forEach(t => activeTeams.add(t)));
+    }
+    if (act.nsm && tkData.nsmToTeams) {
+      act.nsm.forEach(nsm => (tkData.nsmToTeams[nsm] || []).forEach(t => activeTeams.add(t)));
+    }
+    if (act.areaManager && tkData.amToTeams) {
+      act.areaManager.forEach(am => (tkData.amToTeams[am] || []).forEach(t => activeTeams.add(t)));
+    }
   }
+
+  // ── KPI cards — aggregate teamKpis for the resolved team set ─────────────────────
+  if (activeTeams && tkData.teamKpis) {
+    const agg = { totalRows:0, covCount:0, rfCount:0, notSeen:0,
+                  tgtVis:0, actVis:0, reps:0, custs:0 };
+    for (const team of activeTeams) {
+      const tk = tkData.teamKpis[team];
+      if (!tk) continue;
+      agg.totalRows += tk._totalRows    || 0;
+      agg.covCount  += tk._covCount     || 0;
+      agg.rfCount   += tk._rfCount      || 0;
+      agg.notSeen   += tk._notSeenCount || 0;
+      agg.tgtVis    += tk.totalTargetVisits    || 0;
+      agg.actVis    += tk.totalActualVisits     || 0;
+      agg.reps      += tk.activeEmployees       || 0;
+      agg.custs     += tk.totalUniqueCustomers  || 0;
+    }
+    const tot = agg.totalRows || 1;
+    result.kpis = Object.assign({}, dashboard.kpis, {
+      coveragePct:         agg.covCount / tot,
+      rightFreqPct:        agg.rfCount  / tot,
+      activeEmployees:     agg.reps,
+      totalTargetVisits:   agg.tgtVis,
+      totalActualVisits:   agg.actVis,
+      visitAchievementPct: agg.tgtVis ? agg.actVis / agg.tgtVis : null,
+      notSeenCount:        agg.notSeen,
+      notSeenPct:          agg.notSeen / tot,
+    });
+    // Suppress deltas — filtered KPIs have no meaningful prior-period comparison
+    result.kpiDeltas = {};
+  }
+
+  // ── teamComparison — keyed on .team ────────────────────────────────────────────
+  if (activeTeams) {
+    result.teamComparison = dashboard.teamComparison.filter(r => activeTeams.has(r.team));
+  }
+
+  // ── managerRanking — filter by direct manager selection OR by team ────────
   if (act.manager) {
     result.managerRanking = dashboard.managerRanking.filter(r => act.manager.has(r.name));
+  } else if (activeTeams && tkData.managerToTeam) {
+    result.managerRanking = dashboard.managerRanking.filter(r =>
+      activeTeams.has(tkData.managerToTeam[r.name])
+    );
   }
+
+  // ── areaManagerRanking — filter by direct AM selection OR by team ─────────
   if (act.areaManager) {
     result.areaManagerRanking = dashboard.areaManagerRanking.filter(r => act.areaManager.has(r.name));
+  } else if (activeTeams && tkData.amToTeams) {
+    result.areaManagerRanking = dashboard.areaManagerRanking.filter(r => {
+      const amTeams = tkData.amToTeams[r.name] || [];
+      return amTeams.some(t => activeTeams.has(t));
+    });
   }
-  if (act.team || act.manager || act.employee) {
-    const lbOk = r => (!act.team || act.team.has(r.team))
-                   && (!act.manager || act.manager.has(r.manager))
+
+  // ── leaderboards — have .team, .manager, .employee ───────────────────────────
+  if (activeTeams || act.manager || act.employee) {
+    const lbOk = r => (!activeTeams || activeTeams.has(r.team))
+                   && (!act.manager  || act.manager.has(r.manager))
                    && (!act.employee || act.employee.has(r.employee));
     result.leaderboards = {
       top:    dashboard.leaderboards.top.filter(lbOk),
       bottom: dashboard.leaderboards.bottom.filter(lbOk),
     };
   }
-  if (act.team || act.employee) {
+
+  // ── quarterlyCustomerCoverage — has .team and .name (employee name) ────────
+  if (activeTeams || act.employee) {
     result.quarterlyCustomerCoverage = dashboard.quarterlyCustomerCoverage.filter(r =>
-      (!act.team || act.team.has(r.team)) &&
+      (!activeTeams  || activeTeams.has(r.team)) &&
       (!act.employee || act.employee.has(r.name))
     );
   }
+
   return result;
 }
-
 function renderAll(result, dims, filterState) {
   UI.renderKpiCards(sections.kpis, result.kpis, result.kpiDeltas, result.trend.series);
 
