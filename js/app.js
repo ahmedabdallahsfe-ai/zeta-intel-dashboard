@@ -273,7 +273,7 @@ function renderAll(result, dims, filterState) {
   renderTeamComparison(result);
   renderRFNarrative(result);
   renderRankingTables(result);
-  renderKolCoverage(filterState);
+  renderKolCoverage(filterState, result.quarterlyCustomerCoverage);
   renderSpecialtyClassCharts(result);
   renderLeaderboards(result);
   renderAttritionVacancyQuality(result, dims);
@@ -770,8 +770,10 @@ function ragClass(pct) {
   return "kol-red";
 }
 
-function renderKolCoverage(filterState) {
-  const rows = Analytics.getKolCoverage(filterState || Analytics.defaultFilters());
+function renderKolCoverage(filterState, cachedRows) {
+  let rows = Analytics.getKolCoverage(filterState || Analytics.defaultFilters());
+  // View-only mode: Analytics has no raw records — fall back to pre-computed cache
+  if (!rows.length && cachedRows && cachedRows.length) rows = cachedRows;
 
   if (!rows.length) {
     sections.kolTable.innerHTML = UI.emptyState("No customer data for the current filters.");
