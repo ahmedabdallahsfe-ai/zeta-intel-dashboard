@@ -72,24 +72,35 @@ echo   Refresh complete - pushing to GitHub...
 echo ============================================================
 echo.
 
+set "GIT_CMD=git"
 where git >nul 2>nul
 if errorlevel 1 (
+    if exist "C:\\Program Files\\Git\\cmd\\git.exe" (
+        set "GIT_CMD=C:\\Program Files\\Git\\cmd\\git.exe"
+    ) else if exist "C:\\Program Files (x86)\\Git\\cmd\\git.exe" (
+        set "GIT_CMD=C:\\Program Files (x86)\\Git\\cmd\\git.exe"
+    ) else (
+        set "GIT_CMD="
+    )
+)
+
+if "%GIT_CMD%"=="" (
     echo [WARNING] Git is not installed or not on PATH.
     echo Skipping automatic GitHub push. You can commit and push the 
     echo files in cache/ using GitHub Desktop or manually.
 ) else (
     echo Staging and committing updated data files...
-    git add -f cache/metadata.data.js
-    git add -f cache/dashboard.data.js
-    git add -f cache/teamkpis.data.js
-    git add -f cache/records.data.js
-    git add -f cache/organogram.data.js
-    git add js/*.js
-    git add css/*.css
-    git add dashboard.html
-    git commit -m "Auto-refresh dashboard data"
+    "%GIT_CMD%" add -f cache/metadata.data.js
+    "%GIT_CMD%" add -f cache/dashboard.data.js
+    "%GIT_CMD%" add -f cache/teamkpis.data.js
+    "%GIT_CMD%" add -f cache/records.data.js
+    "%GIT_CMD%" add -f cache/organogram.data.js
+    "%GIT_CMD%" add js/*.js
+    "%GIT_CMD%" add css/*.css
+    "%GIT_CMD%" add dashboard.html
+    "%GIT_CMD%" commit -m "Auto-refresh dashboard data"
     echo Pushing to GitHub repository...
-    git push origin main
+    "%GIT_CMD%" push origin main
     if errorlevel 1 (
         echo [WARNING] Git push failed. Verify your network or credentials.
     ) else (
