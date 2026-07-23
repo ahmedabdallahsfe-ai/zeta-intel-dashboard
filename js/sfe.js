@@ -562,7 +562,9 @@
                       <th>Manager Name</th>
                       <th>Role</th>
                       <th>Line</th>
+                      <th>Planned Headcount</th>
                       <th>Active Span</th>
+                      <th>Vacancies</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -614,9 +616,10 @@
                       No reps exceed the 30-brick guidelines in this scope.
                     </div>
                   ` : filteredOverloadedReps.map(r => `
-                    <div class="sfe-list-item" style="padding: 10px 14px;">
+                    <div class="sfe-list-item sfe-overloaded-item" style="padding: 10px 14px; cursor: pointer; transition: background 0.15s ease;" 
+                      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-rep="${r.rep}">
                       <div class="sfe-item-info">
-                        <span class="sfe-item-name" style="font-size: 0.9rem;">${r.rep}</span>
+                        <span class="sfe-item-name" style="font-size: 0.9rem; font-weight: 600; color: #0f4c81;">${r.rep}</span>
                         <span class="sfe-item-sub">${r.line} - DM: ${r.dm}</span>
                       </div>
                       <span class="badge-overload">${r.bricks} Bricks</span>
@@ -636,6 +639,17 @@
         });
 
         this.filterSpanTable({ dmSpan: filteredDmSpan, asmSpan: filteredAsmSpan }, panelEl.querySelector('#sfe-span-tbody'));
+
+        // Add click handlers for overloaded reps
+        panelEl.querySelectorAll('.sfe-overloaded-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const repName = item.dataset.rep;
+            const repInfo = filteredOverloadedReps.find(x => x.rep === repName);
+            if (repInfo) {
+              this.openRepBricksModal(repInfo);
+            }
+          });
+        });
 
       } else if (tabId === 'tenure') {
         const tenure = data.tenureStability;
@@ -803,8 +817,16 @@
             </span>
           </td>
           <td>${m.line}</td>
-          <td style="font-weight: 700; ${m.overloaded ? 'color: #ef4444;' : ''}">
+          <td style="font-weight: 600; color: #475569;">
+            ${m.plannedCount || 0} ${m.role === 'DM' ? 'Reps' : 'DMs'}
+          </td>
+          <td style="font-weight: 700; ${m.overloaded ? 'color: #ef4444;' : 'color: #0f4c81;'}">
             ${m.spanCount} ${m.role === 'DM' ? 'Reps' : 'DMs'}
+          </td>
+          <td>
+            <span style="${m.vacantCount > 0 ? 'color: #ef4444; font-weight: 700;' : 'color: #64748b;'}">
+              ${m.vacantCount || 0} ${m.role === 'DM' ? 'Reps' : 'DMs'}
+            </span>
           </td>
           <td>
             ${m.overloaded ? 
@@ -814,6 +836,86 @@
           </td>
         </tr>
       `).join('');
+    },
+
+    openRepBricksModal(repInfo) {
+      const overlay = document.getElementById("ns-modal-overlay");
+      const badge   = document.getElementById("ns-modal-badge");
+      const body    = document.getElementById("ns-modal-body");
+      const info    = document.getElementById("ns-modal-info");
+      const titleEl = document.getElementById("ns-modal-title-text");
+      const searchEl= document.getElementById("ns-modal-search");
+      const prevBtn = document.getElementById("ns-modal-prev");
+      const nextBtn = document.getElementById("ns-modal-next");
+      const pageLabel=document.getElementById("ns-modal-page-label");
+      const exportBtn=document.getElementById("ns-modal-export");
+
+      titleEl.textContent = `Bricks Covered by ${repInfo.rep}`;
+      badge.textContent   = repInfo.brickList ? repInfo.brickList.length : 0;
+      searchEl.value      = "";
+      prevBtn.disabled    = true;
+      nextBtn.disabled    = true;
+      pageLabel.textContent = "";
+      
+      const list = repInfo.brickList || [];
+      info.textContent    = `${list.length} brick${list.length !== 1 ? "s" : ""} assigned to this position`;
+
+      const COLS = [
+        { key: "brick",    label: "Brick ID / Name", width: "25%" },
+        { key: "position", label: "Position",        width: "25%" },
+        { key: "area",     label: "Area",            width: "25%" },
+        { key: "district", label: "District",        width: "25%" }
+      ];
+
+      function renderBodyRows(filteredRows) {
+        if (!filteredRows.length) {
+          body.innerHTML = `<div style="padding:32px;text-align:center;color:#94A3B8;">No bricks match search.</div>`;
+          return;
+        }
+        const colgroup = COLS.map((c) => `<col style="width:${c.width}">`).join("");
+        const thead    = COLS.map((c) => `<th>${c.label}</th>`).join("");
+        const tbody = filteredRows.map((r) =>
+          `<tr>${COLS.map((c) =>
+            `<td>${r[c.key] || ''}</td>`
+          ).join("")}</tr>`
+        ).join("");
+        
+        body.innerHTML = `<table class="data-table">
+          <colgroup>${colgroup}</colgroup>
+          <thead><tr>${thead}</tr></thead>
+          <tbody>${tbody}</tbody>
+        </table>`;
+      }
+
+      let filtered = list;
+      renderBodyRows(filtered);
+      overlay.classList.add("open");
+      searchEl.focus();
+
+      // Replace search handler
+      const newSearch = searchEl.cloneNode(true);
+      newSearch.placeholder = "Search by brick, area, or district...";
+      searchEl.parentNode.replaceChild(newSearch, searchEl);
+      newSearch.addEventListener("input", (e) => {
+        const q = e.target.value.toLowerCase().trim();
+        filtered = q
+          ? list.filter((r) => 
+              ["brick", "position", "area", "district"].some(
+                (k) => String(r[k] ?? "").toLowerCase().includes(q)
+              )
+            )
+          : list;
+        renderBodyRows(filtered);
+      });
+
+      // Replace export handler
+      const newExport = exportBtn.cloneNode(true);
+      exportBtn.parentNode.replaceChild(newExport, exportBtn);
+      newExport.addEventListener("click", () => {
+        if (typeof Exporter !== "undefined") {
+          Exporter.tableToExcel(COLS, filtered, `bricks_${repInfo.rep.replace(/\s+/g, '_')}`);
+        }
+      });
     },
 
     renderTurnoverChart(tenure) {
