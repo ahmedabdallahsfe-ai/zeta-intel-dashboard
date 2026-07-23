@@ -571,6 +571,7 @@ ul.issue-list li {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 0; /* required with table-layout:fixed for ellipsis to work */
+  color: #1e293b !important;
 }
 
 .data-table tbody tr:hover {
