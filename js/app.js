@@ -108,8 +108,6 @@ document.addEventListener("DOMContentLoaded", () => {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Operational and Execution";
     } else if (tab === "sfe") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Organogram";
-    } else if (tab === "iqvia") {
-      titleEl.textContent = "Zeta Commercial Excellence Dashboard - IQVIA Market Share";
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -129,9 +127,6 @@ document.addEventListener("DOMContentLoaded", () => {
       clickedItem.classList.add("active");
       
       const tab = clickedItem.dataset.tab;
-      if (currentTab === "iqvia" && window.IQVIADashboard) {
-        window.IQVIADashboard.destroy();
-      }
       currentTab = tab;
       updateTopbarTitle(tab);
       
@@ -151,13 +146,6 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (tab === "sfe") {
         if (window.SFEDashboard) {
           window.SFEDashboard.init("app-root");
-        }
-      } else if (tab === "iqvia") {
-        if (window.SFEDashboard) {
-          window.SFEDashboard.destroy();
-        }
-        if (window.IQVIADashboard) {
-          window.IQVIADashboard.init("app-root");
         }
       }
     });
