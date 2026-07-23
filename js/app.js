@@ -691,41 +691,47 @@ function renderTrendCharts(result) {
     if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No specialty data.");
   }
 
-  // Class Visits Contribution doughnut
+  // Class Visits Contribution horizontal bar chart
   const classVisitsData = result.classVisitsDistribution || [];
   if (classVisitsData.length) {
     const classVisitsTotal = classVisitsData.reduce((s, r) => s + r.count, 0);
-    const classVisitsLabels = classVisitsData.map((r) => {
-      const pct = classVisitsTotal > 0 ? ((r.count / classVisitsTotal) * 100).toFixed(1) : "0.0";
-      return `${r.name || "(Blank)"} (${pct}%)`;
-    });
-    const classVisitsValues = classVisitsData.map((r) => (classVisitsTotal > 0 ? Math.round((r.count / classVisitsTotal) * 1000) / 10 : 0));
-    Charts.doughnutChart("chart-class-visits-distribution", classVisitsLabels, classVisitsValues, {
-      plugins: { tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.toFixed(1)}%` } } },
-    });
+    const labels = classVisitsData.map(r => r.name || "(Blank)");
+    const values = classVisitsData.map(r => classVisitsTotal > 0 ? Math.round((r.count / classVisitsTotal) * 1000) / 10 : 0);
+    
+    Charts.horizontalBarChart(
+      "chart-class-visits-distribution",
+      labels,
+      [Charts.coloredBarDataset("Visits %", labels, values)],
+      {
+        plugins: { legend: { display: false } }
+      }
+    );
   } else {
     const canvas = document.getElementById("chart-class-visits-distribution");
     if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No class visits data.");
   }
 
-  // Specialty Visits Contribution doughnut
+  // Specialty Visits Contribution horizontal bar chart
   const specialtyVisitsData = result.specialtyVisitsDistribution || [];
   if (specialtyVisitsData.length) {
     let displayVisitsData = specialtyVisitsData;
-    if (specialtyVisitsData.length > 6) {
-      const top6 = specialtyVisitsData.slice(0, 6);
-      const otherVisitsCount = specialtyVisitsData.slice(6).reduce((s, r) => s + r.count, 0);
-      displayVisitsData = [...top6, { name: "Other", count: otherVisitsCount }];
+    if (specialtyVisitsData.length > 8) {
+      const top8 = specialtyVisitsData.slice(0, 8);
+      const otherVisitsCount = specialtyVisitsData.slice(8).reduce((s, r) => s + r.count, 0);
+      displayVisitsData = [...top8, { name: "Other", count: otherVisitsCount }];
     }
     const specVisitsTotal = displayVisitsData.reduce((s, r) => s + r.count, 0);
-    const specVisitsLabels = displayVisitsData.map((r) => {
-      const pct = specVisitsTotal > 0 ? ((r.count / specVisitsTotal) * 100).toFixed(1) : "0.0";
-      return `${r.name || "(Blank)"} (${pct}%)`;
-    });
-    const specVisitsValues = displayVisitsData.map((r) => (specVisitsTotal > 0 ? Math.round((r.count / specVisitsTotal) * 1000) / 10 : 0));
-    Charts.doughnutChart("chart-specialty-visits-distribution", specVisitsLabels, specVisitsValues, {
-      plugins: { tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.toFixed(1)}%` } } },
-    });
+    const labels = displayVisitsData.map(r => r.name || "(Blank)");
+    const values = displayVisitsData.map(r => specVisitsTotal > 0 ? Math.round((r.count / specVisitsTotal) * 1000) / 10 : 0);
+
+    Charts.horizontalBarChart(
+      "chart-specialty-visits-distribution",
+      labels,
+      [Charts.coloredBarDataset("Visits %", labels, values)],
+      {
+        plugins: { legend: { display: false } }
+      }
+    );
   } else {
     const canvas = document.getElementById("chart-specialty-visits-distribution");
     if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No specialty visits data.");

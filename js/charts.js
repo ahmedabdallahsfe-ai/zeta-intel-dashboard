@@ -76,7 +76,7 @@ const Charts = (() => {
   /** Horizontal bar chart for comparisons/rankings (bars always start at
    * 0 -- never truncate the axis, per standard BI chart practice).
    * Values must be passed as 0-100 (not 0-1 fractions) for percent charts. */
-  function horizontalBarChart(canvasId, labels, datasets) {
+  function horizontalBarChart(canvasId, labels, datasets, optionsOverride = {}) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return null;
     if (registry.has(canvasId)) {
@@ -89,11 +89,11 @@ const Charts = (() => {
     const chart = new Chart(ctx, {
       type: "bar",
       data: { labels, datasets },
-      options: baseOptions({
+      options: baseOptions(Object.assign({
         indexAxis: "y",
         scales: { x: { beginAtZero: true, ticks: { callback: (v) => v + "%" } } },
         plugins: { tooltip: { callbacks: { label: pctXTooltipLabel } } },
-      }),
+      }, optionsOverride)),
     });
     registry.set(canvasId, chart);
     return chart;

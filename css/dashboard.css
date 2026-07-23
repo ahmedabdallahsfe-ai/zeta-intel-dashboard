@@ -1662,4 +1662,7 @@ ul.issue-list li {
     grid-template-columns: 1fr;
   }
 }
+.visits-contribution-grid .chart-wrap {
+  height: 320px !important;
+}
 
