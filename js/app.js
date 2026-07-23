@@ -448,14 +448,14 @@ function renderExecutiveSummary(result, filterState) {
 
   // --- 1. Resolve Active Scope Name ---
   let scopeName = "overall CHC organization";
-  if (filterState.businessUnit && filterState.businessUnit.length > 0) {
-    scopeName = `<strong>${filterState.businessUnit.join(", ")}</strong> Business Unit`;
-  } else if (filterState.team && filterState.team.length > 0) {
-    scopeName = `<strong>${filterState.team.join(", ")}</strong> Team`;
+  if (filterState.employee && filterState.employee.length > 0) {
+    scopeName = `representative <strong>${filterState.employee.join(", ")}</strong>`;
   } else if (filterState.manager && filterState.manager.length > 0) {
     scopeName = `team under Manager <strong>${filterState.manager.join(", ")}</strong>`;
-  } else if (filterState.employee && filterState.employee.length > 0) {
-    scopeName = `representative <strong>${filterState.employee.join(", ")}</strong>`;
+  } else if (filterState.team && filterState.team.length > 0) {
+    scopeName = `<strong>${filterState.team.join(", ")}</strong> Team`;
+  } else if (filterState.businessUnit && filterState.businessUnit.length > 0) {
+    scopeName = `<strong>${filterState.businessUnit.join(", ")}</strong> Business Unit`;
   }
 
   // --- 2. KPI Metrics & Formatting ---
