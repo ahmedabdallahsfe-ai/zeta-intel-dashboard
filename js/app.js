@@ -163,6 +163,15 @@ function buildLayout() {
   root.innerHTML = "";
   sections = {};
 
+  const execSection = document.createElement("section");
+  execSection.className = "dashboard-section exec-summary-section";
+  execSection.id = "sec-executive-summary";
+  execSection.innerHTML = `
+    <div class="section-header"><h2>Executive Co-Pilot &amp; Strategic Advisory</h2></div>
+    <div class="section-body" id="executive-summary-body"></div>`;
+  root.appendChild(execSection);
+  sections.execSummary = execSection.querySelector("#executive-summary-body");
+
   sections.kpis = UI.buildSection(root, "sec-kpis", "Key Performance Indicators");
 
   const callEffSection = document.createElement("section");
@@ -414,6 +423,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
  * initial load and on every filter change. */
 function renderAll(result, dims, filterState) {
   _lastResult = result;
+  renderExecutiveSummary(result, filterState);
   UI.renderKpiCards(sections.kpis, result.kpis, result.kpiDeltas, result.trend.series);
   renderCallEfficiency(result);
 
@@ -425,6 +435,147 @@ function renderAll(result, dims, filterState) {
   renderSpecialtyClassCharts(result);
   renderLeaderboards(result);
   renderAttritionVacancyQuality(result, dims);
+}
+
+function renderExecutiveSummary(result, filterState) {
+  const el = sections.execSummary;
+  if (!el) return;
+
+  const kpis = result.kpis;
+  const deltas = result.kpiDeltas;
+  const rf = result.rfInsights;
+  if (!kpis || !rf) { el.innerHTML = ""; return; }
+
+  // --- 1. Resolve Active Scope Name ---
+  let scopeName = "overall CHC organization";
+  if (filterState.businessUnit && filterState.businessUnit.length > 0) {
+    scopeName = `<strong>${filterState.businessUnit.join(", ")}</strong> Business Unit`;
+  } else if (filterState.team && filterState.team.length > 0) {
+    scopeName = `<strong>${filterState.team.join(", ")}</strong> Team`;
+  } else if (filterState.manager && filterState.manager.length > 0) {
+    scopeName = `team under Manager <strong>${filterState.manager.join(", ")}</strong>`;
+  } else if (filterState.employee && filterState.employee.length > 0) {
+    scopeName = `representative <strong>${filterState.employee.join(", ")}</strong>`;
+  }
+
+  // --- 2. KPI Metrics & Formatting ---
+  const fmtPct = v => v == null ? "–" : (v * 100).toFixed(1) + "%";
+  const fmtDelta = v => {
+    if (v == null) return "flat";
+    const val = v * 100;
+    return val > 0 ? `+${val.toFixed(1)}%` : `${val.toFixed(1)}%`;
+  };
+  const fmtN = v => v == null ? "–" : v.toLocaleString();
+
+  const rfPct = kpis.rightFreqPct;
+  const covPct = kpis.coveragePct;
+  const achPct = kpis.visitAchievementPct;
+  const atRiskPct = rf.totalCustomers > 0 ? (rf.atRiskCount / rf.totalCustomers) : 0;
+  
+  const rfDeltaStr = fmtDelta(deltas.rightFreqPctDelta);
+  const rfDirection = (deltas.rightFreqPctDelta || 0) > 0.005 ? "improving" : (deltas.rightFreqPctDelta || 0) < -0.005 ? "declining" : "stable";
+
+  // --- 3. Identify Strengths & Opportunities (Drivers) ---
+  let topSegmentDesc = "";
+  if (rf.rfByClass && rf.rfByClass.length > 0) {
+    const topClass = rf.rfByClass[0];
+    topSegmentDesc = `Class ${topClass.name} (tracking at ${fmtPct(topClass.rightFreqPct)} RF)`;
+  }
+  if (rf.rfBySpecialty && rf.rfBySpecialty.length > 0) {
+    const topSpec = rf.rfBySpecialty[0];
+    if (topSegmentDesc) topSegmentDesc += ` and `;
+    topSegmentDesc += `Specialty ${topSpec.name} (${fmtPct(topSpec.rightFreqPct)} RF)`;
+  }
+  if (!topSegmentDesc) topSegmentDesc = "general call coverage";
+
+  // --- 4. Identify Risks & Leakage ---
+  let riskDesc = "";
+  if (rf.atRiskCount > 0) {
+    riskDesc = `<strong>${fmtN(rf.atRiskCount)} at-risk doctors</strong> (${fmtPct(atRiskPct)} of scope) receiving zero right-frequency visits`;
+  }
+  let bottomSegmentDesc = "";
+  if (rf.rfByClass && rf.rfByClass.length > 0) {
+    const bottomClass = rf.rfByClass[rf.rfByClass.length - 1];
+    bottomSegmentDesc = `Class ${bottomClass.name} (lagging at ${fmtPct(bottomClass.rightFreqPct)} RF)`;
+  }
+  if (rf.rfBySpecialty && rf.rfBySpecialty.length > 0) {
+    const bottomSpec = rf.rfBySpecialty[rf.rfBySpecialty.length - 1];
+    if (bottomSegmentDesc) bottomSegmentDesc += ` and `;
+    bottomSegmentDesc += `Specialty ${bottomSpec.name} (${fmtPct(bottomSpec.rightFreqPct)} RF)`;
+  }
+  if (!bottomSegmentDesc) bottomSegmentDesc = "minor segments";
+
+  // Call Efficiency numbers
+  const onTarget = kpis.onTargetCalls || 0;
+  const wasted   = kpis.wastedCalls || 0;
+  const missed   = kpis.missedCalls || 0;
+  const totalCalls = onTarget + wasted + missed;
+  const wastedPctStr = totalCalls > 0 ? ((wasted / totalCalls) * 100).toFixed(1) + "%" : "0%";
+  const missedPctStr = totalCalls > 0 ? ((missed / totalCalls) * 100).toFixed(1) + "%" : "0%";
+
+  // --- 5. Action Items ---
+  const bottomReps = rf.rfBottom10 ? rf.rfBottom10.slice(0, 3).map(r => r.name).join(", ") : "";
+
+  // --- 6. Formulate Executive Paragraph ---
+  let summaryText = "";
+  const periodName = kpis.latestMonth || "June";
+
+  if (rfPct >= 0.80) {
+    summaryText = `For the period ending **${periodName}**, ${scopeName} delivered **exceptional commercial performance** with a Right Frequency (RF) score of **${fmtPct(rfPct)}** (an ${rfDirection} trend of **${rfDeltaStr}**). This success is backed by highly optimized execution in **${topSegmentDesc}**. While overall health is excellent, management should monitor minor leakage in **${bottomSegmentDesc}** and re-allocate the **${fmtN(wasted)} wasted visits** (${wastedPctStr} of call capacity) to cover the remaining **${fmtN(rf.atRiskCount)} zero-visit doctors** to lock in 100% compliance.`;
+  } else if (rfPct >= 0.60) {
+    summaryText = `For the period ending **${periodName}**, ${scopeName} is tracking in the **watch zone** with a Right Frequency (RF) score of **${fmtPct(rfPct)}** (${rfDirection} at **${rfDeltaStr}**). Strong performance in **${topSegmentDesc}** is currently offsetting execution gaps in **${bottomSegmentDesc}**. The primary bottleneck is call dilution: **${wastedPctStr}** of actual calls (**${fmtN(wasted)} visits**) were wasted on over-servicing, while **${fmtN(rf.atRiskCount)} critical doctors** received zero frequency achievement. Immediate reallocation of this capacity is recommended to rescue these at-risk accounts.`;
+  } else {
+    summaryText = `For the period ending **${periodName}**, ${scopeName} displays a **critical frequency deficit**, tracking at a Right Frequency (RF) score of **${fmtPct(rfPct)}** (a ${rfDirection} trend of **${rfDeltaStr}**). Although visit coverage stands at ${fmtPct(covPct)}, poor call plan compliance has resulted in **${fmtN(missed)} missed visits** (${missedPctStr} of total planned effort) and **${fmtN(rf.atRiskCount)} doctors** receiving zero visits. Management must intervene to enforce call-cadence compliance, particularly in **${bottomSegmentDesc}**, and redirect the **${fmtN(wasted)} wasted over-target visits** to high-priority accounts.`;
+  }
+
+  // --- 7. Assemble HTML ---
+  el.innerHTML = `
+    <div class="exec-summary-card">
+      <div class="exec-summary-paragraph">
+        ${summaryText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
+      </div>
+      <div class="exec-grid-cards">
+        <div class="exec-kpi-card diagnostic">
+          <div class="exec-card-title">🔍 Performance Diagnosis</div>
+          <div class="exec-card-body">
+            <ul>
+              <li>Right Frequency is at <strong>${fmtPct(rfPct)}</strong> (trend: <strong>${rfDeltaStr}</strong>).</li>
+              <li>Overall Call Coverage is <strong>${fmtPct(covPct)}</strong> against <strong>${fmtN(rf.totalCustomers)}</strong> shared customer accounts.</li>
+              <li>Visit Achievement reached <strong>${fmtPct(achPct)}</strong>, executing <strong>${fmtN(kpis.totalActualVisits)}</strong> out of <strong>${fmtN(kpis.totalTargetVisits)}</strong> planned visits.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="exec-kpi-card driver">
+          <div class="exec-card-title">📈 Productivity Drivers</div>
+          <div class="exec-card-body">
+            <ul>
+              <li>Top performing segment is <strong>${topSegmentDesc}</strong>.</li>
+              <li>On-Target efficiency: <strong>${((onTarget / (totalCalls || 1)) * 100).toFixed(1)}%</strong> of executed calls directly contributed to meeting planned frequency targets.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="exec-kpi-card leakage">
+          <div class="exec-card-title">⚠️ Leakage &amp; Risks</div>
+          <div class="exec-card-body">
+            <ul>
+              <li><strong>${riskDesc || "No significant customer leakage"}</strong>.</li>
+              <li>Bottom performing segment is <strong>${bottomSegmentDesc}</strong>.</li>
+              <li>Call Dilution: <strong>${wastedPctStr}</strong> of field efforts (${fmtN(wasted)} visits) were wasted on over-servicing.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="exec-kpi-card action">
+          <div class="exec-card-title">💡 Strategic Executive Actions</div>
+          <div class="exec-card-body">
+            <ul>
+              <li><strong>Redirect</strong> ${fmtN(wasted)} wasted over-target calls to cover the ${fmtN(rf.atRiskCount)} zero-visit doctors.</li>
+              ${bottomReps ? `<li><strong>Audit</strong> call planning and target compliance for bottom reps: <em>${bottomReps}</em>.</li>` : ""}
+              <li><strong>Enforce</strong> strict call planning in weekly line-manager reviews to curb call dilution.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderCallEfficiency(result) {

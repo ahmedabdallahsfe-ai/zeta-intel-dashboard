@@ -273,6 +273,7 @@ ul.issue-list li {
   position: relative;
   overflow: hidden; /* ensures the top border respects border-radius */
 }
+#sec-executive-summary { border-top: 4px solid #B45309; }
 #sec-kpis { border-top: 4px solid #4F46E5; }
 #sec-call-efficiency { border-top: 4px solid #3B82F6; }
 #sec-trends { border-top: 4px solid #06B6D4; }
@@ -1583,3 +1584,71 @@ ul.issue-list li {
   .rf-panel-half   { grid-column: 1 / -1; }
   .rf-bar-row      { grid-template-columns: 110px 1fr 48px 70px; }
 }
+
+/* ── Executive Summary & Decision Support System Styles ── */
+.exec-summary-card {
+  padding: 8px 0;
+}
+.exec-summary-paragraph {
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: #1E293B;
+  font-weight: 400;
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: #F8FAFC;
+  border-left: 4px solid #B45309;
+  border-radius: 4px;
+}
+.exec-summary-paragraph strong {
+  font-weight: 600;
+  color: #0F172A;
+}
+.exec-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+.exec-kpi-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.3s ease;
+}
+.exec-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+.exec-kpi-card.diagnostic { border-top: 3px solid #3B82F6; }
+.exec-kpi-card.driver { border-top: 3px solid #10B981; }
+.exec-kpi-card.leakage { border-top: 3px solid #EF4444; }
+.exec-kpi-card.action { border-top: 3px solid #F59E0B; }
+
+.exec-card-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0F172A;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+.exec-card-body ul {
+  padding-left: 16px;
+  margin: 0;
+}
+.exec-card-body li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #334155;
+  margin-bottom: 8px;
+  list-style-type: square;
+}
+
+@media (max-width: 1024px) {
+  .exec-grid-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .exec-grid-cards { grid-template-columns: 1fr; }
+}
+
