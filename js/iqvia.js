@@ -7983,10 +7983,6 @@ function fetchNotifications() {
   // No valid session — login screen is visible by default (no class needed)
 })();
 
-
-</body>
-</html>
-
 // --- Dynamic Module Controller ---
 window.IQVIADashboard = {
   init(containerId) {
