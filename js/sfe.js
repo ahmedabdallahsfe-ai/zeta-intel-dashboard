@@ -488,15 +488,37 @@
         const overstretchedDms = filteredDmSpan.filter(dm => dm.overloaded).length;
         const overstretchedAsms = filteredAsmSpan.filter(asm => asm.overloaded).length;
 
-        // Filter overloaded reps list
-        const filteredOverloadedReps = (data.brickWorkload.overloadedReps || []).filter(r => {
-          return this.isDmInFilter(r.dm, data);
+        // Filter active reps workload list dynamically
+        const filteredWorkloadReps = (data.brickWorkload.reps || []).filter(r => {
+          if (this.filters.line !== 'ALL' && r.line !== this.filters.line) return false;
+          if (this.filters.bum !== 'ALL' && r.bum !== this.filters.bum) return false;
+          if (this.filters.nsm !== 'ALL' && r.nsm !== this.filters.nsm) return false;
+          if (this.filters.asm !== 'ALL' && r.asm !== this.filters.asm) return false;
+          if (this.filters.dm !== 'ALL' && r.dm !== this.filters.dm) return false;
+          return true;
         });
 
-        // Filter brick workload buckets based on matching reps in filters
-        // Wait: since we only have the total buckets pre-computed, we can approximate,
-        // or just display a clean count of overloaded reps in scope.
-        // Let's filter the workload buckets dynamically based on our active roster!
+        // Compute workload stats dynamically
+        let totalBricks = 0;
+        let bucketLight = 0;
+        let bucketBalanced = 0;
+        let bucketDense = 0;
+        let bucketOverloaded = 0;
+
+        filteredWorkloadReps.forEach(r => {
+          totalBricks += r.bricks;
+          if (r.bricks < 5) bucketLight++;
+          else if (r.bricks <= 15) bucketBalanced++;
+          else if (r.bricks <= 30) bucketDense++;
+          else bucketOverloaded++;
+        });
+
+        const avgBricks = filteredWorkloadReps.length > 0 
+          ? (totalBricks / filteredWorkloadReps.length).toFixed(1) 
+          : '0.0';
+
+        // Filter overloaded reps (bricks > 30) from our dynamically filtered workload reps list
+        const filteredOverloadedReps = filteredWorkloadReps.filter(r => r.bricks > 30);
 
         panelEl.innerHTML = `
           <!-- KPI Cards row -->
@@ -559,26 +581,26 @@
               <div style="display: flex; flex-direction: column; gap: 14px; background: #ffffff; padding: 18px; border-radius: 4px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
                   <span>Average Bricks / Rep in Scope:</span>
-                  <strong style="color: #0f4c81;">${data.brickWorkload.averageBricksPerRep} Bricks</strong>
+                  <strong style="color: #0f4c81;">${avgBricks} Bricks</strong>
                 </div>
                 
                 <!-- Buckets Breakdown (representing general distributions) -->
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
                   <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
                     <span>Light (&lt;5 bricks):</span>
-                    <strong style="color: #64748b;">${data.brickWorkload.buckets.light} reps</strong>
+                    <strong style="color: #64748b;">${bucketLight} reps</strong>
                   </div>
                   <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
                     <span>Balanced (5-15 bricks):</span>
-                    <strong style="color: #10b981;">${data.brickWorkload.buckets.balanced} reps</strong>
+                    <strong style="color: #10b981;">${bucketBalanced} reps</strong>
                   </div>
                   <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
                     <span>Dense (16-30 bricks):</span>
-                    <strong style="color: #f59e0b;">${data.brickWorkload.buckets.dense} reps</strong>
+                    <strong style="color: #f59e0b;">${bucketDense} reps</strong>
                   </div>
                   <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
                     <span>Overloaded (&gt;30 bricks):</span>
-                    <strong style="color: #ef4444;">${data.brickWorkload.buckets.overloaded} reps</strong>
+                    <strong style="color: #ef4444;">${bucketOverloaded} reps</strong>
                   </div>
                 </div>
               </div>
