@@ -124,34 +124,34 @@
         <div class="sfe-dashboard-container">
           
           <!-- Best Practice Cascading Filter Bar -->
-          <div class="sfe-card" style="padding: 16px 24px; background: #12162b;">
-            <div style="font-size: 0.85rem; font-weight: 700; color: #8a94a6; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em;">
+          <div class="sfe-card" style="padding: 16px 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px;">
+            <div style="font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em;">
               🔍 ZETA ORGANOGRAM FILTERS
             </div>
             <div class="sfe-filters-bar" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;">
               <div>
-                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">LINE</label>
-                <select id="sf-filter-line" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+                <label style="display:block; font-size:0.75rem; color:#64748b; font-weight:700; margin-bottom:6px;">LINE</label>
+                <select id="sf-filter-line" class="filter-select" style="width:100%; padding:8px; background:#ffffff; color:#1e293b; border:1px solid #cbd5e1; border-radius: 4px; border-radius:6px; font-weight:600; cursor:pointer;"></select>
               </div>
               <div>
-                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">BUSINESS UNIT (BUM)</label>
-                <select id="sf-filter-bum" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+                <label style="display:block; font-size:0.75rem; color:#64748b; font-weight:700; margin-bottom:6px;">BUSINESS UNIT (BUM)</label>
+                <select id="sf-filter-bum" class="filter-select" style="width:100%; padding:8px; background:#ffffff; color:#1e293b; border:1px solid #cbd5e1; border-radius: 4px; border-radius:6px; font-weight:600; cursor:pointer;"></select>
               </div>
               <div>
-                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">NSM</label>
-                <select id="sf-filter-nsm" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+                <label style="display:block; font-size:0.75rem; color:#64748b; font-weight:700; margin-bottom:6px;">NSM</label>
+                <select id="sf-filter-nsm" class="filter-select" style="width:100%; padding:8px; background:#ffffff; color:#1e293b; border:1px solid #cbd5e1; border-radius: 4px; border-radius:6px; font-weight:600; cursor:pointer;"></select>
               </div>
               <div>
-                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">ASM</label>
-                <select id="sf-filter-asm" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+                <label style="display:block; font-size:0.75rem; color:#64748b; font-weight:700; margin-bottom:6px;">ASM</label>
+                <select id="sf-filter-asm" class="filter-select" style="width:100%; padding:8px; background:#ffffff; color:#1e293b; border:1px solid #cbd5e1; border-radius: 4px; border-radius:6px; font-weight:600; cursor:pointer;"></select>
               </div>
               <div>
-                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">DISTRICT MANAGER (DM)</label>
-                <select id="sf-filter-dm" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+                <label style="display:block; font-size:0.75rem; color:#64748b; font-weight:700; margin-bottom:6px;">DISTRICT MANAGER (DM)</label>
+                <select id="sf-filter-dm" class="filter-select" style="width:100%; padding:8px; background:#ffffff; color:#1e293b; border:1px solid #cbd5e1; border-radius: 4px; border-radius:6px; font-weight:600; cursor:pointer;"></select>
               </div>
             </div>
             <div style="display:flex; justify-content:flex-end; margin-top:12px;">
-              <button id="sf-reset-btn" style="background:transparent; border:none; color:#4e80f7; cursor:pointer; font-size:0.85rem; font-weight:700; text-decoration:underline;">Reset Filters</button>
+              <button id="sf-reset-btn" style="background:transparent; border:none; color:#0f4c81; cursor:pointer; font-size:0.85rem; font-weight:700; text-decoration:underline;">Reset Filters</button>
             </div>
           </div>
 
@@ -174,7 +174,7 @@
             <div class="sfe-kpi-card">
               <div class="sfe-kpi-icon" style="color: #ef4444; background: rgba(239, 68, 68, 0.1);">⚠️</div>
               <div class="sfe-kpi-info">
-                <span class="sfe-kpi-val">${totalVacant} <span style="font-size: 0.9rem; font-weight: normal; color: #8a94a6;">(${overallVacancyRate}%)</span></span>
+                <span class="sfe-kpi-val">${totalVacant} <span style="font-size: 0.9rem; font-weight: normal; color: #64748b;">(${overallVacancyRate}%)</span></span>
                 <span class="sfe-kpi-lbl">Vacant Positions</span>
               </div>
             </div>
@@ -379,15 +379,15 @@
                     </tr>
                   </thead>
                   <tbody>
-                    ${lineStatsList.length === 0 ? `<tr><td colspan="4" style="text-align:center; color:#8a94a6;">No matching records</td></tr>` : lineStatsList.map(l => `
+                    ${lineStatsList.length === 0 ? `<tr><td colspan="4" style="text-align:center; color:#64748b;">No matching records</td></tr>` : lineStatsList.map(l => `
                       <tr>
-                        <td style="font-weight: 700; color: #ffffff;">${l.line}</td>
+                        <td style="font-weight: 700; color: #1e293b;">${l.line}</td>
                         <td>${l.total}</td>
                         <td style="${l.vacant > 0 ? 'color: #ef4444; font-weight: 700;' : ''}">${l.vacant}</td>
                         <td>
                           <div style="display: flex; align-items: center; gap: 8px;">
-                            <div style="flex-grow: 1; height: 8px; background: #232845; border-radius: 4px; overflow: hidden;">
-                              <div style="width: ${l.vacancyRate}%; height: 100%; background: #4e80f7; border-radius: 4px;"></div>
+                            <div style="flex-grow: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                              <div style="width: ${l.vacancyRate}%; height: 100%; background: #0f4c81; border-radius: 4px;"></div>
                             </div>
                             <span style="font-weight: 700;">${l.vacancyRate}%</span>
                           </div>
@@ -413,9 +413,9 @@
                     </tr>
                   </thead>
                   <tbody>
-                    ${managerVacancyList.length === 0 ? `<tr><td colspan="4" style="text-align:center; color:#8a94a6;">No matching records</td></tr>` : managerVacancyList.map(m => `
+                    ${managerVacancyList.length === 0 ? `<tr><td colspan="4" style="text-align:center; color:#64748b;">No matching records</td></tr>` : managerVacancyList.map(m => `
                       <tr>
-                        <td style="font-weight: 700; color: #ffffff;">${m.manager}</td>
+                        <td style="font-weight: 700; color: #1e293b;">${m.manager}</td>
                         <td>${m.line}</td>
                         <td>${m.total}</td>
                         <td style="color: #ef4444; font-weight: 700;">
@@ -433,7 +433,7 @@
           <div class="sfe-card">
             <div class="sfe-card-title">
               <span>Recruitment Priority Scorecard (Vacant Positions Inspector)</span>
-              <span style="font-size: 0.85rem; font-weight: normal; color: #8a94a6; border-left: none;">
+              <span style="font-size: 0.85rem; font-weight: normal; color: #64748b; border-left: none;">
                 Total vacant positions in scope: <strong style="color: #ef4444;">${filteredVacantPositions.length}</strong>
               </span>
             </div>
@@ -518,7 +518,7 @@
             <div class="sfe-kpi-card">
               <div class="sfe-kpi-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1);">🚨</div>
               <div class="sfe-kpi-info">
-                <span class="sfe-kpi-val">${overstretchedDms + overstretchedAsms} <span style="font-size: 0.9rem; font-weight: normal; color: #8a94a6;">(${overstretchedDms} DMs / ${overstretchedAsms} ASMs)</span></span>
+                <span class="sfe-kpi-val">${overstretchedDms + overstretchedAsms} <span style="font-size: 0.9rem; font-weight: normal; color: #64748b;">(${overstretchedDms} DMs / ${overstretchedAsms} ASMs)</span></span>
                 <span class="sfe-kpi-lbl">Overstretched Managers</span>
               </div>
             </div>
@@ -556,17 +556,17 @@
               <h3 class="sfe-card-title">Brick Workload Distribution</h3>
               
               <!-- Workload Progress Buckets -->
-              <div style="display: flex; flex-direction: column; gap: 14px; background: #1a1e38; padding: 18px; border-radius: 10px; border: 1px solid #282f54;">
+              <div style="display: flex; flex-direction: column; gap: 14px; background: #ffffff; padding: 18px; border-radius: 4px; border: 1px solid #e2e8f0;">
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
                   <span>Average Bricks / Rep in Scope:</span>
-                  <strong style="color: #4e80f7;">${data.brickWorkload.averageBricksPerRep} Bricks</strong>
+                  <strong style="color: #0f4c81;">${data.brickWorkload.averageBricksPerRep} Bricks</strong>
                 </div>
                 
                 <!-- Buckets Breakdown (representing general distributions) -->
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
                   <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
                     <span>Light (&lt;5 bricks):</span>
-                    <strong style="color: #8a94a6;">${data.brickWorkload.buckets.light} reps</strong>
+                    <strong style="color: #64748b;">${data.brickWorkload.buckets.light} reps</strong>
                   </div>
                   <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
                     <span>Balanced (5-15 bricks):</span>
@@ -585,10 +585,10 @@
 
               <!-- Overloaded Reps list -->
               <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-                <h4 style="margin: 0 0 6px 0; font-size: 0.95rem; color: #ffffff;">Overloaded Reps Spotlight (&gt;30 Bricks)</h4>
+                <h4 style="margin: 0 0 6px 0; font-size: 0.95rem; color: #1e293b;">Overloaded Reps Spotlight (&gt;30 Bricks)</h4>
                 <div class="sfe-list" style="max-height: 220px;">
                   ${filteredOverloadedReps.length === 0 ? `
-                    <div style="padding: 12px; text-align: center; color: #8a94a6; font-size: 0.85rem;">
+                    <div style="padding: 12px; text-align: center; color: #64748b; font-size: 0.85rem;">
                       No reps exceed the 30-brick guidelines in this scope.
                     </div>
                   ` : filteredOverloadedReps.map(r => `
@@ -636,7 +636,7 @@
               <div class="sfe-kpi-card">
                 <div class="sfe-kpi-icon">⏳</div>
                 <div class="sfe-kpi-info">
-                  <span class="sfe-kpi-val">${tenure.lifecycleCounts.probation} <span style="font-size: 0.9rem; font-weight: normal; color: #8a94a6;">(${probationPct}%)</span></span>
+                  <span class="sfe-kpi-val">${tenure.lifecycleCounts.probation} <span style="font-size: 0.9rem; font-weight: normal; color: #64748b;">(${probationPct}%)</span></span>
                   <span class="sfe-kpi-lbl">Reps under Probation</span>
                 </div>
               </div>
@@ -655,7 +655,7 @@
                 </div>
               </div>
               <div class="sfe-kpi-card">
-                <div class="sfe-kpi-icon" style="color: #4e80f7; background: rgba(78, 128, 247, 0.1);">⚡</div>
+                <div class="sfe-kpi-icon" style="color: #0f4c81; background: rgba(78, 128, 247, 0.1);">⚡</div>
                 <div class="sfe-kpi-info">
                   <span class="sfe-kpi-val">${tenure.currentRampUpRate}%</span>
                   <span class="sfe-kpi-lbl">Ramp-up Ratio (last 6m)</span>
@@ -668,7 +668,7 @@
               <h3 class="sfe-card-title">Training Needs Alert Tracker</h3>
               <div class="training-alerts-list" style="max-height: 220px;">
                 ${filteredTrainingAlerts.length === 0 ? `
-                  <div style="padding: 20px; text-align: center; color: #8a94a6; font-size: 0.85rem;">
+                  <div style="padding: 20px; text-align: center; color: #64748b; font-size: 0.85rem;">
                     All manager team probation rates are within the 15% guideline threshold.
                   </div>
                 ` : filteredTrainingAlerts.map(a => `
@@ -719,7 +719,7 @@
       if (filtered.length === 0) {
         tbodyEl.innerHTML = `
           <tr>
-            <td colspan="7" style="text-align: center; color: #8a94a6; padding: 24px;">
+            <td colspan="7" style="text-align: center; color: #64748b; padding: 24px;">
               No vacant positions found matching "${this.searchVacantQuery}".
             </td>
           </tr>
@@ -729,7 +729,7 @@
 
       tbodyEl.innerHTML = filtered.map(p => `
         <tr>
-          <td style="font-weight: 700; color: #ffffff;">
+          <td style="font-weight: 700; color: #1e293b;">
             <span class="badge-overload" style="margin-right: 8px;">VACANT</span> ${p.position}
           </td>
           <td>${p.line}</td>
@@ -738,7 +738,7 @@
           <td>${p.asm || '-'}</td>
           <td>${p.dm || '-'}</td>
           <td>
-            <span style="font-size: 0.8rem; color: #8a94a6;">${p.area || '-'} / ${p.district || '-'}</span>
+            <span style="font-size: 0.8rem; color: #64748b;">${p.area || '-'} / ${p.district || '-'}</span>
           </td>
         </tr>
       `).join('');
@@ -764,7 +764,7 @@
       if (filtered.length === 0) {
         tbodyEl.innerHTML = `
           <tr>
-            <td colspan="5" style="text-align: center; color: #8a94a6; padding: 24px;">
+            <td colspan="5" style="text-align: center; color: #64748b; padding: 24px;">
               No managers found matching "${this.searchSpanQuery}".
             </td>
           </tr>
@@ -774,9 +774,9 @@
 
       tbodyEl.innerHTML = filtered.map(m => `
         <tr>
-          <td style="font-weight: 700; color: #ffffff;">${m.managerName}</td>
+          <td style="font-weight: 700; color: #1e293b;">${m.managerName}</td>
           <td>
-            <span style="font-size: 0.8rem; font-weight: 700; background: #232845; padding: 2px 6px; border-radius: 4px;">
+            <span style="font-size: 0.8rem; font-weight: 700; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">
               ${m.role}
             </span>
           </td>

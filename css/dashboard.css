@@ -18,8 +18,9 @@ body {
 }
 
 .topbar {
-  background: #0F2942;
-  color: #FFFFFF;
+  background: #FFFFFF;
+  color: #0F172A;
+  border-bottom: 1px solid #E2E8F0;
   padding: 12px 28px;
   display: flex;
   align-items: center;
@@ -36,6 +37,7 @@ body {
 }
 
 .topbar-logo {
+  border: 1px solid #E2E8F0;
   height: 48px;
   width: auto;
   flex-shrink: 0;
@@ -48,11 +50,12 @@ body {
 .topbar-divider {
   width: 1px;
   height: 36px;
-  background: rgba(255,255,255,0.25);
+  background: #E2E8F0;
   flex-shrink: 0;
 }
 
 .topbar h1 {
+  color: #0F172A;
   font-size: 17px;
   margin: 0;
   font-weight: 600;
@@ -90,7 +93,7 @@ body {
 .card {
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 24px;
   margin-bottom: 20px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -110,7 +113,7 @@ body {
 
 .stat {
   background: #F4F6F9;
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 14px 16px;
 }
 
@@ -349,7 +352,7 @@ ul.issue-list li {
   gap: 2px;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
-  border-radius: 14px;
+  border-radius: 4px;
   padding: 14px 16px 12px;
   min-height: 120px;
   box-sizing: border-box;
@@ -516,7 +519,7 @@ ul.issue-list li {
   max-height: 420px;
   overflow: auto;
   border: 1px solid #E2E8F0;
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .data-table {
@@ -529,8 +532,9 @@ ul.issue-list li {
 .data-table thead th {
   position: sticky;
   top: 0;
-  background: #0F2942;
-  color: #FFFFFF;
+  background: #F8FAFC;
+  color: #334155;
+  border-bottom: 2px solid #E2E8F0;
   padding: 9px 12px;
   font-weight: 600;
   text-align: left;
@@ -544,7 +548,7 @@ ul.issue-list li {
 }
 
 .data-table thead th.sortable:hover {
-  background: #16324F;
+  background: #F1F5F9;
 }
 
 .sort-arrow::after {
@@ -728,7 +732,7 @@ ul.issue-list li {
   max-width: 280px;
   background: #FFFFFF;
   border: 1px solid #CBD5E1;
-  border-radius: 8px;
+  border-radius: 4px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   display: flex;
   flex-direction: column;
@@ -828,7 +832,7 @@ ul.issue-list li {
 .topbar-export-btn {
   padding: 6px 14px;
   border: 1px solid #2E4B68;
-  background: #16324F;
+  background: #F1F5F9;
   color: #FFFFFF;
   border-radius: 6px;
   font-size: 12px;
@@ -933,7 +937,7 @@ ul.issue-list li {
 .chart-card {
   background: #FBFCFE;
   border: 1px solid #EEF2F7;
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 12px 14px;
 }
 
@@ -968,6 +972,7 @@ ul.issue-list li {
   }
 
   .topbar-logo {
+  border: 1px solid #E2E8F0;
     background: transparent;
     padding: 0;
     border-radius: 0;
@@ -1020,7 +1025,7 @@ ul.issue-list li {
 }
 .ns-modal {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 4px;
   box-shadow: 0 24px 64px rgba(0,0,0,.22);
   width: min(92vw, 1100px);
   max-height: 88vh;
@@ -1257,7 +1262,7 @@ ul.issue-list li {
   align-items: flex-start;
   gap: 12px;
   padding: 14px 18px;
-  border-radius: 8px;
+  border-radius: 4px;
   margin-bottom: 16px;
   font-size: 14px;
   line-height: 1.55;
@@ -1286,7 +1291,7 @@ ul.issue-list li {
 .rf-panel {
   background: var(--color-surface, #fff);
   border: 1px solid var(--color-border, #e5e7eb);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 16px 18px;
   overflow: hidden; /* ensures the top border respects border-radius */
 }
@@ -1412,7 +1417,7 @@ ul.issue-list li {
 
 .rf-exp-card {
   border: 2px solid;
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 14px 16px;
 }
 .rf-exp-label {
@@ -1529,7 +1534,7 @@ ul.issue-list li {
   display: flex;
   height: 24px;
   background: #F1F5F9;
-  border-radius: 12px;
+  border-radius: 4px;
   overflow: hidden;
   margin: 16px 0;
 }
@@ -1613,7 +1618,7 @@ ul.issue-list li {
 .exec-kpi-card {
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 16px;
   transition: all 0.3s ease;
 }
@@ -1681,15 +1686,15 @@ body {
 .dashboard-wrapper {
   display: flex;
   min-height: 100vh;
-  background-color: #0c0f1d;
-  color: #f1f3f9;
-  font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+  background-color: #F3F5F8;
+  color: #1E293B;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
 }
 
 .sidebar-nav {
   width: 260px;
-  background-color: #12162b;
-  border-right: 1px solid #232845;
+  background-color: #FFFFFF;
+  border-right: 1px solid #E2E8F0;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -1701,15 +1706,15 @@ body {
 }
 
 .sidebar-brand {
-  font-size: 1.4rem;
-  font-weight: 800;
-  letter-spacing: 0.15em;
-  color: #4e80f7;
-  padding: 12px 16px 36px 16px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #0F4C81;
+  padding: 12px 16px 24px 16px;
   display: flex;
   align-items: center;
   gap: 10px;
-  border-bottom: 1px solid #232845;
+  border-bottom: 1px solid #E2E8F0;
   margin-bottom: 24px;
 }
 
@@ -1726,26 +1731,25 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 18px;
-  border-radius: 10px;
-  color: #8a94a6;
+  padding: 12px 16px;
+  border-radius: 4px;
+  color: #64748B;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
   font-weight: 600;
 }
 
 .menu-item:hover {
-  background-color: #1a1e38;
-  color: #ffffff;
-  transform: translateX(4px);
+  background-color: #F1F5F9;
+  color: #0F172A;
 }
 
 .menu-item.active {
-  background: linear-gradient(135deg, #242c52 0%, #1e264a 100%);
-  color: #4e80f7;
-  border-left: 4px solid #4e80f7;
-  box-shadow: 0 4px 16px rgba(78, 128, 247, 0.15);
+  background: #E1EBF5;
+  color: #0F4C81;
+  border-left: 3px solid #0F4C81;
+  box-shadow: none;
 }
 
 .menu-icon {
@@ -1784,7 +1788,7 @@ body {
 
 .sfe-tabs-header {
   background: #12162b;
-  border-radius: 12px;
+  border-radius: 4px;
   padding: 8px;
   display: flex;
   gap: 8px;
@@ -1800,7 +1804,7 @@ body {
   color: #8a94a6;
   font-size: 0.95rem;
   font-weight: 700;
-  border-radius: 8px;
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.25s;
   display: flex;
@@ -1815,7 +1819,7 @@ body {
 }
 
 .sfe-tab-btn.active {
-  background-color: #4e80f7;
+  background-color: #0F4C81;
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(78, 128, 247, 0.3);
 }
@@ -1858,21 +1862,21 @@ body {
 
 /* Custom visual cards for SFE Dashboard */
 .sfe-card {
-  background: #12162b;
-  border: 1px solid #232845;
-  border-radius: 12px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 4px;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .sfe-card-title {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #ffffff;
-  border-left: 4px solid #4e80f7;
+  color: #0F172A;
+  border-left: 4px solid #0F4C81;
   padding-left: 10px;
   margin: 0;
   display: flex;
@@ -1921,7 +1925,7 @@ body {
 .sfe-list-item {
   background: #1a1e38;
   border: 1px solid #282f54;
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 12px 16px;
   display: flex;
   justify-content: space-between;
@@ -1930,7 +1934,7 @@ body {
 }
 
 .sfe-list-item:hover {
-  border-color: #4e80f7;
+  border-color: #0F4C81;
   background: #202647;
 }
 
@@ -1966,7 +1970,7 @@ body {
   max-height: 400px;
   overflow-y: auto;
   border: 1px solid #232845;
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .sfe-table {
@@ -1999,9 +2003,9 @@ body {
 
 /* KPI Scorecard cards custom style */
 .sfe-kpi-card {
-  background: linear-gradient(135deg, #181d36 0%, #12162b 100%);
-  border: 1px solid #232845;
-  border-radius: 12px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 4px;
   padding: 20px;
   display: flex;
   align-items: center;
@@ -2011,13 +2015,13 @@ body {
 .sfe-kpi-icon {
   width: 48px;
   height: 48px;
-  border-radius: 10px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.4rem;
-  background: rgba(78, 128, 247, 0.1);
-  color: #4e80f7;
+  background: rgba(15, 76, 129, 0.1);
+  color: #0F4C81;
 }
 
 .sfe-kpi-info {
@@ -2029,7 +2033,7 @@ body {
 .sfe-kpi-val {
   font-size: 1.5rem;
   font-weight: 800;
-  color: #ffffff;
+  color: #1E293B;
   line-height: 1.2;
 }
 
@@ -2100,8 +2104,8 @@ body {
 }
 
 .sidebar-toggle:hover {
-  color: #ffffff !important;
-  background-color: #1a1e38 !important;
+  color: #0F4C81 !important;
+  background-color: #F1F5F9 !important;
 }
 
 
