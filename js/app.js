@@ -282,10 +282,10 @@ function buildLayout() {
 
   const attritionSection = document.createElement("section");
   attritionSection.className = "dashboard-section";
-  attritionSection.id = "sec-attrition-vacancy-quality";
+  attritionSection.id = "sec-attrition-vacancy";
   attritionSection.innerHTML = `
-    <div class="section-header"><h2>Attrition, Vacancy &amp; Data Quality</h2></div>
-    <div class="section-body three-col">
+    <div class="section-header"><h2>Attrition &amp; Vacancy</h2></div>
+    <div class="section-body two-col">
       <div>
         <h3>Attrition by Team</h3>
         <div id="table-attrition"></div>
@@ -294,15 +294,10 @@ function buildLayout() {
         <h3>Vacancy Panel</h3>
         <div id="panel-vacancy"></div>
       </div>
-      <div>
-        <h3>Data Quality Summary</h3>
-        <div id="panel-data-quality"></div>
-      </div>
     </div>`;
   root.appendChild(attritionSection);
   sections.attritionTable = attritionSection.querySelector("#table-attrition");
   sections.vacancyPanel = attritionSection.querySelector("#panel-vacancy");
-  sections.dataQualityPanel = attritionSection.querySelector("#panel-data-quality");
 }
 
 /**
@@ -1075,24 +1070,6 @@ function renderAttritionVacancyQuality(result, dims) {
       </ul>`;
   }
 
-  renderDataQualityPanel(dims);
-}
-
-function renderDataQualityPanel(dims) {
-  const dashboard = CacheStore.getDashboard();
-  const dq = dashboard.dataQuality || { errors: [], warnings: [] };
-  const check = window.__selfCheck || { ok: true, mismatches: [] };
-
-  const consistencyLine = check.ok
-    ? `<li class="dq-ok">Client-side recompute matches the server-computed cache exactly.</li>`
-    : `<li class="dq-warn">Client-side recompute drifted from the server cache on: ${check.mismatches.map((m) => UI.escapeHtml(m.key)).join(", ")}. Numbers shown are still internally consistent (all client-computed), but re-run refresh.bat if this persists.</li>`;
-
-  sections.dataQualityPanel.innerHTML = `
-    <ul class="issue-list">
-      ${consistencyLine}
-      ${dq.errors.map((e) => `<li class="dq-error">${UI.escapeHtml(e)}</li>`).join("")}
-      ${dq.warnings.map((w) => `<li class="dq-warn">${UI.escapeHtml(w)}</li>`).join("")}
-    </ul>`;
 }
 
 /* ── Not-Seen Customers Modal ─────────────────────────────────────────────── */

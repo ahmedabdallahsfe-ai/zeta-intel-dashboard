@@ -283,7 +283,7 @@ ul.issue-list li {
 #sec-kol-coverage { border-top: 4px solid #F43F5E; }
 #sec-specialty-class { border-top: 4px solid #0EA5E9; }
 #sec-leaderboards { border-top: 4px solid #D97706; }
-#sec-attrition-vacancy-quality { border-top: 4px solid #64748B; }
+#sec-attrition-vacancy { border-top: 4px solid #64748B; }
 
 .dashboard-section.recomputing {
   opacity: 0.55;
