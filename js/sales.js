@@ -371,7 +371,7 @@
   // --- UI Render Router ---
   function renderLayout() {
     const res = runAggregator();
-    const container = document.querySelector(".iqvia-dashboard-wrap");
+    const container = document.getElementById("app-root");
     if (!container) return;
 
     const ach = res.tgtVal > 0 ? (res.actVal / res.tgtVal * 100).toFixed(1) : "0";
@@ -920,10 +920,12 @@
   // Define global namespace
   window.SalesDashboard = {
     init(containerId) {
+      document.body.classList.add('sales-mode');
       decompressCache();
       renderLayout();
     },
     destroy() {
+      document.body.classList.remove('sales-mode');
       if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
       if (buChartInstance) { buChartInstance.destroy(); buChartInstance = null; }
     }

@@ -2056,10 +2056,13 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Hide global filters and Topbar PDF export on SFE dashboard */
+/* Hide global filters and Topbar PDF export on SFE and Sales dashboards */
 .sfe-mode #filter-bar-container, 
 .sfe-mode .filter-bar-wrap,
-.sfe-mode #topbar-export-pdf {
+.sfe-mode #topbar-export-pdf,
+.sales-mode #filter-bar-container, 
+.sales-mode .filter-bar-wrap,
+.sales-mode #topbar-export-pdf {
   display: none !important;
 }
 
