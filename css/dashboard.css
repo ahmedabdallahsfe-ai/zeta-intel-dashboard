@@ -1652,3 +1652,14 @@ ul.issue-list li {
   .exec-grid-cards { grid-template-columns: 1fr; }
 }
 
+.visits-contribution-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+@media (max-width: 1024px) {
+  .visits-contribution-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

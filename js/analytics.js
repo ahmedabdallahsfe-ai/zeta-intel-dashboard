@@ -642,18 +642,28 @@ const Analytics = (() => {
     typeDistribution.sort((a, b) => b.count - a.count);
 
     const classDistribution = [];
+    const classVisitsDistribution = [];
     byClass.forEach((g, classIdx) => {
       const name = dims.classes[classIdx];
-      if (name !== undefined && g.rowCount > 0) classDistribution.push({ name, count: g.rowCount });
+      if (name !== undefined && g.rowCount > 0) {
+        classDistribution.push({ name, count: g.rowCount });
+        classVisitsDistribution.push({ name, count: g.visitsSum });
+      }
     });
     classDistribution.sort((a, b) => b.count - a.count);
+    classVisitsDistribution.sort((a, b) => b.count - a.count);
 
     const specialtyDistribution = [];
+    const specialtyVisitsDistribution = [];
     bySpecialty.forEach((g, specIdx) => {
       const name = dims.specialties[specIdx];
-      if (name !== undefined && g.rowCount > 0) specialtyDistribution.push({ name, count: g.rowCount });
+      if (name !== undefined && g.rowCount > 0) {
+        specialtyDistribution.push({ name, count: g.rowCount });
+        specialtyVisitsDistribution.push({ name, count: g.visitsSum });
+      }
     });
     specialtyDistribution.sort((a, b) => b.count - a.count);
+    specialtyVisitsDistribution.sort((a, b) => b.count - a.count);
 
     const qualified = Array.from(byEmployeePeriod.values()).filter(
       (g) => g.isActive && g.periodIdx === kpiPeriodIdx && g.customerCount >= MIN_CUSTOMERS_FOR_LEADERBOARD
@@ -759,6 +769,7 @@ const Analytics = (() => {
     return {
       kpis, trend, teamComparison, managerRanking, areaManagerRanking,
       specialtyCoverage, classCoverage, typeDistribution, classDistribution, specialtyDistribution,
+      classVisitsDistribution, specialtyVisitsDistribution,
       leaderboards: { top, bottom },
       attrition: { byPeriod: byPeriodAttrition, byTeam: attritionByTeam },
       vacancies: { total: kpiVacancy, byTeam: vacancyByTeamMap, details: vacancyDetails },
