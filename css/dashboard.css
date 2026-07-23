@@ -2103,3 +2103,82 @@ body {
   color: #ffffff !important;
   background-color: #1a1e38 !important;
 }
+
+
+/* Explicit High-Contrast Text Color Overrides for Right Frequency panels */
+.rf-panel {
+  color: #1e293b !important;
+}
+
+.rf-emp-table th {
+  color: #334155 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+.rf-emp-table td {
+  color: #1e293b !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.rf-emp-table .rf-rank {
+  color: #64748b !important;
+}
+
+.rf-action-item {
+  color: #1e293b !important;
+  border-left-color: #3b82f6 !important;
+}
+
+.rf-block-title {
+  color: #334155 !important;
+}
+
+.rf-muted {
+  color: #64748b !important;
+}
+
+.rf-at-risk-denom {
+  color: #64748b !important;
+}
+
+.rf-at-risk-msg {
+  color: #1e293b !important;
+}
+
+.rf-at-risk-tier-item {
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+
+.rf-at-risk-tier-item .tier-label {
+  color: #334155 !important;
+}
+
+.rf-at-risk-tier-item .tier-value {
+  color: #1e293b !important;
+  font-weight: 700;
+}
+
+.rf-exp-advice {
+  color: #1e293b !important;
+}
+
+.rf-exp-meta {
+  color: #64748b !important;
+}
+
+.rf-exp-label {
+  color: #475569 !important;
+}
+
+.rf-bar-label {
+  color: #1e293b !important;
+}
+
+.rf-bar-count {
+  color: #64748b !important;
+}
+
+.rf-bar-value {
+  color: #0f172a !important;
+}
