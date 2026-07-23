@@ -100,6 +100,22 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Helper to dynamically update the topbar title
+  function updateTopbarTitle(tab) {
+    const titleEl = document.getElementById("topbar-title");
+    if (!titleEl) return;
+    if (tab === "coverage") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Operational and Execution";
+    } else if (tab === "sfe") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Organogram";
+    } else {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard";
+    }
+  }
+
+  // Initialize title
+  updateTopbarTitle(currentTab);
+
   // Sidebar tab switching
   const menuItems = document.querySelectorAll("#sidebar-nav .menu-item");
   menuItems.forEach(item => {
@@ -112,11 +128,14 @@ document.addEventListener("DOMContentLoaded", () => {
       
       const tab = clickedItem.dataset.tab;
       currentTab = tab;
+      updateTopbarTitle(tab);
       
       if (tab === "coverage") {
         if (window.SFEDashboard) {
           window.SFEDashboard.destroy();
         }
+        // Fix rendering bug: destroy old Chart.js instances and clear registry
+        Charts.destroyAll();
         buildLayout();
         if (hasRecords) {
           const result = Analytics.run(_lastFilterState || {});
