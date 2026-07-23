@@ -165,6 +165,15 @@ function buildLayout() {
 
   sections.kpis = UI.buildSection(root, "sec-kpis", "Key Performance Indicators");
 
+  const callEffSection = document.createElement("section");
+  callEffSection.className = "dashboard-section";
+  callEffSection.id = "sec-call-efficiency";
+  callEffSection.innerHTML = `
+    <div class="section-header"><h2>Call Execution &amp; Resource Efficiency</h2></div>
+    <div class="section-body" id="call-efficiency-body"></div>`;
+  root.appendChild(callEffSection);
+  sections.callEfficiency = callEffSection.querySelector("#call-efficiency-body");
+
   const trendsSection = document.createElement("section");
   trendsSection.className = "dashboard-section";
   trendsSection.id = "sec-trends";
@@ -406,6 +415,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
 function renderAll(result, dims, filterState) {
   _lastResult = result;
   UI.renderKpiCards(sections.kpis, result.kpis, result.kpiDeltas, result.trend.series);
+  renderCallEfficiency(result);
 
   renderTrendCharts(result);
   renderTeamComparison(result);
@@ -415,6 +425,51 @@ function renderAll(result, dims, filterState) {
   renderSpecialtyClassCharts(result);
   renderLeaderboards(result);
   renderAttritionVacancyQuality(result, dims);
+}
+
+function renderCallEfficiency(result) {
+  const el = sections.callEfficiency;
+  if (!el) return;
+
+  const onTarget = result.kpis.onTargetCalls || 0;
+  const wasted   = result.kpis.wastedCalls || 0;
+  const missed   = result.kpis.missedCalls || 0;
+  const totalPool = onTarget + wasted + missed;
+  const onTargetPct = totalPool > 0 ? Math.round((onTarget / totalPool) * 100) : 0;
+  const wastedPct   = totalPool > 0 ? Math.round((wasted / totalPool) * 100) : 0;
+  const missedPct   = totalPool > 0 ? (100 - onTargetPct - wastedPct) : 0;
+
+  const fmtN = v => v == null ? "–" : v.toLocaleString();
+
+  el.innerHTML = `
+    <div class="call-eff-bar-wrap">
+      <div class="call-eff-bar-fill on-target" style="width: ${onTargetPct}%;" title="On-Target: ${onTargetPct}%"></div>
+      <div class="call-eff-bar-fill wasted" style="width: ${wastedPct}%;" title="Wasted: ${wastedPct}%"></div>
+      <div class="call-eff-bar-fill missed" style="width: ${missedPct}%;" title="Missed: ${missedPct}%"></div>
+    </div>
+    <div class="call-eff-legend-row">
+      <div class="call-eff-legend-item on-target">
+        <div class="legend-color-dot on-target"></div>
+        <div class="legend-text">
+          <span class="legend-title">On-Target Visits</span>
+          <span class="legend-desc"><strong>${fmtN(onTarget)}</strong> (${onTargetPct}%) visits within target</span>
+        </div>
+      </div>
+      <div class="call-eff-legend-item wasted">
+        <div class="legend-color-dot wasted"></div>
+        <div class="legend-text">
+          <span class="legend-title">Wasted Visits (Over-target)</span>
+          <span class="legend-desc"><strong>${fmtN(wasted)}</strong> (${wastedPct}%) visits above target</span>
+        </div>
+      </div>
+      <div class="call-eff-legend-item missed">
+        <div class="legend-color-dot missed"></div>
+        <div class="legend-text">
+          <span class="legend-title">Missed Visits (Planned)</span>
+          <span class="legend-desc"><strong>${fmtN(missed)}</strong> (${missedPct}%) planned visits missed</span>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderTrendCharts(result) {
@@ -488,14 +543,6 @@ function renderRFNarrative(result) {
   if (!el) return;
   const rf = result.rfInsights;
   if (!rf) { el.innerHTML = ""; return; }
-
-  const onTarget = result.kpis.onTargetCalls || 0;
-  const wasted   = result.kpis.wastedCalls || 0;
-  const missed   = result.kpis.missedCalls || 0;
-  const totalPool = onTarget + wasted + missed;
-  const onTargetPct = totalPool > 0 ? Math.round((onTarget / totalPool) * 100) : 0;
-  const wastedPct   = totalPool > 0 ? Math.round((wasted / totalPool) * 100) : 0;
-  const missedPct   = totalPool > 0 ? (100 - onTargetPct - wastedPct) : 0;
 
   // ── helpers ──
   const fmt  = v => v == null ? "–" : (v * 100).toFixed(1) + "%";
@@ -661,39 +708,6 @@ function renderRFNarrative(result) {
     </div>
 
     <div class="rf-insight-grid">
-
-      <!-- Call Efficiency Panel -->
-      <div class="rf-panel rf-panel-full rf-panel-call-efficiency">
-        <div class="rf-panel-title">📞 Call Execution &amp; Resource Efficiency</div>
-        <div class="call-eff-bar-wrap">
-          <div class="call-eff-bar-fill on-target" style="width: ${onTargetPct}%;" title="On-Target: ${onTargetPct}%"></div>
-          <div class="call-eff-bar-fill wasted" style="width: ${wastedPct}%;" title="Wasted: ${wastedPct}%"></div>
-          <div class="call-eff-bar-fill missed" style="width: ${missedPct}%;" title="Missed: ${missedPct}%"></div>
-        </div>
-        <div class="call-eff-legend-row">
-          <div class="call-eff-legend-item on-target">
-            <div class="legend-color-dot on-target"></div>
-            <div class="legend-text">
-              <span class="legend-title">On-Target Visits</span>
-              <span class="legend-desc"><strong>${fmtN(onTarget)}</strong> (${onTargetPct}%) visits within target</span>
-            </div>
-          </div>
-          <div class="call-eff-legend-item wasted">
-            <div class="legend-color-dot wasted"></div>
-            <div class="legend-text">
-              <span class="legend-title">Wasted Visits (Over-target)</span>
-              <span class="legend-desc"><strong>${fmtN(wasted)}</strong> (${wastedPct}%) visits above target</span>
-            </div>
-          </div>
-          <div class="call-eff-legend-item missed">
-            <div class="legend-color-dot missed"></div>
-            <div class="legend-text">
-              <span class="legend-title">Missed Visits (Planned)</span>
-              <span class="legend-desc"><strong>${fmtN(missed)}</strong> (${missedPct}%) planned visits missed</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div class="rf-panel rf-panel-full">
         <div class="rf-panel-title">RF% by Class</div>

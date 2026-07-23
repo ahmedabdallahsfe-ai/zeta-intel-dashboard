@@ -274,6 +274,7 @@ ul.issue-list li {
   overflow: hidden; /* ensures the top border respects border-radius */
 }
 #sec-kpis { border-top: 4px solid #4F46E5; }
+#sec-call-efficiency { border-top: 4px solid #3B82F6; }
 #sec-trends { border-top: 4px solid #06B6D4; }
 #sec-team-comparison { border-top: 4px solid #10B981; }
 #sec-rf-intelligence { border-top: 4px solid #8B5CF6; }
