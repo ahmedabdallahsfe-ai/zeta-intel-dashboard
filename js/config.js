@@ -82,7 +82,8 @@ const CONFIG = {
     { id: "coveragePct", label: "Coverage %", key: "coveragePct", format: "percent1", icon: "target", polarity: "up-good" },
     { id: "rightFreqPct", label: "Right Frequency %", key: "rightFreqPct", format: "percent1", icon: "repeat", polarity: "up-good" },
     { id: "customersPerRep", label: "Customers / Emp", key: "customersPerRep", format: "decimal1", icon: "briefcase", polarity: "neutral" },
-    { id: "totalUniqueCustomers", label: "Total Customers", key: "totalUniqueCustomers", format: "number", icon: "users", polarity: "neutral" },
+    { id: "totalUniqueCustomers", label: "Total Customers (Unique)", key: "totalUniqueCustomers", format: "number", icon: "users", polarity: "neutral" },
+    { id: "totalSharedCustomers", label: "Total Customers (Shared)", key: "totalSharedCustomers", format: "number", icon: "users", polarity: "neutral" },
     // Visit productivity
     { id: "totalTargetVisits", label: "Target Visits", key: "totalTargetVisits", format: "number", icon: "calendar", polarity: "neutral" },
     { id: "totalActualVisits", label: "Actual Visits", key: "totalActualVisits", format: "number", icon: "checkSquare", polarity: "up-good" },

@@ -241,7 +241,10 @@ const Filters = (() => {
     const lc = term.toLowerCase();
     list.querySelectorAll(".ms-item").forEach((item) => {
       const label = item.textContent.toLowerCase();
-      item.classList.toggle("ms-hidden-search", lc.length > 0 && !label.includes(lc));
+      const matchSearch = lc.length === 0 || label.includes(lc);
+      item.classList.toggle("ms-hidden-search", !matchSearch);
+      const isUnavailable = item.classList.contains("ms-unavailable");
+      item.style.display = (isUnavailable || !matchSearch) ? "none" : "";
     });
   }
 
@@ -318,12 +321,11 @@ const Filters = (() => {
     let anyReset = false;
 
     CONFIG.filters.fields.forEach((f) => {
-      // availableOptions uses "period" key for period, same as other fields
-      const allowedList = availableOptions[f.id];
+      const allowedKey = f.id === "class" ? "klass" : f.id;
+      const allowedList = availableOptions[allowedKey];
       if (!allowedList) return;
       const allowed = new Set(allowedList);
 
-      // All filters are now multi-select: gray-out + disable unavailable checkboxes
       const list = containerEl.querySelector(`.ms-list[data-field="${f.id}"]`);
       if (!list) return;
 
@@ -333,6 +335,7 @@ const Filters = (() => {
         const isUnavailable = !allowed.has(cb.value);
         item.classList.toggle("ms-unavailable", isUnavailable);
         cb.disabled = isUnavailable;
+        item.style.display = isUnavailable ? "none" : ""; // Force hide
       });
 
       // Auto-deselect currently-selected values that became unavailable

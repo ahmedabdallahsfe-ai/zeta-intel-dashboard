@@ -15,6 +15,7 @@
 let sections = {}; // id -> section-body element, populated once by buildLayout()
 let filenameSuffix = "AllData"; // active-filter suffix, refreshed every render, read by every export button's exportFileName
 let _lastFilterState = null; // stored so the Not-Seen modal can call getNotSeenCustomers with current filters
+let _lastResult = null; // stored so the At-Risk tiers modal can find tier lists
 
 document.addEventListener("DOMContentLoaded", () => {
   Loader.init();
@@ -166,17 +167,24 @@ function buildLayout() {
 
   const trendsSection = document.createElement("section");
   trendsSection.className = "dashboard-section";
+  trendsSection.id = "sec-trends";
   trendsSection.innerHTML = `
-    <div class="section-header"><h2>Trends</h2></div>
-    <div class="section-body chart-grid">
-      ${chartCardHtml("chart-coverage-trend", "Coverage % &amp; Right Frequency %")}
-      ${chartCardHtml("chart-type-distribution", "Customer Type Distribution", "chart-card-small")}
-      ${chartCardHtml("chart-active-resigned", "Active vs Resigned (Latest Period)", "chart-card-small")}
+    <div class="section-header"><h2>Trends &amp; Distributions</h2></div>
+    <div class="section-body">
+      <div style="margin-bottom: 24px;">
+        ${chartCardHtml("chart-coverage-trend", "Coverage % &amp; Right Frequency % Trend", "", "chart-wrap chart-wrap-wide")}
+      </div>
+      <div class="distribution-grid">
+        ${chartCardHtml("chart-type-distribution", "Customer Type Distribution", "chart-card-small")}
+        ${chartCardHtml("chart-class-distribution", "Customer Class Distribution", "chart-card-small")}
+        ${chartCardHtml("chart-specialty-distribution", "Customer Specialty Distribution", "chart-card-small")}
+      </div>
     </div>`;
   root.appendChild(trendsSection);
 
   const teamSection = document.createElement("section");
   teamSection.className = "dashboard-section";
+  teamSection.id = "sec-team-comparison";
   teamSection.innerHTML = `
     <div class="section-header"><h2>Team Comparison (Latest Period)</h2></div>
     <div class="section-body">
@@ -188,6 +196,7 @@ function buildLayout() {
 
   const rfNarrSection = document.createElement("section");
   rfNarrSection.className = "dashboard-section";
+  rfNarrSection.id = "sec-rf-intelligence";
   rfNarrSection.innerHTML = `
     <div class="section-header">
       <h2>Right Frequency Intelligence</h2>
@@ -199,6 +208,7 @@ function buildLayout() {
 
   const rankingSection = document.createElement("section");
   rankingSection.className = "dashboard-section";
+  rankingSection.id = "sec-rankings";
   rankingSection.innerHTML = `
     <div class="section-header"><h2>Manager &amp; Area Manager Ranking</h2></div>
     <div class="section-body two-col">
@@ -211,6 +221,7 @@ function buildLayout() {
 
   const kolSection = document.createElement("section");
   kolSection.className = "dashboard-section";
+  kolSection.id = "sec-kol-coverage";
   kolSection.innerHTML = `
     <div class="section-header"><h2>Quarterly Customer Coverage by Employee</h2></div>
     <div class="kol-legend">
@@ -225,6 +236,7 @@ function buildLayout() {
 
   const specClassSection = document.createElement("section");
   specClassSection.className = "dashboard-section";
+  specClassSection.id = "sec-specialty-class";
   specClassSection.innerHTML = `
     <div class="section-header"><h2>Coverage by Specialty &amp; Class</h2></div>
     <div class="section-body chart-grid">
@@ -235,11 +247,12 @@ function buildLayout() {
 
   const leaderboardSection = document.createElement("section");
   leaderboardSection.className = "dashboard-section";
+  leaderboardSection.id = "sec-leaderboards";
   leaderboardSection.innerHTML = `
     <div class="section-header"><h2>Leaderboards (Latest Period, &ge; 5 customers)</h2></div>
     <div class="section-body two-col">
-      <div><h3>Top 10 Employees</h3><div id="table-leaderboard-top"></div></div>
-      <div><h3>Bottom 10 Employees</h3><div id="table-leaderboard-bottom"></div></div>
+      <div><h3>Top Employees</h3><div id="table-leaderboard-top"></div></div>
+      <div><h3>Bottom Employees</h3><div id="table-leaderboard-bottom"></div></div>
     </div>`;
   root.appendChild(leaderboardSection);
   sections.leaderboardTop = leaderboardSection.querySelector("#table-leaderboard-top");
@@ -247,6 +260,7 @@ function buildLayout() {
 
   const attritionSection = document.createElement("section");
   attritionSection.className = "dashboard-section";
+  attritionSection.id = "sec-attrition-vacancy-quality";
   attritionSection.innerHTML = `
     <div class="section-header"><h2>Attrition, Vacancy &amp; Data Quality</h2></div>
     <div class="section-body three-col">
@@ -269,10 +283,10 @@ function buildLayout() {
   sections.dataQualityPanel = attritionSection.querySelector("#panel-data-quality");
 }
 
-/** Re-render every section from a fresh Analytics.run() result. Called on
- * initial load and on every filter change. */
 /**
  * View-only mode: filter pre-computed cache arrays by the active filter state.
+ * Sections that need raw records (KPIs, trends, rfInsights, specialty/class)
+ * stay as the full-period snapshot. Tables with hierarchy fields are filtered.
  */
 function applyViewOnlyFilters(dashboard, dims, filterState) {
   const result = Object.assign({}, dashboard);
@@ -285,7 +299,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
     if (vals && vals.length) act[key] = new Set(vals);
   }
 
-  // ── Resolve active teams from hierarchy filters ──────────────────────────────────────────
+  // ── Resolve active teams from hierarchy filters ───────────────────────────
   // BU / NSM / AM selections expand to the set of teams they contain.
   // Hierarchy maps come from window.DASHBOARD_TEAM_KPIS (the small sidecar
   // file loaded in view-only mode) or from dashboard itself if pre-embedded.
@@ -305,7 +319,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
     }
   }
 
-  // ── KPI cards — aggregate teamKpis for the resolved team set ─────────────────────
+  // ── KPI cards — aggregate teamKpis for the resolved team set ─────────────
   if (activeTeams && tkData.teamKpis) {
     const agg = { totalRows:0, covCount:0, rfCount:0, notSeen:0,
                   tgtVis:0, actVis:0, reps:0, resigned:0, custs:0 };
@@ -329,6 +343,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
       activeReps:           agg.reps,
       resignedReps:         agg.resigned,
       totalUniqueCustomers: agg.custs,
+      totalSharedCustomers: agg.totalRows,
       customersPerRep:      agg.reps > 0 ? agg.custs / agg.reps : 0,
       totalTargetVisits:    agg.tgtVis,
       totalActualVisits:    agg.actVis,
@@ -340,7 +355,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
     result.kpiDeltas = {};
   }
 
-  // ── teamComparison — keyed on .team ────────────────────────────────────────────
+  // ── teamComparison — keyed on .team ──────────────────────────────────────
   if (activeTeams) {
     result.teamComparison = dashboard.teamComparison.filter(r => activeTeams.has(r.team));
   }
@@ -364,7 +379,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
     });
   }
 
-  // ── leaderboards — have .team, .manager, .employee ───────────────────────────
+  // ── leaderboards — have .team, .manager, .employee ───────────────────────
   if (activeTeams || act.manager || act.employee) {
     const lbOk = r => (!activeTeams || activeTeams.has(r.team))
                    && (!act.manager  || act.manager.has(r.manager))
@@ -375,7 +390,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
     };
   }
 
-  // ── quarterlyCustomerCoverage — has .team and .name (employee name) ────────
+  // ── quarterlyCustomerCoverage — has .team and .name (employee name) ───────
   if (activeTeams || act.employee) {
     result.quarterlyCustomerCoverage = dashboard.quarterlyCustomerCoverage.filter(r =>
       (!activeTeams  || activeTeams.has(r.team)) &&
@@ -385,7 +400,11 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
 
   return result;
 }
+
+/** Re-render every section from a fresh Analytics.run() result. Called on
+ * initial load and on every filter change. */
 function renderAll(result, dims, filterState) {
+  _lastResult = result;
   UI.renderKpiCards(sections.kpis, result.kpis, result.kpiDeltas, result.trend.series);
 
   renderTrendCharts(result);
@@ -405,7 +424,7 @@ function renderTrendCharts(result) {
     Charts.percentSeries("Right Frequency %", result.trend.series.map((s) => s.rightFreqPct * 100), CONFIG.theme.colors.success),
   ]);
 
-  // Customer Type Distribution doughnut (moved from its own section)
+  // Customer Type Distribution doughnut
   const typeData = result.typeDistribution || [];
   if (typeData.length) {
     const typeTotal = typeData.reduce((s, r) => s + r.count, 0);
@@ -422,8 +441,45 @@ function renderTrendCharts(result) {
     if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No type data for the current filters.");
   }
 
-  const latest = result.trend.series[result.trend.series.length - 1] || { activeReps: 0, resignedReps: 0 };
-  Charts.doughnutChart("chart-active-resigned", ["Active", "Resigned"], [latest.activeReps, latest.resignedReps]);
+  // Customer Class Distribution doughnut
+  const classData = result.classDistribution || [];
+  if (classData.length) {
+    const classTotal = classData.reduce((s, r) => s + r.count, 0);
+    const classLabels = classData.map((r) => {
+      const pct = classTotal > 0 ? ((r.count / classTotal) * 100).toFixed(1) : "0.0";
+      return `${r.name || "(Blank)"} (${pct}%)`;
+    });
+    const classValues = classData.map((r) => (classTotal > 0 ? Math.round((r.count / classTotal) * 1000) / 10 : 0));
+    Charts.doughnutChart("chart-class-distribution", classLabels, classValues, {
+      plugins: { tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.toFixed(1)}%` } } },
+    });
+  } else {
+    const canvas = document.getElementById("chart-class-distribution");
+    if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No class data.");
+  }
+
+  // Customer Specialty Distribution doughnut
+  const specialtyData = result.specialtyDistribution || [];
+  if (specialtyData.length) {
+    let displayData = specialtyData;
+    if (specialtyData.length > 6) {
+      const top6 = specialtyData.slice(0, 6);
+      const otherCount = specialtyData.slice(6).reduce((s, r) => s + r.count, 0);
+      displayData = [...top6, { name: "Other", count: otherCount }];
+    }
+    const specTotal = displayData.reduce((s, r) => s + r.count, 0);
+    const specLabels = displayData.map((r) => {
+      const pct = specTotal > 0 ? ((r.count / specTotal) * 100).toFixed(1) : "0.0";
+      return `${r.name || "(Blank)"} (${pct}%)`;
+    });
+    const specValues = displayData.map((r) => (specTotal > 0 ? Math.round((r.count / specTotal) * 1000) / 10 : 0));
+    Charts.doughnutChart("chart-specialty-distribution", specLabels, specValues, {
+      plugins: { tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.toFixed(1)}%` } } },
+    });
+  } else {
+    const canvas = document.getElementById("chart-specialty-distribution");
+    if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No specialty data.");
+  }
 }
 
 // ── RF Narrative Intelligence ────────────────────────────────────────────────
@@ -432,6 +488,14 @@ function renderRFNarrative(result) {
   if (!el) return;
   const rf = result.rfInsights;
   if (!rf) { el.innerHTML = ""; return; }
+
+  const onTarget = result.kpis.onTargetCalls || 0;
+  const wasted   = result.kpis.wastedCalls || 0;
+  const missed   = result.kpis.missedCalls || 0;
+  const totalPool = onTarget + wasted + missed;
+  const onTargetPct = totalPool > 0 ? Math.round((onTarget / totalPool) * 100) : 0;
+  const wastedPct   = totalPool > 0 ? Math.round((wasted / totalPool) * 100) : 0;
+  const missedPct   = totalPool > 0 ? (100 - onTargetPct - wastedPct) : 0;
 
   // ── helpers ──
   const fmt  = v => v == null ? "–" : (v * 100).toFixed(1) + "%";
@@ -497,8 +561,8 @@ function renderRFNarrative(result) {
       <td class="rf-muted">${fmtN(e.customerCount)} drs</td>
     </tr>`;
   }
-  const topRows    = rf.rfTop5.map((e, i) => empRow(e, i + 1)).join("");
-  const bottomRows = rf.rfBottom5.map((e, i) => empRow(e, rf.rfBottom5.length - i)).join("");
+  const topRows    = rf.rfTop10 ? rf.rfTop10.map((e, i) => empRow(e, i + 1)).join("") : "";
+  const bottomRows = rf.rfBottom10 ? rf.rfBottom10.map((e, i) => empRow(e, rf.rfBottom10.length - i)).join("") : "";
 
   const empTableHtml = (title, rows) => `
     <div class="rf-emp-block">
@@ -558,9 +622,9 @@ function renderRFNarrative(result) {
   }
 
   // Bottom performers
-  if (rf.rfBottom5.length) {
-    const names = rf.rfBottom5.map(e => e.name).join(", ");
-    actions.push(`🟠 <strong>Coaching Targets:</strong> <em>${names}</em> are in the bottom 5 by RF%. Schedule 1-on-1 call-plan reviews with their managers.`);
+  if (rf.rfBottom10 && rf.rfBottom10.length) {
+    const names = rf.rfBottom10.slice(0, 5).map(e => e.name).join(", ");
+    actions.push(`🟠 <strong>Coaching Targets:</strong> <em>${names}</em> (and others) are in the bottom 10 by RF%. Schedule 1-on-1 call-plan reviews with their managers.`);
   }
 
   // At-risk customers
@@ -579,8 +643,8 @@ function renderRFNarrative(result) {
   }
 
   // High performers — sustain
-  if (rf.rfTop5.length && (rf.rfTop5[0].rfPct || 0) >= 0.80) {
-    actions.push(`🟢 <strong>Sustain Excellence:</strong> <em>${rf.rfTop5[0].name}</em> (${fmt(rf.rfTop5[0].rfPct)}) leads the field. Capture and share their territory strategy as a best-practice model.`);
+  if (rf.rfTop10 && rf.rfTop10.length && (rf.rfTop10[0].rfPct || 0) >= 0.80) {
+    actions.push(`🟢 <strong>Sustain Excellence:</strong> <em>${rf.rfTop10[0].name}</em> (${fmt(rf.rfTop10[0].rfPct)}) leads the field. Capture and share their territory strategy as a best-practice model.`);
   }
 
   if (!actions.length) {
@@ -598,6 +662,39 @@ function renderRFNarrative(result) {
 
     <div class="rf-insight-grid">
 
+      <!-- Call Efficiency Panel -->
+      <div class="rf-panel rf-panel-full rf-panel-call-efficiency">
+        <div class="rf-panel-title">📞 Call Execution &amp; Resource Efficiency</div>
+        <div class="call-eff-bar-wrap">
+          <div class="call-eff-bar-fill on-target" style="width: ${onTargetPct}%;" title="On-Target: ${onTargetPct}%"></div>
+          <div class="call-eff-bar-fill wasted" style="width: ${wastedPct}%;" title="Wasted: ${wastedPct}%"></div>
+          <div class="call-eff-bar-fill missed" style="width: ${missedPct}%;" title="Missed: ${missedPct}%"></div>
+        </div>
+        <div class="call-eff-legend-row">
+          <div class="call-eff-legend-item on-target">
+            <div class="legend-color-dot on-target"></div>
+            <div class="legend-text">
+              <span class="legend-title">On-Target Visits</span>
+              <span class="legend-desc"><strong>${fmtN(onTarget)}</strong> (${onTargetPct}%) visits within target</span>
+            </div>
+          </div>
+          <div class="call-eff-legend-item wasted">
+            <div class="legend-color-dot wasted"></div>
+            <div class="legend-text">
+              <span class="legend-title">Wasted Visits (Over-target)</span>
+              <span class="legend-desc"><strong>${fmtN(wasted)}</strong> (${wastedPct}%) visits above target</span>
+            </div>
+          </div>
+          <div class="call-eff-legend-item missed">
+            <div class="legend-color-dot missed"></div>
+            <div class="legend-text">
+              <span class="legend-title">Missed Visits (Planned)</span>
+              <span class="legend-desc"><strong>${fmtN(missed)}</strong> (${missedPct}%) planned visits missed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="rf-panel rf-panel-full">
         <div class="rf-panel-title">RF% by Class</div>
         <div class="rf-bar-list">${classBars || '<span class="rf-muted">No class data in current filter</span>'}</div>
@@ -608,26 +705,35 @@ function renderRFNarrative(result) {
         <div class="rf-pill-wrap">${specPills || '<span class="rf-muted">No specialty data in current filter</span>'}</div>
       </div>
 
-      <div class="rf-panel rf-panel-half">
-        ${empTableHtml("🏆 Top 5 Employees by RF%", topRows)}
+      <div class="rf-panel rf-panel-half rf-panel-top-employees">
+        ${empTableHtml("🏆 Top 10 Employees by RF%", topRows)}
       </div>
 
-      <div class="rf-panel rf-panel-half">
-        ${empTableHtml("⚠️ Bottom 5 Employees by RF%", bottomRows)}
-      </div>
-
-      <div class="rf-panel rf-panel-full">
-        <div class="rf-panel-title">Probation vs Non-Probation RF Split</div>
-        <div class="rf-exp-grid">${expBlocks || '<span class="rf-muted">No experience data in current filter</span>'}</div>
+      <div class="rf-panel rf-panel-half rf-panel-bottom-employees">
+        ${empTableHtml("⚠️ Bottom 10 Employees by RF%", bottomRows)}
       </div>
 
       <div class="rf-panel rf-panel-half rf-at-risk rf-sev-${atRiskSev}-border">
         <div class="rf-panel-title">At-Risk Doctors</div>
         <div class="rf-at-risk-stat rf-sev-${atRiskSev}-text">${fmtN(rf.atRiskCount)}<span class="rf-at-risk-denom"> / ${fmtN(rf.totalCustomers)}</span></div>
         <div class="rf-at-risk-msg">${atRiskMsg}</div>
+        <div class="rf-at-risk-tiers">
+          <div class="rf-at-risk-tier-item" data-tier="1">
+            <span class="tier-label">Tier 1: Easy Win (1 missed call)</span>
+            <span class="tier-value">${fmtN(rf.atRiskTiers ? rf.atRiskTiers.tier1.count : 0)} doctors</span>
+          </div>
+          <div class="rf-at-risk-tier-item" data-tier="2">
+            <span class="tier-label">Tier 2: Moderate Gap (2 missed calls)</span>
+            <span class="tier-value">${fmtN(rf.atRiskTiers ? rf.atRiskTiers.tier2.count : 0)} doctors</span>
+          </div>
+          <div class="rf-at-risk-tier-item" data-tier="3">
+            <span class="tier-label">Tier 3: Major Gap (3+ missed calls)</span>
+            <span class="tier-value">${fmtN(rf.atRiskTiers ? rf.atRiskTiers.tier3.count : 0)} doctors</span>
+          </div>
+        </div>
       </div>
 
-      <div class="rf-panel rf-panel-half">
+      <div class="rf-panel rf-panel-half rf-panel-action-plan">
         <div class="rf-panel-title">📋 Action Plan</div>
         <ul class="rf-action-list">${actionHtml}</ul>
       </div>
@@ -699,7 +805,7 @@ function renderSpecialtyClassCharts(result) {
 }
 
 function renderLeaderboards(result) {
-  const columns = [
+  const topColumns = [
     { key: "employee", label: "Employee", width: "30%", render: (row) => UI.nameWithAvatar(row.employee, row.profile) },
     { key: "team", label: "Team", width: "10%" },
     { key: "manager", label: "Manager", width: "28%", titleKey: "manager", render: (row) => UI.nameWithAvatar(row.manager) },
@@ -707,14 +813,23 @@ function renderLeaderboards(result) {
     { key: "coveragePct", label: "Coverage %", width: "12%", format: "percent1", align: "right", defaultSort: "desc" },
     { key: "rightFreqPct", label: "Right Freq %", width: "11%", format: "percent1", align: "right" },
   ];
+  const bottomColumns = [
+    { key: "employee", label: "Employee", width: "30%", render: (row) => UI.nameWithAvatar(row.employee, row.profile) },
+    { key: "team", label: "Team", width: "10%" },
+    { key: "manager", label: "Manager", width: "28%", titleKey: "manager", render: (row) => UI.nameWithAvatar(row.manager) },
+    { key: "customerCount", label: "Customers", width: "9%", format: "number", align: "right" },
+    { key: "coveragePct", label: "Coverage %", width: "12%", format: "percent1", align: "right", defaultSort: "asc" },
+    { key: "rightFreqPct", label: "Right Freq %", width: "11%", format: "percent1", align: "right" },
+  ];
+
   Tables.render(sections.leaderboardTop, {
-    id: "leaderboard-top", columns, rows: result.leaderboards.top,
-    pageSize: 10, exportFileName: `leaderboard-top-10_${filenameSuffix}`,
+    id: "leaderboard-top", columns: topColumns, rows: result.leaderboards.top,
+    pageSize: 10, exportFileName: `leaderboard-top-employees_${filenameSuffix}`,
     emptyMessage: "No qualifying employees (need 5+ customers) match the current filters.",
   });
   Tables.render(sections.leaderboardBottom, {
-    id: "leaderboard-bottom", columns, rows: result.leaderboards.bottom,
-    pageSize: 10, exportFileName: `leaderboard-bottom-10_${filenameSuffix}`,
+    id: "leaderboard-bottom", columns: bottomColumns, rows: result.leaderboards.bottom,
+    pageSize: 10, exportFileName: `leaderboard-bottom-employees_${filenameSuffix}`,
     emptyMessage: "No qualifying employees (need 5+ customers) match the current filters.",
   });
 }
@@ -784,14 +899,16 @@ function wireNotSeenModal() {
   let _page = 1;
 
   const COLS = [
-    { key: "customerName", label: "Customer Name", width: "22%" },
-    { key: "specialty",    label: "Specialty",     width: "13%" },
-    { key: "klass",        label: "Class",         width: "8%"  },
-    { key: "type",         label: "Type",          width: "7%"  },
-    { key: "employee",     label: "Employee",       width: "18%" },
-    { key: "team",         label: "Team",           width: "12%" },
-    { key: "manager",      label: "Manager",        width: "14%" },
-    { key: "frequency",    label: "Freq",           width: "6%", align: "right" },
+    { key: "customerName", label: "Customer Name", width: "18%" },
+    { key: "specialty",    label: "Specialty",     width: "10%" },
+    { key: "klass",        label: "Class",         width: "6%"  },
+    { key: "type",         label: "Type",          width: "6%"  },
+    { key: "employee",     label: "Employee",       width: "14%" },
+    { key: "team",         label: "Team",           width: "10%" },
+    { key: "manager",      label: "Manager",        width: "12%" },
+    { key: "frequency",    label: "Freq",           width: "5%", align: "right" },
+    { key: "area",         label: "Area",           width: "10%" },
+    { key: "lastVisitDate",label: "Last Visit",     width: "9%"  },
   ];
 
   function esc(s) { return UI.escapeHtml(String(s ?? "")); }
@@ -800,7 +917,7 @@ function wireNotSeenModal() {
     if (!term) return _allRows;
     const q = term.toLowerCase();
     return _allRows.filter((r) =>
-      ["customerName","specialty","klass","type","employee","team","manager"]
+      ["customerName","specialty","klass","type","employee","team","manager","area"]
         .some((k) => String(r[k] ?? "").toLowerCase().includes(q))
     );
   }
@@ -854,12 +971,23 @@ function wireNotSeenModal() {
     overlay.classList.remove("open");
   }
 
-  // Click on notSeen KPI cards
+  // Click on notSeen KPI cards or At-Risk Tiers
   document.getElementById("app-root").addEventListener("click", (e) => {
     const card = e.target.closest(".kpi-card");
-    if (!card) return;
-    const kpi = card.dataset.kpi;
-    if (kpi === "notSeenCount" || kpi === "notSeenPct") openModal();
+    if (card) {
+      const kpi = card.dataset.kpi;
+      if (kpi === "notSeenCount" || kpi === "notSeenPct") openModal();
+      return;
+    }
+
+    const tierItem = e.target.closest(".rf-at-risk-tier-item");
+    if (tierItem && _lastResult && _lastResult.rfInsights && _lastResult.rfInsights.atRiskTiers) {
+      const tierNum = tierItem.dataset.tier;
+      const tier = _lastResult.rfInsights.atRiskTiers[`tier${tierNum}`];
+      if (tier && tier.list) {
+        openAtRiskModal(tierNum, tier.list);
+      }
+    }
   });
 
   closeBtn.addEventListener("click", closeModal);
@@ -1023,11 +1151,13 @@ function openKolModal(mgrName, quarter, kolRows) {
   info.textContent    = `${list.length} customer${list.length !== 1 ? "s" : ""} not visited in ${qLabel}`;
 
   const COLS = [
-    { key: "customerName", label: "Customer Name", width: "38%" },
-    { key: "specialty",    label: "Specialty",     width: "20%" },
-    { key: "klass",        label: "Class",          width: "10%" },
-    { key: "type",         label: "Type",           width: "12%" },
-    { key: "frequency",    label: "Target Freq",    width: "10%", align: "right" },
+    { key: "customerName", label: "Customer Name", width: "30%" },
+    { key: "specialty",    label: "Specialty",     width: "15%" },
+    { key: "klass",        label: "Class",          width: "8%" },
+    { key: "type",         label: "Type",           width: "10%" },
+    { key: "area",         label: "Area",           width: "15%" },
+    { key: "lastVisitDate",label: "Last Visit",     width: "14%" },
+    { key: "frequency",    label: "Target Freq",    width: "8%", align: "right" },
   ];
 
   function renderKolModalBody(filteredRows) {
@@ -1063,7 +1193,7 @@ function openKolModal(mgrName, quarter, kolRows) {
   newSearch.addEventListener("input", Utils.debounce((e) => {
     const q = e.target.value.toLowerCase();
     filtered = q
-      ? list.filter((r) => ["customerName","specialty","klass","type"].some(
+      ? list.filter((r) => ["customerName","specialty","klass","type","area"].some(
           (k) => String(r[k] ?? "").toLowerCase().includes(q)
         ))
       : list;
@@ -1076,5 +1206,99 @@ function openKolModal(mgrName, quarter, kolRows) {
   newExport.addEventListener("click", () => {
     if (typeof Exporter !== "undefined")
       Exporter.tableToExcel(COLS, filtered, `customers-not-seen_${UI.escapeHtml(mgrName)}_${quarter}_${filenameSuffix}`);
+  });
+}
+
+function openAtRiskModal(tierNum, list) {
+  const tierNames = {
+    "1": "Easy Win (1 Missed Call)",
+    "2": "Moderate Gap (2 Missed Calls)",
+    "3": "Major Gap (3+ Missed Calls)"
+  };
+  const title = `At-Risk Doctors — ${tierNames[tierNum] || ""}`;
+
+  // Reuse the existing not-seen modal overlay
+  const overlay = document.getElementById("ns-modal-overlay");
+  const badge   = document.getElementById("ns-modal-badge");
+  const body    = document.getElementById("ns-modal-body");
+  const info    = document.getElementById("ns-modal-info");
+  const titleEl = document.getElementById("ns-modal-title-text");
+  const searchEl= document.getElementById("ns-modal-search");
+  const prevBtn = document.getElementById("ns-modal-prev");
+  const nextBtn = document.getElementById("ns-modal-next");
+  const pageLabel=document.getElementById("ns-modal-page-label");
+  const exportBtn=document.getElementById("ns-modal-export");
+
+  titleEl.textContent = title;
+  badge.textContent   = list.length;
+  searchEl.value      = "";
+  prevBtn.disabled    = true;
+  nextBtn.disabled    = true;
+  pageLabel.textContent = "";
+  info.textContent    = `${list.length} customer${list.length !== 1 ? "s" : ""} in this tier`;
+
+  const COLS = [
+    { key: "customerName", label: "Customer Name", width: "20%" },
+    { key: "specialty",    label: "Specialty",     width: "10%" },
+    { key: "klass",        label: "Class",          width: "6%" },
+    { key: "type",         label: "Type",           width: "8%" },
+    { key: "employee",     label: "Employee",       width: "12%" },
+    { key: "team",         label: "Team",           width: "10%" },
+    { key: "manager",      label: "Manager",        width: "10%" },
+    { key: "area",         label: "Area",           width: "10%" },
+    { key: "lastVisitDate",label: "Last Visit",     width: "10%" },
+    { key: "frequency",    label: "Freq",           width: "6%", align: "right" },
+    { key: "visits",       label: "Visits",         width: "6%", align: "right" },
+    { key: "missedCalls",  label: "Missed",         width: "6%", align: "right" },
+  ];
+
+  function renderAtRiskModalBody(filteredRows) {
+    if (!filteredRows.length) {
+      body.innerHTML = `<div style="padding:32px;text-align:center;color:#94A3B8;">No doctors match.</div>`;
+      return;
+    }
+    const colgroup = COLS.map((c) => `<col style="width:${c.width}">`).join("");
+    const thead    = COLS.map((c) =>
+      `<th style="text-align:${c.align || "left"}">${UI.escapeHtml(c.label)}</th>`
+    ).join("");
+    const tbody = filteredRows.map((r) =>
+      `<tr>${COLS.map((c) =>
+        `<td style="text-align:${c.align || "left"}" title="${UI.escapeHtml(String(r[c.key] ?? ""))}">
+          ${c.key === "missedCalls" ? `<strong>${r[c.key]}</strong>` : UI.escapeHtml(String(r[c.key] ?? ""))}
+        </td>`
+      ).join("")}</tr>`
+    ).join("");
+    body.innerHTML = `<table class="data-table">
+      <colgroup>${colgroup}</colgroup>
+      <thead><tr>${thead}</tr></thead>
+      <tbody>${tbody}</tbody>
+    </table>`;
+  }
+
+  let filtered = list;
+  renderAtRiskModalBody(filtered);
+  overlay.classList.add("open");
+  searchEl.focus();
+
+  // Replace search handler
+  const newSearch = searchEl.cloneNode(true);
+  newSearch.placeholder = "Search by customer, employee, area…";
+  searchEl.parentNode.replaceChild(newSearch, searchEl);
+  newSearch.addEventListener("input", Utils.debounce((e) => {
+    const q = e.target.value.toLowerCase();
+    filtered = q
+      ? list.filter((r) => ["customerName","specialty","klass","type","employee","team","manager","area"].some(
+          (k) => String(r[k] ?? "").toLowerCase().includes(q)
+        ))
+      : list;
+    renderAtRiskModalBody(filtered);
+  }, 200));
+
+  // Replace export handler
+  const newExport = exportBtn.cloneNode(true);
+  exportBtn.parentNode.replaceChild(newExport, exportBtn);
+  newExport.addEventListener("click", () => {
+    if (typeof Exporter !== "undefined")
+      Exporter.tableToExcel(COLS, filtered, `at-risk-doctors-tier${tierNum}_${filenameSuffix}`);
   });
 }

@@ -30,6 +30,7 @@ const Analytics = (() => {
     type: 11,
     coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
     plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
+    lastVisitDate: 22, area: 23,
   };
 
   // Every dimension that participates in cross-filtering (cascading
@@ -42,7 +43,7 @@ const Analytics = (() => {
     "employee", "specialty", "klass", "status", "experience", "type", "title",
   ];
 
-  const MIN_CUSTOMERS_FOR_LEADERBOARD = 5;
+  const MIN_CUSTOMERS_FOR_LEADERBOARD = 20;
   const TOP_BOTTOM_N = 10;
   const TOP_N_SPECIALTY_CLASS = 15;
   const VACANT_PREFIX = "VACANT";
@@ -159,6 +160,7 @@ const Analytics = (() => {
       // mean(Right Freq). A resigned rep's stale rows must never dilute
       // a live coverage percentage.
       coveredSum: 0, rightFreqSum: 0, rowCount: 0, visitsSum: 0, plansSum: 0, freqSum: 0,
+      onTargetCalls: 0, missedCalls: 0, wastedCalls: 0,
       activeEmployees: new Set(), resignedEmployees: new Set(),
     };
   }
@@ -171,6 +173,13 @@ const Analytics = (() => {
       group.visitsSum += row[F.visits];
       group.plansSum += row[F.plansCount];
       group.freqSum += row[F.frequency];
+      
+      const target = row[F.frequency] || 0;
+      const visits = row[F.visits] || 0;
+      group.onTargetCalls += Math.min(visits, target);
+      group.missedCalls += Math.max(0, target - visits);
+      group.wastedCalls += Math.max(0, visits - target);
+      
       group.activeEmployees.add(row[F.employee]);
     } else if (row[F.status] === resignedStatusIdx) {
       group.resignedEmployees.add(row[F.employee]);
@@ -255,6 +264,11 @@ const Analytics = (() => {
     const byExperience     = new Map(); // experienceIdx → emptyGroup() — for RF Probation vs Non-Probation split
     const custRfTracker    = new Map(); // customerNameIdx → { total, rf } — for at-risk (zero RF) customer count
     const custUniqByPeriod = new Map(); // periodIdx → Set<custIdx> — unique customers per period (deduplicates multi-rep visits)
+    const atRiskTiers = {
+      tier1: { count: 0, list: [] },
+      tier2: { count: 0, list: [] },
+      tier3: { count: 0, list: [] },
+    };
 
     const n = rows.length;
     for (let i = 0; i < n; i++) {
@@ -374,6 +388,35 @@ const Analytics = (() => {
         // counted once.  Used for the "Total Customers" KPI card.
         if (!custUniqByPeriod.has(periodIdx)) custUniqByPeriod.set(periodIdx, new Set());
         custUniqByPeriod.get(periodIdx).add(custIdx);
+
+        // Calculate At-Risk Tiers (rows where Right Freq is 0)
+        if (row[F.rightFreq] === 0) {
+          const missedCalls = row[F.frequency] - row[F.visits];
+          const docInfo = {
+            customerName: dims.customerNames ? (dims.customerNames[custIdx] || "") : "",
+            specialty: dims.specialties[row[F.specialty]] || "",
+            klass: dims.classes[row[F.klass]] || "",
+            type: dims.types[row[F.type]] || "",
+            employee: dims.employeeNames[row[F.employee]] || "",
+            team: dims.teams[row[F.team]] || "",
+            manager: dims.managers[row[F.manager]] || "",
+            frequency: row[F.frequency],
+            visits: row[F.visits],
+            missedCalls: missedCalls,
+            lastVisitDate: dims.lastVisitDates ? (dims.lastVisitDates[row[F.lastVisitDate]] || "Never") : "Never",
+            area: dims.areas ? (dims.areas[row[F.area]] || "") : "",
+          };
+          if (missedCalls === 1) {
+            atRiskTiers.tier1.count++;
+            atRiskTiers.tier1.list.push(docInfo);
+          } else if (missedCalls === 2) {
+            atRiskTiers.tier2.count++;
+            atRiskTiers.tier2.list.push(docInfo);
+          } else if (missedCalls >= 3) {
+            atRiskTiers.tier3.count++;
+            atRiskTiers.tier3.list.push(docInfo);
+          }
+        }
       }
       // Capture each employee's own profile (territory) — used to show a
       // manager's profile subtitle by cross-referencing their employee entry.
@@ -383,7 +426,7 @@ const Analytics = (() => {
     return buildResult({
       global, byPeriod, byTeam, byManager, byAreaManager, bySpecialty, byClass,
       byType, byEmployeePeriod, vacantSeenByPeriod, empProfileMap, want, availableSetsArr,
-      byExperience, custRfTracker, custUniqByPeriod,
+      byExperience, custRfTracker, custUniqByPeriod, atRiskTiers,
     });
   }
 
@@ -508,13 +551,17 @@ const Analytics = (() => {
       // Unique customer count for KPI period — each doctor counted once
       // regardless of how many reps target them (no duplication across reps).
       totalUniqueCustomers: (custUniqByPeriod.get(kpiPeriodIdx) || new Set()).size,
+      totalSharedCustomers: kpiPeriodGroup.rowCount,
+      onTargetCalls: kpiPeriodGroup.onTargetCalls,
+      missedCalls: kpiPeriodGroup.missedCalls,
+      wastedCalls: kpiPeriodGroup.wastedCalls,
     };
 
     const trend = {
       periods: dims.periods,
       series: dims.periods.map((periodName, idx) => {
         const g = byPeriod.get(idx);
-        if (!g) return { period: periodName, coveragePct: null, rightFreqPct: null, headcount: 0, activeReps: 0, resignedReps: 0, vacancyCount: 0, customersPerRep: null, totalTargetVisits: 0, totalActualVisits: 0, visitAchievementPct: null, notSeenCount: 0, notSeenPct: null, totalUniqueCustomers: 0 };
+        if (!g) return { period: periodName, coveragePct: null, rightFreqPct: null, headcount: 0, activeReps: 0, resignedReps: 0, vacancyCount: 0, customersPerRep: null, totalTargetVisits: 0, totalActualVisits: 0, visitAchievementPct: null, notSeenCount: 0, notSeenPct: null, totalUniqueCustomers: 0, totalSharedCustomers: 0 };
         const activeCount = g.activeEmployees.size;
         return {
           period: periodName,
@@ -531,6 +578,7 @@ const Analytics = (() => {
           notSeenCount: g.rowCount - g.coveredSum,
           notSeenPct: round4(g.rowCount > 0 ? (g.rowCount - g.coveredSum) / g.rowCount : null),
           totalUniqueCustomers: (custUniqByPeriod.get(idx) || new Set()).size,
+          totalSharedCustomers: g.rowCount,
         };
       }),
     };
@@ -589,9 +637,23 @@ const Analytics = (() => {
     const typeDistribution = [];
     byType.forEach((g, typeIdx) => {
       const name = dims.types[typeIdx];
-      if (name !== undefined) typeDistribution.push({ name, count: g.rowCount });
+      if (name !== undefined && g.rowCount > 0) typeDistribution.push({ name, count: g.rowCount });
     });
     typeDistribution.sort((a, b) => b.count - a.count);
+
+    const classDistribution = [];
+    byClass.forEach((g, classIdx) => {
+      const name = dims.classes[classIdx];
+      if (name !== undefined && g.rowCount > 0) classDistribution.push({ name, count: g.rowCount });
+    });
+    classDistribution.sort((a, b) => b.count - a.count);
+
+    const specialtyDistribution = [];
+    bySpecialty.forEach((g, specIdx) => {
+      const name = dims.specialties[specIdx];
+      if (name !== undefined && g.rowCount > 0) specialtyDistribution.push({ name, count: g.rowCount });
+    });
+    specialtyDistribution.sort((a, b) => b.count - a.count);
 
     const qualified = Array.from(byEmployeePeriod.values()).filter(
       (g) => g.isActive && g.periodIdx === kpiPeriodIdx && g.customerCount >= MIN_CUSTOMERS_FOR_LEADERBOARD
@@ -609,11 +671,11 @@ const Analytics = (() => {
     const top = [...qualified].sort((a, b) => {
       const diff = (b.coveredSum / b.customerCount) - (a.coveredSum / a.customerCount);
       return diff !== 0 ? diff : byEmpName(a).localeCompare(byEmpName(b));
-    }).slice(0, TOP_BOTTOM_N).map(toLeaderboardRow);
+    }).map(toLeaderboardRow);
     const bottom = [...qualified].sort((a, b) => {
       const diff = (a.coveredSum / a.customerCount) - (b.coveredSum / b.customerCount);
       return diff !== 0 ? diff : byEmpName(a).localeCompare(byEmpName(b));
-    }).slice(0, TOP_BOTTOM_N).map(toLeaderboardRow);
+    }).map(toLeaderboardRow);
 
     const byPeriodAttrition = dims.periods.map((periodName, idx) => {
       const activeCount = Array.from(byEmployeePeriod.values()).filter((g) => g.isActive && g.periodIdx === idx).length;
@@ -674,29 +736,29 @@ const Analytics = (() => {
       }))
       .filter(e => e.rfPct !== null)
       .sort((a, b) => b.rfPct - a.rfPct);
-    const rfTop5    = rfEmpRows.slice(0, 5);
-    const rfBottom5 = [...rfEmpRows].reverse().slice(0, 5);
+    const rfTop10    = rfEmpRows.slice(0, 10);
+    const rfBottom10 = [...rfEmpRows].reverse().slice(0, 10);
 
     // At-risk customers: unique doctors who received ZERO right-frequency
     // visits in every selected period row (within current filter scope).
-    let atRiskCount = 0;
-    custRfTracker.forEach(ct => { if (ct.total > 0 && ct.rf === 0) atRiskCount++; });
+    let atRiskCount = ctx.atRiskTiers.tier1.count + ctx.atRiskTiers.tier2.count + ctx.atRiskTiers.tier3.count;
 
     const rfInsights = {
       overallRfPct: kpis.rightFreqPct,    // already computed, re-use
       rfByClass,
       rfBySpecialty,
       rfByExperience,
-      rfTop5,
-      rfBottom5,
+      rfTop10,
+      rfBottom10,
       atRiskCount,
-      totalCustomers: custRfTracker.size,  // unique active customers in scope
+      totalCustomers: kpiPeriodGroup.rowCount,  // shared active customers in scope
+      atRiskTiers: ctx.atRiskTiers,
     };
     // ──────────────────────────────────────────────────────────────────────
 
     return {
       kpis, trend, teamComparison, managerRanking, areaManagerRanking,
-      specialtyCoverage, classCoverage, typeDistribution,
+      specialtyCoverage, classCoverage, typeDistribution, classDistribution, specialtyDistribution,
       leaderboards: { top, bottom },
       attrition: { byPeriod: byPeriodAttrition, byTeam: attritionByTeam },
       vacancies: { total: kpiVacancy, byTeam: vacancyByTeamMap, details: vacancyDetails },
@@ -737,6 +799,7 @@ const Analytics = (() => {
       notSeenCount: { previous: prev.notSeenCount, delta: diff(currentKpis.notSeenCount, prev.notSeenCount, (v) => v) },
       notSeenPct: { previous: prev.notSeenPct, delta: diff(currentKpis.notSeenPct, prev.notSeenPct, round4) },
       totalUniqueCustomers: { previous: prev.totalUniqueCustomers, delta: diff(currentKpis.totalUniqueCustomers, prev.totalUniqueCustomers, (v) => v) },
+      totalSharedCustomers: { previous: prev.totalSharedCustomers, delta: diff(currentKpis.totalSharedCustomers, prev.totalSharedCustomers, (v) => v) },
     };
   }
 
@@ -866,6 +929,8 @@ const Analytics = (() => {
         team         : dims.teams[row[F.team]] || "",
         manager      : dims.managers[row[F.manager]] || "",
         frequency    : row[F.frequency],
+        lastVisitDate: dims.lastVisitDates ? (dims.lastVisitDates[row[F.lastVisitDate]] || "Never") : "Never",
+        area         : dims.areas ? (dims.areas[row[F.area]] || "") : "",
       });
     }
 
@@ -1003,7 +1068,7 @@ const Analytics = (() => {
       }
       const entry = mgrMap.get(empIdx);
 
-      // Map value: { covered, specialtyIdx, klassIdx, typeIdx, frequency }
+      // Map value: { covered, specialtyIdx, klassIdx, typeIdx, frequency, lastVisitDateIdx, areaIdx }
       // First encounter seeds the metadata; subsequent encounters only update covered.
       const custMeta = {
         covered: !!row[F.coveredDoctor],
@@ -1011,6 +1076,8 @@ const Analytics = (() => {
         klassIdx:     row[F.klass],
         typeIdx:      row[F.type],
         frequency:    row[F.frequency],
+        lastVisitDateIdx: row[F.lastVisitDate],
+        areaIdx:      row[F.area],
       };
       if (q === "q1") {
         if (!entry.custQ1.has(custIdx)) {
@@ -1051,6 +1118,8 @@ const Analytics = (() => {
               klass:        dims.classes[meta.klassIdx] || "",
               type:         dims.types[meta.typeIdx] || "",
               frequency:    meta.frequency,
+              lastVisitDate: dims.lastVisitDates ? (dims.lastVisitDates[meta.lastVisitDateIdx] || "Never") : "Never",
+              area:         dims.areas ? (dims.areas[meta.areaIdx] || "") : "",
             });
           }
         });
