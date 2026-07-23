@@ -101,7 +101,7 @@ const Filters = (() => {
     chipsEl = chipsElArg;
     dims = dimensions;
     onChangeCallback = onChange;
-    state = loadPersisted() || defaults();
+    state = defaults();
 
     containerEl.innerHTML = CONFIG.filters.fields.map((f) => buildMultiSelect(f)).join("");
 
