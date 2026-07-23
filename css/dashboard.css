@@ -2058,3 +2058,47 @@ body {
   display: none !important;
 }
 
+
+/* ==========================================================================
+   Sidebar Collapse Animation & Transitions
+   ========================================================================== */
+
+.sidebar-nav {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-nav.collapsed {
+  width: 80px;
+  padding: 24px 8px;
+  align-items: center;
+}
+
+.sidebar-nav.collapsed .brand-text {
+  display: none !important;
+}
+
+.sidebar-nav.collapsed .sidebar-brand {
+  justify-content: center !important;
+  padding: 12px 0 24px 0 !important;
+  border-bottom: none !important;
+}
+
+.sidebar-nav.collapsed .menu-label {
+  display: none !important;
+}
+
+.sidebar-nav.collapsed .menu-item {
+  justify-content: center !important;
+  padding: 14px !important;
+  width: 48px;
+  height: 48px;
+}
+
+.sidebar-nav.collapsed .menu-item:hover {
+  transform: none !important;
+}
+
+.sidebar-toggle:hover {
+  color: #ffffff !important;
+  background-color: #1a1e38 !important;
+}

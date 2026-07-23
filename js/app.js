@@ -91,6 +91,15 @@ document.addEventListener("DOMContentLoaded", () => {
     renderAll(dashboard, dashboard.dimensions, {});
   }
 
+  // Sidebar toggle collapse
+  const sidebarNav = document.getElementById("sidebar-nav");
+  const toggleBtn = document.getElementById("sidebar-toggle");
+  if (toggleBtn && sidebarNav) {
+    toggleBtn.addEventListener("click", () => {
+      sidebarNav.classList.toggle("collapsed");
+    });
+  }
+
   // Sidebar tab switching
   const menuItems = document.querySelectorAll("#sidebar-nav .menu-item");
   menuItems.forEach(item => {
