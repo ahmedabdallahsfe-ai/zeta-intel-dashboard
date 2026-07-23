@@ -1666,3 +1666,395 @@ ul.issue-list li {
   height: 320px !important;
 }
 
+
+
+/* ==========================================================================
+   SFE & Organogram Premium Sidebar Navigation & Layout Wrapper
+   ========================================================================== */
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-wrapper {
+  display: flex;
+  min-height: 100vh;
+  background-color: #0c0f1d;
+  color: #f1f3f9;
+  font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+}
+
+.sidebar-nav {
+  width: 260px;
+  background-color: #12162b;
+  border-right: 1px solid #232845;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 24px 16px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 100;
+}
+
+.sidebar-brand {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: #4e80f7;
+  padding: 12px 16px 36px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #232845;
+  margin-bottom: 24px;
+}
+
+.sidebar-menu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  color: #8a94a6;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.menu-item:hover {
+  background-color: #1a1e38;
+  color: #ffffff;
+  transform: translateX(4px);
+}
+
+.menu-item.active {
+  background: linear-gradient(135deg, #242c52 0%, #1e264a 100%);
+  color: #4e80f7;
+  border-left: 4px solid #4e80f7;
+  box-shadow: 0 4px 16px rgba(78, 128, 247, 0.15);
+}
+
+.menu-icon {
+  font-size: 1.2rem;
+  transition: transform 0.2s;
+}
+
+.menu-item:hover .menu-icon {
+  transform: scale(1.15);
+}
+
+.main-content-area {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Prevents flex children from stretching beyond parent width */
+}
+
+/* Override container margin if needed when sidebar is active */
+.container {
+  max-width: 100% !important;
+  padding-left: 32px !important;
+  padding-right: 32px !important;
+}
+
+/* ==========================================================================
+   SFE Dashboard Elements (Vacancy, Span, Tenure tabs)
+   ========================================================================== */
+
+.sfe-dashboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.sfe-tabs-header {
+  background: #12162b;
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  border: 1px solid #232845;
+  margin-top: 12px;
+}
+
+.sfe-tab-btn {
+  flex: 1;
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  color: #8a94a6;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.25s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sfe-tab-btn:hover {
+  color: #ffffff;
+  background-color: #1a1e38;
+}
+
+.sfe-tab-btn.active {
+  background-color: #4e80f7;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(78, 128, 247, 0.3);
+}
+
+.sfe-content-panel {
+  display: none;
+  animation: slideUp 0.3s ease-out;
+}
+
+.sfe-content-panel.active {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* SFE Grid Layouts */
+.sfe-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.sfe-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.sfe-grid-2-1 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+.sfe-grid-1-2 {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 24px;
+}
+
+/* Custom visual cards for SFE Dashboard */
+.sfe-card {
+  background: #12162b;
+  border: 1px solid #232845;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.sfe-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+  border-left: 4px solid #4e80f7;
+  padding-left: 10px;
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Badges */
+.badge-probation {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.badge-active {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.badge-overload {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* Training Alerts & Workload list */
+.training-alerts-list, .sfe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.sfe-list-item {
+  background: #1a1e38;
+  border: 1px solid #282f54;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.sfe-list-item:hover {
+  border-color: #4e80f7;
+  background: #202647;
+}
+
+.sfe-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sfe-item-name {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.sfe-item-sub {
+  font-size: 0.8rem;
+  color: #8a94a6;
+}
+
+/* Custom Scrollbars for lists */
+.training-alerts-list::-webkit-scrollbar, .sfe-list::-webkit-scrollbar, .sfe-table-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.training-alerts-list::-webkit-scrollbar-thumb, .sfe-list::-webkit-scrollbar-thumb, .sfe-table-scroll::-webkit-scrollbar-thumb {
+  background: #282f54;
+  border-radius: 3px;
+}
+
+/* Tables for SFE inspector list */
+.sfe-table-scroll {
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #232845;
+  border-radius: 8px;
+}
+
+.sfe-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.sfe-table th {
+  background: #181d36;
+  color: #8a94a6;
+  font-weight: 700;
+  padding: 12px 16px;
+  border-bottom: 2px solid #232845;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.sfe-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #232845;
+  color: #d1d5db;
+}
+
+.sfe-table tr:hover td {
+  background: #1a1e38;
+}
+
+/* KPI Scorecard cards custom style */
+.sfe-kpi-card {
+  background: linear-gradient(135deg, #181d36 0%, #12162b 100%);
+  border: 1px solid #232845;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sfe-kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  background: rgba(78, 128, 247, 0.1);
+  color: #4e80f7;
+}
+
+.sfe-kpi-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sfe-kpi-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.sfe-kpi-lbl {
+  font-size: 0.8rem;
+  color: #8a94a6;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Hide global filters and Topbar PDF export on SFE dashboard */
+.sfe-mode #filter-bar-container, 
+.sfe-mode .filter-bar-wrap,
+.sfe-mode #topbar-export-pdf {
+  display: none !important;
+}
+

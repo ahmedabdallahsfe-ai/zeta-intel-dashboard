@@ -16,6 +16,7 @@ let sections = {}; // id -> section-body element, populated once by buildLayout(
 let filenameSuffix = "AllData"; // active-filter suffix, refreshed every render, read by every export button's exportFileName
 let _lastFilterState = null; // stored so the Not-Seen modal can call getNotSeenCustomers with current filters
 let _lastResult = null; // stored so the At-Risk tiers modal can find tier lists
+let currentTab = "coverage";
 
 document.addEventListener("DOMContentLoaded", () => {
   Loader.init();
@@ -89,6 +90,38 @@ document.addEventListener("DOMContentLoaded", () => {
     // Render the pre-computed June snapshot directly.
     renderAll(dashboard, dashboard.dimensions, {});
   }
+
+  // Sidebar tab switching
+  const menuItems = document.querySelectorAll("#sidebar-nav .menu-item");
+  menuItems.forEach(item => {
+    item.addEventListener("click", (e) => {
+      const clickedItem = e.target.closest(".menu-item");
+      if (!clickedItem || clickedItem.classList.contains("active")) return;
+      
+      menuItems.forEach(mi => mi.classList.remove("active"));
+      clickedItem.classList.add("active");
+      
+      const tab = clickedItem.dataset.tab;
+      currentTab = tab;
+      
+      if (tab === "coverage") {
+        if (window.SFEDashboard) {
+          window.SFEDashboard.destroy();
+        }
+        buildLayout();
+        if (hasRecords) {
+          const result = Analytics.run(_lastFilterState || {});
+          renderAll(result, dashboard.dimensions, _lastFilterState || {});
+        } else {
+          renderAll(dashboard, dashboard.dimensions, {});
+        }
+      } else if (tab === "sfe") {
+        if (window.SFEDashboard) {
+          window.SFEDashboard.init("app-root");
+        }
+      }
+    });
+  });
 
   Loader.hide();
   wireNotSeenModal();
@@ -421,6 +454,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
 /** Re-render every section from a fresh Analytics.run() result. Called on
  * initial load and on every filter change. */
 function renderAll(result, dims, filterState) {
+  if (currentTab === "sfe") return;
   _lastResult = result;
   renderExecutiveSummary(result, filterState);
   UI.renderKpiCards(sections.kpis, result.kpis, result.kpiDeltas, result.trend.series);

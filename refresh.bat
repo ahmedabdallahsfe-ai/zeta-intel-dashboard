@@ -68,9 +68,40 @@ if not "%REFRESH_EXIT%"=="0" (
 )
 
 echo ============================================================
-echo   Refresh complete - opening dashboard...
+echo   Refresh complete - pushing to GitHub...
 echo ============================================================
 echo.
+
+where git >nul 2>nul
+if errorlevel 1 (
+    echo [WARNING] Git is not installed or not on PATH.
+    echo Skipping automatic GitHub push. You can commit and push the 
+    echo files in cache/ using GitHub Desktop or manually.
+) else (
+    echo Staging and committing updated data files...
+    git add -f cache/metadata.data.js
+    git add -f cache/dashboard.data.js
+    git add -f cache/teamkpis.data.js
+    git add -f cache/records.data.js
+    git add -f cache/organogram.data.js
+    git add js/*.js
+    git add css/*.css
+    git add dashboard.html
+    git commit -m "Auto-refresh dashboard data"
+    echo Pushing to GitHub repository...
+    git push origin main
+    if errorlevel 1 (
+        echo [WARNING] Git push failed. Verify your network or credentials.
+    ) else (
+        echo.
+        echo ============================================================
+        echo   SUCCESSFULLY PUSHED TO GITHUB PAGES!
+        echo   View your online dashboard at:
+        echo   https://ahmedabdallahsfe-ai.github.io/zeta-intel-dashboard/dashboard.html
+        echo ============================================================
+        echo.
+    )
+)
 
 REM --- open the dashboard in Chrome (fallback: default browser) -----------
 set "DASHBOARD_PATH=%~dp0dashboard.html"

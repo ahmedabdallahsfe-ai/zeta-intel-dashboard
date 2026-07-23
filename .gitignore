@@ -1,9 +1,14 @@
-# Sensitive data
+# Sensitive data - never push
 cache/
 logs/
 *.xlsx
 *.xls
+
+# Python
 __pycache__/
 *.pyc
+
+# OS
 .DS_Store
 Thumbs.db
+push_to_github.bat

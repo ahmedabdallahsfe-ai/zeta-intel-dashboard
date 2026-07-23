@@ -519,6 +519,15 @@ def build_kpis(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logge
 
     attrition_rate = (resigned / (headcount + resigned)) if (headcount + resigned) else 0.0
 
+    # Visit KPIs: Frequency = commercially mandated target visits (matches analytics.js freqSum)
+    total_target_visits = int(latest_active_rows["Frequency"].fillna(0).sum())
+    total_actual_visits = int(latest_active_rows["Visits Count"].fillna(0).sum())
+    visit_achievement_pct = safe_round(total_actual_visits / total_target_visits) if total_target_visits else None
+    not_seen_count = int((latest_active_rows["Covered Doctors"] == 0).sum())
+    row_count = len(latest_active_rows)
+    not_seen_pct = safe_round(not_seen_count / row_count) if row_count else None
+    total_unique_customers = int(latest_active_rows["Customer Name"].nunique())
+
     kpis = {
         "activeReps": headcount,
         "resignedReps": resigned,
@@ -532,6 +541,14 @@ def build_kpis(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logge
         "avgVisits": safe_round(avg_visits, 2),
         "avgFrequencyAchievement": safe_round(avg_freq_achievement),
         "latestMonth": latest_period,
+        # Visit / not-seen KPIs (added for GitHub view-only parity)
+        "totalTargetVisits": total_target_visits,
+        "totalActualVisits": total_actual_visits,
+        "visitAchievementPct": visit_achievement_pct,
+        "notSeenCount": not_seen_count,
+        "notSeenPct": not_seen_pct,
+        "totalUniqueCustomers": total_unique_customers,
+        "totalSharedCustomers": row_count,
     }
     logger.info("KPIs computed for latest period '%s': %s", latest_period, kpis)
     return kpis
@@ -554,19 +571,27 @@ def build_trend(df: pd.DataFrame, roster: pd.DataFrame, logger: logging.Logger) 
         period_roster = roster[roster["Period"] == period]
         active_roster = period_roster[period_roster["IsActive"]]
         active_headcount = int(len(active_roster))
+        row_count = len(active_rows)
+        freq_sum = int(active_rows["Frequency"].fillna(0).sum())
+        visits_sum = int(active_rows["Visits Count"].fillna(0).sum())
+        covered_sum = int(active_rows["Covered Doctors"].fillna(0).sum())
         rows.append({
             "period": period,
-            "coveragePct": safe_round(active_rows["Covered Doctors"].mean()) if len(active_rows) else None,
-            "rightFreqPct": safe_round(active_rows["Right Freq"].mean()) if len(active_rows) else None,
+            "coveragePct": safe_round(active_rows["Covered Doctors"].mean()) if row_count else None,
+            "rightFreqPct": safe_round(active_rows["Right Freq"].mean()) if row_count else None,
             "headcount": active_headcount,
             "activeReps": active_headcount,
             "resignedReps": int(period_roster["IsResigned"].sum()),
             "vacancyCount": count_vacant_slots(df, period)["total"],
-            # Added alongside the KPI-card period-over-period trend
-            # indicators (best-practice: a headline number needs a
-            # comparison baseline) -- kept in sync with analytics.js's
-            # client-side trend.series, which computes the same ratio.
-            "customersPerRep": round(len(active_rows) / active_headcount, 2) if active_headcount else None,
+            "customersPerRep": round(row_count / active_headcount, 2) if active_headcount else None,
+            # Visit / not-seen fields (mirrors analytics.js trend.series shape)
+            "totalTargetVisits": freq_sum,
+            "totalActualVisits": visits_sum,
+            "visitAchievementPct": safe_round(visits_sum / freq_sum) if freq_sum else None,
+            "notSeenCount": row_count - covered_sum,
+            "notSeenPct": safe_round((row_count - covered_sum) / row_count) if row_count else None,
+            "totalUniqueCustomers": int(active_rows["Customer Name"].nunique()),
+            "totalSharedCustomers": row_count,
         })
 
     logger.info("Trend built across %d periods", len(rows))
@@ -660,9 +685,8 @@ def build_specialty_class_coverage(df: pd.DataFrame, group_col: str, latest_peri
 
 
 def build_leaderboards(roster: pd.DataFrame, latest_period: str, logger: logging.Logger) -> dict:
-    """Top/Bottom N employees by Coverage % in the latest period, excluding
-    reps with too few customers to rank meaningfully (a rep with 1
-    customer at 100% coverage isn't really a "top performer")."""
+    """Top/Bottom employees by Coverage % in the latest period, excluding
+    reps with too few customers to rank meaningfully."""
     latest_active = roster[(roster["Period"] == latest_period) & (roster["IsActive"])]
     qualified = latest_active[latest_active["CustomerCount"] >= MIN_CUSTOMERS_FOR_LEADERBOARD]
 
@@ -670,6 +694,7 @@ def build_leaderboards(roster: pd.DataFrame, latest_period: str, logger: logging
         return [
             {
                 "employee": r["Employee"],
+                "profile": r["Profile"],
                 "team": r["Team"],
                 "manager": r["Manager"],
                 "customerCount": int(r["CustomerCount"]),
@@ -679,11 +704,11 @@ def build_leaderboards(roster: pd.DataFrame, latest_period: str, logger: logging
             for _, r in sub.iterrows()
         ]
 
-    top10 = qualified.sort_values(["CoveragePct", "Employee"], ascending=[False, True]).head(TOP_BOTTOM_N)
-    bottom10 = qualified.sort_values(["CoveragePct", "Employee"], ascending=[True, True]).head(TOP_BOTTOM_N)
+    top_sorted = qualified.sort_values(["CoveragePct", "Employee"], ascending=[False, True])
+    bottom_sorted = qualified.sort_values(["CoveragePct", "Employee"], ascending=[True, True])
 
     logger.info("Leaderboards built: %d qualified reps (>= %d customers)", len(qualified), MIN_CUSTOMERS_FOR_LEADERBOARD)
-    return {"top": to_rows(top10), "bottom": to_rows(bottom10)}
+    return {"top": to_rows(top_sorted), "bottom": to_rows(bottom_sorted)}
 
 
 def build_attrition_panel(roster: pd.DataFrame, logger: logging.Logger) -> dict:
@@ -784,6 +809,8 @@ def build_dimensions(df: pd.DataFrame, roster: pd.DataFrame) -> dict:
         "statuses": sorted(df["Active"].dropna().astype(str).unique().tolist()),
         "experiences": sorted(df["Experience"].dropna().astype(str).unique().tolist()),
         "types": sorted(df["Type"].dropna().astype(str).unique().tolist()),
+        "lastVisitDates": sorted(df["Last Visit Date String"].unique().tolist()),
+        "areas": sorted(df["Area"].dropna().astype(str).unique().tolist()),
     }
 
 
@@ -863,6 +890,14 @@ def build_records(df: pd.DataFrame, dimensions: dict, logger: logging.Logger) ->
     # This is distinct from Plans Count (which is what the rep actually scheduled).
     columns.append(df["Frequency"].fillna(0).astype(int).to_numpy())
     field_names.append("frequency")
+    # Last Visit Date
+    lv_lookup = {v: i for i, v in enumerate(dimensions["lastVisitDates"])}
+    columns.append(df["Last Visit Date String"].map(lv_lookup).fillna(-1).astype(int).to_numpy())
+    field_names.append("lastVisitDateIdx")
+    # Area
+    area_lookup = {v: i for i, v in enumerate(dimensions["areas"])}
+    columns.append(df["Area"].astype(str).map(area_lookup).fillna(-1).astype(int).to_numpy())
+    field_names.append("areaIdx")
 
     rows = np.column_stack(columns).tolist()
     logger.info("Records cache built: %d rows x %d fields in %.2fs", len(rows), len(field_names), time.time() - t0)
@@ -877,21 +912,282 @@ def build_data_quality_summary(validation: ValidationResult) -> dict:
     }
 
 
+def build_type_distribution(df: pd.DataFrame, latest_period: str) -> list[dict]:
+    """Customer Type Distribution for the latest period (mirrors analytics.js typeDistribution)."""
+    active_rows = df[(df["Period"] == latest_period) & (df["IsActive"])]
+    if active_rows.empty:
+        return []
+    counts = active_rows.groupby("Type", dropna=True).size().reset_index(name="count")
+    result = [{"name": row["Type"], "count": int(row["count"])} for _, row in counts.iterrows()]
+    result.sort(key=lambda r: -r["count"])
+    return result
+
+
+def build_rf_insights(df: pd.DataFrame, latest_period: str,
+                      spec_cov: list[dict], class_cov: list[dict],
+                      roster: pd.DataFrame, logger: logging.Logger) -> dict:
+    """RF Narrative Intelligence (mirrors analytics.js rfInsights block).
+    Uses pre-computed specialtyCoverage / classCoverage for rfBySpecialty / rfByClass
+    and recomputes per-employee RF for top5/bottom5 and at-risk counts."""
+    MIN_CUSTOMERS = 10
+    MIN_LEADERBOARD = 20
+
+    # rfByClass / rfBySpecialty: filter min 10 customers, sort desc by rightFreqPct
+    rf_by_class = [
+        c for c in class_cov
+        if c.get("customerCount", 0) >= MIN_CUSTOMERS and c.get("rightFreqPct") is not None
+    ]
+    rf_by_class.sort(key=lambda c: -(c["rightFreqPct"] or 0))
+
+    rf_by_specialty = [
+        s for s in spec_cov
+        if s.get("customerCount", 0) >= MIN_CUSTOMERS and s.get("rightFreqPct") is not None
+    ]
+    rf_by_specialty.sort(key=lambda s: -(s["rightFreqPct"] or 0))
+
+    # rfByExperience: group active latest-period rows by experience (Experience)
+    active_rows = df[(df["Period"] == latest_period) & (df["IsActive"])]
+    latest_roster = roster[roster["Period"] == latest_period]
+    active_roster = latest_roster[latest_roster["IsActive"]]
+
+    exp_groups = active_rows.groupby("Experience", dropna=True).agg(
+        rightFreqSum=("Right Freq", "sum"),
+        rowCount=("Right Freq", "count"),
+    ).reset_index()
+    emp_per_exp = active_roster.groupby("Experience")["Employee Code"].nunique().reset_index(name="empCount")
+    exp_groups = exp_groups.merge(emp_per_exp, on="Experience", how="left")
+
+    rf_by_experience = []
+    for _, row in exp_groups.iterrows():
+        rf_pct = safe_round(row["rightFreqSum"] / row["rowCount"]) if row["rowCount"] else None
+        rf_by_experience.append({
+            "experience": row["Experience"],
+            "rfPct": rf_pct,
+            "empCount": int(row.get("empCount", 0) or 0),
+            "rowCount": int(row["rowCount"]),
+        })
+
+    # rfTop5 / rfBottom5: per-employee RF% for latest period, ≥5 customers
+    emp_rf = active_rows.groupby("Employee", dropna=True).agg(
+        rightFreqSum=("Right Freq", "sum"),
+        customerCount=("Right Freq", "count"),
+        team=("Team", "first"),
+    ).reset_index()
+    emp_rf = emp_rf[emp_rf["customerCount"] >= MIN_LEADERBOARD].copy()
+    emp_rf["rfPct"] = emp_rf.apply(
+        lambda r: safe_round(r["rightFreqSum"] / r["customerCount"]) if r["customerCount"] else None, axis=1
+    )
+    emp_rf = emp_rf[emp_rf["rfPct"].notna()].sort_values("rfPct", ascending=False)
+
+    def to_rf_row(r):
+        return {
+            "name": r["Employee"],
+            "team": r["team"],
+            "rfPct": r["rfPct"],
+            "customerCount": int(r["customerCount"]),
+        }
+
+    rf_top10 = [to_rf_row(r) for _, r in emp_rf.head(10).iterrows()]
+    rf_bottom10 = [to_rf_row(r) for _, r in emp_rf.tail(10).sort_values("rfPct").iterrows()]
+
+    # At-risk customers: row-level zero right frequency divided into 3 tiers
+    at_risk_rows = active_rows[active_rows["Right Freq"] == 0]
+    tier1_list = []
+    tier2_list = []
+    tier3_list = []
+
+    for _, row in at_risk_rows.iterrows():
+        freq = int(row.get("Frequency", 0) or 0)
+        visits = int(row.get("Visits Count", 0) or 0)
+        missed = freq - visits
+        doc_info = {
+            "customerName": str(row.get("Customer Name", "")),
+            "specialty": str(row.get("Specialty", "")),
+            "klass": str(row.get("Class", "")),
+            "type": str(row.get("Type", "")),
+            "employee": str(row.get("Employee", "")),
+            "team": str(row.get("Team", "")),
+            "manager": str(row.get("Manager", "")),
+            "frequency": freq,
+            "visits": visits,
+            "missedCalls": missed,
+            "lastVisitDate": str(row.get("Last Visit Date String", "Never")),
+            "area": str(row.get("Area", "")),
+        }
+        if missed == 1:
+            tier1_list.append(doc_info)
+        elif missed == 2:
+            tier2_list.append(doc_info)
+        elif missed >= 3:
+            tier3_list.append(doc_info)
+
+    at_risk_tiers = {
+        "tier1": {"count": len(tier1_list), "list": tier1_list},
+        "tier2": {"count": len(tier2_list), "list": tier2_list},
+        "tier3": {"count": len(tier3_list), "list": tier3_list},
+    }
+
+    at_risk_count = len(tier1_list) + len(tier2_list) + len(tier3_list)
+    total_customers = len(active_rows)
+    overall_rf_pct = safe_round(active_rows["Right Freq"].mean()) if len(active_rows) else None
+
+    logger.info("RF insights built: atRiskCount=%d, totalCustomers=%d", at_risk_count, total_customers)
+    return {
+        "overallRfPct": overall_rf_pct,
+        "rfByClass": rf_by_class,
+        "rfBySpecialty": rf_by_specialty,
+        "rfByExperience": rf_by_experience,
+        "rfTop10": rf_top10,
+        "rfBottom10": rf_bottom10,
+        "atRiskCount": at_risk_count,
+        "totalCustomers": total_customers,
+        "atRiskTiers": at_risk_tiers,
+    }
+
+
+def build_quarterly_kol_coverage(df: pd.DataFrame, roster: pd.DataFrame, logger: logging.Logger) -> list[dict]:
+    """Per-employee quarterly KOL coverage (mirrors analytics.js getKolCoverage()).
+    Q1 = Feb + Mar, Q2 = Apr + May + Jun. Period filter intentionally ignored."""
+    Q1_MONTHS = {"february", "feb", "march", "mar"}
+    Q2_MONTHS = {"april", "apr", "may", "june", "jun"}
+
+    def quarter_of(period: str) -> str | None:
+        p = period.lower()
+        if any(m in p for m in Q1_MONTHS):
+            return "q1"
+        if any(m in p for m in Q2_MONTHS):
+            return "q2"
+        return None
+
+    df2 = df[df["IsActive"]].copy()
+    df2["Quarter"] = df2["Period"].map(quarter_of)
+    df2 = df2[df2["Quarter"].notna()]
+
+    if df2.empty:
+        return []
+
+    # For each employee+quarter: unique customers and whether each was covered
+    result_rows = []
+    for emp, emp_group in df2.groupby("Employee", dropna=True):
+        team = emp_group["Team"].iloc[0]
+        profile = emp_group["Profile"].iloc[0] if "Profile" in emp_group.columns else ""
+        title = emp_group["Title"].iloc[0] if "Title" in emp_group.columns else ""
+
+        def quarter_stats(qdf):
+            if qdf.empty:
+                return {"total": 0, "covered": 0, "coveragePct": None, "notSeen": 0, "notSeenList": []}
+            # A customer is covered if covered in ANY row for that quarter
+            cust_covered = qdf.groupby("Customer Name")["Covered Doctors"].max()
+            total = int(len(cust_covered))
+            covered = int((cust_covered > 0).sum())
+            not_seen_custs = cust_covered[cust_covered == 0].index.tolist()
+            # Build notSeenList with metadata from first occurrence
+            not_seen_list = []
+            for cname in sorted(not_seen_custs):
+                crows = qdf[qdf["Customer Name"] == cname].iloc[0]
+                not_seen_list.append({
+                    "customerName": cname,
+                    "specialty": crows.get("Specialty", ""),
+                    "klass": crows.get("Class", ""),
+                    "type": crows.get("Type", ""),
+                    "frequency": int(crows.get("Frequency", 0) or 0),
+                })
+            return {
+                "total": total,
+                "covered": covered,
+                "coveragePct": safe_round(covered / total) if total else None,
+                "notSeen": total - covered,
+                "notSeenList": not_seen_list,
+            }
+
+        q1 = quarter_stats(emp_group[emp_group["Quarter"] == "q1"])
+        q2 = quarter_stats(emp_group[emp_group["Quarter"] == "q2"])
+
+        if q1["total"] + q2["total"] == 0:
+            continue
+
+        all_custs = set(emp_group["Customer Name"].dropna())
+        kol_count = len(all_custs)
+
+        result_rows.append({
+            "name": emp,
+            "profile": profile,
+            "team": team,
+            "title": title,
+            "kolCount": kol_count,
+            "q1Total": q1["total"], "q1Covered": q1["covered"],
+            "q1CoveragePct": q1["coveragePct"], "q1NotSeen": q1["notSeen"],
+            "q1NotSeenList": q1["notSeenList"],
+            "q2Total": q2["total"], "q2Covered": q2["covered"],
+            "q2CoveragePct": q2["coveragePct"], "q2NotSeen": q2["notSeen"],
+            "q2NotSeenList": q2["notSeenList"],
+        })
+
+    result_rows.sort(key=lambda r: r["name"])
+    logger.info("Quarterly KOL coverage built: %d employees", len(result_rows))
+    return result_rows
+
+
+def build_kpi_deltas(kpis: dict, trend: dict) -> dict | None:
+    """Period-over-period KPI delta indicators (mirrors analytics.js buildKpiDeltas).
+    Computes delta between latest period and the one before it in trend.series."""
+    series = trend.get("series", [])
+    if len(series) < 2:
+        return None
+
+    current = series[-1]
+    prev = series[-2]
+
+    def diff(curr_val, prev_val, rounder=None):
+        if curr_val is None or prev_val is None:
+            return None
+        d = curr_val - prev_val
+        return round(d, 4) if rounder is None else rounder(d)
+
+    return {
+        "previousPeriod": prev["period"],
+        "activeReps":          {"previous": prev.get("activeReps"),          "delta": diff(kpis.get("activeReps"),          prev.get("activeReps"))},
+        "resignedReps":        {"previous": prev.get("resignedReps"),        "delta": diff(kpis.get("resignedReps"),        prev.get("resignedReps"))},
+        "coveragePct":         {"previous": prev.get("coveragePct"),         "delta": diff(kpis.get("coveragePct"),         prev.get("coveragePct"))},
+        "rightFreqPct":        {"previous": prev.get("rightFreqPct"),        "delta": diff(kpis.get("rightFreqPct"),        prev.get("rightFreqPct"))},
+        "customersPerRep":     {"previous": prev.get("customersPerRep"),     "delta": diff(kpis.get("customersPerRep"),     prev.get("customersPerRep"))},
+        "vacancyCount":        {"previous": prev.get("vacancyCount"),        "delta": diff(kpis.get("vacancyCount"),        prev.get("vacancyCount"))},
+        "totalTargetVisits":   {"previous": prev.get("totalTargetVisits"),   "delta": diff(kpis.get("totalTargetVisits"),   prev.get("totalTargetVisits"))},
+        "totalActualVisits":   {"previous": prev.get("totalActualVisits"),   "delta": diff(kpis.get("totalActualVisits"),   prev.get("totalActualVisits"))},
+        "visitAchievementPct": {"previous": prev.get("visitAchievementPct"), "delta": diff(kpis.get("visitAchievementPct"), prev.get("visitAchievementPct"))},
+        "notSeenCount":        {"previous": prev.get("notSeenCount"),        "delta": diff(kpis.get("notSeenCount"),        prev.get("notSeenCount"))},
+        "notSeenPct":          {"previous": prev.get("notSeenPct"),          "delta": diff(kpis.get("notSeenPct"),          prev.get("notSeenPct"))},
+        "totalUniqueCustomers":{"previous": prev.get("totalUniqueCustomers"),"delta": diff(kpis.get("totalUniqueCustomers"), prev.get("totalUniqueCustomers"))},
+        "totalSharedCustomers":{"previous": prev.get("totalSharedCustomers"),"delta": diff(kpis.get("totalSharedCustomers"), prev.get("totalSharedCustomers"))},
+    }
+
+
 def run_aggregation_engine(df: pd.DataFrame, validation: ValidationResult, logger: logging.Logger) -> tuple[dict, dict, str]:
     """Orchestrates every aggregation object the dashboard needs and
     returns (dashboard_cache, records_cache, latest_period)."""
+    df = df.copy()
+    df["Last Visit Date String"] = df["Last Visit Date"].dt.strftime("%B").fillna("Never")
     roster = build_roster(df, logger)
     latest_period, _ = get_latest_period(roster)
     logger.info("Latest period resolved: %s", latest_period)
 
+    kpis       = build_kpis(df, roster, latest_period, logger)
+    trend      = build_trend(df, roster, logger)
+    spec_cov   = build_specialty_class_coverage(df, "Specialty", latest_period, logger)
+    class_cov  = build_specialty_class_coverage(df, "Class", latest_period, logger)
+
     dashboard_cache = {
-        "kpis": build_kpis(df, roster, latest_period, logger),
-        "trend": build_trend(df, roster, logger),
+        "kpis": kpis,
+        "kpiDeltas": build_kpi_deltas(kpis, trend),
+        "trend": trend,
         "teamComparison": build_team_comparison(df, roster, latest_period, logger),
         "managerRanking": build_hierarchy_ranking(df, roster, "Manager", "Manager", latest_period),
         "areaManagerRanking": build_hierarchy_ranking(df, roster, "Area Manager", "AreaManager", latest_period),
-        "specialtyCoverage": build_specialty_class_coverage(df, "Specialty", latest_period, logger),
-        "classCoverage": build_specialty_class_coverage(df, "Class", latest_period, logger),
+        "specialtyCoverage": spec_cov,
+        "classCoverage": class_cov,
+        "typeDistribution": build_type_distribution(df, latest_period),
+        "rfInsights": build_rf_insights(df, latest_period, spec_cov, class_cov, roster, logger),
+        "quarterlyCustomerCoverage": build_quarterly_kol_coverage(df, roster, logger),
         "leaderboards": build_leaderboards(roster, latest_period, logger),
         "attrition": build_attrition_panel(roster, logger),
         "vacancies": build_vacancy_panel(df, latest_period, logger),
@@ -932,6 +1228,292 @@ def write_cache_pair(data: dict, json_path: Path, js_path: Path, js_var_name: st
     json_path.write_text(payload, encoding="utf-8")
     js_path.write_text(f"window.{js_var_name} = {payload};\n", encoding="utf-8")
     logger.info("Wrote %s (%.1f KB) and %s", json_path.name, json_path.stat().st_size / 1024, js_path.name)
+
+
+def run_organogram_aggregation(organogram_path: Path, df_coverage: pd.DataFrame, logger: logging.Logger) -> dict:
+    t0 = time.time()
+    logger.info("Parsing organogram workbook...")
+    df_org = pd.read_excel(organogram_path, sheet_name="Details")
+    df_org = df_org.loc[:, ~df_org.columns.str.contains('^Unnamed')]
+
+    # Standardize columns
+    df_org["Line"] = df_org["Line"].astype(str).str.strip().str.upper()
+    df_org["Medical Rep"] = df_org["Medical Rep"].astype(str).str.strip()
+    df_org["Position"] = df_org["Position"].astype(str).str.strip()
+
+    # Position-level vacancy mapping
+    df_pos = df_org.drop_duplicates(subset=["Position"])
+    
+    # 1. Vacancy by Line
+    line_stats = []
+    for line, g in df_pos.groupby("Line"):
+        total = len(g)
+        vac = g["Medical Rep"].astype(str).str.contains("VACANT", case=False, na=True).sum()
+        active = total - vac
+        vac_pct = (vac / total * 100) if total > 0 else 0
+        line_stats.append({
+            "line": line,
+            "total": int(total),
+            "active": int(active),
+            "vacant": int(vac),
+            "vacancyRate": round(vac_pct, 1)
+        })
+    line_stats = sorted(line_stats, key=lambda x: x["vacancyRate"], reverse=True)
+
+    # 2. Vacancy by Manager
+    manager_vacancy = []
+    for dm, g in df_pos.groupby("District Manager"):
+        if pd.isna(dm) or dm == "" or "VACANT" in str(dm).upper():
+            continue
+        total = len(g)
+        vac = g["Medical Rep"].astype(str).str.contains("VACANT", case=False, na=True).sum()
+        active = total - vac
+        vac_pct = (vac / total * 100) if total > 0 else 0
+        manager_vacancy.append({
+            "manager": dm,
+            "line": g["Line"].iloc[0] if len(g) > 0 else "",
+            "total": int(total),
+            "active": int(active),
+            "vacant": int(vac),
+            "vacancyRate": round(vac_pct, 1)
+        })
+    manager_vacancy = sorted(manager_vacancy, key=lambda x: x["vacancyRate"], reverse=True)[:15] # Top 15 managers with highest vacancy
+
+    # 3. Vacant Positions list (Recruitment Priorities)
+    vacant_positions_list = []
+    df_vacant_rows = df_pos[df_pos["Medical Rep"].astype(str).str.contains("VACANT", case=False, na=True)]
+    for _, r in df_vacant_rows.iterrows():
+        vacant_positions_list.append({
+            "position": str(r["Position"]),
+            "line": str(r["Line"]),
+            "bum": str(r["BUM"]) if not pd.isna(r["BUM"]) else "",
+            "nsm": str(r["NSM"]) if not pd.isna(r["NSM"]) else "",
+            "asm": str(r["ASM"]) if not pd.isna(r["ASM"]) else "",
+            "dm": str(r["District Manager"]) if not pd.isna(r["District Manager"]) else "",
+            "area": str(r["Area"]) if not pd.isna(r["Area"]) else "",
+            "district": str(r["District"]) if not pd.isna(r["District"]) else ""
+        })
+
+    # 4. Span of Control
+    # DMs reporting to ASMs
+    dm_positions = df_pos.drop_duplicates(subset=["District Manager"])
+    # filter out vacant DMs
+    dm_positions = dm_positions[~dm_positions["District Manager"].astype(str).str.upper().str.startswith("VACANT")]
+    asm_groups = dm_positions.groupby("ASM")
+    asm_span = asm_groups["District Manager"].nunique()
+    asm_span_list = []
+    for asm, count in asm_span.items():
+        if pd.isna(asm) or asm == "" or "VACANT" in str(asm).upper():
+            continue
+        line = dm_positions[dm_positions["ASM"] == asm]["Line"].iloc[0] if asm in dm_positions["ASM"].values else ""
+        asm_span_list.append({
+            "managerName": asm,
+            "line": line,
+            "spanCount": int(count),
+            "overloaded": count > 4
+        })
+    asm_span_list = sorted(asm_span_list, key=lambda x: x["spanCount"], reverse=True)
+
+    # Reps reporting to DMs
+    # filter out vacant reps
+    active_rep_positions = df_pos[~df_pos["Medical Rep"].astype(str).str.upper().str.startswith("VACANT")]
+    dm_groups = active_rep_positions.groupby("District Manager")
+    dm_span = dm_groups["Medical Rep"].nunique()
+    dm_span_list = []
+    for dm, count in dm_span.items():
+        if pd.isna(dm) or dm == "" or "VACANT" in str(dm).upper():
+            continue
+        line = active_rep_positions[active_rep_positions["District Manager"] == dm]["Line"].iloc[0] if dm in active_rep_positions["District Manager"].values else ""
+        dm_span_list.append({
+            "managerName": dm,
+            "line": line,
+            "spanCount": int(count),
+            "overloaded": count > 8
+        })
+    dm_span_list = sorted(dm_span_list, key=lambda x: x["spanCount"], reverse=True)
+
+    # 5. Brick Workload Distribution
+    active_assignments = df_org[~df_org["Medical Rep"].astype(str).str.contains("VACANT", case=False, na=True)]
+    rep_brick_counts = active_assignments.groupby("Medical Rep")["702 Bricks"].nunique()
+    rep_details = []
+    for rep, g in active_assignments.groupby("Medical Rep"):
+        brick_count = g["702 Bricks"].nunique()
+        first_row = g.iloc[0]
+        rep_details.append({
+            "rep": rep,
+            "line": str(first_row["Line"]),
+            "dm": str(first_row["District Manager"]) if not pd.isna(first_row["District Manager"]) else "",
+            "asm": str(first_row["ASM"]) if not pd.isna(first_row["ASM"]) else "",
+            "bricks": int(brick_count)
+        })
+    
+    rep_details_sorted = sorted(rep_details, key=lambda x: x["bricks"], reverse=True)
+    overloaded_reps_list = [r for r in rep_details_sorted if r["bricks"] > 30]
+
+    # Bricks stats
+    avg_bricks = float(rep_brick_counts.mean()) if len(rep_brick_counts) > 0 else 0.0
+    brick_buckets = {
+        "light": int((rep_brick_counts < 5).sum()),
+        "balanced": int(((rep_brick_counts >= 5) & (rep_brick_counts <= 15)).sum()),
+        "dense": int(((rep_brick_counts > 15) & (rep_brick_counts <= 30)).sum()),
+        "overloaded": int((rep_brick_counts > 30).sum())
+    }
+
+    # 6. Hiring Date Normalization & Probation calculations on df_coverage (main workbook)
+    # Rebuild a light roster from df_coverage
+    df_cov_copy = df_coverage.copy()
+    df_cov_copy["Period"] = df_cov_copy["Period"].astype(str).str.strip().str.title()
+    df_cov_copy["PeriodOrder"] = df_cov_copy["Period"].str.lower().map(MONTH_ORDER)
+    df_cov_copy["Employee Code"] = df_cov_copy["Employee Code"].apply(
+        lambda v: str(int(v)) if isinstance(v, (int, float)) and not pd.isna(v) else str(v)
+    )
+    df_cov_copy["Hiring Date"] = pd.to_datetime(df_cov_copy["Hiring Date"], errors="coerce")
+    df_cov_copy["Resignation Date"] = pd.to_datetime(df_cov_copy["Resignation Date"], errors="coerce")
+    df_cov_copy["IsActive"] = df_cov_copy["Active"].astype(str).str.strip().str.title() == "Active"
+    df_cov_copy["IsResigned"] = df_cov_copy["Active"].astype(str).str.strip().str.title() == "Resigned"
+
+    roster = df_cov_copy.groupby(["Employee Code", "Period"], as_index=False).agg(
+        PeriodOrder=("PeriodOrder", "first"),
+        Employee=("Employee", "first"),
+        Team=("Team", "first"),
+        Active=("Active", "first"),
+        IsActive=("IsActive", "first"),
+        IsResigned=("IsResigned", "first"),
+        HiringDate=("Hiring Date", "first"),
+        ResignationDate=("Resignation Date", "first")
+    ).sort_values("PeriodOrder")
+
+    periods = roster["Period"].unique()
+    periods_sorted = sorted(periods, key=lambda p: MONTH_ORDER.get(p.lower(), 99))
+
+    probation_turnover_series = []
+    non_probation_turnover_series = []
+
+    def normalize_hiring_date(d):
+        if pd.isna(d):
+            return pd.NaT
+        year = d.year
+        month = d.month
+        day = d.day
+        if day <= 15:
+            return pd.Timestamp(year=year, month=month, day=1)
+        else:
+            if month == 12:
+                return pd.Timestamp(year=year+1, month=1, day=1)
+            else:
+                return pd.Timestamp(year=year, month=month+1, day=1)
+
+    def period_to_timestamp(period_str):
+        p_lower = str(period_str).lower().strip()
+        for m_name, m_num in MONTH_ORDER.items():
+            if m_name in p_lower:
+                return pd.Timestamp(year=2026, month=m_num, day=1)
+        return pd.Timestamp("2026-06-01")
+
+    for p in periods_sorted:
+        p_rost = roster[roster["Period"] == p].copy()
+        p_date = period_to_timestamp(p)
+        
+        # Classify
+        norm_hir = p_rost["HiringDate"].apply(normalize_hiring_date)
+        probation_end = norm_hir + pd.DateOffset(months=3)
+        p_rost["IsProbation"] = p_date < probation_end
+        
+        # Counts
+        active_prob = int(p_rost[p_rost["IsActive"] & p_rost["IsProbation"]]["Employee Code"].count())
+        active_non_prob = int(p_rost[p_rost["IsActive"] & ~p_rost["IsProbation"]]["Employee Code"].count())
+        
+        resigned_prob = int(p_rost[p_rost["IsResigned"] & p_rost["IsProbation"]]["Employee Code"].count())
+        resigned_non_prob = int(p_rost[p_rost["IsResigned"] & ~p_rost["IsProbation"]]["Employee Code"].count())
+        
+        prob_rate = float(resigned_prob / (active_prob + resigned_prob)) if (active_prob + resigned_prob) > 0 else 0.0
+        non_prob_rate = float(resigned_non_prob / (active_non_prob + resigned_non_prob)) if (active_non_prob + resigned_non_prob) > 0 else 0.0
+        
+        probation_turnover_series.append({
+            "period": p,
+            "active": active_prob,
+            "resigned": resigned_prob,
+            "rate": round(prob_rate * 100, 1)
+        })
+        non_probation_turnover_series.append({
+            "period": p,
+            "active": active_non_prob,
+            "resigned": resigned_non_prob,
+            "rate": round(non_prob_rate * 100, 1)
+        })
+
+    # June metrics (latest period)
+    june_roster = roster[roster["Period"] == "June"].copy()
+    june_date = period_to_timestamp("June")
+    
+    # Classify June
+    june_norm_hir = june_roster["HiringDate"].apply(normalize_hiring_date)
+    june_prob_end = june_norm_hir + pd.DateOffset(months=3)
+    june_roster["IsProbation"] = june_date < june_prob_end
+    
+    current_probation_count = int(june_roster[june_roster["IsActive"] & june_roster["IsProbation"]]["Employee Code"].count())
+    current_non_probation_count = int(june_roster[june_roster["IsActive"] & ~june_roster["IsProbation"]]["Employee Code"].count())
+    
+    # Ramp-up: Hired in last 6 months
+    ramp_up_cutoff = june_date - pd.DateOffset(months=6)
+    june_roster["IsRampUp"] = june_roster["HiringDate"] >= ramp_up_cutoff
+    current_ramp_up_count = int(june_roster[june_roster["IsActive"] & june_roster["IsRampUp"]]["Employee Code"].count())
+    total_active_june = current_probation_count + current_non_probation_count
+    current_ramp_up_rate = float(current_ramp_up_count / total_active_june * 100) if total_active_june > 0 else 0.0
+
+    # Average tenure in months for active June reps
+    active_june_reps = june_roster[june_roster["IsActive"] & june_roster["HiringDate"].notna()]
+    tenure_days = (june_date - active_june_reps["HiringDate"]).dt.days
+    tenure_months = tenure_days / 30.4375
+    avg_rep_tenure_months = float(tenure_months.mean()) if len(tenure_months) > 0 else 0.0
+
+    # Training needs alerts by team/line
+    training_alerts = []
+    for team, g in june_roster[june_roster["IsActive"]].groupby("Team"):
+        tot_active = len(g)
+        prob_count = g["IsProbation"].sum()
+        prob_pct = (prob_count / tot_active * 100) if tot_active > 0 else 0.0
+        
+        if prob_pct > 15: # Alert if >15% of team is in probation
+            training_alerts.append({
+                "team": team,
+                "activeReps": int(tot_active),
+                "probationReps": int(prob_count),
+                "probationRate": round(prob_pct, 1),
+                "alertLevel": "High" if prob_pct > 30 else "Medium"
+            })
+    training_alerts = sorted(training_alerts, key=lambda x: x["probationRate"], reverse=True)
+
+    elapsed = time.time() - t0
+    logger.info("SFE & Organogram aggregation complete in %.2fs", elapsed)
+
+    return {
+        "vacancyByLine": line_stats,
+        "vacancyByManager": manager_vacancy,
+        "vacantPositions": vacant_positions_list,
+        "spanOfControl": {
+            "dmSpan": dm_span_list,
+            "asmSpan": asm_span_list,
+            "averageDmSpan": round(float(dm_span.mean()), 1) if len(dm_span) > 0 else 0.0,
+            "averageAsmSpan": round(float(asm_span.mean()), 1) if len(asm_span) > 0 else 0.0,
+        },
+        "brickWorkload": {
+            "averageBricksPerRep": round(avg_bricks, 1),
+            "buckets": brick_buckets,
+            "overloadedReps": overloaded_reps_list
+        },
+        "tenureStability": {
+            "probationTurnover": probation_turnover_series,
+            "nonProbationTurnover": non_probation_turnover_series,
+            "currentRampUpRate": round(current_ramp_up_rate, 1),
+            "averageRepTenureMonths": round(avg_rep_tenure_months, 1),
+            "lifecycleCounts": {
+                "probation": current_probation_count,
+                "nonProbation": current_non_probation_count
+            },
+            "trainingAlerts": training_alerts
+        }
+    }
 
 
 def build_metadata(workbook_path: Path, df: pd.DataFrame, validation: ValidationResult,
@@ -998,6 +1580,16 @@ def main() -> int:
         logger.info("--- Cache generation ---")
         write_cache_pair(dashboard_cache, DASHBOARD_JSON, DASHBOARD_JS, "DASHBOARD_CACHE", logger)
         write_cache_pair(records_cache, RECORDS_JSON, RECORDS_JS, "DASHBOARD_RECORDS", logger)
+
+        organogram_path = SCRIPT_DIR / "Zeta's Total Organogram 2026.xlsx"
+        if organogram_path.exists():
+            logger.info("--- Organogram Aggregation ---")
+            organogram_cache = run_organogram_aggregation(organogram_path, df_transformed, logger)
+            ORGANOGRAM_JSON = CACHE_DIR / "organogram.json"
+            ORGANOGRAM_JS = CACHE_DIR / "organogram.data.js"
+            write_cache_pair(organogram_cache, ORGANOGRAM_JSON, ORGANOGRAM_JS, "DASHBOARD_ORGANOGRAM", logger)
+        else:
+            logger.warning("Organogram file not found at %s -- SFE dashboard data will be empty.", organogram_path)
 
         duration = time.time() - t0
         metadata = build_metadata(workbook_path, df_transformed, validation, latest_period, start_time, duration)
