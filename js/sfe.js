@@ -69,17 +69,17 @@
       const data = this.getData();
       const list = [];
 
-      // 1. Add active DMs from dmHierarchy
-      for (const [dmName, h] of Object.entries(data.dmHierarchy || {})) {
+      // 1. Add active slots from activePositions
+      (data.activePositions || []).forEach(p => {
         list.push({
-          line: h.line || '',
-          bum: h.bum || '',
-          nsm: h.nsm || '',
-          asm: h.asm || '',
-          dm: dmName,
+          line: p.line || '',
+          bum: p.bum || '',
+          nsm: p.nsm || '',
+          asm: p.asm || '',
+          dm: p.dm || '',
           status: 'Active'
         });
-      }
+      });
 
       // 2. Add vacant slots
       (data.vacantPositions || []).forEach(p => {
