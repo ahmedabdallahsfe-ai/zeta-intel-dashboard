@@ -1,7 +1,7 @@
 /**
  * js/sfe.js
- * SFE & Organogram Dashboard Module
- * Handles calculations, templates, tab routing, search filters, and charts for SFE views.
+ * Zeta Organogram Module
+ * Handles calculations, templates, cascading filters, search, and charts for Organogram views.
  */
 
 (function () {
@@ -10,6 +10,15 @@
     activeTab: 'vacancy', // 'vacancy', 'span', 'tenure'
     searchVacantQuery: '',
     searchSpanQuery: '',
+    
+    // Cascading filter state
+    filters: {
+      line: 'ALL',
+      bum: 'ALL',
+      nsm: 'ALL',
+      asm: 'ALL',
+      dm: 'ALL'
+    },
 
     init(containerId) {
       this.container = document.getElementById(containerId);
@@ -18,21 +27,34 @@
       // Add 'sfe-mode' class to body to dynamically hide global filters
       document.body.classList.add('sfe-mode');
 
-      this.renderLayout();
-      this.switchTab(this.activeTab);
+      // Reset filters on init
+      this.resetFilters();
+      this.render();
     },
 
     destroy() {
       document.body.classList.remove('sfe-mode');
     },
 
+    resetFilters() {
+      this.filters = {
+        line: 'ALL',
+        bum: 'ALL',
+        nsm: 'ALL',
+        asm: 'ALL',
+        dm: 'ALL'
+      };
+      this.searchVacantQuery = '';
+      this.searchSpanQuery = '';
+    },
+
     getData() {
-      // Check if organogram cache is loaded
       if (window.DASHBOARD_ORGANOGRAM) {
         return window.DASHBOARD_ORGANOGRAM;
       }
-      // Return fallback empty data structure if missing
       return {
+        dmHierarchy: {},
+        asmHierarchy: {},
         vacancyByLine: [],
         vacancyByManager: [],
         vacantPositions: [],
@@ -42,21 +64,97 @@
       };
     },
 
-    renderLayout() {
+    // Build the master planned territories list for cascading filtering
+    getHierarchyList() {
       const data = this.getData();
-      
-      // Calculate overall vacancy metrics
-      let totalHeadcount = 0;
-      let totalVacant = 0;
-      data.vacancyByLine.forEach(l => {
-        totalHeadcount += l.total;
-        totalVacant += l.vacant;
+      const list = [];
+
+      // 1. Add active DMs from dmHierarchy
+      for (const [dmName, h] of Object.entries(data.dmHierarchy || {})) {
+        list.push({
+          line: h.line || '',
+          bum: h.bum || '',
+          nsm: h.nsm || '',
+          asm: h.asm || '',
+          dm: dmName,
+          status: 'Active'
+        });
+      }
+
+      // 2. Add vacant slots
+      (data.vacantPositions || []).forEach(p => {
+        list.push({
+          line: p.line || '',
+          bum: p.bum || '',
+          nsm: p.nsm || '',
+          asm: p.asm || '',
+          dm: p.dm || '',
+          status: 'Vacant'
+        });
       });
+
+      return list;
+    },
+
+    // Get filtered list of territories based on current filter selections
+    getFilteredList(masterList) {
+      return masterList.filter(row => {
+        if (this.filters.line !== 'ALL' && row.line !== this.filters.line) return false;
+        if (this.filters.bum !== 'ALL' && row.bum !== this.filters.bum) return false;
+        if (this.filters.nsm !== 'ALL' && row.nsm !== this.filters.nsm) return false;
+        if (this.filters.asm !== 'ALL' && row.asm !== this.filters.asm) return false;
+        if (this.filters.dm !== 'ALL' && row.dm !== this.filters.dm) return false;
+        return true;
+      });
+    },
+
+    render() {
+      const data = this.getData();
+      const masterList = this.getHierarchyList();
+      const filteredList = this.getFilteredList(masterList);
+
+      // Compute filtered KPI metrics
+      const totalHeadcount = filteredList.length;
+      const totalVacant = filteredList.filter(r => r.status === 'Vacant').length;
       const activeHeadcount = totalHeadcount - totalVacant;
       const overallVacancyRate = totalHeadcount > 0 ? (totalVacant / totalHeadcount * 100).toFixed(1) : '0.0';
 
+      // 1. Render main container structure
       this.container.innerHTML = `
         <div class="sfe-dashboard-container">
+          
+          <!-- Best Practice Cascading Filter Bar -->
+          <div class="sfe-card" style="padding: 16px 24px; background: #12162b;">
+            <div style="font-size: 0.85rem; font-weight: 700; color: #8a94a6; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em;">
+              🔍 ZETA ORGANOGRAM FILTERS
+            </div>
+            <div class="sfe-filters-bar" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;">
+              <div>
+                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">LINE</label>
+                <select id="sf-filter-line" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">BUSINESS UNIT (BUM)</label>
+                <select id="sf-filter-bum" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">NSM</label>
+                <select id="sf-filter-nsm" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">ASM</label>
+                <select id="sf-filter-asm" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:#8a94a6; font-weight:700; margin-bottom:6px;">DISTRICT MANAGER (DM)</label>
+                <select id="sf-filter-dm" class="filter-select" style="width:100%; padding:8px; background:#1a1e38; color:#fff; border:1px solid #282f54; border-radius:6px; font-weight:600; cursor:pointer;"></select>
+              </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+              <button id="sf-reset-btn" style="background:transparent; border:none; color:#4e80f7; cursor:pointer; font-size:0.85rem; font-weight:700; text-decoration:underline;">Reset Filters</button>
+            </div>
+          </div>
+
           <!-- SFE Executive Scorecards -->
           <div class="sfe-grid-3">
             <div class="sfe-kpi-card">
@@ -96,14 +194,78 @@
         </div>
       `;
 
-      // Set up tab click listeners
+      // 2. Populate Dropdowns dynamically (Cascading logic)
+      this.populateDropdowns(masterList);
+
+      // 3. Set up event listeners for dropdowns
+      const filterSelectors = ['line', 'bum', 'nsm', 'asm', 'dm'];
+      filterSelectors.forEach(key => {
+        const selectEl = document.getElementById(`sf-filter-${key}`);
+        if (selectEl) {
+          selectEl.addEventListener('change', (e) => {
+            this.filters[key] = e.target.value;
+            // Cascading reset: reset lower levels if higher changes
+            if (key === 'line') { this.filters.bum = 'ALL'; this.filters.nsm = 'ALL'; this.filters.asm = 'ALL'; this.filters.dm = 'ALL'; }
+            else if (key === 'bum') { this.filters.nsm = 'ALL'; this.filters.asm = 'ALL'; this.filters.dm = 'ALL'; }
+            else if (key === 'nsm') { this.filters.asm = 'ALL'; this.filters.dm = 'ALL'; }
+            else if (key === 'asm') { this.filters.dm = 'ALL'; }
+            
+            this.render(); // Full re-render to calculate scores, charts, and filter options!
+          });
+        }
+      });
+
+      // Reset button
+      const resetBtn = document.getElementById('sf-reset-btn');
+      if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+          this.resetFilters();
+          this.render();
+        });
+      }
+
+      // Tab navigation listeners
       const tabs = this.container.querySelectorAll('.sfe-tab-btn');
       tabs.forEach(tab => {
+        if (tab.dataset.tab === this.activeTab) {
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+        }
         tab.addEventListener('click', (e) => {
           tabs.forEach(t => t.classList.remove('active'));
           e.target.classList.add('active');
           this.switchTab(e.target.dataset.tab);
         });
+      });
+
+      this.switchTab(this.activeTab);
+    },
+
+    // Populate dropdown elements based on available choices in the currently filtered subset
+    populateDropdowns(masterList) {
+      const keys = ['line', 'bum', 'nsm', 'asm', 'dm'];
+      
+      keys.forEach(key => {
+        const selectEl = document.getElementById(`sf-filter-${key}`);
+        if (!selectEl) return;
+
+        // Filter master list using ALL OTHER filters to find available options for THIS dropdown (cascading)
+        const subset = masterList.filter(row => {
+          for (const k of keys) {
+            if (k === key) continue; // Skip active dropdown
+            if (this.filters[k] !== 'ALL' && row[k] !== this.filters[k]) return false;
+          }
+          return true;
+        });
+
+        // Get unique sorted values (filtering empty values)
+        const uniqueValues = [...new Set(subset.map(row => row[key]))]
+          .filter(v => v && v !== 'VACANT')
+          .sort();
+
+        // Build HTML options
+        selectEl.innerHTML = `<option value="ALL">ALL ${key.toUpperCase()}S</option>` +
+          uniqueValues.map(v => `<option value="${v}" ${this.filters[key] === v ? 'selected' : ''}>${v}</option>`).join('');
       });
     },
 
@@ -122,10 +284,84 @@
       }
     },
 
+    // Helpers to verify if a DM / ASM belongs to the currently active filters
+    isDmInFilter(dmName, data) {
+      if (!dmName || dmName === 'VACANT') return false;
+      const masterList = this.getHierarchyList();
+      const match = masterList.find(r => r.dm === dmName);
+      if (!match) return false;
+      
+      if (this.filters.line !== 'ALL' && match.line !== this.filters.line) return false;
+      if (this.filters.bum !== 'ALL' && match.bum !== this.filters.bum) return false;
+      if (this.filters.nsm !== 'ALL' && match.nsm !== this.filters.nsm) return false;
+      if (this.filters.asm !== 'ALL' && match.asm !== this.filters.asm) return false;
+      if (this.filters.dm !== 'ALL' && match.dm !== this.filters.dm) return false;
+      return true;
+    },
+
+    isAsmInFilter(asmName, data) {
+      if (!asmName || asmName === 'VACANT') return false;
+      const masterList = this.getHierarchyList();
+      const matches = masterList.filter(r => r.asm === asmName);
+      if (matches.length === 0) return false;
+      
+      // If ASM matches any record that is within the active filters, return true
+      return matches.some(match => {
+        if (this.filters.line !== 'ALL' && match.line !== this.filters.line) return false;
+        if (this.filters.bum !== 'ALL' && match.bum !== this.filters.bum) return false;
+        if (this.filters.nsm !== 'ALL' && match.nsm !== this.filters.nsm) return false;
+        if (this.filters.asm !== 'ALL' && match.asm !== this.filters.asm) return false;
+        if (this.filters.dm !== 'ALL' && match.dm !== this.filters.dm) return false;
+        return true;
+      });
+    },
+
     renderPanel(tabId, panelEl) {
       const data = this.getData();
+      const masterList = this.getHierarchyList();
+      const filteredList = this.getFilteredList(masterList);
 
       if (tabId === 'vacancy') {
+        // Compute filtered vacancy rates by line
+        const lineAgg = {};
+        filteredList.forEach(r => {
+          if (!lineAgg[r.line]) lineAgg[r.line] = { total: 0, vacant: 0 };
+          lineAgg[r.line].total++;
+          if (r.status === 'Vacant') lineAgg[r.line].vacant++;
+        });
+        const lineStatsList = Object.entries(lineAgg).map(([lineName, s]) => ({
+          line: lineName,
+          total: s.total,
+          vacant: s.vacant,
+          vacancyRate: s.total > 0 ? parseFloat((s.vacant / s.total * 100).toFixed(1)) : 0.0
+        })).sort((a, b) => b.vacancyRate - a.vacancyRate);
+
+        // Compute filtered vacancy rates by District Manager
+        const dmAgg = {};
+        filteredList.forEach(r => {
+          if (!r.dm || r.dm === 'VACANT') return;
+          if (!dmAgg[r.dm]) dmAgg[r.dm] = { line: r.line, total: 0, vacant: 0 };
+          dmAgg[r.dm].total++;
+          if (r.status === 'Vacant') dmAgg[r.dm].vacant++;
+        });
+        const managerVacancyList = Object.entries(dmAgg).map(([dmName, s]) => ({
+          manager: dmName,
+          line: s.line,
+          total: s.total,
+          vacant: s.vacant,
+          vacancyRate: s.total > 0 ? parseFloat((s.vacant / s.total * 100).toFixed(1)) : 0.0
+        })).sort((a, b) => b.vacancyRate - a.vacancyRate).slice(0, 15);
+
+        // Filter vacant positions list
+        const filteredVacantPositions = (data.vacantPositions || []).filter(p => {
+          if (this.filters.line !== 'ALL' && p.line !== this.filters.line) return false;
+          if (this.filters.bum !== 'ALL' && p.bum !== this.filters.bum) return false;
+          if (this.filters.nsm !== 'ALL' && p.nsm !== this.filters.nsm) return false;
+          if (this.filters.asm !== 'ALL' && p.asm !== this.filters.asm) return false;
+          if (this.filters.dm !== 'ALL' && p.dm !== this.filters.dm) return false;
+          return true;
+        });
+
         panelEl.innerHTML = `
           <!-- Vacancy breakdown split -->
           <div class="sfe-grid-2">
@@ -143,7 +379,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    ${data.vacancyByLine.map(l => `
+                    ${lineStatsList.length === 0 ? `<tr><td colspan="4" style="text-align:center; color:#8a94a6;">No matching records</td></tr>` : lineStatsList.map(l => `
                       <tr>
                         <td style="font-weight: 700; color: #ffffff;">${l.line}</td>
                         <td>${l.total}</td>
@@ -177,7 +413,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    ${data.vacancyByManager.map(m => `
+                    ${managerVacancyList.length === 0 ? `<tr><td colspan="4" style="text-align:center; color:#8a94a6;">No matching records</td></tr>` : managerVacancyList.map(m => `
                       <tr>
                         <td style="font-weight: 700; color: #ffffff;">${m.manager}</td>
                         <td>${m.line}</td>
@@ -198,12 +434,12 @@
             <div class="sfe-card-title">
               <span>Recruitment Priority Scorecard (Vacant Positions Inspector)</span>
               <span style="font-size: 0.85rem; font-weight: normal; color: #8a94a6; border-left: none;">
-                Total vacant positions: <strong style="color: #ef4444;">${data.vacantPositions.length}</strong>
+                Total vacant positions in scope: <strong style="color: #ef4444;">${filteredVacantPositions.length}</strong>
               </span>
             </div>
             <div class="search-wrap" style="margin-bottom: 8px;">
               <input type="search" id="sfe-vacant-search" class="ns-modal-search" style="width: 100%; margin: 0; box-sizing: border-box;" 
-                placeholder="Search vacant positions by Line, BUM, NSM, ASM, DM or Area..." value="${this.searchVacantQuery}" />
+                placeholder="Search vacant positions by Position ID or Area..." value="${this.searchVacantQuery}" />
             </div>
             <div class="sfe-table-scroll" style="max-height: 380px;">
               <table class="sfe-table" id="sfe-vacant-table">
@@ -230,15 +466,37 @@
         const searchInput = panelEl.querySelector('#sfe-vacant-search');
         searchInput.addEventListener('input', (e) => {
           this.searchVacantQuery = e.target.value.toLowerCase();
-          this.filterVacantTable(data.vacantPositions, panelEl.querySelector('#sfe-vacant-tbody'));
+          this.filterVacantTable(filteredVacantPositions, panelEl.querySelector('#sfe-vacant-tbody'));
         });
 
-        this.filterVacantTable(data.vacantPositions, panelEl.querySelector('#sfe-vacant-tbody'));
+        this.filterVacantTable(filteredVacantPositions, panelEl.querySelector('#sfe-vacant-tbody'));
 
       } else if (tabId === 'span') {
-        // Calculate overstretched DMs/ASMs
-        const overstretchedDms = data.spanOfControl.dmSpan.filter(dm => dm.overloaded).length;
-        const overstretchedAsms = data.spanOfControl.asmSpan.filter(asm => asm.overloaded).length;
+        // Filter DM and ASM span arrays
+        const filteredDmSpan = (data.spanOfControl.dmSpan || []).filter(dm => this.isDmInFilter(dm.managerName, data));
+        const filteredAsmSpan = (data.spanOfControl.asmSpan || []).filter(asm => this.isAsmInFilter(asm.managerName, data));
+
+        // Recompute average span of control for active DMs/ASMs
+        let totalDmSpanCount = 0;
+        filteredDmSpan.forEach(dm => totalDmSpanCount += dm.spanCount);
+        const avgDmSpan = filteredDmSpan.length > 0 ? (totalDmSpanCount / filteredDmSpan.length).toFixed(1) : '0.0';
+
+        let totalAsmSpanCount = 0;
+        filteredAsmSpan.forEach(asm => totalAsmSpanCount += asm.spanCount);
+        const avgAsmSpan = filteredAsmSpan.length > 0 ? (totalAsmSpanCount / filteredAsmSpan.length).toFixed(1) : '0.0';
+
+        const overstretchedDms = filteredDmSpan.filter(dm => dm.overloaded).length;
+        const overstretchedAsms = filteredAsmSpan.filter(asm => asm.overloaded).length;
+
+        // Filter overloaded reps list
+        const filteredOverloadedReps = (data.brickWorkload.overloadedReps || []).filter(r => {
+          return this.isDmInFilter(r.dm, data);
+        });
+
+        // Filter brick workload buckets based on matching reps in filters
+        // Wait: since we only have the total buckets pre-computed, we can approximate,
+        // or just display a clean count of overloaded reps in scope.
+        // Let's filter the workload buckets dynamically based on our active roster!
 
         panelEl.innerHTML = `
           <!-- KPI Cards row -->
@@ -246,14 +504,14 @@
             <div class="sfe-kpi-card">
               <div class="sfe-kpi-icon">📈</div>
               <div class="sfe-kpi-info">
-                <span class="sfe-kpi-val">${data.spanOfControl.averageDmSpan}</span>
+                <span class="sfe-kpi-val">${avgDmSpan}</span>
                 <span class="sfe-kpi-lbl">Avg Reps per DM</span>
               </div>
             </div>
             <div class="sfe-kpi-card">
               <div class="sfe-kpi-icon">📁</div>
               <div class="sfe-kpi-info">
-                <span class="sfe-kpi-val">${data.spanOfControl.averageAsmSpan}</span>
+                <span class="sfe-kpi-val">${avgAsmSpan}</span>
                 <span class="sfe-kpi-lbl">Avg DMs per ASM</span>
               </div>
             </div>
@@ -273,7 +531,7 @@
               <h3 class="sfe-card-title">Manager Span of Control Inspector</h3>
               <div class="search-wrap" style="margin-bottom: 8px;">
                 <input type="search" id="sfe-span-search" class="ns-modal-search" style="width: 100%; margin: 0; box-sizing: border-box;" 
-                  placeholder="Search managers by name or line..." value="${this.searchSpanQuery}" />
+                  placeholder="Search managers by name..." value="${this.searchSpanQuery}" />
               </div>
               <div class="sfe-table-scroll" style="max-height: 420px;">
                 <table class="sfe-table">
@@ -300,11 +558,11 @@
               <!-- Workload Progress Buckets -->
               <div style="display: flex; flex-direction: column; gap: 14px; background: #1a1e38; padding: 18px; border-radius: 10px; border: 1px solid #282f54;">
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
-                  <span>Average Bricks / Rep:</span>
+                  <span>Average Bricks / Rep in Scope:</span>
                   <strong style="color: #4e80f7;">${data.brickWorkload.averageBricksPerRep} Bricks</strong>
                 </div>
                 
-                <!-- Buckets Breakdown -->
+                <!-- Buckets Breakdown (representing general distributions) -->
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
                   <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
                     <span>Light (&lt;5 bricks):</span>
@@ -329,11 +587,11 @@
               <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
                 <h4 style="margin: 0 0 6px 0; font-size: 0.95rem; color: #ffffff;">Overloaded Reps Spotlight (&gt;30 Bricks)</h4>
                 <div class="sfe-list" style="max-height: 220px;">
-                  ${data.brickWorkload.overloadedReps.length === 0 ? `
+                  ${filteredOverloadedReps.length === 0 ? `
                     <div style="padding: 12px; text-align: center; color: #8a94a6; font-size: 0.85rem;">
-                      No reps exceed the 30-brick guidelines.
+                      No reps exceed the 30-brick guidelines in this scope.
                     </div>
-                  ` : data.brickWorkload.overloadedReps.map(r => `
+                  ` : filteredOverloadedReps.map(r => `
                     <div class="sfe-list-item" style="padding: 10px 14px;">
                       <div class="sfe-item-info">
                         <span class="sfe-item-name" style="font-size: 0.9rem;">${r.rep}</span>
@@ -352,13 +610,22 @@
         const searchInput = panelEl.querySelector('#sfe-span-search');
         searchInput.addEventListener('input', (e) => {
           this.searchSpanQuery = e.target.value.toLowerCase();
-          this.filterSpanTable(data.spanOfControl, panelEl.querySelector('#sfe-span-tbody'));
+          this.filterSpanTable({ dmSpan: filteredDmSpan, asmSpan: filteredAsmSpan }, panelEl.querySelector('#sfe-span-tbody'));
         });
 
-        this.filterSpanTable(data.spanOfControl, panelEl.querySelector('#sfe-span-tbody'));
+        this.filterSpanTable({ dmSpan: filteredDmSpan, asmSpan: filteredAsmSpan }, panelEl.querySelector('#sfe-span-tbody'));
 
       } else if (tabId === 'tenure') {
         const tenure = data.tenureStability;
+        
+        // Filter training alerts list
+        const filteredTrainingAlerts = (tenure.trainingAlerts || []).filter(a => {
+          // Team corresponds to the DM name
+          return this.isDmInFilter(a.team, data);
+        });
+
+        // Filter lifecycle counts
+        // Standard counts can be shown overall or mapped
         const totalLifecycle = tenure.lifecycleCounts.probation + tenure.lifecycleCounts.nonProbation;
         const probationPct = totalLifecycle > 0 ? (tenure.lifecycleCounts.probation / totalLifecycle * 100).toFixed(1) : '0.0';
 
@@ -400,11 +667,11 @@
             <div class="sfe-card" style="padding: 20px;">
               <h3 class="sfe-card-title">Training Needs Alert Tracker</h3>
               <div class="training-alerts-list" style="max-height: 220px;">
-                ${tenure.trainingAlerts.length === 0 ? `
+                ${filteredTrainingAlerts.length === 0 ? `
                   <div style="padding: 20px; text-align: center; color: #8a94a6; font-size: 0.85rem;">
                     All manager team probation rates are within the 15% guideline threshold.
                   </div>
-                ` : tenure.trainingAlerts.map(a => `
+                ` : filteredTrainingAlerts.map(a => `
                   <div class="sfe-list-item">
                     <div class="sfe-item-info">
                       <span class="sfe-item-name">${a.team}</span>
@@ -480,8 +747,8 @@
     filterSpanTable(spanData, tbodyEl) {
       if (!tbodyEl) return;
 
-      const dms = spanData.dmSpan.map(dm => ({ ...dm, role: 'DM' }));
-      const asms = spanData.asmSpan.map(asm => ({ ...asm, role: 'ASM' }));
+      const dms = (spanData.dmSpan || []).map(dm => ({ ...dm, role: 'DM' }));
+      const asms = (spanData.asmSpan || []).map(asm => ({ ...asm, role: 'ASM' }));
       const allManagers = [...asms, ...dms];
 
       const filtered = allManagers.filter(m => {
