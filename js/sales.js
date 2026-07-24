@@ -78,9 +78,28 @@
     return cache.lookups[type][idx] || "";
   }
 
+  const COLUMN_TO_LOOKUP = {
+    [MONTH]: 'months',
+    [LINE]: 'lines',
+    [BRAND]: 'brands',
+    [PROD]: 'products',
+    [REP]: 'reps',
+    [DM]: 'dms',
+    [AM]: 'ams',
+    [RM]: 'rms',
+    [NSM]: 'nsms',
+    [BU]: 'buheads',
+    [REG]: 'regions',
+    [BRICK]: 'bricks',
+    [DIST]: 'distributors'
+  };
+
   // --- Dynamic Cascading Hierarchy Helpers ---
   function getFilteredLookupList(type, filters) {
     if (!cache) return [];
+    const lookupKey = COLUMN_TO_LOOKUP[type];
+    if (!lookupKey) return [];
+    
     const set = new Set();
     const rows = decodedRows;
     const len = rows.length;
@@ -99,7 +118,8 @@
         set.add(r[type]);
       }
     }
-    return Array.from(set).map(idx => ({ idx, name: cache.lookups[type][idx] })).sort((a,b) => a.name.localeCompare(b.name));
+    const lookupArray = cache.lookups[lookupKey];
+    return Array.from(set).map(idx => ({ idx, name: lookupArray[idx] || "" })).sort((a,b) => a.name.localeCompare(b.name));
   }
 
   // --- Core Aggregator ---
