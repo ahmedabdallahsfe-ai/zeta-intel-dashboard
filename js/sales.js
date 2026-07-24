@@ -149,20 +149,20 @@
     for (let i = 0; i < len; i++) {
       const r = rows[i];
       let ok = true;
-      if (filters.buhead !== "all" && r[BU] !== filters.buhead) ok = false;
-      if (filters.nsm !== "all" && r[NSM] !== filters.nsm) ok = false;
-      if (filters.rm !== "all" && r[RM] !== filters.rm) ok = false;
-      if (filters.am !== "all" && r[AM] !== filters.am) ok = false;
-      if (filters.dm !== "all" && r[DM] !== filters.dm) ok = false;
-      if (filters.rep !== "all" && r[REP] !== filters.rep) ok = false;
+      if (filters.buhead !== "all" && !filters.buhead.includes(r[BU])) ok = false;
+      if (filters.nsm !== "all" && !filters.nsm.includes(r[NSM])) ok = false;
+      if (filters.rm !== "all" && !filters.rm.includes(r[RM])) ok = false;
+      if (filters.am !== "all" && !filters.am.includes(r[AM])) ok = false;
+      if (filters.dm !== "all" && !filters.dm.includes(r[DM])) ok = false;
+      if (filters.rep !== "all" && !filters.rep.includes(r[REP])) ok = false;
 
       if (filters.line !== "all") {
-        if (r[LINE] !== filters.line) ok = false;
+        if (!filters.line.includes(r[LINE])) ok = false;
       } else {
         const chcSalesIdx = cache && cache.lookups && cache.lookups.lines ? cache.lookups.lines.indexOf("CHC_SALES") : -1;
         if (chcSalesIdx !== -1 && r[LINE] === chcSalesIdx) ok = false;
       }
-      if (filters.brand !== "all" && r[BRAND] !== filters.brand) ok = false;
+      if (filters.brand !== "all" && !filters.brand.includes(r[BRAND])) ok = false;
 
       if (filters.reg !== "all" && r[REG] !== filters.reg) ok = false;
       if (filters.chain !== "all" && r[CHAIN] !== filters.chain) ok = false;
@@ -369,33 +369,33 @@
       let lookupFilters = { buhead: "all", nsm: "all", rm: "all", dm: "all", am: "all", rep: "all", line: "all", brand: "all", reg: "all", chain: "all" };
       
       // Cascading geography and org parents
-      if (stateKey === "nsm") lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
+      if (stateKey === "nsm") lookupFilters.buhead = STATE.buhead;
       if (stateKey === "rm") {
-        lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
-        lookupFilters.nsm = STATE.nsm !== "all" ? STATE.nsm[0] : "all";
+        lookupFilters.buhead = STATE.buhead;
+        lookupFilters.nsm = STATE.nsm;
       }
       if (stateKey === "am") {
-        lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
-        lookupFilters.nsm = STATE.nsm !== "all" ? STATE.nsm[0] : "all";
-        lookupFilters.rm = STATE.rm !== "all" ? STATE.rm[0] : "all";
+        lookupFilters.buhead = STATE.buhead;
+        lookupFilters.nsm = STATE.nsm;
+        lookupFilters.rm = STATE.rm;
       }
       if (stateKey === "dm") {
-        lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
-        lookupFilters.nsm = STATE.nsm !== "all" ? STATE.nsm[0] : "all";
-        lookupFilters.rm = STATE.rm !== "all" ? STATE.rm[0] : "all";
-        lookupFilters.am = STATE.am !== "all" ? STATE.am[0] : "all";
+        lookupFilters.buhead = STATE.buhead;
+        lookupFilters.nsm = STATE.nsm;
+        lookupFilters.rm = STATE.rm;
+        lookupFilters.am = STATE.am;
       }
       if (stateKey === "rep") {
-        lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
-        lookupFilters.nsm = STATE.nsm !== "all" ? STATE.nsm[0] : "all";
-        lookupFilters.rm = STATE.rm !== "all" ? STATE.rm[0] : "all";
-        lookupFilters.am = STATE.am !== "all" ? STATE.am[0] : "all";
-        lookupFilters.dm = STATE.dm !== "all" ? STATE.dm[0] : "all";
+        lookupFilters.buhead = STATE.buhead;
+        lookupFilters.nsm = STATE.nsm;
+        lookupFilters.rm = STATE.rm;
+        lookupFilters.am = STATE.am;
+        lookupFilters.dm = STATE.dm;
       }
-      if (stateKey === "brand") lookupFilters.line = STATE.line !== "all" ? STATE.line[0] : "all";
+      if (stateKey === "brand") lookupFilters.line = STATE.line;
       if (stateKey === "prod") {
-        lookupFilters.line = STATE.line !== "all" ? STATE.line[0] : "all";
-        lookupFilters.brand = STATE.brand !== "all" ? STATE.brand[0] : "all";
+        lookupFilters.line = STATE.line;
+        lookupFilters.brand = STATE.brand;
       }
 
       const availableItems = getFilteredLookupList(listType, lookupFilters);
