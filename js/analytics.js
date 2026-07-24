@@ -1190,5 +1190,91 @@ const Analytics = (() => {
     return result;
   }
 
-  return { init, run, defaultFilters, selfCheck, getNotSeenCustomers, getKolCoverage };
+  function getTeamPerformance(managerName, filters) {
+    const want = { period: resolvePeriodSet(filters.period) };
+    CROSS_FILTER_DIMS.forEach((f) => {
+      if (f !== "period") want[f] = resolveIndexSet(f, filters[f]);
+    });
+    
+    const managerIdx = dims.managers.indexOf(managerName);
+    if (managerIdx === -1) return [];
+    
+    const byEmployee = new Map();
+    
+    const numDims = CROSS_FILTER_DIMS.length;
+    const wantArr = new Array(numDims);
+    const fieldRowIdxArr = new Array(numDims);
+    for (let d = 0; d < numDims; d++) {
+      const f = CROSS_FILTER_DIMS[d];
+      if (f === "period") {
+        wantArr[d] = want.period;
+      } else {
+        wantArr[d] = want[f];
+      }
+      fieldRowIdxArr[d] = F[f];
+    }
+    
+    const n = rows.length;
+    const kpiPeriodIdx = want.period !== null ? Math.max(...Array.from(want.period)) : dims.periods.length - 1;
+    
+    for (let i = 0; i < n; i++) {
+      const row = rows[i];
+      if (row[F.manager] !== managerIdx) continue;
+      
+      let mismatchCount = 0;
+      for (let d = 0; d < numDims; d++) {
+        const ws = wantArr[d];
+        if (ws === null || ws.has(row[fieldRowIdxArr[d]])) continue;
+        mismatchCount++;
+        if (mismatchCount > 0) break;
+      }
+      if (mismatchCount > 0) continue;
+      
+      const periodIdx = row[F.period];
+      if (periodIdx !== kpiPeriodIdx) continue;
+      
+      const empIdx = row[F.employee];
+      if (!byEmployee.has(empIdx)) {
+        byEmployee.set(empIdx, {
+          employee: dims.employeeNames[empIdx],
+          profile: dims.profiles ? (dims.profiles[row[F.profile]] || "") : "",
+          team: dims.teams[row[F.team]],
+          coveredSum: 0,
+          rightFreqSum: 0,
+          freqSum: 0,
+          visitsSum: 0,
+          rowCount: 0,
+          isActive: !!row[F.isActive]
+        });
+      }
+      const g = byEmployee.get(empIdx);
+      if (row[F.isActive]) {
+        g.coveredSum += row[F.coveredDoctor];
+        g.rightFreqSum += row[F.rightFreq];
+        g.freqSum += row[F.frequency];
+        g.visitsSum += row[F.visits];
+        g.rowCount += 1;
+      }
+    }
+    
+    return Array.from(byEmployee.values()).map(g => {
+      const coveragePct = g.rowCount > 0 ? g.coveredSum / g.rowCount : 0;
+      const rightFreqPct = g.rowCount > 0 ? g.rightFreqSum / g.rowCount : 0;
+      const visitAchievementPct = g.freqSum > 0 ? g.visitsSum / g.freqSum : 0;
+      return {
+        employee: g.employee,
+        profile: g.profile,
+        team: g.team,
+        customerCount: g.rowCount,
+        coveragePct,
+        rightFreqPct,
+        totalActualVisits: g.visitsSum,
+        totalTargetVisits: g.freqSum,
+        visitAchievementPct,
+        isActive: g.isActive
+      };
+    }).sort((a, b) => b.rightFreqPct - a.rightFreqPct);
+  }
+
+  return { init, run, defaultFilters, selfCheck, getNotSeenCustomers, getKolCoverage, getTeamPerformance };
 })();

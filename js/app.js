@@ -1055,7 +1055,19 @@ function renderTeamComparison(result) {
 }
 
 function renderRankingTables(result) {
-  const rankingColumns = [
+  const managerColumns = [
+    { key: "name", label: "Name", width: "44%", render: (row) => `
+      <div class="clickable-manager-row" data-manager="${UI.escapeHtml(row.name)}" style="cursor:pointer; display:inline-block;">
+        ${UI.nameWithAvatar(row.name, row.profile)}
+      </div>` 
+    },
+    { key: "status", label: "Status", width: "14%" },
+    { key: "span", label: "Span", width: "10%", format: "number", align: "right" },
+    { key: "coveragePct", label: "Coverage %", width: "16%", format: "percent1", align: "right", defaultSort: "desc" },
+    { key: "rightFreqPct", label: "Right Freq %", width: "16%", format: "percent1", align: "right" },
+  ];
+
+  const areaManagerColumns = [
     { key: "name", label: "Name", width: "44%", render: (row) => UI.nameWithAvatar(row.name, row.profile) },
     { key: "status", label: "Status", width: "14%" },
     { key: "span", label: "Span", width: "10%", format: "number", align: "right" },
@@ -1064,11 +1076,11 @@ function renderRankingTables(result) {
   ];
 
   Tables.render(sections.managerTable, {
-    id: "manager-ranking", columns: rankingColumns, rows: result.managerRanking,
+    id: "manager-ranking", columns: managerColumns, rows: result.managerRanking,
     exportFileName: `manager-ranking_${filenameSuffix}`, emptyMessage: "No managers match the current filters.",
   });
   Tables.render(sections.areaManagerTable, {
-    id: "area-manager-ranking", columns: rankingColumns, rows: result.areaManagerRanking,
+    id: "area-manager-ranking", columns: areaManagerColumns, rows: result.areaManagerRanking,
     exportFileName: `area-manager-ranking_${filenameSuffix}`, emptyMessage: "No area managers match the current filters.",
   });
 }
@@ -1256,6 +1268,13 @@ function wireNotSeenModal() {
           openFreqModal("below", _lastResult.belowFreq.list, "Customers Visited Below Target Frequency");
         }
       }
+      return;
+    }
+
+    const mgrRow = e.target.closest(".clickable-manager-row");
+    if (mgrRow) {
+      const managerName = mgrRow.dataset.manager;
+      openTeamPerformanceModal(managerName);
       return;
     }
 
@@ -1580,6 +1599,117 @@ function openFreqModal(mode, list, title) {
   newExport.addEventListener("click", () => {
     if (typeof Exporter !== "undefined")
       Exporter.tableToExcel(COLS, filtered, `${mode}-frequency-customers_${filenameSuffix}`);
+  });
+
+  setTimeout(() => { newSearch.focus(); }, 50);
+}
+
+function openTeamPerformanceModal(managerName) {
+  if (typeof Analytics === "undefined" || !Analytics.getTeamPerformance) return;
+  
+  const list = Analytics.getTeamPerformance(managerName, _lastFilterState || Analytics.defaultFilters());
+  
+  const overlay = document.getElementById("ns-modal-overlay");
+  const badge   = document.getElementById("ns-modal-badge");
+  const body    = document.getElementById("ns-modal-body");
+  const info    = document.getElementById("ns-modal-info");
+  const titleEl = document.getElementById("ns-modal-title-text");
+  const searchEl= document.getElementById("ns-modal-search");
+  const prevBtn = document.getElementById("ns-modal-prev");
+  const nextBtn = document.getElementById("ns-modal-next");
+  const pageLabel=document.getElementById("ns-modal-page-label");
+  const exportBtn=document.getElementById("ns-modal-export");
+
+  titleEl.textContent = `Team Performance — Manager: ${managerName}`;
+  badge.textContent   = list.length;
+  searchEl.value      = "";
+  prevBtn.disabled    = true;
+  nextBtn.disabled    = true;
+  pageLabel.textContent = "";
+  info.textContent    = `${list.length} representative${list.length !== 1 ? "s" : ""} reporting to this manager`;
+
+  const COLS = [
+    { key: "employee",      label: "Representative", width: "25%" },
+    { key: "profile",       label: "Territory Profile", width: "15%" },
+    { key: "team",          label: "Team",           width: "12%" },
+    { key: "customerCount", label: "Customers",      width: "10%", align: "right" },
+    { key: "totalTargetVisits", label: "Target Visits", width: "10%", align: "right" },
+    { key: "totalActualVisits", label: "Actual Visits", width: "10%", align: "right" },
+    { key: "visitAchievementPct", label: "Visit Ach %", width: "12%", align: "right" },
+    { key: "coveragePct",   label: "Coverage %",     width: "12%", align: "right" },
+    { key: "rightFreqPct",  label: "Right Freq %",   width: "12%", align: "right" },
+  ];
+
+  function getPerformanceClass(pct) {
+    if (pct === null || pct === undefined) return "";
+    if (pct >= 0.90) return "kol-green";
+    if (pct >= 0.80) return "kol-amber";
+    return "kol-red";
+  }
+
+  function renderModalBody(filteredRows) {
+    if (!filteredRows.length) {
+      body.innerHTML = `<div style="padding:32px;text-align:center;color:#94A3B8;">No representatives match.</div>`;
+      return;
+    }
+    const colgroup = COLS.map((c) => `<col style="width:${c.width}">`).join("");
+    const thead    = COLS.map((c) =>
+      `<th style="text-align:${c.align || "left"}">${UI.escapeHtml(c.label)}</th>`
+    ).join("");
+    const tbody = filteredRows.map((r) => {
+      return `<tr>${COLS.map((c) => {
+        const val = r[c.key];
+        const isPctKey = c.key === "visitAchievementPct" || c.key === "coveragePct" || c.key === "rightFreqPct";
+        
+        let cellContent = "";
+        let cellClass = "";
+        
+        if (isPctKey) {
+          const pctVal = val !== null && val !== undefined ? (val * 100).toFixed(1) + "%" : "–";
+          cellContent = `<strong>${pctVal}</strong>`;
+          cellClass = `kol-pct-cell ${getPerformanceClass(val)}`;
+        } else if (c.key === "employee") {
+          cellContent = UI.nameWithAvatar(val, r.profile);
+        } else {
+          cellContent = UI.escapeHtml(String(val ?? ""));
+        }
+        
+        return `<td class="${cellClass}" style="text-align:${c.align || "left"}" title="${UI.escapeHtml(String(val ?? ""))}">
+          ${cellContent}
+        </td>`;
+      }).join("")}</tr>`;
+    }).join("");
+    body.innerHTML = `<table class="data-table">
+      <colgroup>${colgroup}</colgroup>
+      <thead><tr>${thead}</tr></thead>
+      <tbody>${tbody}</tbody>
+    </table>`;
+  }
+
+  let filtered = list;
+  renderModalBody(filtered);
+  overlay.classList.add("open");
+
+  // Replace search handler
+  const newSearch = searchEl.cloneNode(true);
+  newSearch.placeholder = "Search representative, team, territory…";
+  searchEl.parentNode.replaceChild(newSearch, searchEl);
+  newSearch.addEventListener("input", Utils.debounce((e) => {
+    const q = e.target.value.toLowerCase();
+    filtered = q
+      ? list.filter((r) => ["employee","profile","team"].some(
+          (k) => String(r[k] ?? "").toLowerCase().includes(q)
+        ))
+      : list;
+    renderModalBody(filtered);
+  }, 200));
+
+  // Replace export handler
+  const newExport = exportBtn.cloneNode(true);
+  exportBtn.parentNode.replaceChild(newExport, exportBtn);
+  newExport.addEventListener("click", () => {
+    if (typeof Exporter !== "undefined")
+      Exporter.tableToExcel(COLS, filtered, `team-performance_${managerName}_${filenameSuffix}`);
   });
 
   setTimeout(() => { newSearch.focus(); }, 50);
