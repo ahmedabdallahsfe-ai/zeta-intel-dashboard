@@ -33,6 +33,8 @@
   const MONTH = 0, LINE = 1, BRAND = 2, PROD = 3, REP = 4, DM = 5, AM = 6, RM = 7, NSM = 8, BU = 9, REG = 10, BRICK = 11, DIST = 12;
   const QTY = 13, VAL = 14, TGT_QTY = 15, TGT_VAL = 16, CUST_COUNT = 17;
 
+  let repHierarchy = {};
+  
   function decompressCache() {
     if (cache) return;
     try {
@@ -47,6 +49,24 @@
       const decompressed = pako.ungzip(bytes, { to: 'string' });
       cache = JSON.parse(decompressed);
       decodedRows = cache.rows;
+      
+      // Build representative hierarchy mapping
+      const rows = decodedRows;
+      const rlen = rows.length;
+      for (let i = 0; i < rlen; i++) {
+        const r = rows[i];
+        const rep_i = r[REP];
+        if (rep_i !== undefined && !repHierarchy[rep_i]) {
+          repHierarchy[rep_i] = {
+            dm: r[DM],
+            am: r[AM],
+            rm: r[RM],
+            nsm: r[NSM],
+            bu: r[BU]
+          };
+        }
+      }
+      
       console.log(`[Sales] Cache loaded & decompressed in ${(performance.now() - t0).toFixed(1)}ms. Rows: ${decodedRows.length}`);
     } catch (e) {
       console.error("[Sales] Failed to decompress sales cache", e);
@@ -271,14 +291,26 @@
 
     for (let i = 0; i < clen; i++) {
       const c = custs[i];
+      const rep_i = c[1];
       // Filter: Region, Brick, Line, Rep
       if (fRegion !== "all" && c[3] !== fRegion) continue;
       if (fBrick !== "all" && c[2] !== fBrick) continue;
       if (fLine !== "all" && c[4] !== fLine) continue;
-      if (fRep !== "all" && c[1] !== fRep) continue;
+      if (fRep !== "all" && rep_i !== fRep) continue;
 
       // Filter: Hierarchy
-      if (fBuhead !== "all" && r_match(BU, c[1])) continue; // fall back rep match
+      const h = repHierarchy[rep_i];
+      if (h) {
+        if (fBuhead !== "all" && h.bu !== fBuhead) continue;
+        if (fNsm !== "all" && h.nsm !== fNsm) continue;
+        if (fRm !== "all" && h.rm !== fRm) continue;
+        if (fDm !== "all" && h.dm !== fDm) continue;
+        if (fAm !== "all" && h.am !== fAm) continue;
+      } else {
+        if (fBuhead !== "all" || fNsm !== "all" || fRm !== "all" || fDm !== "all" || fAm !== "all") {
+          continue;
+        }
+      }
 
       // Check month mask activity
       let isActiveInMonths = false;
@@ -779,7 +811,11 @@
       if (!el) return;
       el.addEventListener("change", () => {
         const val = el.value;
-        STATE[key] = val === "all" ? "all" : parseInt(val) || val;
+        let parsedVal = val;
+        if (val !== "all" && /^\d+$/.test(val)) {
+          parsedVal = parseInt(val, 10);
+        }
+        STATE[key] = parsedVal;
         
         // Reset sub-levels if hierarchy parent changes
         if (key === "buhead") { STATE.nsm = "all"; STATE.rm = "all"; STATE.dm = "all"; STATE.am = "all"; STATE.rep = "all"; }
