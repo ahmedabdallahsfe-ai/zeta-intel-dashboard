@@ -514,18 +514,18 @@
           </div>
 
           <div>
-            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">DM (DISTRICT MANAGER)</label>
-            <select id="sales-f-dm" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
-              <option value="all">All DMs</option>
-              ${getFilteredLookupList(DM, { buhead: STATE.buhead, nsm: STATE.nsm, rm: STATE.rm, dm: "all", am: "all", rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.dm===item.idx?'selected':''}>${item.name}</option>`).join('')}
+            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">SUPERVISOR (AM)</label>
+            <select id="sales-f-am" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
+              <option value="all">All Supervisors</option>
+              ${getFilteredLookupList(AM, { buhead: STATE.buhead, nsm: STATE.nsm, rm: STATE.rm, am: "all", dm: "all", rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.am===item.idx?'selected':''}>${item.name}</option>`).join('')}
             </select>
           </div>
 
           <div>
-            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">SUPERVISOR (AM)</label>
-            <select id="sales-f-am" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
-              <option value="all">All Supervisors</option>
-              ${getFilteredLookupList(AM, { buhead: STATE.buhead, nsm: STATE.nsm, rm: STATE.rm, dm: STATE.dm, am: "all", rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.am===item.idx?'selected':''}>${item.name}</option>`).join('')}
+            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">DM (DISTRICT MANAGER)</label>
+            <select id="sales-f-dm" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
+              <option value="all">All DMs</option>
+              ${getFilteredLookupList(DM, { buhead: STATE.buhead, nsm: STATE.nsm, rm: STATE.rm, am: STATE.am, dm: "all", rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.dm===item.idx?'selected':''}>${item.name}</option>`).join('')}
             </select>
           </div>
 
@@ -533,7 +533,7 @@
             <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">MEDICAL REP</label>
             <select id="sales-f-rep" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
               <option value="all">All Reps</option>
-              ${getFilteredLookupList(REP, { buhead: STATE.buhead, nsm: STATE.nsm, rm: STATE.rm, dm: STATE.dm, am: STATE.am, rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.rep===item.idx?'selected':''}>${item.name}</option>`).join('')}
+              ${getFilteredLookupList(REP, { buhead: STATE.buhead, nsm: STATE.nsm, rm: STATE.rm, am: STATE.am, dm: STATE.dm, rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.rep===item.idx?'selected':''}>${item.name}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -838,11 +838,11 @@
         STATE[key] = parsedVal;
         
         // Reset sub-levels if hierarchy parent changes
-        if (key === "buhead") { STATE.nsm = "all"; STATE.rm = "all"; STATE.dm = "all"; STATE.am = "all"; STATE.rep = "all"; }
-        if (key === "nsm") { STATE.rm = "all"; STATE.dm = "all"; STATE.am = "all"; STATE.rep = "all"; }
-        if (key === "rm") { STATE.dm = "all"; STATE.am = "all"; STATE.rep = "all"; }
-        if (key === "dm") { STATE.am = "all"; STATE.rep = "all"; }
-        if (key === "am") { STATE.rep = "all"; }
+        if (key === "buhead") { STATE.nsm = "all"; STATE.rm = "all"; STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
+        if (key === "nsm") { STATE.rm = "all"; STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
+        if (key === "rm") { STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
+        if (key === "am") { STATE.dm = "all"; STATE.rep = "all"; }
+        if (key === "dm") { STATE.rep = "all"; }
 
         renderLayout();
       });
