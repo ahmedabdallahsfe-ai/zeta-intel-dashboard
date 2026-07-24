@@ -442,7 +442,7 @@ const Analytics = (() => {
     return buildResult({
       global, byPeriod, byTeam, byManager, byAreaManager, bySpecialty, byClass,
       byType, byEmployeePeriod, vacantSeenByPeriod, empProfileMap, want, availableSetsArr,
-      byExperience, custRfTracker, custUniqByPeriod, atRiskTiers,
+      byExperience, custRfTracker, custUniqByPeriod, atRiskTiers, overFreqCount, overFreqList,
     });
   }
 
@@ -485,7 +485,7 @@ const Analytics = (() => {
   }
 
   function buildResult(ctx) {
-    const { global, byPeriod, byTeam, byManager, byAreaManager, bySpecialty, byClass, byType, byEmployeePeriod, vacantSeenByPeriod, empProfileMap, want, availableSetsArr, byExperience, custRfTracker, custUniqByPeriod } = ctx;
+    const { global, byPeriod, byTeam, byManager, byAreaManager, bySpecialty, byClass, byType, byEmployeePeriod, vacantSeenByPeriod, empProfileMap, want, availableSetsArr, byExperience, custRfTracker, custUniqByPeriod, atRiskTiers, overFreqCount, overFreqList } = ctx;
 
     // Build manager/areaManager name → profileIdx lookup by cross-referencing
     // dims.managers (manager names) with dims.employeeNames (employee names).
