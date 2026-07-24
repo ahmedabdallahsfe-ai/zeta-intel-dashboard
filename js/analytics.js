@@ -161,6 +161,7 @@ const Analytics = (() => {
       // a live coverage percentage.
       coveredSum: 0, rightFreqSum: 0, rowCount: 0, visitsSum: 0, plansSum: 0, freqSum: 0,
       onTargetCalls: 0, missedCalls: 0, wastedCalls: 0,
+      overFreqCount: 0, belowFreqCount: 0,
       activeEmployees: new Set(), resignedEmployees: new Set(),
     };
   }
@@ -179,6 +180,12 @@ const Analytics = (() => {
       group.onTargetCalls += Math.min(visits, target);
       group.missedCalls += Math.max(0, target - visits);
       group.wastedCalls += Math.max(0, visits - target);
+      
+      if (row[F.rightFreq] === 0) {
+        group.belowFreqCount += 1;
+      } else if (visits > target) {
+        group.overFreqCount += 1;
+      }
       
       group.activeEmployees.add(row[F.employee]);
     } else if (row[F.status] === resignedStatusIdx) {
@@ -269,6 +276,8 @@ const Analytics = (() => {
       tier2: { count: 0, list: [] },
       tier3: { count: 0, list: [] },
     };
+    let overFreqCount = 0;
+    const overFreqList = [];
 
     const n = rows.length;
     for (let i = 0; i < n; i++) {
@@ -389,33 +398,40 @@ const Analytics = (() => {
         if (!custUniqByPeriod.has(periodIdx)) custUniqByPeriod.set(periodIdx, new Set());
         custUniqByPeriod.get(periodIdx).add(custIdx);
 
-        // Calculate At-Risk Tiers (rows where Right Freq is 0)
+        // Calculate At-Risk Tiers and Over Frequency lists
+        const targetFreq = row[F.frequency];
+        const actualVisits = row[F.visits];
+        const docInfo = {
+          customerName: dims.customerNames ? (dims.customerNames[custIdx] || "") : "",
+          specialty: dims.specialties[row[F.specialty]] || "",
+          klass: dims.classes[row[F.klass]] || "",
+          type: dims.types[row[F.type]] || "",
+          employee: dims.employeeNames[row[F.employee]] || "",
+          team: dims.teams[row[F.team]] || "",
+          manager: dims.managers[row[F.manager]] || "",
+          frequency: targetFreq,
+          visits: actualVisits,
+          missedCalls: Math.max(0, targetFreq - actualVisits),
+          overCalls: Math.max(0, actualVisits - targetFreq),
+          lastVisitDate: dims.lastVisitDates ? (dims.lastVisitDates[row[F.lastVisitDate]] || "Never") : "Never",
+          area: dims.areas ? (dims.areas[row[F.area]] || "") : "",
+        };
+
         if (row[F.rightFreq] === 0) {
-          const missedCalls = row[F.frequency] - row[F.visits];
-          const docInfo = {
-            customerName: dims.customerNames ? (dims.customerNames[custIdx] || "") : "",
-            specialty: dims.specialties[row[F.specialty]] || "",
-            klass: dims.classes[row[F.klass]] || "",
-            type: dims.types[row[F.type]] || "",
-            employee: dims.employeeNames[row[F.employee]] || "",
-            team: dims.teams[row[F.team]] || "",
-            manager: dims.managers[row[F.manager]] || "",
-            frequency: row[F.frequency],
-            visits: row[F.visits],
-            missedCalls: missedCalls,
-            lastVisitDate: dims.lastVisitDates ? (dims.lastVisitDates[row[F.lastVisitDate]] || "Never") : "Never",
-            area: dims.areas ? (dims.areas[row[F.area]] || "") : "",
-          };
-          if (missedCalls === 1) {
+          const missed = targetFreq - actualVisits;
+          if (missed === 1) {
             atRiskTiers.tier1.count++;
             atRiskTiers.tier1.list.push(docInfo);
-          } else if (missedCalls === 2) {
+          } else if (missed === 2) {
             atRiskTiers.tier2.count++;
             atRiskTiers.tier2.list.push(docInfo);
-          } else if (missedCalls >= 3) {
+          } else if (missed >= 3) {
             atRiskTiers.tier3.count++;
             atRiskTiers.tier3.list.push(docInfo);
           }
+        } else if (actualVisits > targetFreq) {
+          overFreqCount++;
+          overFreqList.push(docInfo);
         }
       }
       // Capture each employee's own profile (territory) — used to show a
@@ -528,6 +544,8 @@ const Analytics = (() => {
     const kpiVacancy = vacancyCountForPeriod(vacantSeenByPeriod, kpiPeriodIdx);
     const attritionRate = (kpiHeadcount + kpiResigned) ? kpiResigned / (kpiHeadcount + kpiResigned) : 0;
 
+    const belowFreqCount = atRiskTiers.tier1.count + atRiskTiers.tier2.count + atRiskTiers.tier3.count;
+
     const kpis = {
       activeReps: kpiHeadcount,
       resignedReps: kpiResigned,
@@ -555,13 +573,15 @@ const Analytics = (() => {
       onTargetCalls: kpiPeriodGroup.onTargetCalls,
       missedCalls: kpiPeriodGroup.missedCalls,
       wastedCalls: kpiPeriodGroup.wastedCalls,
+      overFreqCount: overFreqCount,
+      belowFreqCount: belowFreqCount,
     };
 
     const trend = {
       periods: dims.periods,
       series: dims.periods.map((periodName, idx) => {
         const g = byPeriod.get(idx);
-        if (!g) return { period: periodName, coveragePct: null, rightFreqPct: null, headcount: 0, activeReps: 0, resignedReps: 0, vacancyCount: 0, customersPerRep: null, totalTargetVisits: 0, totalActualVisits: 0, visitAchievementPct: null, notSeenCount: 0, notSeenPct: null, totalUniqueCustomers: 0, totalSharedCustomers: 0 };
+        if (!g) return { period: periodName, coveragePct: null, rightFreqPct: null, headcount: 0, activeReps: 0, resignedReps: 0, vacancyCount: 0, customersPerRep: null, totalTargetVisits: 0, totalActualVisits: 0, visitAchievementPct: null, notSeenCount: 0, notSeenPct: null, totalUniqueCustomers: 0, totalSharedCustomers: 0, overFreqCount: 0, belowFreqCount: 0 };
         const activeCount = g.activeEmployees.size;
         return {
           period: periodName,
@@ -579,6 +599,8 @@ const Analytics = (() => {
           notSeenPct: round4(g.rowCount > 0 ? (g.rowCount - g.coveredSum) / g.rowCount : null),
           totalUniqueCustomers: (custUniqByPeriod.get(idx) || new Set()).size,
           totalSharedCustomers: g.rowCount,
+          overFreqCount: g.overFreqCount,
+          belowFreqCount: g.belowFreqCount,
         };
       }),
     };
@@ -778,6 +800,8 @@ const Analytics = (() => {
       availableOptions: buildAvailableOptions(availableSetsArr),
       kpiDeltas,
       rfInsights,
+      overFreq: { count: overFreqCount, list: overFreqList },
+      belowFreq: { count: atRiskCount, list: [].concat(ctx.atRiskTiers.tier1.list, ctx.atRiskTiers.tier2.list, ctx.atRiskTiers.tier3.list) },
     };
   }
 

@@ -91,6 +91,8 @@ const CONFIG = {
     // Coverage gap
     { id: "notSeenCount", label: "Not Seen Customers", key: "notSeenCount", format: "number", icon: "eyeOff", polarity: "up-bad" },
     { id: "notSeenPct", label: "Not Seen %", key: "notSeenPct", format: "percent1", icon: "eyeOff", polarity: "up-bad" },
+    { id: "overFreqCount", label: "Over Frequency Customers", key: "overFreqCount", format: "number", icon: "alertTriangle", polarity: "up-bad" },
+    { id: "belowFreqCount", label: "Below Frequency Customers", key: "belowFreqCount", format: "number", icon: "alertTriangle", polarity: "up-bad" },
   ],
 
   // ---------------------------------------------------------------------

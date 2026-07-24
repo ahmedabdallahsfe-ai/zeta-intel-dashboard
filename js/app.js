@@ -1240,12 +1240,22 @@ function wireNotSeenModal() {
     overlay.classList.remove("open");
   }
 
-  // Click on notSeen KPI cards or At-Risk Tiers
+  // Click on notSeen / overFreq / belowFreq KPI cards or At-Risk Tiers
   document.getElementById("app-root").addEventListener("click", (e) => {
     const card = e.target.closest(".kpi-card");
     if (card) {
       const kpi = card.dataset.kpi;
-      if (kpi === "notSeenCount" || kpi === "notSeenPct") openModal();
+      if (kpi === "notSeenCount" || kpi === "notSeenPct") {
+        openModal();
+      } else if (kpi === "overFreqCount") {
+        if (_lastResult && _lastResult.overFreq) {
+          openFreqModal("over", _lastResult.overFreq.list, "Customers Visited Over Target Frequency");
+        }
+      } else if (kpi === "belowFreqCount") {
+        if (_lastResult && _lastResult.belowFreq) {
+          openFreqModal("below", _lastResult.belowFreq.list, "Customers Visited Below Target Frequency");
+        }
+      }
       return;
     }
 
@@ -1254,7 +1264,12 @@ function wireNotSeenModal() {
       const tierNum = tierItem.dataset.tier;
       const tier = _lastResult.rfInsights.atRiskTiers[`tier${tierNum}`];
       if (tier && tier.list) {
-        openAtRiskModal(tierNum, tier.list);
+        const tierNames = {
+          "1": "Easy Win (1 Missed Call)",
+          "2": "Moderate Gap (2 Missed Calls)",
+          "3": "Major Gap (3+ Missed Calls)"
+        };
+        openFreqModal(`tier${tierNum}`, tier.list, `At-Risk Doctors — ${tierNames[tierNum]}`);
       }
     }
   });
@@ -1478,14 +1493,7 @@ function openKolModal(mgrName, quarter, kolRows) {
   });
 }
 
-function openAtRiskModal(tierNum, list) {
-  const tierNames = {
-    "1": "Easy Win (1 Missed Call)",
-    "2": "Moderate Gap (2 Missed Calls)",
-    "3": "Major Gap (3+ Missed Calls)"
-  };
-  const title = `At-Risk Doctors — ${tierNames[tierNum] || ""}`;
-
+function openFreqModal(mode, list, title) {
   // Reuse the existing not-seen modal overlay
   const overlay = document.getElementById("ns-modal-overlay");
   const badge   = document.getElementById("ns-modal-badge");
@@ -1504,7 +1512,7 @@ function openAtRiskModal(tierNum, list) {
   prevBtn.disabled    = true;
   nextBtn.disabled    = true;
   pageLabel.textContent = "";
-  info.textContent    = `${list.length} customer${list.length !== 1 ? "s" : ""} in this tier`;
+  info.textContent    = `${list.length} customer${list.length !== 1 ? "s" : ""} in this list`;
 
   const COLS = [
     { key: "customerName", label: "Customer Name", width: "20%" },
@@ -1518,10 +1526,12 @@ function openAtRiskModal(tierNum, list) {
     { key: "lastVisitDate",label: "Last Visit",     width: "10%" },
     { key: "frequency",    label: "Freq",           width: "6%", align: "right" },
     { key: "visits",       label: "Visits",         width: "6%", align: "right" },
-    { key: "missedCalls",  label: "Missed",         width: "6%", align: "right" },
+    mode === "over"
+      ? { key: "overCalls",  label: "Over Target",     width: "6%", align: "right" }
+      : { key: "missedCalls",  label: "Missed",         width: "6%", align: "right" }
   ];
 
-  function renderAtRiskModalBody(filteredRows) {
+  function renderFreqModalBody(filteredRows) {
     if (!filteredRows.length) {
       body.innerHTML = `<div style="padding:32px;text-align:center;color:#94A3B8;">No doctors match.</div>`;
       return;
@@ -1531,11 +1541,13 @@ function openAtRiskModal(tierNum, list) {
       `<th style="text-align:${c.align || "left"}">${UI.escapeHtml(c.label)}</th>`
     ).join("");
     const tbody = filteredRows.map((r) =>
-      `<tr>${COLS.map((c) =>
-        `<td style="text-align:${c.align || "left"}" title="${UI.escapeHtml(String(r[c.key] ?? ""))}">
-          ${c.key === "missedCalls" ? `<strong>${r[c.key]}</strong>` : UI.escapeHtml(String(r[c.key] ?? ""))}
-        </td>`
-      ).join("")}</tr>`
+      `<tr>${COLS.map((c) => {
+        const val = r[c.key];
+        const isBoldKey = c.key === "missedCalls" || c.key === "overCalls";
+        return `<td style="text-align:${c.align || "left"}" title="${UI.escapeHtml(String(val ?? ""))}">
+          ${isBoldKey ? `<strong>${val}</strong>` : UI.escapeHtml(String(val ?? ""))}
+        </td>`;
+      }).join("")}</tr>`
     ).join("");
     body.innerHTML = `<table class="data-table">
       <colgroup>${colgroup}</colgroup>
@@ -1545,9 +1557,8 @@ function openAtRiskModal(tierNum, list) {
   }
 
   let filtered = list;
-  renderAtRiskModalBody(filtered);
+  renderFreqModalBody(filtered);
   overlay.classList.add("open");
-  searchEl.focus();
 
   // Replace search handler
   const newSearch = searchEl.cloneNode(true);
@@ -1560,7 +1571,7 @@ function openAtRiskModal(tierNum, list) {
           (k) => String(r[k] ?? "").toLowerCase().includes(q)
         ))
       : list;
-    renderAtRiskModalBody(filtered);
+    renderFreqModalBody(filtered);
   }, 200));
 
   // Replace export handler
@@ -1568,6 +1579,8 @@ function openAtRiskModal(tierNum, list) {
   exportBtn.parentNode.replaceChild(newExport, exportBtn);
   newExport.addEventListener("click", () => {
     if (typeof Exporter !== "undefined")
-      Exporter.tableToExcel(COLS, filtered, `at-risk-doctors-tier${tierNum}_${filenameSuffix}`);
+      Exporter.tableToExcel(COLS, filtered, `${mode}-frequency-customers_${filenameSuffix}`);
   });
+
+  setTimeout(() => { newSearch.focus(); }, 50);
 }
