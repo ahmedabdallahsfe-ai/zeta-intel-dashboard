@@ -87,6 +87,9 @@
 
   // Check if row is allowed by global filters
   function isRowAllowed(r) {
+    const mask = r[MASK];
+    const isMirror = (mask & 16) > 0;
+
     if (STATE.month !== "all" && !STATE.month.includes(r[MONTH])) return false;
     if (STATE.line !== "all" && !STATE.line.includes(r[LINE])) return false;
     if (STATE.brand !== "all" && !STATE.brand.includes(r[BRAND])) return false;
@@ -99,9 +102,6 @@
     if (STATE.rep !== "all" && !STATE.rep.includes(r[REP])) return false;
     if (STATE.reg !== "all" && !STATE.reg.includes(r[REG])) return false;
     if (STATE.brick !== "all" && !STATE.brick.includes(r[BRICK])) return false;
-    if (STATE.dist !== "all" && !STATE.dist.includes(r[DIST])) return false;
-    if (STATE.chain !== "all" && !STATE.chain.includes(r[CHAIN])) return false;
-    if (STATE.txtype !== "all" && !STATE.txtype.includes(r[TXTYPE])) return false;
 
     // Position filter (maps rep position list)
     if (STATE.position !== "all") {
@@ -109,18 +109,22 @@
       if (!STATE.position.includes(repPos)) return false;
     }
 
-    const mask = r[MASK];
-    const isBulk = (mask & 1) > 0;
-    const isTender = (mask & 2) > 0;
-    const isOffer = (mask & 4) > 0;
-    const isUpa = (mask & 8) > 0;
-    const isMirror = (mask & 16) > 0;
+    // Only apply customer-level and transaction type filters to actual sales rows (not target rows)
+    if (!isMirror) {
+      if (STATE.dist !== "all" && !STATE.dist.includes(r[DIST])) return false;
+      if (STATE.chain !== "all" && !STATE.chain.includes(r[CHAIN])) return false;
+      if (STATE.txtype !== "all" && !STATE.txtype.includes(r[TXTYPE])) return false;
 
-    if (STATE.isBulk !== "all" && isBulk !== STATE.isBulk) return false;
-    if (STATE.isTender !== "all" && isTender !== STATE.isTender) return false;
-    if (STATE.isOffer !== "all" && isOffer !== STATE.isOffer) return false;
-    if (STATE.isUpa !== "all" && isUpa !== STATE.isUpa) return false;
-    if (STATE.isMirror !== "all" && isMirror !== STATE.isMirror) return false;
+      const isBulk = (mask & 1) > 0;
+      const isTender = (mask & 2) > 0;
+      const isOffer = (mask & 4) > 0;
+      const isUpa = (mask & 8) > 0;
+
+      if (STATE.isBulk !== "all" && isBulk !== STATE.isBulk) return false;
+      if (STATE.isTender !== "all" && isTender !== STATE.isTender) return false;
+      if (STATE.isOffer !== "all" && isOffer !== STATE.isOffer) return false;
+      if (STATE.isUpa !== "all" && isUpa !== STATE.isUpa) return false;
+    }
 
     return true;
   }
@@ -744,8 +748,16 @@
           <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">EGP ${formatM(totalVal)}</div>
         </div>
         <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">TARGET VALUE</div>
+          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">EGP ${formatM(target)}</div>
+        </div>
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
           <div style="font-size:10px; color:#8a94a6; font-weight:600;">SALES QTY</div>
           <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${formatM(totalQty)}</div>
+        </div>
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">TARGET QTY</div>
+          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${formatM(res.tgtQty)}</div>
         </div>
         <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
           <div style="font-size:10px; color:#8a94a6; font-weight:600;">TARGET ACH %</div>
