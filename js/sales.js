@@ -644,7 +644,7 @@
             </div>
 
             <!-- Cascading Multi-select Dropdown targets -->
-            <div id="drop-bu"></div>
+            <div id="drop-bu" style="display:none;"></div>
             <div id="drop-nsm"></div>
             <div id="drop-rm"></div>
             <div id="drop-am"></div>
@@ -733,11 +733,10 @@
       </div>
     `;
 
-    // Render dropdown inputs
-    renderSearchableDropdown("drop-bu", "BU HEAD", BU, "buhead");
-    renderSearchableDropdown("drop-nsm", "NSM", NSM, "nsm");
-    renderSearchableDropdown("drop-rm", "RM (REGIONAL MANAGER)", RM, "rm");
-    renderSearchableDropdown("drop-am", "SUPERVISOR (AM)", AM, "am");
+    // Render dropdown inputs (5-level hierarchy mapping)
+    renderSearchableDropdown("drop-nsm", "BU HEAD", NSM, "nsm");
+    renderSearchableDropdown("drop-rm", "NSM", RM, "rm");
+    renderSearchableDropdown("drop-am", "RM (REGIONAL MANAGER)", AM, "am");
     renderSearchableDropdown("drop-dm", "DM (DISTRICT MANAGER)", DM, "dm");
     renderSearchableDropdown("drop-rep", "MEDICAL REP", REP, "rep");
     
