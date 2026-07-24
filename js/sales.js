@@ -141,6 +141,21 @@
   // Get cascading lookup items matching active filters (ignoring the active stateKey filter list itself)
   function getFilteredLookupList(type, ignoreKey) {
     if (!cache) return [];
+
+    if (type === "position") {
+      const set = new Set();
+      const rows = decodedRows;
+      const len = rows.length;
+      for (let i = 0; i < len; i++) {
+        const r = rows[i];
+        if (isRowAllowed(r, ignoreKey)) {
+          const repPos = cache.lookups.rep_positions[r[REP]];
+          if (repPos) set.add(repPos);
+        }
+      }
+      return Array.from(set).map(name => ({ idx: name, name })).sort((a,b) => a.name.localeCompare(b.name));
+    }
+
     const lookupKey = COLUMN_TO_LOOKUP[type];
     if (!lookupKey) return [];
     
@@ -381,7 +396,7 @@
       // Add change listeners to checkboxes
       listDiv.querySelectorAll("input").forEach(cb => {
         cb.addEventListener("change", () => {
-          const idx = parseInt(cb.value, 10);
+          const idx = (stateKey === "position") ? cb.value : parseInt(cb.value, 10);
           let currentSelection = STATE[stateKey];
           
           if (currentSelection === "all") {
@@ -699,7 +714,7 @@
     renderSearchableDropdown("drop-dist", "DISTRIBUTOR", DIST, "dist");
     renderSearchableDropdown("drop-chain", "CHAIN", CHAIN, "chain");
     renderSearchableDropdown("drop-txtype", "TRANSACTION TYPE", TXTYPE, "txtype");
-    renderSearchableDropdown("drop-position", "EMPLOYEE POSITION", REP, "position"); // maps reps position
+    renderSearchableDropdown("drop-position", "EMPLOYEE POSITION", "position", "position");
 
     // Bind event hooks
     bindEvents();
