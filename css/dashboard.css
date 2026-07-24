@@ -2200,3 +2200,54 @@ body {
   justify-content: center !important;
   padding: 12px 0 !important;
 }
+
+/* ── ZETA Commercial Analytics Hub Styles ────────────────────────────────── */
+.sales-subtabs::-webkit-scrollbar {
+  height: 4px;
+}
+.sales-subtabs::-webkit-scrollbar-thumb {
+  background: #2e3456;
+  border-radius: 2px;
+}
+
+.sales-subtab {
+  transition: all 0.2s ease-in-out;
+  border-bottom: 2px solid transparent !important;
+  opacity: 0.7;
+}
+.sales-subtab:hover {
+  opacity: 1;
+  color: #fff !important;
+}
+.sales-subtab.active {
+  opacity: 1;
+  color: #fff !important;
+  border-bottom-color: #0f6cbd !important;
+}
+
+/* Search Dropdown Scrollbar */
+.search-drop-list::-webkit-scrollbar {
+  width: 4px;
+}
+.search-drop-list::-webkit-scrollbar-thumb {
+  background: #2e3456;
+  border-radius: 2px;
+}
+
+/* Glassmorphism KPI Card Scales */
+.sales-console-container .sfe-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+  backdrop-filter: blur(10px);
+}
+.sales-console-container .sfe-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px rgba(15,108,189,0.2);
+}
+
+/* SVG Vector Map Hover Highlights */
+.map-path:hover {
+  fill: #16a34a !important;
+  filter: brightness(1.2);
+}
+

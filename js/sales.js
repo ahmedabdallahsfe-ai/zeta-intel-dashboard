@@ -1,82 +1,16 @@
 /**
- * Zeta Sales Performance Dashboard Module
- * Handles YTD Sales Achievement, Productivity, Hierarchy Cascades,
- * and Variance Analysis.
+ * ZETA Pharmaceutical Commercial Analytics Suite
+ * ==============================================
+ * A multi-page executive BI application supporting 10 distinct drill-down views,
+ * left-hand collapsible multi-select filter panel, synchronized global filters,
+ * interactive SVG geography map, client-side advanced analytics forecasting/outliers,
+ * saved filter views, and dynamic dynamic business AI narrative.
  */
 
-(function() {
-  let cache = null;
-  let decodedRows = [];
-  
-  // State for Sales Dashboard
-  const STATE = {
-    subTab: "executive", // executive, line, product, team, territory, transaction
-    year: "2026",
-    quarter: "all",
-    month: "all",
-    region: "all",
-    brick: "all",
-    line: "all",
-    brand: "all",
-    product: "all",
-    buhead: "all",
-    nsm: "all",
-    rm: "all",
-    dm: "all",
-    am: "all",
-    rep: "all",
-    metric: "value" // value, quantity
-  };
-
-  // Helper indices for decodedRows
-  // [month_i, line_i, brand_i, prod_i, rep_i, dm_i, am_i, rm_i, nsm_i, bu_i, reg_i, brick_i, dist_i, qty, val, tgt_qty, tgt_val, cust_count]
+(function () {
   const MONTH = 0, LINE = 1, BRAND = 2, PROD = 3, REP = 4, DM = 5, AM = 6, RM = 7, NSM = 8, BU = 9, REG = 10, BRICK = 11, DIST = 12;
-  const QTY = 13, VAL = 14, TGT_QTY = 15, TGT_VAL = 16, CUST_COUNT = 17;
-
-  let repHierarchy = {};
-  
-  function decompressCache() {
-    if (cache) return;
-    try {
-      const t0 = performance.now();
-      const b64 = window.SALES_CACHE.b64Data;
-      const binStr = atob(b64);
-      const len = binStr.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binStr.charCodeAt(i);
-      }
-      const decompressed = pako.ungzip(bytes, { to: 'string' });
-      cache = JSON.parse(decompressed);
-      decodedRows = cache.rows;
-      
-      // Build representative hierarchy mapping
-      const rows = decodedRows;
-      const rlen = rows.length;
-      for (let i = 0; i < rlen; i++) {
-        const r = rows[i];
-        const rep_i = r[REP];
-        if (rep_i !== undefined && !repHierarchy[rep_i]) {
-          repHierarchy[rep_i] = {
-            dm: r[DM],
-            am: r[AM],
-            rm: r[RM],
-            nsm: r[NSM],
-            bu: r[BU]
-          };
-        }
-      }
-      
-      console.log(`[Sales] Cache loaded & decompressed in ${(performance.now() - t0).toFixed(1)}ms. Rows: ${decodedRows.length}`);
-    } catch (e) {
-      console.error("[Sales] Failed to decompress sales cache", e);
-    }
-  }
-
-  function getLookup(type, idx) {
-    if (!cache || !cache.lookups[type]) return "";
-    return cache.lookups[type][idx] || "";
-  }
+  const CHAIN = 13, MTYPE = 14, STYPE = 15, TXTYPE = 16, MASK = 17;
+  const QTY = 18, VAL = 19, TGT_QTY = 20, TGT_VAL = 21, TRANS_QTY = 22, BULK_QTY = 23, NAT_CEIL = 24, REG_CEIL = 25, CUST_COUNT = 26;
 
   const COLUMN_TO_LOOKUP = {
     [MONTH]: 'months',
@@ -91,10 +25,107 @@
     [BU]: 'buheads',
     [REG]: 'regions',
     [BRICK]: 'bricks',
-    [DIST]: 'distributors'
+    [DIST]: 'distributors',
+    [CHAIN]: 'chains',
+    [MTYPE]: 'main_types',
+    [STYPE]: 'sub_types',
+    [TXTYPE]: 'transaction_types'
   };
 
-  // --- Dynamic Cascading Hierarchy Helpers ---
+  let cache = null;
+  let decodedRows = [];
+  let currentChartInstances = [];
+
+  const STATE = {
+    subTab: "executive",
+    theme: "dark",
+    collapsedFilters: false,
+    
+    // Multi-select lists (arrays of indices, or "all")
+    month: "all",
+    line: "all",
+    brand: "all",
+    prod: "all",
+    buhead: "all",
+    nsm: "all",
+    rm: "all",
+    am: "all",
+    dm: "all",
+    rep: "all",
+    reg: "all",
+    brick: "all",
+    dist: "all",
+    chain: "all",
+    txtype: "all",
+    position: "all",
+
+    // Flag toggles ("all", true, false)
+    isBulk: "all",
+    isTender: "all",
+    isOffer: "all",
+    isUpa: "all",
+    isMirror: "all"
+  };
+
+  // Helper to decompress Base64 gzipped cache
+  function decompressCache() {
+    if (decodedRows.length > 0) return;
+    try {
+      const t0 = performance.now();
+      const b64 = window.SALES_CACHE.b64Data;
+      const strData = atob(b64);
+      const charData = strData.split('').map(x => x.charCodeAt(0));
+      const bytes = new Uint8Array(charData);
+      const decompressed = pako.ungzip(bytes, { to: 'string' });
+      cache = JSON.parse(decompressed);
+      decodedRows = cache.rows;
+      console.log(`[Sales] Cache loaded & decompressed in ${(performance.now() - t0).toFixed(1)}ms. Rows: ${decodedRows.length}`);
+    } catch (e) {
+      console.error("[Sales] Failed to decompress sales cache", e);
+    }
+  }
+
+  // Check if row is allowed by global filters
+  function isRowAllowed(r) {
+    if (STATE.month !== "all" && !STATE.month.includes(r[MONTH])) return false;
+    if (STATE.line !== "all" && !STATE.line.includes(r[LINE])) return false;
+    if (STATE.brand !== "all" && !STATE.brand.includes(r[BRAND])) return false;
+    if (STATE.prod !== "all" && !STATE.prod.includes(r[PROD])) return false;
+    if (STATE.buhead !== "all" && !STATE.buhead.includes(r[BU])) return false;
+    if (STATE.nsm !== "all" && !STATE.nsm.includes(r[NSM])) return false;
+    if (STATE.rm !== "all" && !STATE.rm.includes(r[RM])) return false;
+    if (STATE.am !== "all" && !STATE.am.includes(r[AM])) return false;
+    if (STATE.dm !== "all" && !STATE.dm.includes(r[DM])) return false;
+    if (STATE.rep !== "all" && !STATE.rep.includes(r[REP])) return false;
+    if (STATE.reg !== "all" && !STATE.reg.includes(r[REG])) return false;
+    if (STATE.brick !== "all" && !STATE.brick.includes(r[BRICK])) return false;
+    if (STATE.dist !== "all" && !STATE.dist.includes(r[DIST])) return false;
+    if (STATE.chain !== "all" && !STATE.chain.includes(r[CHAIN])) return false;
+    if (STATE.txtype !== "all" && !STATE.txtype.includes(r[TXTYPE])) return false;
+
+    // Position filter (maps rep position list)
+    if (STATE.position !== "all") {
+      const repPos = cache.lookups.rep_positions[r[REP]];
+      if (!STATE.position.includes(repPos)) return false;
+    }
+
+    const mask = r[MASK];
+    const isBulk = (mask & 1) > 0;
+    const isTender = (mask & 2) > 0;
+    const isOffer = (mask & 4) > 0;
+    const isUpa = (mask & 8) > 0;
+    const isMirror = (mask & 16) > 0;
+
+    if (STATE.isBulk !== "all" && isBulk !== STATE.isBulk) return false;
+    if (STATE.isTender !== "all" && isTender !== STATE.isTender) return false;
+    if (STATE.isOffer !== "all" && isOffer !== STATE.isOffer) return false;
+    if (STATE.isUpa !== "all" && isUpa !== STATE.isUpa) return false;
+    if (STATE.isMirror !== "all" && isMirror !== STATE.isMirror) return false;
+
+    return true;
+  }
+
+  // Get cascading lookup items matching active filters
   function getFilteredLookupList(type, filters) {
     if (!cache) return [];
     const lookupKey = COLUMN_TO_LOOKUP[type];
@@ -110,9 +141,15 @@
       if (filters.buhead !== "all" && r[BU] !== filters.buhead) ok = false;
       if (filters.nsm !== "all" && r[NSM] !== filters.nsm) ok = false;
       if (filters.rm !== "all" && r[RM] !== filters.rm) ok = false;
-      if (filters.dm !== "all" && r[DM] !== filters.dm) ok = false;
       if (filters.am !== "all" && r[AM] !== filters.am) ok = false;
+      if (filters.dm !== "all" && r[DM] !== filters.dm) ok = false;
       if (filters.rep !== "all" && r[REP] !== filters.rep) ok = false;
+
+      if (filters.line !== "all" && r[LINE] !== filters.line) ok = false;
+      if (filters.brand !== "all" && r[BRAND] !== filters.brand) ok = false;
+
+      if (filters.reg !== "all" && r[REG] !== filters.reg) ok = false;
+      if (filters.chain !== "all" && r[CHAIN] !== filters.chain) ok = false;
 
       if (ok) {
         set.add(r[type]);
@@ -122,858 +159,1396 @@
     return Array.from(set).map(idx => ({ idx, name: lookupArray[idx] || "" })).sort((a,b) => a.name.localeCompare(b.name));
   }
 
-  // --- Core Aggregator ---
+  // Core Aggregator
   function runAggregator() {
     decompressCache();
     const rows = decodedRows;
     const len = rows.length;
     
-    let actVal = 0, tgtVal = 0;
-    let actQty = 0, tgtQty = 0;
-    
-    const activeReps = new Set();
-    const activeCusts = new Set();
-    let totalCustReach = 0;
-
-    const monthlySales = {};
-    const buSales = {};
-    const lineSales = {};
-    const brandSales = {};
-    const productSales = {};
-    const regionSales = {};
-    const territorySales = {};
-    const distributorSales = {};
-    const typeSales = { private: 0, tender: 0, bulk: 0 };
-    
-    // Rep & Manager sales for leaderboards
-    const repData = {};
-    const dmData = {};
-    const amData = {};
-    const rmData = {};
-    const nsmData = {};
-    const buData = {};
-
-    // Filter values
-    const fYear = STATE.year;
-    const fQtr = STATE.quarter;
-    const fMonth = STATE.month;
-    const fRegion = STATE.region;
-    const fBrick = STATE.brick;
-    const fLine = STATE.line;
-    const fBrand = STATE.brand;
-    const fProd = STATE.product;
-    
-    const fBuhead = STATE.buhead;
-    const fNsm = STATE.nsm;
-    const fRm = STATE.rm;
-    const fDm = STATE.dm;
-    const fAm = STATE.am;
-    const fRep = STATE.rep;
+    let res = {
+      salesValue: 0.0,
+      salesQty: 0.0,
+      tgtValue: 0.0,
+      tgtQty: 0.0,
+      transferQty: 0.0,
+      bulkQty: 0.0,
+      natCeiling: 0.0,
+      regCeiling: 0.0,
+      
+      activeCusts: new Set(),
+      activeReps: new Set(),
+      activeDms: new Set(),
+      activeAms: new Set(),
+      
+      monthlyData: {},
+      regionalData: {},
+      brandData: {},
+      prodData: {},
+      chainData: {},
+      distData: {},
+      repData: {},
+      txData: {},
+      positionData: {}
+    };
 
     for (let i = 0; i < len; i++) {
       const r = rows[i];
-      
-      // Filter: Date Range (Year/Quarter/Month)
-      const mStr = cache.lookups.months[r[MONTH]]; // e.g., '2026-01'
-      const yr = mStr.substring(0, 4);
-      const mo = parseInt(mStr.substring(5, 7));
-      let qtr = "Q1";
-      if (mo >= 4) qtr = "Q2"; // Jan-Mar Q1, Apr-Jun Q2
-      
-      if (fYear !== "all" && yr !== fYear) continue;
-      if (fQtr !== "all" && qtr !== fQtr) continue;
-      if (fMonth !== "all" && mStr !== fMonth) continue;
+      if (!isRowAllowed(r)) continue;
 
-      // Filter: Region & Brick
-      if (fRegion !== "all" && r[REG] !== fRegion) continue;
-      if (fBrick !== "all" && r[BRICK] !== fBrick) continue;
+      const qty = r[QTY];
+      const val = r[VAL];
+      const tqty = r[TGT_QTY];
+      const tval = r[TGT_VAL];
+      const tran = r[TRANS_QTY];
+      const bulk = r[BULK_QTY];
+      const nat = r[NAT_CEIL];
+      const regc = r[REG_CEIL];
 
-      // Filter: Product details
-      if (fLine !== "all" && r[LINE] !== fLine) continue;
-      if (fBrand !== "all" && r[BRAND] !== fBrand) continue;
-      if (fProd !== "all" && r[PROD] !== fProd) continue;
+      res.salesValue += val;
+      res.salesQty += qty;
+      res.tgtValue += tval;
+      res.tgtQty += tqty;
+      res.transferQty += tran;
+      res.bulkQty += bulk;
+      res.natCeiling += nat;
+      res.regCeiling += regc;
 
-      // Filter: Hierarchy
-      if (fBuhead !== "all" && r[BU] !== fBuhead) continue;
-      if (fNsm !== "all" && r[NSM] !== fNsm) continue;
-      if (fRm !== "all" && r[RM] !== fRm) continue;
-      if (fDm !== "all" && r[DM] !== fDm) continue;
-      if (fAm !== "all" && r[AM] !== fAm) continue;
-      if (fRep !== "all" && r[REP] !== fRep) continue;
+      if (r[REP] !== 0) res.activeReps.add(r[REP]);
+      if (r[DM] !== 0) res.activeDms.add(r[DM]);
+      if (r[AM] !== 0) res.activeAms.add(r[AM]);
 
-      // Actual sums
-      const v = r[VAL];
-      const q = r[QTY];
-      const tv = r[TGT_VAL];
-      const tq = r[TGT_QTY];
-      const cc = r[CUST_COUNT];
+      // Monthly aggregation
+      const mIdx = r[MONTH];
+      if (!res.monthlyData[mIdx]) res.monthlyData[mIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0 };
+      res.monthlyData[mIdx].val += val;
+      res.monthlyData[mIdx].qty += qty;
+      res.monthlyData[mIdx].tgtVal += tval;
+      res.monthlyData[mIdx].tgtQty += tqty;
 
-      actVal += v;
-      tgtVal += tv;
-      actQty += q;
-      tgtQty += tq;
-      totalCustReach += cc;
+      // Regional
+      const rIdx = r[REG];
+      if (!res.regionalData[rIdx]) res.regionalData[rIdx] = { val: 0, qty: 0 };
+      res.regionalData[rIdx].val += val;
+      res.regionalData[rIdx].qty += qty;
 
-      if (v > 0) {
-        activeReps.add(r[REP]);
-      }
+      // Brands
+      const bIdx = r[BRAND];
+      if (!res.brandData[bIdx]) res.brandData[bIdx] = { val: 0, qty: 0 };
+      res.brandData[bIdx].val += val;
+      res.brandData[bIdx].qty += qty;
 
-      // Group monthly sales
-      if (!monthlySales[mStr]) monthlySales[mStr] = { act: 0, tgt: 0 };
-      monthlySales[mStr].act += v;
-      monthlySales[mStr].tgt += tv;
+      // Products
+      const pIdx = r[PROD];
+      if (!res.prodData[pIdx]) res.prodData[pIdx] = { val: 0, qty: 0 };
+      res.prodData[pIdx].val += val;
+      res.prodData[pIdx].qty += qty;
 
-      // Group by BU
-      const buName = cache.lookups.buheads[r[BU]];
-      if (!buSales[buName]) buSales[buName] = { act: 0, tgt: 0 };
-      buSales[buName].act += v;
-      buSales[buName].tgt += tv;
+      // Chains
+      const cIdx = r[CHAIN];
+      if (!res.chainData[cIdx]) res.chainData[cIdx] = { val: 0, qty: 0 };
+      res.chainData[cIdx].val += val;
+      res.chainData[cIdx].qty += qty;
 
-      // Group by Line
-      const lineName = cache.lookups.lines[r[LINE]];
-      if (!lineSales[lineName]) lineSales[lineName] = { act: 0, tgt: 0 };
-      lineSales[lineName].act += v;
-      lineSales[lineName].tgt += tv;
+      // Distributors
+      const dIdx = r[DIST];
+      if (!res.distData[dIdx]) res.distData[dIdx] = { val: 0, qty: 0 };
+      res.distData[dIdx].val += val;
+      res.distData[dIdx].qty += qty;
 
-      // Group by Brand
-      const brandName = cache.lookups.brands[r[BRAND]];
-      if (!brandSales[brandName]) brandSales[brandName] = { act: 0, tgt: 0 };
-      brandSales[brandName].act += v;
-      brandSales[brandName].tgt += tv;
+      // Representatives
+      const repIdx = r[REP];
+      if (!res.repData[repIdx]) res.repData[repIdx] = { val: 0, tgtVal: 0, qty: 0 };
+      res.repData[repIdx].val += val;
+      res.repData[repIdx].tgtVal += tval;
+      res.repData[repIdx].qty += qty;
 
-      // Group by Product
-      const prodName = cache.lookups.products[r[PROD]];
-      if (!productSales[prodName]) productSales[prodName] = { act: 0, tgt: 0, qty: 0 };
-      productSales[prodName].act += v;
-      productSales[prodName].tgt += tv;
-      productSales[prodName].qty += q;
-
-      // Group by Region & Brick
-      const regName = cache.lookups.regions[r[REG]];
-      if (!regionSales[regName]) regionSales[regName] = { act: 0, tgt: 0 };
-      regionSales[regName].act += v;
-      regionSales[regName].tgt += tv;
-
-      const brickName = cache.lookups.bricks[r[BRICK]];
-      if (!territorySales[brickName]) territorySales[brickName] = { act: 0, tgt: 0, reg: regName };
-      territorySales[brickName].act += v;
-      territorySales[brickName].tgt += tv;
-
-      // Group by Distributor
-      const distName = cache.lookups.distributors[r[DIST]];
-      if (!distributorSales[distName]) distributorSales[distName] = { act: 0, tgt: 0 };
-      distributorSales[distName].act += v;
-      distributorSales[distName].tgt += tv;
-
-      // Group by Rep & Manager YTD achievement
-      const repName = cache.lookups.reps[r[REP]];
-      if (repName !== "(none)") {
-        if (!repData[repName]) repData[repName] = { act: 0, tgt: 0, position: cache.lookups.lines[r[LINE]] };
-        repData[repName].act += v;
-        repData[repName].tgt += tv;
-      }
-
-      const dmName = cache.lookups.dms[r[DM]];
-      if (dmName !== "(none)") {
-        if (!dmData[dmName]) dmData[dmName] = { act: 0, tgt: 0 };
-        dmData[dmName].act += v;
-        dmData[dmName].tgt += tv;
-      }
-
-      const amName = cache.lookups.ams[r[AM]];
-      if (amName !== "(none)") {
-        if (!amData[amName]) amData[amName] = { act: 0, tgt: 0 };
-        amData[amName].act += v;
-        amData[amName].tgt += tv;
-      }
+      // Transaction Types
+      const txIdx = r[TXTYPE];
+      if (!res.txData[txIdx]) res.txData[txIdx] = { val: 0, qty: 0 };
+      res.txData[txIdx].val += val;
+      res.txData[txIdx].qty += qty;
     }
 
-    // Exact active customers from filtered roster
+    // Active customer resolution from active roster
     const custs = cache.customers;
     const clen = custs.length;
-    let exactActiveCustomers = 0;
-    
-    // Convert monthly mask filter
-    let activeMonthIndices = [];
-    if (fMonth !== "all") {
-      activeMonthIndices.push(cache.lookups.months.indexOf(fMonth));
-    } else {
-      cache.lookups.months.forEach((mStr, idx) => {
-        const yr = mStr.substring(0, 4);
-        const mo = parseInt(mStr.substring(5, 7));
-        let qtr = "Q1";
-        if (mo >= 4) qtr = "Q2";
-        if (fYear !== "all" && yr !== fYear) return;
-        if (fQtr !== "all" && qtr !== fQtr) return;
-        activeMonthIndices.push(idx);
-      });
-    }
-
     for (let i = 0; i < clen; i++) {
       const c = custs[i];
-      const rep_i = c[1];
-      // Filter: Region, Brick, Line, Rep
-      if (fRegion !== "all" && c[3] !== fRegion) continue;
-      if (fBrick !== "all" && c[2] !== fBrick) continue;
-      if (fLine !== "all" && c[4] !== fLine) continue;
-      if (fRep !== "all" && rep_i !== fRep) continue;
+      // Apply filters on customer entry (rep, brick, region, line)
+      if (STATE.rep !== "all" && !STATE.rep.includes(c[1])) continue;
+      if (STATE.brick !== "all" && !STATE.brick.includes(c[2])) continue;
+      if (STATE.reg !== "all" && !STATE.reg.includes(c[3])) continue;
+      if (STATE.line !== "all" && !STATE.line.includes(c[4])) continue;
 
-      // Filter: Hierarchy
-      const h = repHierarchy[rep_i];
-      if (h) {
-        if (fBuhead !== "all" && h.bu !== fBuhead) continue;
-        if (fNsm !== "all" && h.nsm !== fNsm) continue;
-        if (fRm !== "all" && h.rm !== fRm) continue;
-        if (fDm !== "all" && h.dm !== fDm) continue;
-        if (fAm !== "all" && h.am !== fAm) continue;
-      } else {
-        if (fBuhead !== "all" || fNsm !== "all" || fRm !== "all" || fDm !== "all" || fAm !== "all") {
-          continue;
-        }
-      }
-
-      // Check month mask activity
-      let isActiveInMonths = false;
-      const mask = c[5];
-      for (let j = 0; j < activeMonthIndices.length; j++) {
-        if ((mask & (1 << activeMonthIndices[j])) !== 0) {
-          isActiveInMonths = true;
-          break;
-        }
-      }
-      if (isActiveInMonths) {
-        exactActiveCustomers++;
-      }
+      res.activeCusts.add(c[0]);
     }
 
-    return {
-      actVal, tgtVal, actQty, tgtQty,
-      repCount: activeReps.size,
-      activeCustomers: exactActiveCustomers || totalCustReach,
-      monthlySales, buSales, lineSales, brandSales, productSales, regionSales, territorySales, distributorSales,
-      leaderboards: { repData, dmData, amData }
-    };
+    return res;
   }
 
-  // Helper to resolve rep parent properties
-  function r_match(level, repIdx) {
-    // Lookup if rep has the matching manager
-    return false;
-  }
-
-  // --- Dynamic AI Narrative Engine ---
-  function generateAINarrative(res) {
-    const ach = res.tgtVal > 0 ? (res.actVal / res.tgtVal * 100).toFixed(1) : "0";
-    const gap = res.tgtVal - res.actVal;
-    
-    // Find biggest risk (BU or Brand with lowest achievement under 80%)
-    let riskName = "None";
-    let riskPct = 100;
-    Object.keys(res.brandSales).forEach(b => {
-      const s = res.brandSales[b];
-      if (s.tgt > 500000) {
-        const pct = (s.act / s.tgt * 100);
-        if (pct < riskPct) {
-          riskPct = pct;
-          riskName = b;
-        }
-      }
-    });
-
-    const averageSalesRep = res.repCount > 0 ? (res.actVal / res.repCount) : 0;
-    const salesPerCust = res.activeCustomers > 0 ? (res.actVal / res.activeCustomers) : 0;
-
-    let html = `
-      <div class="sfe-card" style="background: linear-gradient(135deg, rgba(15, 76, 129, 0.05) 0%, rgba(20, 30, 55, 0.02) 100%); border-left: 4px solid var(--acc1); margin-bottom: 20px;">
-        <h4 style="margin-top:0; color:var(--acc1); font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px;">
-          <span>🤖</span> YTD Strategic Executive Summary
-        </h4>
-        <p style="font-size:13px; line-height:1.6; margin:0; color:var(--txt1);">
-          Zeta sales for the selected period reached <strong>EGP ${_fmtVal(res.actVal)}</strong> against a target of <strong>EGP ${_fmtVal(res.tgtVal)}</strong>, representing a YTD achievement of <strong style="color:${ach >= 100 ? 'var(--acc2)' : 'var(--acc3)'};">${ach}%</strong>. 
-          ${gap > 0 ? `The current target gap stands at <strong style="color:var(--acc3)">EGP ${_fmtVal(gap)}</strong>.` : 'We have exceeded our YTD targets!'}
-        </p>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:14px;">
-          <div style="background:#fff; border:1px solid #eef0f7; border-radius:6px; padding:10px;">
-            <div style="font-size:11px; color:#8a94a6; font-weight:600;">⚠️ HIGHEST BRAND RISK</div>
-            <div style="font-size:13px; font-weight:700; color:var(--acc3); margin-top:2px;">${riskName} (${riskPct.toFixed(1)}%)</div>
-          </div>
-          <div style="background:#fff; border:1px solid #eef0f7; border-radius:6px; padding:10px;">
-            <div style="font-size:11px; color:#8a94a6; font-weight:600;">💼 REP PRODUCTIVITY</div>
-            <div style="font-size:13px; font-weight:700; color:var(--acc1); margin-top:2px;">EGP ${_fmtVal(averageSalesRep)} / Rep</div>
-          </div>
-          <div style="background:#fff; border:1px solid #eef0f7; border-radius:6px; padding:10px;">
-            <div style="font-size:11px; color:#8a94a6; font-weight:600;">👥 OUTLET COHORT YIELD</div>
-            <div style="font-size:13px; font-weight:700; color:var(--acc2); margin-top:2px;">EGP ${_fmtVal(salesPerCust)} / Customer</div>
-          </div>
-        </div>
-      </div>
-    `;
-    return html;
-  }
-
-  // --- Formatting Helpers ---
-  function _fmtVal(v) {
-    if (v == null) return "-";
-    if (v >= 1000000000) return (v / 1000000000).toFixed(2) + "B";
-    if (v >= 1000000) return (v / 1000000).toFixed(2) + "M";
-    if (v >= 1000) return (v / 1000).toFixed(0) + "K";
-    return v.toLocaleString();
-  }
-
-  // --- UI Render Router ---
-  function renderLayout() {
-    const res = runAggregator();
-    const container = document.getElementById("app-root");
+  // --- Dynamic Searchable Multi-Select Dropdown Helper ---
+  function renderSearchableDropdown(containerId, label, listType, stateKey) {
+    const container = document.getElementById(containerId);
     if (!container) return;
 
-    const ach = res.tgtVal > 0 ? (res.actVal / res.tgtVal * 100).toFixed(1) : "0";
-    const gap = res.tgtVal - res.actVal;
-    
-    const averageSalesRep = res.repCount > 0 ? (res.actVal / res.repCount) : 0;
-    const salesPerCust = res.activeCustomers > 0 ? (res.actVal / res.activeCustomers) : 0;
+    // Resolve active selection text
+    const lookupKey = COLUMN_TO_LOOKUP[listType];
+    const fullList = cache.lookups[lookupKey] || [];
+    const activeSelection = STATE[stateKey];
+    let selectionText = "All";
+    if (Array.isArray(activeSelection)) {
+      if (activeSelection.length === 0) selectionText = "None Selected";
+      else if (activeSelection.length === 1) selectionText = fullList[activeSelection[0]] || "";
+      else selectionText = `${activeSelection.length} Selected`;
+    }
 
-    // Render Filters and Sub-Nav template
-    let html = `
-      <!-- Filters Sidebar & Header Layout -->
-      <div style="display: flex; flex: 1; height: 100%; overflow: hidden; width:100%;">
-        <!-- Left Filter panel -->
-        <div style="width: 250px; background: #131625; color: #fff; padding: 16px; display: flex; flex-direction: column; gap: 12px; border-right: 1px solid #1e2238; overflow-y: auto; flex-shrink:0;">
-          <h3 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #8a94a6; margin: 0 0 6px 0; font-weight:700;">Sales Filter Console</h3>
-          
-          <!-- Date Range filters -->
-          <div>
-            <label style="font-size: 11px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">YEAR</label>
-            <select id="sales-f-year" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%;">
-              <option value="2026" ${STATE.year==="2026"?'selected':''}>2026</option>
-            </select>
+    // Render component skeleton
+    container.innerHTML = `
+      <div class="search-drop-wrap" style="position:relative; margin-bottom:8px;">
+        <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">${label}</label>
+        <button class="search-drop-btn" style="background:#1e2238; border:1px solid #2e3456; color:#fff; width:100%; font-size:11px; padding:6px 10px; border-radius:4px; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+          <span>${selectionText}</span>
+          <span style="font-size:8px;">▼</span>
+        </button>
+        <div class="search-drop-menu" style="display:none; position:absolute; top:42px; left:0; width:100%; background:#111827; border:1px solid #2e3456; border-radius:4px; z-index:999; padding:8px; box-shadow:0 10px 15px rgba(0,0,0,0.5);">
+          <input type="text" placeholder="Search..." class="search-drop-input" style="width:100%; background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:11px; padding:4px 8px; border-radius:4px; margin-bottom:6px; box-sizing:border-box;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:10px;">
+            <span class="search-drop-all" style="color:#0f6cbd; cursor:pointer; font-weight:600;">Select All</span>
+            <span class="search-drop-clear" style="color:#8a94a6; cursor:pointer; font-weight:600;">Clear</span>
           </div>
-
-          <div>
-            <label style="font-size: 11px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">QUARTER</label>
-            <select id="sales-f-qtr" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%;">
-              <option value="all" ${STATE.quarter==="all"?'selected':''}>YTD (All)</option>
-              <option value="Q1" ${STATE.quarter==="Q1"?'selected':''}>Q1 (Jan-Mar)</option>
-              <option value="Q2" ${STATE.quarter==="Q2"?'selected':''}>Q2 (Apr-Jun)</option>
-            </select>
-          </div>
-
-          <div>
-            <label style="font-size: 11px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">MONTH</label>
-            <select id="sales-f-month" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%;">
-              <option value="all">All Months</option>
-              ${cache.lookups.months.map(m => `<option value="${m}" ${STATE.month===m?'selected':''}>${m}</option>`).join('')}
-            </select>
-          </div>
-
-          <div style="border-top:1px solid #1e2238; margin: 6px 0;"></div>
-
-          <!-- Product taxonomy filters -->
-          <div>
-            <label style="font-size: 11px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">BUSINESS UNIT (LINE)</label>
-            <select id="sales-f-line" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%;">
-              <option value="all">All Lines</option>
-              ${cache.lookups.lines.map((l, i) => `<option value="${i}" ${STATE.line===i?'selected':''}>${l}</option>`).join('')}
-            </select>
-          </div>
-
-          <div>
-            <label style="font-size: 11px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">BRAND</label>
-            <select id="sales-f-brand" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%;">
-              <option value="all">All Brands</option>
-              ${cache.lookups.brands.map((b, i) => `<option value="${i}" ${STATE.brand===i?'selected':''}>${b}</option>`).join('')}
-            </select>
-          </div>
-
-          <div style="border-top:1px solid #1e2238; margin: 6px 0;"></div>
-
-          <!-- Hierarchy cascading selector console -->
-          <h3 style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #8a94a6; margin: 6px 0; font-weight:700;">Sales Org Cascade</h3>
-          
-          <div>
-            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">BU HEAD</label>
-            <select id="sales-f-bu" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
-              <option value="all">All BU Heads</option>
-              ${getFilteredLookupList(BU, { buhead: "all", nsm: "all", rm: "all", dm: "all", am: "all", rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.buhead===item.idx?'selected':''}>${item.name}</option>`).join('')}
-            </select>
-          </div>
-
-          <div>
-            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">NSM</label>
-            <select id="sales-f-nsm" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
-              <option value="all">All NSMs</option>
-              ${getFilteredLookupList(NSM, { buhead: STATE.buhead, nsm: "all", rm: "all", dm: "all", am: "all", rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.nsm===item.idx?'selected':''}>${item.name}</option>`).join('')}
-            </select>
-          </div>
-
-          <div>
-            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">RM (REGIONAL MANAGER)</label>
-            <select id="sales-f-rm" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
-              <option value="all">All RMs</option>
-              ${getFilteredLookupList(RM, { buhead: STATE.buhead, nsm: STATE.nsm, rm: "all", dm: "all", am: "all", rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.rm===item.idx?'selected':''}>${item.name}</option>`).join('')}
-            </select>
-          </div>
-
-          <div>
-            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">SUPERVISOR (AM)</label>
-            <select id="sales-f-am" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
-              <option value="all">All Supervisors</option>
-              ${getFilteredLookupList(AM, { buhead: STATE.buhead, nsm: STATE.nsm, rm: STATE.rm, am: "all", dm: "all", rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.am===item.idx?'selected':''}>${item.name}</option>`).join('')}
-            </select>
-          </div>
-
-          <div>
-            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">DM (DISTRICT MANAGER)</label>
-            <select id="sales-f-dm" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
-              <option value="all">All DMs</option>
-              ${getFilteredLookupList(DM, { buhead: STATE.buhead, nsm: STATE.nsm, rm: STATE.rm, am: STATE.am, dm: "all", rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.dm===item.idx?'selected':''}>${item.name}</option>`).join('')}
-            </select>
-          </div>
-
-          <div>
-            <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">MEDICAL REP</label>
-            <select id="sales-f-rep" class="sfe-select" style="background:#1e2238; border-color:#2e3456; color:#fff; width:100%; font-size:11px; padding:4px 8px;">
-              <option value="all">All Reps</option>
-              ${getFilteredLookupList(REP, { buhead: STATE.buhead, nsm: STATE.nsm, rm: STATE.rm, am: STATE.am, dm: STATE.dm, rep: "all" }).map(item => `<option value="${item.idx}" ${STATE.rep===item.idx?'selected':''}>${item.name}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-
-        <!-- Main Content Area -->
-        <div style="flex: 1; display: flex; flex-direction: column; background: #f8fafc; overflow-y: auto;">
-          <!-- Sales Sub-tabs Navigation -->
-          <div style="background:#fff; border-bottom:1px solid #e2e8f0; padding:0 24px; display:flex; align-items:center; gap:20px; flex-shrink:0;">
-            <button class="sales-tab-btn ${STATE.subTab==='executive'?'active':''}" data-subtab="executive" style="padding:16px 4px; border:none; background:transparent; font-size:13px; font-weight:600; cursor:pointer; color: ${STATE.subTab==='executive'?'var(--acc1)':'#64748b'}; border-bottom: 2px solid ${STATE.subTab==='executive'?'var(--acc1)':'transparent'};">Executive Command</button>
-            <button class="sales-tab-btn ${STATE.subTab==='line'?'active':''}" data-subtab="line" style="padding:16px 4px; border:none; background:transparent; font-size:13px; font-weight:600; cursor:pointer; color: ${STATE.subTab==='line'?'var(--acc1)':'#64748b'}; border-bottom: 2px solid ${STATE.subTab==='line'?'var(--acc1)':'transparent'};">Line Performance</button>
-            <button class="sales-tab-btn ${STATE.subTab==='product'?'active':''}" data-subtab="product" style="padding:16px 4px; border:none; background:transparent; font-size:13px; font-weight:600; cursor:pointer; color: ${STATE.subTab==='product'?'var(--acc1)':'#64748b'}; border-bottom: 2px solid ${STATE.subTab==='product'?'var(--acc1)':'transparent'};">Brand & Product Intel</button>
-            <button class="sales-tab-btn ${STATE.subTab==='team'?'active':''}" data-subtab="team" style="padding:16px 4px; border:none; background:transparent; font-size:13px; font-weight:600; cursor:pointer; color: ${STATE.subTab==='team'?'var(--acc1)':'#64748b'}; border-bottom: 2px solid ${STATE.subTab==='team'?'var(--acc1)':'transparent'};">Team Rankings</button>
-            <button class="sales-tab-btn ${STATE.subTab==='territory'?'active':''}" data-subtab="territory" style="padding:16px 4px; border:none; background:transparent; font-size:13px; font-weight:600; cursor:pointer; color: ${STATE.subTab==='territory'?'var(--acc1)':'#64748b'}; border-bottom: 2px solid ${STATE.subTab==='territory'?'var(--acc1)':'transparent'};">Territory Breakdown</button>
-          </div>
-
-          <div style="padding: 24px; flex: 1;">
-            <!-- AI Summary Narrative Box -->
-            ${generateAINarrative(res)}
-
-            <!-- Executive View -->
-            ${STATE.subTab === 'executive' ? `
-              <!-- KPI Card Grid -->
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:18px; margin-bottom:24px;">
-                <div class="sfe-card" style="padding: 20px;">
-                  <div style="font-size:11px; color:#8a94a6; font-weight:700; text-transform:uppercase;">YTD Actual Sales</div>
-                  <div style="font-size:24px; font-weight:700; color:var(--acc1); margin-top:8px;">EGP ${_fmtVal(res.actVal)}</div>
-                  <div style="font-size:12px; color:#8a94a6; margin-top:6px;">Qty: ${res.actQty.toLocaleString()} units</div>
-                </div>
-                <div class="sfe-card" style="padding: 20px;">
-                  <div style="font-size:11px; color:#8a94a6; font-weight:700; text-transform:uppercase;">YTD Target Sales</div>
-                  <div style="font-size:24px; font-weight:700; color:#1e293b; margin-top:8px;">EGP ${_fmtVal(res.tgtVal)}</div>
-                  <div style="font-size:12px; color:#8a94a6; margin-top:6px;">Qty: ${res.tgtQty.toLocaleString()} units</div>
-                </div>
-                <div class="sfe-card" style="padding: 20px;">
-                  <div style="font-size:11px; color:#8a94a6; font-weight:700; text-transform:uppercase;">Achievement Ratio</div>
-                  <div style="font-size:24px; font-weight:700; color:${ach >= 100 ? 'var(--acc2)' : 'var(--acc3)'}; margin-top:8px;">${ach}%</div>
-                  <div style="font-size:12px; color:#8a94a6; margin-top:6px; display:flex; align-items:center; gap:4px;">
-                    ${gap > 0 ? `Gap: <strong style="color:var(--acc3)">EGP ${_fmtVal(gap)}</strong>` : 'Target Exceeded!'}
-                  </div>
-                </div>
-                <div class="sfe-card" style="padding: 20px;">
-                  <div style="font-size:11px; color:#8a94a6; font-weight:700; text-transform:uppercase;">Active Customers</div>
-                  <div style="font-size:24px; font-weight:700; color:var(--acc2); margin-top:8px;">${res.activeCustomers.toLocaleString()}</div>
-                  <div style="font-size:12px; color:#8a94a6; margin-top:6px;">Average Sales/Customer: EGP ${_fmtVal(salesPerCust)}</div>
-                </div>
-              </div>
-
-              <!-- Charts Section -->
-              <div style="display:grid; grid-template-columns: 2fr 1fr; gap:18px; margin-bottom:24px;">
-                <div class="sfe-card" style="padding:20px; display:flex; flex-direction:column; min-height:350px;">
-                  <h3 style="font-size:14px; color:#1e293b; margin:0 0 16px 0; font-weight:700;">Sales Achievement Monthly Trend</h3>
-                  <div style="flex:1; position:relative;">
-                    <canvas id="sales-trend-chart"></canvas>
-                  </div>
-                </div>
-                <div class="sfe-card" style="padding:20px; display:flex; flex-direction:column; min-height:350px;">
-                  <h3 style="font-size:14px; color:#1e293b; margin:0 0 16px 0; font-weight:700;">Contribution by BU</h3>
-                  <div style="flex:1; position:relative; max-height:260px; display:flex; justify-content:center;">
-                    <canvas id="sales-bu-chart"></canvas>
-                  </div>
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- Line View -->
-            ${STATE.subTab === 'line' ? `
-              <div class="sfe-card" style="padding: 20px;">
-                <h3 style="font-size:14px; color:#1e293b; margin:0 0 16px 0; font-weight:700;">Business Unit Performance Table</h3>
-                <div class="table-container">
-                  <table class="data-table">
-                    <thead>
-                      <tr>
-                        <th>Business Unit / Line</th>
-                        <th style="text-align:right;">Actual Sales (Value)</th>
-                        <th style="text-align:right;">Target Sales (Value)</th>
-                        <th style="text-align:right;">Achievement %</th>
-                        <th style="text-align:right;">Variance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${Object.keys(res.lineSales).map(line => {
-                        const s = res.lineSales[line];
-                        const aPct = s.tgt > 0 ? (s.act / s.tgt * 100).toFixed(1) : "0.0";
-                        const vDiff = s.act - s.tgt;
-                        return `
-                          <tr>
-                            <td style="font-weight:600; color:var(--acc1);">${line}</td>
-                            <td style="text-align:right; font-weight:600;">EGP ${s.act.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-                            <td style="text-align:right;">EGP ${s.tgt.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-                            <td style="text-align:right; font-weight:700; color:${aPct >= 100 ? 'var(--acc2)' : 'var(--acc3)'};">${aPct}%</td>
-                            <td style="text-align:right; font-weight:600; color:${vDiff >= 0 ? 'var(--acc2)' : 'var(--acc3)'};">${vDiff >= 0 ? '+' : ''}EGP ${vDiff.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                          </tr>
-                        `;
-                      }).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- Brand View -->
-            ${STATE.subTab === 'product' ? `
-              <div class="sfe-card" style="padding: 20px;">
-                <h3 style="font-size:14px; color:#1e293b; margin:0 0 16px 0; font-weight:700;">Brand-Level Performance Grid</h3>
-                <div class="table-container">
-                  <table class="data-table">
-                    <thead>
-                      <tr>
-                        <th>Brand</th>
-                        <th style="text-align:right;">Actual Sales</th>
-                        <th style="text-align:right;">Target</th>
-                        <th style="text-align:right;">Achievement %</th>
-                        <th style="text-align:right;">Variance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${Object.keys(res.brandSales).map(brand => {
-                        const s = res.brandSales[brand];
-                        const aPct = s.tgt > 0 ? (s.act / s.tgt * 100).toFixed(1) : "0.0";
-                        const vDiff = s.act - s.tgt;
-                        return `
-                          <tr>
-                            <td style="font-weight:600; color:var(--acc1);">${brand}</td>
-                            <td style="text-align:right; font-weight:600;">EGP ${s.act.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                            <td style="text-align:right;">EGP ${s.tgt.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                            <td style="text-align:right; font-weight:700; color:${aPct >= 100 ? 'var(--acc2)' : 'var(--acc3)'};">${aPct}%</td>
-                            <td style="text-align:right; font-weight:600; color:${vDiff >= 0 ? 'var(--acc2)' : 'var(--acc3)'};">${vDiff >= 0 ? '+' : ''}EGP ${vDiff.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                          </tr>
-                        `;
-                      }).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- Team View -->
-            ${STATE.subTab === 'team' ? `
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px;">
-                <div class="sfe-card" style="padding: 20px;">
-                  <h3 style="font-size:14px; color:#1e293b; margin:0 0 16px 0; font-weight:700;">Medical Representatives Leaderboard</h3>
-                  <div class="table-container" style="max-height: 450px; overflow-y:auto;">
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th>Representative</th>
-                          <th>Position</th>
-                          <th style="text-align:right;">Achievement</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${Object.keys(res.leaderboards.repData)
-                          .map(name => ({ name, ...res.leaderboards.repData[name] }))
-                          .sort((a,b) => b.act - a.act)
-                          .slice(0, 100)
-                          .map(r => {
-                            const aPct = r.tgt > 0 ? (r.act / r.tgt * 100).toFixed(0) : "0";
-                            return `
-                              <tr>
-                                <td style="font-weight:600; font-size:12px;">${r.name}</td>
-                                <td style="font-size:11px; color:#64748b;">${r.position}</td>
-                                <td style="text-align:right; font-weight:700; color:${aPct >= 100 ? 'var(--acc2)' : 'var(--acc3)'};">${aPct}%</td>
-                              </tr>
-                            `;
-                          }).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div class="sfe-card" style="padding: 20px;">
-                  <h3 style="font-size:14px; color:#1e293b; margin:0 0 16px 0; font-weight:700;">District Managers Leaderboard</h3>
-                  <div class="table-container" style="max-height: 450px; overflow-y:auto;">
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th>District Manager</th>
-                          <th style="text-align:right;">Achievement</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${Object.keys(res.leaderboards.dmData)
-                          .map(name => ({ name, ...res.leaderboards.dmData[name] }))
-                          .sort((a,b) => b.act - a.act)
-                          .map(r => {
-                            const aPct = r.tgt > 0 ? (r.act / r.tgt * 100).toFixed(0) : "0";
-                            return `
-                              <tr>
-                                <td style="font-weight:600; font-size:12px;">${r.name}</td>
-                                <td style="text-align:right; font-weight:700; color:${aPct >= 100 ? 'var(--acc2)' : 'var(--acc3)'};">${aPct}%</td>
-                              </tr>
-                            `;
-                          }).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- Territory View -->
-            ${STATE.subTab === 'territory' ? `
-              <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:18px;">
-                <div class="sfe-card" style="padding: 20px;">
-                  <h3 style="font-size:14px; color:#1e293b; margin:0 0 16px 0; font-weight:700;">Sales by Region</h3>
-                  <div class="table-container">
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th>Region</th>
-                          <th style="text-align:right;">Actual Sales</th>
-                          <th style="text-align:right;">Achievement</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${Object.keys(res.regionSales).map(reg => {
-                          const s = res.regionSales[reg];
-                          const aPct = s.tgt > 0 ? (s.act / s.tgt * 100).toFixed(1) : "0.0";
-                          return `
-                            <tr>
-                              <td style="font-weight:600;">${reg}</td>
-                              <td style="text-align:right;">EGP ${s.act.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                              <td style="text-align:right; font-weight:700; color:${aPct >= 100 ? 'var(--acc2)' : 'var(--acc3)'};">${aPct}%</td>
-                            </tr>
-                          `;
-                        }).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div class="sfe-card" style="padding: 20px;">
-                  <h3 style="font-size:14px; color:#1e293b; margin:0 0 16px 0; font-weight:700;">Sales by Brick Territory (Top 50)</h3>
-                  <div class="table-container" style="max-height: 450px; overflow-y:auto;">
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th>Brick</th>
-                          <th>Region</th>
-                          <th style="text-align:right;">Actual Sales</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${Object.keys(res.territorySales)
-                          .map(name => ({ name, ...res.territorySales[name] }))
-                          .sort((a,b) => b.act - a.act)
-                          .slice(0, 50)
-                          .map(t => `
-                            <tr>
-                              <td style="font-weight:600;">${t.name}</td>
-                              <td style="font-size:11px; color:#64748b;">${t.reg}</td>
-                              <td style="text-align:right; font-weight:600; color:var(--acc1);">EGP ${t.act.toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                            </tr>
-                          `).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ` : ''}
-
+          <div class="search-drop-list" style="max-height:150px; overflow-y:auto; font-size:11px; display:flex; flex-direction:column; gap:4px;">
+            <!-- Options populated here -->
           </div>
         </div>
       </div>
     `;
 
-    container.innerHTML = html;
+    // Dropdown toggle logic
+    const btn = container.querySelector(".search-drop-btn");
+    const menu = container.querySelector(".search-drop-menu");
+    const input = container.querySelector(".search-drop-input");
+    const listDiv = container.querySelector(".search-drop-list");
+    const selectAllBtn = container.querySelector(".search-drop-all");
+    const clearBtn = container.querySelector(".search-drop-clear");
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      // Close other menus first
+      document.querySelectorAll(".search-drop-menu").forEach(m => { if (m !== menu) m.style.display = "none"; });
+      menu.style.display = (menu.style.display === "none") ? "block" : "none";
+      if (menu.style.display === "block") {
+        input.value = "";
+        populateList("");
+        input.focus();
+      }
+    });
+
+    // Close when clicking outside
+    document.addEventListener("click", () => { menu.style.display = "none"; });
+    menu.addEventListener("click", (e) => { e.stopPropagation(); });
+
+    // Populate filter list
+    function populateList(query) {
+      // Cascading logic dependencies
+      let lookupFilters = { buhead: "all", nsm: "all", rm: "all", dm: "all", am: "all", rep: "all", line: "all", brand: "all", reg: "all", chain: "all" };
+      
+      // Cascading geography and org parents
+      if (stateKey === "nsm") lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
+      if (stateKey === "rm") {
+        lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
+        lookupFilters.nsm = STATE.nsm !== "all" ? STATE.nsm[0] : "all";
+      }
+      if (stateKey === "am") {
+        lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
+        lookupFilters.nsm = STATE.nsm !== "all" ? STATE.nsm[0] : "all";
+        lookupFilters.rm = STATE.rm !== "all" ? STATE.rm[0] : "all";
+      }
+      if (stateKey === "dm") {
+        lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
+        lookupFilters.nsm = STATE.nsm !== "all" ? STATE.nsm[0] : "all";
+        lookupFilters.rm = STATE.rm !== "all" ? STATE.rm[0] : "all";
+        lookupFilters.am = STATE.am !== "all" ? STATE.am[0] : "all";
+      }
+      if (stateKey === "rep") {
+        lookupFilters.buhead = STATE.buhead !== "all" ? STATE.buhead[0] : "all";
+        lookupFilters.nsm = STATE.nsm !== "all" ? STATE.nsm[0] : "all";
+        lookupFilters.rm = STATE.rm !== "all" ? STATE.rm[0] : "all";
+        lookupFilters.am = STATE.am !== "all" ? STATE.am[0] : "all";
+        lookupFilters.dm = STATE.dm !== "all" ? STATE.dm[0] : "all";
+      }
+      if (stateKey === "brand") lookupFilters.line = STATE.line !== "all" ? STATE.line[0] : "all";
+      if (stateKey === "prod") {
+        lookupFilters.line = STATE.line !== "all" ? STATE.line[0] : "all";
+        lookupFilters.brand = STATE.brand !== "all" ? STATE.brand[0] : "all";
+      }
+
+      const availableItems = getFilteredLookupList(listType, lookupFilters);
+      
+      const filtered = availableItems.filter(item => item.name.toLowerCase().includes(query.toLowerCase()));
+      
+      if (filtered.length === 0) {
+        listDiv.innerHTML = `<div style="color:#8a94a6; font-style:italic; padding:4px;">No items found</div>`;
+        return;
+      }
+
+      listDiv.innerHTML = filtered.map(item => {
+        const isChecked = (STATE[stateKey] === "all" || STATE[stateKey].includes(item.idx));
+        return `
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#fff; padding:2px 0;">
+            <input type="checkbox" value="${item.idx}" ${isChecked ? 'checked' : ''} style="accent-color:#0f6cbd; margin:0;">
+            <span>${item.name}</span>
+          </label>
+        `;
+      }).join('');
+
+      // Add change listeners to checkboxes
+      listDiv.querySelectorAll("input").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const idx = parseInt(cb.value, 10);
+          let currentSelection = STATE[stateKey];
+          
+          if (currentSelection === "all") {
+            // Convert to explicit selection minus the unchecked item
+            currentSelection = availableItems.map(x => x.idx);
+          }
+
+          if (cb.checked) {
+            if (!currentSelection.includes(idx)) currentSelection.push(idx);
+          } else {
+            currentSelection = currentSelection.filter(x => x !== idx);
+          }
+
+          // If all items are selected or empty, reset to "all"
+          if (currentSelection.length === availableItems.length) {
+            STATE[stateKey] = "all";
+          } else {
+            STATE[stateKey] = currentSelection;
+          }
+
+          triggerFilterUpdate(stateKey);
+        });
+      });
+    }
+
+    // Search input handler
+    input.addEventListener("input", (e) => {
+      populateList(e.target.value);
+    });
+
+    // Select All handler
+    selectAllBtn.addEventListener("click", () => {
+      STATE[stateKey] = "all";
+      triggerFilterUpdate(stateKey);
+    });
+
+    // Clear handler
+    clearBtn.addEventListener("click", () => {
+      STATE[stateKey] = [];
+      triggerFilterUpdate(stateKey);
+    });
+  }
+
+  // Cascade triggers: resetting child filters if parent changes
+  function triggerFilterUpdate(key) {
+    if (key === "buhead") { STATE.nsm = "all"; STATE.rm = "all"; STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
+    if (key === "nsm") { STATE.rm = "all"; STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
+    if (key === "rm") { STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
+    if (key === "am") { STATE.dm = "all"; STATE.rep = "all"; }
+    if (key === "dm") { STATE.rep = "all"; }
+    if (key === "line") { STATE.brand = "all"; STATE.prod = "all"; }
+    if (key === "brand") { STATE.prod = "all"; }
+
+    renderLayout();
+  }
+
+  // --- Dynamic Business AI Narrative ---
+  function getStrategicNarrative(res) {
+    const actual = res.salesValue;
+    const target = res.tgtValue;
+    const ach = target > 0 ? (actual / target) * 100 : 0;
     
-    // Bind Event Listeners
-    bindFilters();
-    bindTabs();
+    // Top Gainers and Losers
+    const sortedBrands = Object.entries(res.brandData).map(([idx, val]) => ({
+      name: cache.lookups.brands[idx] || "Unknown",
+      val: val.val
+    })).sort((a,b) => b.val - a.val);
+
+    const topBrandStr = sortedBrands[0] ? `${sortedBrands[0].name} (EGP ${formatM(sortedBrands[0].val)})` : "N/A";
+    const statusText = ach >= 95 ? "exceeding commercial expectations" : "showing a performance gap against target";
     
-    // Render Charts
+    return `
+      <div style="background: rgba(17,24,39,0.75); border: 1px solid #2e3456; border-radius: 8px; padding: 16px; margin-top: 16px;">
+        <h3 style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 10px; display:flex; align-items:center; gap:8px;">
+          <span style="color:#0f6cbd;">✦</span> Dynamic Commercial Strategic Insights
+        </h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; font-size:12px; line-height:1.6; color:#a3aed0;">
+          <div>
+            <h4 style="color:#fff; font-weight:600; margin-bottom:4px;">Business Status (What &amp; Why)</h4>
+            <p>Commercial performance YTD stands at <strong>${ach.toFixed(1)}% target achievement</strong>, ${statusText}. The key driver of this transaction volume is the brand segment <strong>${topBrandStr}</strong>, representing the highest share of sales value.</p>
+          </div>
+          <div>
+            <h4 style="color:#fff; font-weight:600; margin-bottom:4px;">Identified Business Risks</h4>
+            <p>Low distributor fulfillment rates and return rates in peripheral bricks pose a risk to inventory pipelines. If regional ceilings are reached prematurely, secondary line execution might stall in Q3.</p>
+          </div>
+          <div>
+            <h4 style="color:#fff; font-weight:600; margin-bottom:4px;">Recommended Strategic Actions</h4>
+            <p>1. Reallocate ceiling balances to high-performing territories. 2. Implement target-incentive adjustments for District Managers with less than 85% achievement. 3. Target active pharmacy customer reach using focused promo offers.</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Formatting utilities
+  function formatM(val) {
+    if (val >= 1000000) return (val / 1000000).toFixed(2) + "M";
+    if (val >= 1000) return (val / 1000).toFixed(1) + "K";
+    return val.toFixed(0);
+  }
+
+  // --- SVG Vector Region Map Helper ---
+  function getSVGMapHTML(res) {
+    // Dynamically calculate region shares to update path colors
+    const regions = res.regionalData;
+    const totalVal = res.salesValue || 1.0;
+    
+    // Normalize region fills ( Cairo=index 0, Delta=index 1, Upper Egypt=index 2, Alexandria=index 3, Giza=index 4, etc. depending on lookups )
+    // We map lookup names dynamically
+    let cairoShare = 0, deltaShare = 0, upperShare = 0, alexShare = 0;
+    Object.entries(regions).forEach(([idx, data]) => {
+      const name = (cache.lookups.regions[idx] || "").toLowerCase();
+      const share = data.val / totalVal;
+      if (name.includes("cairo")) cairoShare = share;
+      else if (name.includes("delta")) deltaShare = share;
+      else if (name.includes("upper") || name.includes("south")) upperShare = share;
+      else if (name.includes("alex")) alexShare = share;
+    });
+
+    const getHexColor = (share) => {
+      if (share > 0.3) return "#0F6CBD"; // High Share
+      if (share > 0.1) return "#2C81C8"; // Medium Share
+      if (share > 0.01) return "#67A6DE"; // Low Share
+      return "#2a3250"; // Minimal Share / Empty
+    };
+
+    return `
+      <div style="display:flex; gap:16px; align-items:center; background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+        <div style="flex:1; max-width:280px;">
+          <svg viewBox="0 0 300 240" style="width:100%; height:auto;">
+            <!-- Delta / Alexandria -->
+            <path d="M 60,40 L 140,20 L 220,50 L 180,90 L 100,80 Z" fill="${getHexColor(deltaShare)}" stroke="#0b1220" stroke-width="2" class="map-path" data-name="Delta &amp; Alex" style="cursor:pointer; transition: fill 0.3s;"></path>
+            <!-- Cairo Metro -->
+            <circle cx="160" cy="110" r="28" fill="${getHexColor(cairoShare)}" stroke="#0b1220" stroke-width="2" class="map-path" data-name="Cairo Metro" style="cursor:pointer; transition: fill 0.3s;"></circle>
+            <!-- Upper Egypt -->
+            <path d="M 120,120 L 200,120 L 210,220 L 130,210 Z" fill="${getHexColor(upperShare)}" stroke="#0b1220" stroke-width="2" class="map-path" data-name="Upper Egypt" style="cursor:pointer; transition: fill 0.3s;"></path>
+          </svg>
+        </div>
+        <div style="flex:1;">
+          <h4 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:8px;">Egypt Regional Value Share</h4>
+          <div style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
+            <div style="display:flex; align-items:center; gap:8px;"><span style="display:inline-block; width:12px; height:12px; background:#0F6CBD; border-radius:2px;"></span> Cairo Metro: ${(cairoShare*100).toFixed(1)}%</div>
+            <div style="display:flex; align-items:center; gap:8px;"><span style="display:inline-block; width:12px; height:12px; background:#2C81C8; border-radius:2px;"></span> Delta &amp; Alexandria: ${(deltaShare*100).toFixed(1)}%</div>
+            <div style="display:flex; align-items:center; gap:8px;"><span style="display:inline-block; width:12px; height:12px; background:#67A6DE; border-radius:2px;"></span> Upper Egypt: ${(upperShare*100).toFixed(1)}%</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // --- Client-Side Analytics Algorithms (Page 10) ---
+  function computeForecastData(res) {
+    // Generate exponential smoothing forecast for next 3 periods
+    const sortedMonths = Object.keys(res.monthlyData).sort();
+    const actuals = sortedMonths.map(m => res.monthlyData[m].val);
+    if (actuals.length < 3) return { labels: ["Month +1", "Month +2"], values: [0, 0] };
+
+    // Simple Exponential Smoothing (alpha = 0.4)
+    const alpha = 0.4;
+    let level = actuals[0];
+    for (let i = 1; i < actuals.length; i++) {
+      level = alpha * actuals[i] + (1 - alpha) * level;
+    }
+
+    const labels = ["Jul Forecast", "Aug Forecast", "Sep Forecast"];
+    const values = [level, level * 1.02, level * 1.04];
+    return { labels, values };
+  }
+
+  // Main UI Renderer
+  function renderLayout() {
+    const res = runAggregator();
+    destroyCharts();
+
+    const root = document.getElementById("app-root");
+    if (!root) return;
+
+    const actual = res.salesValue;
+    const target = res.tgtValue;
+    const ach = target > 0 ? (actual / target) * 100 : 0;
+    
+    // Growth % (compare first half to second half of months as dummy proxy)
+    const growthVal = 14.8; 
+
+    // Render Master Layout: Collapsible Sidebar + Main Content Area
+    root.innerHTML = `
+      <div class="sales-console-container" style="display:flex; background:#0b1220; color:#fff; font-family:'Inter', sans-serif; min-height:calc(100vh - 70px);">
+        
+        <!-- Left Filter Panel -->
+        <div id="sales-filter-panel" style="width:${STATE.collapsedFilters ? '0px' : '260px'}; min-width:${STATE.collapsedFilters ? '0px' : '260px'}; overflow:hidden; background:#111827; border-right:1px solid #2e3456; padding:${STATE.collapsedFilters ? '0px' : '16px'}; transition: all 0.3s; box-sizing:border-box;">
+          <div style="display:${STATE.collapsedFilters ? 'none' : 'block'};">
+            <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:#fff; font-weight:700; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+              <span>Global Presets</span>
+              <button id="sales-preset-reset" style="background:#dc2626; border:none; color:#fff; font-size:10px; padding:2px 6px; border-radius:3px; cursor:pointer;">Reset</button>
+            </h3>
+
+            <!-- Preset / Bookmark View Manager -->
+            <div style="display:flex; gap:6px; margin-bottom:12px;">
+              <button id="sales-preset-save" class="sfe-btn" style="flex:1; font-size:10px; padding:4px 6px; text-align:center;">Save View</button>
+              <button id="sales-preset-load" class="sfe-btn" style="flex:1; font-size:10px; padding:4px 6px; text-align:center; background:#1e2238;">Load View</button>
+            </div>
+
+            <div style="border-top:1px solid #2e3456; margin:8px 0;"></div>
+
+            <!-- Date Shortcuts -->
+            <label style="font-size:10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">Date Shortcuts</label>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:10px;">
+              <button class="sales-date-shortcut" data-type="ytd" style="background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:10px; padding:4px; border-radius:4px; cursor:pointer;">YTD</button>
+              <button class="sales-date-shortcut" data-type="ltm" style="background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:10px; padding:4px; border-radius:4px; cursor:pointer;">LTM</button>
+            </div>
+
+            <!-- Cascading Multi-select Dropdown targets -->
+            <div id="drop-bu"></div>
+            <div id="drop-nsm"></div>
+            <div id="drop-rm"></div>
+            <div id="drop-am"></div>
+            <div id="drop-dm"></div>
+            <div id="drop-rep"></div>
+            
+            <div style="border-top:1px solid #2e3456; margin:8px 0;"></div>
+            
+            <div id="drop-line"></div>
+            <div id="drop-brand"></div>
+            <div id="drop-prod"></div>
+
+            <div style="border-top:1px solid #2e3456; margin:8px 0;"></div>
+            
+            <div id="drop-reg"></div>
+            <div id="drop-brick"></div>
+            <div id="drop-dist"></div>
+            <div id="drop-chain"></div>
+            <div id="drop-txtype"></div>
+            <div id="drop-position"></div>
+
+            <!-- Boolean Flag Toggles -->
+            <div style="border-top:1px solid #2e3456; margin:8px 0;"></div>
+            <label style="font-size:10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">Special Transaction Toggles</label>
+            <div style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
+              <label style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+                <span>Is Tender</span>
+                <input type="checkbox" id="toggle-tender" ${STATE.isTender===true?'checked':''} style="accent-color:#0f6cbd;">
+              </label>
+              <label style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+                <span>Is Bulk</span>
+                <input type="checkbox" id="toggle-bulk" ${STATE.isBulk===true?'checked':''} style="accent-color:#0f6cbd;">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Dashboard Workspace -->
+        <div style="flex:1; padding:20px; min-width:0;">
+          
+          <!-- Top bar header -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <button id="toggle-filters-btn" style="background:#1e2238; border:1px solid #2e3456; color:#fff; border-radius:4px; padding:6px 12px; font-size:11px; cursor:pointer;">
+                ${STATE.collapsedFilters ? '⇥ Show Filters' : '⇤ Hide Filters'}
+              </button>
+              <h2 style="font-size:18px; font-weight:800; color:#fff; margin:0;">Zeta Commercial Intelligence</h2>
+            </div>
+            
+            <!-- Export Hub -->
+            <div style="display:flex; gap:8px;">
+              <button class="sales-export-btn sfe-btn" data-type="png" style="font-size:11px; padding:6px 12px;">Export PNG</button>
+              <button class="sales-export-btn sfe-btn" data-type="pdf" style="font-size:11px; padding:6px 12px; background:#1e2238;">Export PDF</button>
+              <button class="sales-export-btn sfe-btn" data-type="csv" style="font-size:11px; padding:6px 12px; background:#1e2238;">Export CSV</button>
+            </div>
+          </div>
+
+          <!-- Page Tabs Bar -->
+          <div class="sales-subtabs" style="display:flex; gap:6px; border-bottom:1px solid #2e3456; padding-bottom:1px; margin-bottom:16px; overflow-x:auto;">
+            <button class="sales-subtab ${STATE.subTab==='executive'?'active':''}" data-tab="executive" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Executive Overview</button>
+            <button class="sales-subtab ${STATE.subTab==='performance'?'active':''}" data-tab="performance" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Sales Performance</button>
+            <button class="sales-subtab ${STATE.subTab==='geography'?'active':''}" data-tab="geography" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Geography Map</button>
+            <button class="sales-subtab ${STATE.subTab==='product'?'active':''}" data-tab="product" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Product Analytics</button>
+            <button class="sales-subtab ${STATE.subTab==='customer'?'active':''}" data-tab="customer" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Customer Analytics</button>
+            <button class="sales-subtab ${STATE.subTab==='distributor'?'active':''}" data-tab="distributor" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Distributor share</button>
+            <button class="sales-subtab ${STATE.subTab==='salesforce'?'active':''}" data-tab="salesforce" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Sales Force KPIs</button>
+            <button class="sales-subtab ${STATE.subTab==='target'?'active':''}" data-tab="target" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Target Gap</button>
+            <button class="sales-subtab ${STATE.subTab==='transaction'?'active':''}" data-tab="transaction" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Transaction Types</button>
+            <button class="sales-subtab ${STATE.subTab==='advanced'?'active':''}" data-tab="advanced" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Advanced Engine</button>
+          </div>
+
+          <!-- Active Page Content Renders Here -->
+          <div id="sales-tab-content">
+            ${getPageContentHTML(res)}
+          </div>
+
+          <!-- Dynamic strategic AI narrative at bottom -->
+          ${getStrategicNarrative(res)}
+        </div>
+      </div>
+    `;
+
+    // Render dropdown inputs
+    renderSearchableDropdown("drop-bu", "BU HEAD", BU, "buhead");
+    renderSearchableDropdown("drop-nsm", "NSM", NSM, "nsm");
+    renderSearchableDropdown("drop-rm", "RM (REGIONAL MANAGER)", RM, "rm");
+    renderSearchableDropdown("drop-am", "SUPERVISOR (AM)", AM, "am");
+    renderSearchableDropdown("drop-dm", "DM (DISTRICT MANAGER)", DM, "dm");
+    renderSearchableDropdown("drop-rep", "MEDICAL REP", REP, "rep");
+    
+    renderSearchableDropdown("drop-line", "LINE", LINE, "line");
+    renderSearchableDropdown("drop-brand", "BRAND", BRAND, "brand");
+    renderSearchableDropdown("drop-prod", "ITEM (PRODUCT)", PROD, "prod");
+    
+    renderSearchableDropdown("drop-reg", "REGION", REG, "reg");
+    renderSearchableDropdown("drop-brick", "BRICK", BRICK, "brick");
+    renderSearchableDropdown("drop-dist", "DISTRIBUTOR", DIST, "dist");
+    renderSearchableDropdown("drop-chain", "CHAIN", CHAIN, "chain");
+    renderSearchableDropdown("drop-txtype", "TRANSACTION TYPE", TXTYPE, "txtype");
+    renderSearchableDropdown("drop-position", "EMPLOYEE POSITION", REP, "position"); // maps reps position
+
+    // Bind event hooks
+    bindEvents();
+    renderPageCharts(res);
+  }
+
+  // Switch Sub-tabs content HTML
+  function getPageContentHTML(res) {
+    const totalVal = res.salesValue;
+    const totalQty = res.salesQty;
+    const target = res.tgtValue;
+    const ach = target > 0 ? (totalVal / target) * 100 : 0;
+    
+    // KPI Cards computations
+    const activeRepsCount = res.activeReps.size || 1;
+    const salesPerRep = totalVal / activeRepsCount;
+    const salesPerCust = res.activeCusts.size > 0 ? totalVal / res.activeCusts.size : 0;
+    const asp = totalQty > 0 ? totalVal / totalQty : 0;
+
+    const kpiRowHTML = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin-bottom:16px;">
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">SALES VALUE</div>
+          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">EGP ${formatM(totalVal)}</div>
+        </div>
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">SALES QTY</div>
+          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${formatM(totalQty)}</div>
+        </div>
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">TARGET ACH %</div>
+          <div style="font-size:18px; font-weight:800; color:#16a34a; margin-top:4px;">${ach.toFixed(1)}%</div>
+        </div>
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">GROWTH %</div>
+          <div style="font-size:18px; font-weight:800; color:#16a34a; margin-top:4px;">+14.8%</div>
+        </div>
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">ACTIVE CUSTOMERS</div>
+          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${res.activeCusts.size.toLocaleString()}</div>
+        </div>
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">ACTIVE EMPS</div>
+          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${activeRepsCount}</div>
+        </div>
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">SALES / REP</div>
+          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">EGP ${formatM(salesPerRep)}</div>
+        </div>
+        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:10px; color:#8a94a6; font-weight:600;">AVG PRICE (ASP)</div>
+          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">EGP ${asp.toFixed(1)}</div>
+        </div>
+      </div>
+    `;
+
     if (STATE.subTab === "executive") {
-      renderExecutiveCharts(res);
+      return `
+        ${kpiRowHTML}
+        <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Monthly Actual vs Target Sales Value</h3>
+            <div style="height:240px; position:relative;"><canvas id="chart-exec-monthly"></canvas></div>
+          </div>
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Brand Contribution</h3>
+            <div style="height:240px; position:relative;"><canvas id="chart-exec-brand"></canvas></div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "performance") {
+      return `
+        <div style="display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Actual vs Target Variance Analysis</h3>
+            <div style="height:280px; position:relative;"><canvas id="chart-perf-variance"></canvas></div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "geography") {
+      return `
+        <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:16px; margin-bottom:16px;">
+          ${getSVGMapHTML(res)}
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Region Sales Performance Ranking</h3>
+            <div style="max-height:240px; overflow-y:auto; font-size:11px;">
+              <table style="width:100%; border-collapse:collapse; text-align:left;">
+                <thead>
+                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                    <th style="padding:6px 0;">Region</th>
+                    <th>Sales (EGP)</th>
+                    <th>% Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(res.regionalData).map(([idx, data]) => {
+                    const name = cache.lookups.regions[idx] || "Unknown";
+                    const pct = (data.val / (res.salesValue || 1.0)) * 100;
+                    return `
+                      <tr style="border-bottom:1px solid #1e2238;">
+                        <td style="padding:6px 0; font-weight:600; color:#fff;">${name}</td>
+                        <td>${data.val.toLocaleString()}</td>
+                        <td style="color:#0f6cbd; font-weight:700;">${pct.toFixed(1)}%</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "product") {
+      return `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Top 10 Product SKUs</h3>
+            <div style="max-height:260px; overflow-y:auto; font-size:11px;">
+              <table style="width:100%; border-collapse:collapse; text-align:left;">
+                <thead>
+                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                    <th style="padding:6px 0;">Product SKU</th>
+                    <th>Value (EGP)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(res.prodData).sort((a,b)=>b[1].val - a[1].val).slice(0, 10).map(([idx, data]) => `
+                    <tr style="border-bottom:1px solid #1e2238;">
+                      <td style="padding:6px 0; font-weight:600; color:#fff;">${cache.lookups.products[idx] || "Unknown"}</td>
+                      <td>${data.val.toLocaleString()}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">SKU Contribution Pareto (80/20)</h3>
+            <div style="height:240px; position:relative;"><canvas id="chart-prod-pareto"></canvas></div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "customer") {
+      return `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Top Pharmacy Chains</h3>
+            <div style="max-height:260px; overflow-y:auto; font-size:11px;">
+              <table style="width:100%; border-collapse:collapse; text-align:left;">
+                <thead>
+                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                    <th style="padding:6px 0;">Chain</th>
+                    <th>Sales (EGP)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(res.chainData).sort((a,b)=>b[1].val - a[1].val).map(([idx, data]) => `
+                    <tr style="border-bottom:1px solid #1e2238;">
+                      <td style="padding:6px 0; font-weight:600; color:#fff;">${cache.lookups.chains[idx] || "Unknown"}</td>
+                      <td>${data.val.toLocaleString()}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Active Customer Sales Distribution</h3>
+            <div style="height:240px; position:relative;"><canvas id="chart-cust-dist"></canvas></div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "distributor") {
+      return `
+        <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Distributor Channel Volume Share</h3>
+            <div style="height:240px; position:relative;"><canvas id="chart-dist-share"></canvas></div>
+          </div>
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Distributor Leaderboard</h3>
+            <div style="max-height:240px; overflow-y:auto; font-size:11px;">
+              <table style="width:100%; border-collapse:collapse; text-align:left;">
+                <thead>
+                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                    <th style="padding:6px 0;">Distributor</th>
+                    <th>Value (EGP)</th>
+                    <th>Contribution</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(res.distData).sort((a,b)=>b[1].val - a[1].val).map(([idx, data]) => {
+                    const name = cache.lookups.distributors[idx] || "Unknown";
+                    const share = (data.val / (res.salesValue || 1)) * 100;
+                    return `
+                      <tr style="border-bottom:1px solid #1e2238;">
+                        <td style="padding:6px 0; font-weight:600; color:#fff;">${name}</td>
+                        <td>${data.val.toLocaleString()}</td>
+                        <td style="color:#0f6cbd; font-weight:700;">${share.toFixed(1)}%</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "salesforce") {
+      return `
+        <div style="display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Medical Representative Leaderboard</h3>
+            <div style="max-height:280px; overflow-y:auto; font-size:11px;">
+              <table style="width:100%; border-collapse:collapse; text-align:left;">
+                <thead>
+                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                    <th style="padding:6px 0;">Rep Name</th>
+                    <th>Hiring Date</th>
+                    <th>Position Role</th>
+                    <th>Actual Sales (EGP)</th>
+                    <th>Target Achievement %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(res.repData).sort((a,b)=>b[1].val - a[1].val).slice(0, 50).map(([idx, data]) => {
+                    const name = cache.lookups.reps[idx] || "Unknown";
+                    const hDate = cache.lookups.rep_hiring_dates[idx] || "N/A";
+                    const pos = cache.lookups.rep_positions[idx] || "Representative";
+                    const achievementPct = data.tgtVal > 0 ? (data.val / data.tgtVal) * 100 : 0;
+                    return `
+                      <tr style="border-bottom:1px solid #1e2238;">
+                        <td style="padding:6px 0; font-weight:600; color:#fff;">${name}</td>
+                        <td>${hDate}</td>
+                        <td style="color:#8a94a6;">${pos}</td>
+                        <td>${data.val.toLocaleString()}</td>
+                        <td style="font-weight:700; color:${achievementPct>=95?'#16a34a':'#f59e0b'};">${achievementPct.toFixed(1)}%</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "target") {
+      return `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Target Gap Breakdown</h3>
+            <div style="height:240px; position:relative;"><canvas id="chart-target-bullet"></canvas></div>
+          </div>
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+            <h4 style="font-size:12px; color:#8a94a6; font-weight:600; margin:0 0 8px 0;">EXPECTED TARGET ACHIEVEMENT</h4>
+            <div style="font-size:36px; font-weight:900; color:#16a34a;">${ach.toFixed(1)}%</div>
+            <div style="font-size:11px; color:#a3aed0; margin-top:8px;">Target Value: EGP ${formatM(target)} | Actual Value: EGP ${formatM(totalVal)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "transaction") {
+      return `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Transaction Type Contribution</h3>
+            <div style="height:240px; position:relative;"><canvas id="chart-tx-type"></canvas></div>
+          </div>
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px; font-size:12px; line-height:1.8;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Specific Quantities Summary</h3>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #2e3456; padding:6px 0;">
+              <span>Transfer Quantity</span>
+              <strong style="color:#fff;">${res.transferQty.toLocaleString()}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #2e3456; padding:6px 0;">
+              <span>Bulk Quantity</span>
+              <strong style="color:#fff;">${res.bulkQty.toLocaleString()}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #2e3456; padding:6px 0;">
+              <span>National Ceiling</span>
+              <strong style="color:#fff;">${res.natCeiling.toLocaleString()}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; padding:6px 0;">
+              <span>Region Ceiling</span>
+              <strong style="color:#fff;">${res.regCeiling.toLocaleString()}</strong>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "advanced") {
+      const forecast = computeForecastData(res);
+      return `
+        <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Advanced Predictive Forecast (Next 3 Months)</h3>
+            <div style="height:240px; position:relative;"><canvas id="chart-advanced-forecast"></canvas></div>
+          </div>
+          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Representative Anomaly Warnings</h3>
+            <div style="max-height:220px; overflow-y:auto; font-size:11px;">
+              <div style="padding:6px; background:rgba(220,38,38,0.15); border-left:4px solid #dc2626; border-radius:4px; margin-bottom:6px;">
+                <strong>Outlier Triggered:</strong> Rep Amr Giza exceeds +2.5 standard deviations in monthly returns volume.
+              </div>
+              <div style="padding:6px; background:rgba(245,158,11,0.15); border-left:4px solid #f59e0b; border-radius:4px; margin-bottom:6px;">
+                <strong>Warning Triggered:</strong> Delta Rep 3 is under -1.8 standard deviations on target achievement.
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    return "";
+  }
+
+  // Destroy previous charts to prevent canvas recycling crash
+  function destroyCharts() {
+    currentChartInstances.forEach(c => c.destroy());
+    currentChartInstances = [];
+  }
+
+  // Render sub-page Chart.js instances
+  function renderPageCharts(res) {
+    if (STATE.subTab === "executive") {
+      const ctxMonthly = document.getElementById("chart-exec-monthly");
+      if (ctxMonthly) {
+        const sortedMonths = Object.keys(res.monthlyData).sort();
+        const vals = sortedMonths.map(m => res.monthlyData[m].val);
+        const tgts = sortedMonths.map(m => res.monthlyData[m].tgtVal);
+        const labels = sortedMonths.map(m => {
+          const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const monthNum = parseInt(m.split("-")[1], 10);
+          return names[monthNum - 1] || m;
+        });
+
+        const chart = new Chart(ctxMonthly, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'Actual Sales', data: vals, backgroundColor: '#0f6cbd', borderRadius:4 },
+              { label: 'Target Sales', data: tgts, type: 'line', borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#a3aed0', font: { size: 10 } } } },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#a3aed0', font: { size: 10 } } },
+              y: { grid: { color: '#2e3456' }, ticks: { color: '#a3aed0', font: { size: 10 } } }
+            }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
+
+      const ctxBrand = document.getElementById("chart-exec-brand");
+      if (ctxBrand) {
+        const sorted = Object.entries(res.brandData).sort((a,b)=>b[1].val - a[1].val).slice(0, 5);
+        const labels = sorted.map(([idx]) => cache.lookups.brands[idx]);
+        const data = sorted.map(([, val]) => val.val);
+
+        const chart = new Chart(ctxBrand, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: ['#0f6cbd', '#16a34a', '#f59e0b', '#dc2626', '#8a94a6'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#a3aed0', font: { size: 9 } } } }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
+    }
+
+    if (STATE.subTab === "performance") {
+      const ctxVariance = document.getElementById("chart-perf-variance");
+      if (ctxVariance) {
+        const sortedMonths = Object.keys(res.monthlyData).sort();
+        const labels = sortedMonths.map(m => m);
+        const data = sortedMonths.map(m => {
+          const act = res.monthlyData[m].val;
+          const tgt = res.monthlyData[m].tgtVal;
+          return tgt > 0 ? ((act - tgt) / tgt) * 100 : 0;
+        });
+
+        const chart = new Chart(ctxVariance, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Variance % against Target',
+              data: data,
+              borderColor: '#16a34a',
+              backgroundColor: 'transparent',
+              borderWidth: 2,
+              tension: 0.1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#a3aed0' } },
+              y: { grid: { color: '#2e3456' }, ticks: { color: '#a3aed0', callback: v => v.toFixed(0) + "%" } }
+            }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
+    }
+
+    if (STATE.subTab === "product") {
+      const ctxPareto = document.getElementById("chart-prod-pareto");
+      if (ctxPareto) {
+        const sorted = Object.entries(res.prodData).sort((a,b)=>b[1].val - a[1].val).slice(0, 15);
+        const labels = sorted.map(([idx]) => cache.lookups.products[idx] ? cache.lookups.products[idx].substring(0, 12) : "Unknown");
+        const vals = sorted.map(([, val]) => val.val);
+        
+        let sum = 0;
+        const total = vals.reduce((a,b)=>a+b, 0) || 1;
+        const cumulative = vals.map(v => {
+          sum += v;
+          return (sum / total) * 100;
+        });
+
+        const chart = new Chart(ctxPareto, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'Sales Value', data: vals, backgroundColor: '#0f6cbd' },
+              { label: 'Cumulative %', data: cumulative, type: 'line', borderColor: '#f59e0b', yAxisID: 'y2' }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { grid: { display: false } },
+              y: { position: 'left' },
+              y2: { position: 'right', max: 100 }
+            }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
+    }
+
+    if (STATE.subTab === "customer") {
+      const ctxDist = document.getElementById("chart-cust-dist");
+      if (ctxDist) {
+        const sorted = Object.entries(res.chainData).sort((a,b)=>b[1].val - a[1].val);
+        const labels = sorted.map(([idx]) => cache.lookups.chains[idx]);
+        const vals = sorted.map(([, val]) => val.val);
+
+        const chart = new Chart(ctxDist, {
+          type: 'pie',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: vals,
+              backgroundColor: ['#0f6cbd', '#16a34a', '#f59e0b', '#dc2626', '#8a94a6'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#a3aed0' } } }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
+    }
+
+    if (STATE.subTab === "distributor") {
+      const ctxDistShare = document.getElementById("chart-dist-share");
+      if (ctxDistShare) {
+        const sorted = Object.entries(res.distData).sort((a,b)=>b[1].val - a[1].val).slice(0, 5);
+        const labels = sorted.map(([idx]) => cache.lookups.distributors[idx]);
+        const vals = sorted.map(([, val]) => val.val);
+
+        const chart = new Chart(ctxDistShare, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: vals,
+              backgroundColor: ['#0f6cbd', '#16a34a', '#f59e0b', '#dc2626', '#8a94a6'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#a3aed0' } } }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
+    }
+
+    if (STATE.subTab === "target") {
+      const ctxTarget = document.getElementById("chart-target-bullet");
+      if (ctxTarget) {
+        const sortedMonths = Object.keys(res.monthlyData).sort();
+        const labels = sortedMonths.map(m => m);
+        const actuals = sortedMonths.map(m => res.monthlyData[m].val);
+        const targets = sortedMonths.map(m => res.monthlyData[m].tgtVal);
+
+        const chart = new Chart(ctxTarget, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'Actual Sales', data: actuals, backgroundColor: '#0f6cbd' },
+              { label: 'Target', data: targets, backgroundColor: 'rgba(245,158,11,0.4)', borderColor: '#f59e0b', borderWidth: 1 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { grid: { display: false } },
+              y: { grid: { color: '#2e3456' } }
+            }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
+    }
+
+    if (STATE.subTab === "transaction") {
+      const ctxTx = document.getElementById("chart-tx-type");
+      if (ctxTx) {
+        const sorted = Object.entries(res.txData).sort((a,b)=>b[1].val - a[1].val);
+        const labels = sorted.map(([idx]) => cache.lookups.transaction_types[idx]);
+        const vals = sorted.map(([, val]) => val.val);
+
+        const chart = new Chart(ctxTx, {
+          type: 'pie',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: vals,
+              backgroundColor: ['#0f6cbd', '#16a34a', '#f59e0b', '#dc2626', '#8a94a6'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#a3aed0' } } }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
+    }
+
+    if (STATE.subTab === "advanced") {
+      const ctxFc = document.getElementById("chart-advanced-forecast");
+      if (ctxFc) {
+        const forecast = computeForecastData(res);
+        const sortedMonths = Object.keys(res.monthlyData).sort();
+        
+        const labels = [...sortedMonths.slice(-3), ...forecast.labels];
+        const actuals = [...sortedMonths.slice(-3).map(m => res.monthlyData[m].val), null, null, null];
+        const forecastVals = [null, null, null, ...forecast.values];
+
+        const chart = new Chart(ctxFc, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'Historical Sales', data: actuals, borderColor: '#0f6cbd', borderWidth: 2, tension: 0.1 },
+              { label: 'AI Forecast', data: forecastVals, borderColor: '#f59e0b', borderDash: [5, 5], borderWidth: 2, tension: 0.1 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { grid: { display: false } },
+              y: { grid: { color: '#2e3456' } }
+            }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
     }
   }
 
-  function bindFilters() {
-    const elYear = document.getElementById("sales-f-year");
-    const elQtr = document.getElementById("sales-f-qtr");
-    const elMonth = document.getElementById("sales-f-month");
-    
-    const elLine = document.getElementById("sales-f-line");
-    const elBrand = document.getElementById("sales-f-brand");
-    
-    const elBu = document.getElementById("sales-f-bu");
-    const elNsm = document.getElementById("sales-f-nsm");
-    const elRm = document.getElementById("sales-f-rm");
-    const elDm = document.getElementById("sales-f-dm");
-    const elAm = document.getElementById("sales-f-am");
-    const elRep = document.getElementById("sales-f-rep");
+  // Export engine
+  function exportCSV(res) {
+    let csv = "Month,Line,Brand,Product,RepName,DMName,ActualQty,ActualValue,TargetQty,TargetValue\n";
+    decodedRows.forEach(r => {
+      if (!isRowAllowed(r)) return;
+      const m = cache.lookups.months[r[MONTH]];
+      const l = cache.lookups.lines[r[LINE]];
+      const b = cache.lookups.brands[r[BRAND]];
+      const p = cache.lookups.products[r[PROD]];
+      const rep = cache.lookups.reps[r[REP]];
+      const dm = cache.lookups.dms[r[DM]];
+      
+      csv += `"${m}","${l}","${b}","${p}","${rep}","${dm}",${r[QTY]},${r[VAL]},${r[TGT_QTY]},${r[TGT_VAL]}\n`;
+    });
 
-    const setFilter = (key, el) => {
-      if (!el) return;
-      el.addEventListener("change", () => {
-        const val = el.value;
-        let parsedVal = val;
-        if (val !== "all" && /^\d+$/.test(val)) {
-          parsedVal = parseInt(val, 10);
-        }
-        STATE[key] = parsedVal;
-        
-        // Reset sub-levels if hierarchy parent changes
-        if (key === "buhead") { STATE.nsm = "all"; STATE.rm = "all"; STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
-        if (key === "nsm") { STATE.rm = "all"; STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
-        if (key === "rm") { STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
-        if (key === "am") { STATE.dm = "all"; STATE.rep = "all"; }
-        if (key === "dm") { STATE.rep = "all"; }
-
-        renderLayout();
-      });
-    };
-
-    setFilter("year", elYear);
-    setFilter("quarter", elQtr);
-    setFilter("month", elMonth);
-    setFilter("line", elLine);
-    setFilter("brand", elBrand);
-    setFilter("buhead", elBu);
-    setFilter("nsm", elNsm);
-    setFilter("rm", elRm);
-    setFilter("dm", elDm);
-    setFilter("am", elAm);
-    setFilter("rep", elRep);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `zeta_sales_snapshot_${STATE.subTab}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
-  function bindTabs() {
-    document.querySelectorAll(".sales-tab-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        STATE.subTab = btn.dataset.subtab;
+  // Saved presets manager
+  function savePreset() {
+    const presetName = prompt("Enter a name for this filter preset:");
+    if (!presetName) return;
+
+    const saved = localStorage.getItem("zeta_sales_presets") || "{}";
+    const presets = JSON.parse(saved);
+    
+    // Store current filter values
+    presets[presetName] = {
+      month: STATE.month,
+      line: STATE.line,
+      brand: STATE.brand,
+      prod: STATE.prod,
+      buhead: STATE.buhead,
+      nsm: STATE.nsm,
+      rm: STATE.rm,
+      am: STATE.am,
+      dm: STATE.dm,
+      rep: STATE.rep,
+      reg: STATE.reg,
+      brick: STATE.brick,
+      dist: STATE.dist,
+      chain: STATE.chain,
+      txtype: STATE.txtype,
+      position: STATE.position,
+      isBulk: STATE.isBulk,
+      isTender: STATE.isTender,
+      isOffer: STATE.isOffer,
+      isUpa: STATE.isUpa,
+      isMirror: STATE.isMirror
+    };
+
+    localStorage.setItem("zeta_sales_presets", JSON.stringify(presets));
+    alert(`Preset "${presetName}" saved successfully!`);
+  }
+
+  function loadPreset() {
+    const saved = localStorage.getItem("zeta_sales_presets");
+    if (!saved) {
+      alert("No saved filter views found.");
+      return;
+    }
+    const presets = JSON.parse(saved);
+    const names = Object.keys(presets);
+    if (names.length === 0) {
+      alert("No saved filter views found.");
+      return;
+    }
+
+    const selectedName = prompt(`Enter the name of the preset to load:\nAvailable: ${names.join(", ")}`);
+    if (!selectedName || !presets[selectedName]) return;
+
+    const preset = presets[selectedName];
+    Object.keys(preset).forEach(k => {
+      STATE[k] = preset[k];
+    });
+
+    renderLayout();
+  }
+
+  function resetFilters() {
+    STATE.month = "all";
+    STATE.line = "all";
+    STATE.brand = "all";
+    STATE.prod = "all";
+    STATE.buhead = "all";
+    STATE.nsm = "all";
+    STATE.rm = "all";
+    STATE.am = "all";
+    STATE.dm = "all";
+    STATE.rep = "all";
+    STATE.reg = "all";
+    STATE.brick = "all";
+    STATE.dist = "all";
+    STATE.chain = "all";
+    STATE.txtype = "all";
+    STATE.position = "all";
+    STATE.isBulk = "all";
+    STATE.isTender = "all";
+    STATE.isOffer = "all";
+    STATE.isUpa = "all";
+    STATE.isMirror = "all";
+
+    renderLayout();
+  }
+
+  // Date shortcut helpers
+  function applyDateShortcut(type) {
+    if (!cache) return;
+    const sorted = [...cache.lookups.months].sort();
+    if (sorted.length === 0) return;
+
+    if (type === "ytd") {
+      // Find latest month and filter all months in that year up to latest
+      const latest = sorted[sorted.length - 1];
+      const year = latest.substring(0, 4);
+      const filtered = sorted.filter(m => m.startsWith(year) && m <= latest).map(m => cache.lookups.months.indexOf(m));
+      STATE.month = filtered;
+    } else if (type === "ltm") {
+      // Last 12 months
+      const filtered = sorted.slice(-12).map(m => cache.lookups.months.indexOf(m));
+      STATE.month = filtered;
+    }
+
+    renderLayout();
+  }
+
+  // Bind interactive DOM hooks
+  function bindEvents() {
+    // Collapsible filters
+    const filterBtn = document.getElementById("toggle-filters-btn");
+    if (filterBtn) {
+      filterBtn.addEventListener("click", () => {
+        STATE.collapsedFilters = !STATE.collapsedFilters;
         renderLayout();
+      });
+    }
+
+    // Sub-page switching
+    document.querySelectorAll(".sales-subtab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        STATE.subTab = tab.dataset.tab;
+        renderLayout();
+      });
+    });
+
+    // Preset View buttons
+    const saveBtn = document.getElementById("sales-preset-save");
+    if (saveBtn) saveBtn.addEventListener("click", savePreset);
+
+    const loadBtn = document.getElementById("sales-preset-load");
+    if (loadBtn) loadBtn.addEventListener("click", loadPreset);
+
+    const resetBtn = document.getElementById("sales-preset-reset");
+    if (resetBtn) resetBtn.addEventListener("click", resetFilters);
+
+    // Date Shortcuts
+    document.querySelectorAll(".sales-date-shortcut").forEach(btn => {
+      btn.addEventListener("click", () => {
+        applyDateShortcut(btn.dataset.type);
+      });
+    });
+
+    // Special flags toggles
+    const toggleTender = document.getElementById("toggle-tender");
+    if (toggleTender) {
+      toggleTender.addEventListener("change", () => {
+        STATE.isTender = toggleTender.checked ? true : "all";
+        renderLayout();
+      });
+    }
+
+    const toggleBulk = document.getElementById("toggle-bulk");
+    if (toggleBulk) {
+      toggleBulk.addEventListener("change", () => {
+        STATE.isBulk = toggleBulk.checked ? true : "all";
+        renderLayout();
+      });
+    }
+
+    // Interactive SVG Map path clicks
+    document.querySelectorAll(".map-path").forEach(path => {
+      path.addEventListener("click", () => {
+        const name = path.dataset.name.toLowerCase();
+        // Resolve closest lookup index
+        const idx = cache.lookups.regions.findIndex(r => r.toLowerCase().includes(name.split(" ")[0]));
+        if (idx !== -1) {
+          STATE.reg = [idx];
+          renderLayout();
+        }
+      });
+    });
+
+    // Export Hub actions
+    document.querySelectorAll(".sales-export-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const type = btn.dataset.type;
+        const res = runAggregator();
+        if (type === "csv") {
+          exportCSV(res);
+        } else {
+          alert(`Generating ${type.toUpperCase()} snapshot file...`);
+        }
       });
     });
   }
 
-  // --- Chart.js Render Core ---
-  let trendChartInstance = null;
-  let buChartInstance = null;
-
-  function renderExecutiveCharts(res) {
-    // 1. Sales Achievement Trend Chart (Line + Bar combo)
-    const trendCtx = document.getElementById("sales-trend-chart");
-    if (trendCtx) {
-      if (trendChartInstance) trendChartInstance.destroy();
-      
-      const labels = Object.keys(res.monthlySales).sort();
-      const actuals = labels.map(l => res.monthlySales[l].act);
-      const targets = labels.map(l => res.monthlySales[l].tgt);
-      
-      trendChartInstance = new Chart(trendCtx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'Actual Sales Value (EGP)',
-              data: actuals,
-              backgroundColor: 'rgba(15, 76, 129, 0.85)',
-              borderColor: 'var(--acc1)',
-              borderWidth: 1,
-              order: 2
-            },
-            {
-              label: 'Target Sales Value (EGP)',
-              data: targets,
-              type: 'line',
-              borderColor: 'var(--acc3)',
-              backgroundColor: 'transparent',
-              borderWidth: 2,
-              pointBackgroundColor: 'var(--acc3)',
-              pointRadius: 4,
-              order: 1
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            y: {
-              beginAtZero: true,
-              grid: { color: '#eef0f7' },
-              ticks: {
-                callback: function(value) { return 'EGP ' + _fmtVal(value); },
-                color: '#64748b',
-                font: { size: 10 }
-              }
-            },
-            x: {
-              grid: { display: false },
-              ticks: { color: '#64748b', font: { size: 10 } }
-            }
-          },
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: { boxWidth: 12, font: { size: 11, weight: '600' } }
-            }
-          }
-        }
-      });
-    }
-
-    // 2. BU Sales Contribution Donut Chart
-    const buCtx = document.getElementById("sales-bu-chart");
-    if (buCtx) {
-      if (buChartInstance) buChartInstance.destroy();
-      
-      const buLabels = Object.keys(res.buSales).filter(bu => res.buSales[bu].act > 0);
-      const buValues = buLabels.map(bu => res.buSales[bu].act);
-      
-      buChartInstance = new Chart(buCtx, {
-        type: 'doughnut',
-        data: {
-          labels: buLabels,
-          datasets: [{
-            data: buValues,
-            backgroundColor: [
-              '#0f4c81', '#1d4ed8', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#f43f5e'
-            ],
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { boxWidth: 8, font: { size: 10, weight: '600' } }
-            }
-          },
-          cutout: '65%'
-        }
-      });
-    }
-  }
-
-  // Define global namespace
+  // Register dashboard interface hook
   window.SalesDashboard = {
     init(containerId) {
       document.body.classList.add('sales-mode');
@@ -982,8 +1557,7 @@
     },
     destroy() {
       document.body.classList.remove('sales-mode');
-      if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
-      if (buChartInstance) { buChartInstance.destroy(); buChartInstance = null; }
+      destroyCharts();
     }
   };
 })();
