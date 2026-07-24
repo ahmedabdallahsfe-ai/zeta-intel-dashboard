@@ -729,6 +729,14 @@
     const ach = target > 0 ? (totalVal / target) * 100 : 0;
     
     // KPI Cards computations
+    const activeEmpNames = new Set();
+    res.activeReps.forEach(idx => { const n = cache.lookups.reps[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    res.activeDms.forEach(idx => { const n = cache.lookups.dms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    res.activeAms.forEach(idx => { const n = cache.lookups.ams[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    res.activeRms.forEach(idx => { const n = cache.lookups.rms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    res.activeNsms.forEach(idx => { const n = cache.lookups.nsms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+
+    const activeEmpsCount = activeEmpNames.size || 1;
     const activeRepsCount = res.activeReps.size || 1;
     const salesPerRep = totalVal / activeRepsCount;
     const salesPerCust = res.activeCusts.size > 0 ? totalVal / res.activeCusts.size : 0;
@@ -766,7 +774,7 @@
         </div>
         <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
           <div style="font-size:10px; color:#8a94a6; font-weight:600;">ACTIVE EMPS</div>
-          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${activeRepsCount}</div>
+          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${activeEmpsCount}</div>
         </div>
         <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
           <div style="font-size:10px; color:#8a94a6; font-weight:600;">SALES / REP</div>
