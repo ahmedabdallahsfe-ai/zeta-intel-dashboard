@@ -643,18 +643,24 @@
             <div id="drop-txtype"></div>
             <div id="drop-position"></div>
 
-            <!-- Boolean Flag Toggles -->
+            <!-- Boolean Flag Dropdowns -->
             <div style="border-top:1px solid #2e3456; margin:8px 0;"></div>
-            <label style="font-size:10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">Special Transaction Toggles</label>
-            <div style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
-              <label style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
-                <span>Is Tender</span>
-                <input type="checkbox" id="toggle-tender" ${STATE.isTender===true?'checked':''} style="accent-color:#0f6cbd;">
-              </label>
-              <label style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
-                <span>Is Bulk</span>
-                <input type="checkbox" id="toggle-bulk" ${STATE.isBulk===true?'checked':''} style="accent-color:#0f6cbd;">
-              </label>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">IS TENDER</label>
+              <select id="select-tender" style="width:100%; background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:11px; padding:6px; border-radius:4px; outline:none; cursor:pointer;">
+                <option value="all" ${STATE.isTender==='all'?'selected':''}>All Transactions</option>
+                <option value="true" ${STATE.isTender===true?'selected':''}>Tenders Only (Yes)</option>
+                <option value="false" ${STATE.isTender===false?'selected':''}>Non-Tenders Only (No)</option>
+              </select>
+            </div>
+            
+            <div style="margin-bottom:8px;">
+              <label style="font-size:10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">IS BULK</label>
+              <select id="select-bulk" style="width:100%; background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:11px; padding:6px; border-radius:4px; outline:none; cursor:pointer;">
+                <option value="all" ${STATE.isBulk==='all'?'selected':''}>All Transactions</option>
+                <option value="true" ${STATE.isBulk===true?'selected':''}>Bulk Only (Yes)</option>
+                <option value="false" ${STATE.isBulk===false?'selected':''}>Non-Bulk Only (No)</option>
+              </select>
             </div>
           </div>
         </div>
@@ -1516,19 +1522,25 @@
       });
     });
 
-    // Special flags toggles
-    const toggleTender = document.getElementById("toggle-tender");
-    if (toggleTender) {
-      toggleTender.addEventListener("change", () => {
-        STATE.isTender = toggleTender.checked ? true : "all";
+    // Special flags selects
+    const selectTender = document.getElementById("select-tender");
+    if (selectTender) {
+      selectTender.addEventListener("change", () => {
+        const val = selectTender.value;
+        if (val === "all") STATE.isTender = "all";
+        else if (val === "true") STATE.isTender = true;
+        else if (val === "false") STATE.isTender = false;
         renderLayout();
       });
     }
 
-    const toggleBulk = document.getElementById("toggle-bulk");
-    if (toggleBulk) {
-      toggleBulk.addEventListener("change", () => {
-        STATE.isBulk = toggleBulk.checked ? true : "all";
+    const selectBulk = document.getElementById("select-bulk");
+    if (selectBulk) {
+      selectBulk.addEventListener("change", () => {
+        const val = selectBulk.value;
+        if (val === "all") STATE.isBulk = "all";
+        else if (val === "true") STATE.isBulk = true;
+        else if (val === "false") STATE.isBulk = false;
         renderLayout();
       });
     }
