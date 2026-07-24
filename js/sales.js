@@ -85,59 +85,61 @@
     }
   }
 
-  // Check if row is allowed by global filters
-  function isRowAllowed(r) {
+  // Check if row is allowed by global filters, with an optional field to ignore for dropdown cascading
+  function isRowAllowed(r, ignoreKey = null) {
     const mask = r[MASK];
     const isMirror = (mask & 16) > 0;
 
-    if (STATE.month !== "all" && !STATE.month.includes(r[MONTH])) return false;
+    if (ignoreKey !== "month" && STATE.month !== "all" && !STATE.month.includes(r[MONTH])) return false;
 
     const rowLine = r[LINE];
     const chcSalesIdx = cache && cache.lookups && cache.lookups.lines ? cache.lookups.lines.indexOf("CHC_SALES") : -1;
-    if (STATE.line === "all") {
-      if (chcSalesIdx !== -1 && rowLine === chcSalesIdx) return false;
-    } else {
-      if (!STATE.line.includes(rowLine)) return false;
+    if (ignoreKey !== "line") {
+      if (STATE.line === "all") {
+        if (chcSalesIdx !== -1 && rowLine === chcSalesIdx) return false;
+      } else {
+        if (!STATE.line.includes(rowLine)) return false;
+      }
     }
-    if (STATE.brand !== "all" && !STATE.brand.includes(r[BRAND])) return false;
-    if (STATE.prod !== "all" && !STATE.prod.includes(r[PROD])) return false;
-    if (STATE.buhead !== "all" && !STATE.buhead.includes(r[BU])) return false;
-    if (STATE.nsm !== "all" && !STATE.nsm.includes(r[NSM])) return false;
-    if (STATE.rm !== "all" && !STATE.rm.includes(r[RM])) return false;
-    if (STATE.am !== "all" && !STATE.am.includes(r[AM])) return false;
-    if (STATE.dm !== "all" && !STATE.dm.includes(r[DM])) return false;
-    if (STATE.rep !== "all" && !STATE.rep.includes(r[REP])) return false;
-    if (STATE.reg !== "all" && !STATE.reg.includes(r[REG])) return false;
-    if (STATE.brick !== "all" && !STATE.brick.includes(r[BRICK])) return false;
+    if (ignoreKey !== "brand" && STATE.brand !== "all" && !STATE.brand.includes(r[BRAND])) return false;
+    if (ignoreKey !== "prod" && STATE.prod !== "all" && !STATE.prod.includes(r[PROD])) return false;
+    if (ignoreKey !== "buhead" && STATE.buhead !== "all" && !STATE.buhead.includes(r[BU])) return false;
+    if (ignoreKey !== "nsm" && STATE.nsm !== "all" && !STATE.nsm.includes(r[NSM])) return false;
+    if (ignoreKey !== "rm" && STATE.rm !== "all" && !STATE.rm.includes(r[RM])) return false;
+    if (ignoreKey !== "am" && STATE.am !== "all" && !STATE.am.includes(r[AM])) return false;
+    if (ignoreKey !== "dm" && STATE.dm !== "all" && !STATE.dm.includes(r[DM])) return false;
+    if (ignoreKey !== "rep" && STATE.rep !== "all" && !STATE.rep.includes(r[REP])) return false;
+    if (ignoreKey !== "reg" && STATE.reg !== "all" && !STATE.reg.includes(r[REG])) return false;
+    if (ignoreKey !== "brick" && STATE.brick !== "all" && !STATE.brick.includes(r[BRICK])) return false;
 
     // Position filter (maps rep position list)
-    if (STATE.position !== "all") {
+    if (ignoreKey !== "position" && STATE.position !== "all") {
       const repPos = cache.lookups.rep_positions[r[REP]];
       if (!STATE.position.includes(repPos)) return false;
     }
 
     // Only apply customer-level and transaction type filters to actual sales rows (not target rows)
     if (!isMirror) {
-      if (STATE.dist !== "all" && !STATE.dist.includes(r[DIST])) return false;
-      if (STATE.chain !== "all" && !STATE.chain.includes(r[CHAIN])) return false;
-      if (STATE.txtype !== "all" && !STATE.txtype.includes(r[TXTYPE])) return false;
+      if (ignoreKey !== "dist" && STATE.dist !== "all" && !STATE.dist.includes(r[DIST])) return false;
+      if (ignoreKey !== "chain" && STATE.chain !== "all" && !STATE.chain.includes(r[CHAIN])) return false;
+      if (ignoreKey !== "txtype" && STATE.txtype !== "all" && !STATE.txtype.includes(r[TXTYPE])) return false;
 
       const isBulk = (mask & 1) > 0;
       const isTender = (mask & 2) > 0;
       const isOffer = (mask & 4) > 0;
       const isUpa = (mask & 8) > 0;
 
-      if (STATE.isBulk !== "all" && isBulk !== STATE.isBulk) return false;
-      if (STATE.isTender !== "all" && isTender !== STATE.isTender) return false;
-      if (STATE.isOffer !== "all" && isOffer !== STATE.isOffer) return false;
-      if (STATE.isUpa !== "all" && isUpa !== STATE.isUpa) return false;
+      if (ignoreKey !== "isBulk" && STATE.isBulk !== "all" && isBulk !== STATE.isBulk) return false;
+      if (ignoreKey !== "isTender" && STATE.isTender !== "all" && isTender !== STATE.isTender) return false;
+      if (ignoreKey !== "isOffer" && STATE.isOffer !== "all" && isOffer !== STATE.isOffer) return false;
+      if (ignoreKey !== "isUpa" && STATE.isUpa !== "all" && isUpa !== STATE.isUpa) return false;
     }
 
     return true;
   }
 
-  // Get cascading lookup items matching active filters
-  function getFilteredLookupList(type, filters) {
+  // Get cascading lookup items matching active filters (ignoring the active stateKey filter list itself)
+  function getFilteredLookupList(type, ignoreKey) {
     if (!cache) return [];
     const lookupKey = COLUMN_TO_LOOKUP[type];
     if (!lookupKey) return [];
@@ -148,26 +150,7 @@
 
     for (let i = 0; i < len; i++) {
       const r = rows[i];
-      let ok = true;
-      if (filters.buhead !== "all" && !filters.buhead.includes(r[BU])) ok = false;
-      if (filters.nsm !== "all" && !filters.nsm.includes(r[NSM])) ok = false;
-      if (filters.rm !== "all" && !filters.rm.includes(r[RM])) ok = false;
-      if (filters.am !== "all" && !filters.am.includes(r[AM])) ok = false;
-      if (filters.dm !== "all" && !filters.dm.includes(r[DM])) ok = false;
-      if (filters.rep !== "all" && !filters.rep.includes(r[REP])) ok = false;
-
-      if (filters.line !== "all") {
-        if (!filters.line.includes(r[LINE])) ok = false;
-      } else {
-        const chcSalesIdx = cache && cache.lookups && cache.lookups.lines ? cache.lookups.lines.indexOf("CHC_SALES") : -1;
-        if (chcSalesIdx !== -1 && r[LINE] === chcSalesIdx) ok = false;
-      }
-      if (filters.brand !== "all" && !filters.brand.includes(r[BRAND])) ok = false;
-
-      if (filters.reg !== "all" && r[REG] !== filters.reg) ok = false;
-      if (filters.chain !== "all" && r[CHAIN] !== filters.chain) ok = false;
-
-      if (ok) {
+      if (isRowAllowed(r, ignoreKey)) {
         set.add(r[type]);
       }
     }
@@ -365,40 +348,7 @@
 
     // Populate filter list
     function populateList(query) {
-      // Cascading logic dependencies
-      let lookupFilters = { buhead: "all", nsm: "all", rm: "all", dm: "all", am: "all", rep: "all", line: "all", brand: "all", reg: "all", chain: "all" };
-      
-      // Cascading geography and org parents
-      if (stateKey === "nsm") lookupFilters.buhead = STATE.buhead;
-      if (stateKey === "rm") {
-        lookupFilters.buhead = STATE.buhead;
-        lookupFilters.nsm = STATE.nsm;
-      }
-      if (stateKey === "am") {
-        lookupFilters.buhead = STATE.buhead;
-        lookupFilters.nsm = STATE.nsm;
-        lookupFilters.rm = STATE.rm;
-      }
-      if (stateKey === "dm") {
-        lookupFilters.buhead = STATE.buhead;
-        lookupFilters.nsm = STATE.nsm;
-        lookupFilters.rm = STATE.rm;
-        lookupFilters.am = STATE.am;
-      }
-      if (stateKey === "rep") {
-        lookupFilters.buhead = STATE.buhead;
-        lookupFilters.nsm = STATE.nsm;
-        lookupFilters.rm = STATE.rm;
-        lookupFilters.am = STATE.am;
-        lookupFilters.dm = STATE.dm;
-      }
-      if (stateKey === "brand") lookupFilters.line = STATE.line;
-      if (stateKey === "prod") {
-        lookupFilters.line = STATE.line;
-        lookupFilters.brand = STATE.brand;
-      }
-
-      const availableItems = getFilteredLookupList(listType, lookupFilters);
+      const availableItems = getFilteredLookupList(listType, stateKey);
       
       const filtered = availableItems.filter(item => item.name.toLowerCase().includes(query.toLowerCase()));
       
