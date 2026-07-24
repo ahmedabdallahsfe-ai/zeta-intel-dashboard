@@ -193,6 +193,9 @@
       activeReps: new Set(),
       activeDms: new Set(),
       activeAms: new Set(),
+      activeRms: new Set(),
+      activeNsms: new Set(),
+      activeBus: new Set(),
       
       monthlyData: {},
       regionalData: {},
@@ -230,6 +233,9 @@
       if (r[REP] !== 0) res.activeReps.add(r[REP]);
       if (r[DM] !== 0) res.activeDms.add(r[DM]);
       if (r[AM] !== 0) res.activeAms.add(r[AM]);
+      if (r[RM] !== 0) res.activeRms.add(r[RM]);
+      if (r[NSM] !== 0) res.activeNsms.add(r[NSM]);
+      if (r[BU] !== 0) res.activeBus.add(r[BU]);
 
       // Monthly aggregation
       const mIdx = r[MONTH];
@@ -730,11 +736,12 @@
     
     // KPI Cards computations
     const activeEmpNames = new Set();
-    res.activeReps.forEach(idx => { const n = cache.lookups.reps[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
-    res.activeDms.forEach(idx => { const n = cache.lookups.dms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
-    res.activeAms.forEach(idx => { const n = cache.lookups.ams[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
-    res.activeRms.forEach(idx => { const n = cache.lookups.rms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
-    res.activeNsms.forEach(idx => { const n = cache.lookups.nsms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    if (res.activeReps) res.activeReps.forEach(idx => { const n = cache.lookups.reps[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    if (res.activeDms) res.activeDms.forEach(idx => { const n = cache.lookups.dms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    if (res.activeAms) res.activeAms.forEach(idx => { const n = cache.lookups.ams[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    if (res.activeRms) res.activeRms.forEach(idx => { const n = cache.lookups.rms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    if (res.activeNsms) res.activeNsms.forEach(idx => { const n = cache.lookups.nsms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    if (res.activeBus) res.activeBus.forEach(idx => { const n = cache.lookups.buheads[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
 
     const activeEmpsCount = activeEmpNames.size || 1;
     const activeRepsCount = res.activeReps.size || 1;
