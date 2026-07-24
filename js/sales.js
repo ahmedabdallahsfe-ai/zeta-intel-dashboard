@@ -91,7 +91,14 @@
     const isMirror = (mask & 16) > 0;
 
     if (STATE.month !== "all" && !STATE.month.includes(r[MONTH])) return false;
-    if (STATE.line !== "all" && !STATE.line.includes(r[LINE])) return false;
+
+    const rowLine = r[LINE];
+    const chcSalesIdx = cache && cache.lookups && cache.lookups.lines ? cache.lookups.lines.indexOf("CHC_SALES") : -1;
+    if (STATE.line === "all") {
+      if (chcSalesIdx !== -1 && rowLine === chcSalesIdx) return false;
+    } else {
+      if (!STATE.line.includes(rowLine)) return false;
+    }
     if (STATE.brand !== "all" && !STATE.brand.includes(r[BRAND])) return false;
     if (STATE.prod !== "all" && !STATE.prod.includes(r[PROD])) return false;
     if (STATE.buhead !== "all" && !STATE.buhead.includes(r[BU])) return false;
@@ -149,7 +156,12 @@
       if (filters.dm !== "all" && r[DM] !== filters.dm) ok = false;
       if (filters.rep !== "all" && r[REP] !== filters.rep) ok = false;
 
-      if (filters.line !== "all" && r[LINE] !== filters.line) ok = false;
+      if (filters.line !== "all") {
+        if (r[LINE] !== filters.line) ok = false;
+      } else {
+        const chcSalesIdx = cache && cache.lookups && cache.lookups.lines ? cache.lookups.lines.indexOf("CHC_SALES") : -1;
+        if (chcSalesIdx !== -1 && r[LINE] === chcSalesIdx) ok = false;
+      }
       if (filters.brand !== "all" && r[BRAND] !== filters.brand) ok = false;
 
       if (filters.reg !== "all" && r[REG] !== filters.reg) ok = false;
@@ -396,7 +408,18 @@
       }
 
       listDiv.innerHTML = filtered.map(item => {
-        const isChecked = (STATE[stateKey] === "all" || STATE[stateKey].includes(item.idx));
+        let isChecked = false;
+        if (stateKey === "line") {
+          const chcSalesIdx = cache && cache.lookups && cache.lookups.lines ? cache.lookups.lines.indexOf("CHC_SALES") : -1;
+          if (STATE.line === "all") {
+            isChecked = (chcSalesIdx !== -1 && item.idx !== chcSalesIdx);
+          } else {
+            isChecked = STATE.line.includes(item.idx);
+          }
+        } else {
+          isChecked = (STATE[stateKey] === "all" || STATE[stateKey].includes(item.idx));
+        }
+
         return `
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#fff; padding:2px 0;">
             <input type="checkbox" value="${item.idx}" ${isChecked ? 'checked' : ''} style="accent-color:#0f6cbd; margin:0;">
