@@ -156,50 +156,58 @@
           </div>
 
 
-          <!-- SFE Executive Scorecards - Role Breakdown -->
+          <!-- SFE Executive Scorecards - Role Breakdown (Active + Vacant per level) -->
           ${(() => {
-            // Count unique active people per role from filtered active positions
-            const active = filteredList.filter(r => r.status === 'Active');
+            const clean = v => v && v !== '-' && v !== 'ALL' && v.trim();
 
-            // Unique BU Heads (bum field, non-empty, non-placeholder)
-            const buSet  = new Set(active.map(r => r.bum).filter(v => v && v !== '-' && v !== 'ALL' && v.trim()));
-            // Unique NSMs
-            const nsmSet = new Set(active.map(r => r.nsm).filter(v => v && v !== '-' && v !== 'ALL' && v.trim()));
-            // Unique ASMs
-            const asmSet = new Set(active.map(r => r.asm).filter(v => v && v !== '-' && v !== 'ALL' && v.trim()));
-            // Unique DMs
-            const dmSet  = new Set(active.map(r => r.dm).filter(v => v && v !== '-' && v !== 'ALL' && v.trim()));
-            // Medical Reps = active positions (each row = 1 rep territory/position)
-            const repCount = active.length;
+            const activeRows  = filteredList.filter(r => r.status === 'Active');
+            const vacantRows  = filteredList.filter(r => r.status === 'Vacant');
 
-            const buCount  = buSet.size;
-            const nsmCount = nsmSet.size;
-            const asmCount = asmSet.size;
-            const dmCount  = dmSet.size;
-            const totalEmp = repCount; // total active field positions = rep-level rows
+            // ── Active counts (unique names per level) ──────────────────────
+            const buActive  = new Set(activeRows.map(r => r.bum).filter(clean)).size;
+            const nsmActive = new Set(activeRows.map(r => r.nsm).filter(clean)).size;
+            const asmActive = new Set(activeRows.map(r => r.asm).filter(clean)).size;
+            const dmActive  = new Set(activeRows.map(r => r.dm ).filter(clean)).size;
+            const repActive = activeRows.length; // each active row = 1 filled rep slot
 
-            const card = (icon, iconColor, iconBg, value, label, sub) => `
-              <div class="sfe-kpi-card sfe-hc-card">
-                <div class="sfe-kpi-icon" style="color:${iconColor}; background:${iconBg};">${icon}</div>
+            // ── Vacant counts per level ─────────────────────────────────────
+            // A BU-level vacancy = a vacant row whose BU slot is unfilled
+            const buVacant  = new Set(vacantRows.map(r => r.bum).filter(clean)).size;
+            const nsmVacant = new Set(vacantRows.map(r => r.nsm).filter(clean)).size;
+            const asmVacant = new Set(vacantRows.map(r => r.asm).filter(clean)).size;
+            const dmVacant  = new Set(vacantRows.map(r => r.dm ).filter(clean)).size;
+            const repVacant = vacantRows.length; // each vacant row = 1 open rep slot
+
+            // ── Card builder with Active + Vacant split ─────────────────────
+            const card = (icon, col, bg, actN, vacN, label) => `
+              <div class="sfe-kpi-card sfe-hc-card" style="border-top-color:${col};">
+                <div class="sfe-kpi-icon" style="color:${col}; background:${bg};">${icon}</div>
                 <div class="sfe-kpi-info">
-                  <span class="sfe-kpi-val" style="color:${iconColor};">${value}</span>
-                  <span class="sfe-kpi-lbl">${label}</span>
-                  ${sub ? `<span class="sfe-hc-sub">${sub}</span>` : ''}
+                  <span class="sfe-kpi-lbl" style="margin-bottom:6px;">${label}</span>
+                  <div class="sfe-hc-av-row">
+                    <div class="sfe-hc-av-cell sfe-hc-active">
+                      <span class="sfe-hc-num">${actN}</span>
+                      <span class="sfe-hc-tag sfe-tag-green">Active</span>
+                    </div>
+                    <div class="sfe-hc-divider"></div>
+                    <div class="sfe-hc-av-cell sfe-hc-vacant">
+                      <span class="sfe-hc-num sfe-hc-num-red">${vacN}</span>
+                      <span class="sfe-hc-tag sfe-tag-red">Vacant</span>
+                    </div>
+                  </div>
                 </div>
               </div>`;
 
             return `
-            <div style="margin-bottom:4px; font-size:0.78rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">
-              👥 Headcount Breakdown — Active Field Force
+            <div style="margin-bottom:6px; font-size:0.78rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">
+              👥 Headcount Breakdown — Active &amp; Vacant per Level
             </div>
             <div class="sfe-hc-grid">
-              ${card('🏢','#0f4c81','rgba(15,76,129,0.08)', buCount,  'Business Units',    buCount  > 0 ? [...buSet].join(' · ')  : '')}
-              ${card('🎯','#7c3aed','rgba(124,58,237,0.08)', nsmCount, 'National Sales Mgrs', nsmCount > 0 ? [...nsmSet].join(' · ') : '')}
-              ${card('📋','#0891b2','rgba(8,145,178,0.08)',  asmCount, 'Area Sales Mgrs',   asmCount > 0 ? `${asmCount} ASMs in scope` : '')}
-              ${card('📁','#b45309','rgba(180,83,9,0.08)',   dmCount,  'District Managers', dmCount  > 0 ? `${dmCount} DMs in scope` : '')}
-              ${card('💼','#15803d','rgba(21,128,61,0.08)',  repCount, 'Medical Reps',      repCount > 0 ? `Active field positions` : '')}
-              ${card('✅','#15803d','rgba(21,128,61,0.06)',  activeHeadcount, 'Total Active',  `${overallVacancyRate}% vacancy rate`)}
-              ${card('⚠️','#ef4444','rgba(239,68,68,0.08)',  totalVacant,     'Vacant Slots',  totalVacant > 0 ? `${(totalVacant/totalHeadcount*100).toFixed(1)}% open` : 'Fully staffed')}
+              ${card('🏢','#0f4c81','rgba(15,76,129,0.08)',  buActive,  buVacant,  'Business Units')}
+              ${card('🎯','#7c3aed','rgba(124,58,237,0.08)', nsmActive, nsmVacant, 'National Sales Mgrs')}
+              ${card('📋','#0891b2','rgba(8,145,178,0.08)',  asmActive, asmVacant, 'Area Sales Mgrs')}
+              ${card('📁','#b45309','rgba(180,83,9,0.08)',   dmActive,  dmVacant,  'District Managers')}
+              ${card('💼','#15803d','rgba(21,128,61,0.08)',  repActive, repVacant, 'Medical Reps')}
             </div>`;
           })()}
 

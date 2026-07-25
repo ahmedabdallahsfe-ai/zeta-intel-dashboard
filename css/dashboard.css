@@ -3048,3 +3048,90 @@ body {
 @media (max-width: 768px) {
   .sfe-hc-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* =============================================================================
+   HEADCOUNT CARD — Active + Vacant split row (inside each role card)
+   ============================================================================= */
+
+/* 5-column grid now (removed total + vacant summary cards) */
+.sfe-hc-grid {
+  grid-template-columns: repeat(5, 1fr) !important;
+}
+
+/* The two-cell Active | Vacant split inside the card */
+.sfe-hc-av-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 4px;
+}
+
+.sfe-hc-av-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  gap: 2px;
+}
+
+.sfe-hc-divider {
+  width: 1px;
+  height: 32px;
+  background: #e2e8f0;
+  flex-shrink: 0;
+  margin: 0 6px;
+}
+
+.sfe-hc-num {
+  font-size: 1.55rem;
+  font-weight: 900;
+  color: #15803d;
+  line-height: 1;
+}
+.sfe-hc-num-red {
+  color: #b91c1c !important;
+}
+
+.sfe-hc-tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.sfe-tag-green {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.sfe-tag-red {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+/* Override card height to accommodate the two-row layout */
+.sfe-hc-card {
+  min-height: 110px;
+  align-items: flex-start !important;
+}
+.sfe-hc-card .sfe-kpi-info {
+  width: 100%;
+}
+.sfe-hc-card .sfe-kpi-lbl {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 1100px) {
+  .sfe-hc-grid { grid-template-columns: repeat(3, 1fr) !important; }
+}
+@media (max-width: 768px) {
+  .sfe-hc-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
