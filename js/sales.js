@@ -201,6 +201,8 @@
       regionalData: {},
       brandData: {},
       buData: {},
+      nsmData: {},
+      dmData: {},
       prodData: {},
       chainData: {},
       distData: {},
@@ -289,6 +291,20 @@
       res.buData[buIdx].val += val;
       res.buData[buIdx].qty += qty;
       res.buData[buIdx].tgtVal += tval;
+
+      // NSM level
+      const nsmIdx = r[NSM];
+      if (!res.nsmData[nsmIdx]) res.nsmData[nsmIdx] = { val: 0, qty: 0, tgtVal: 0 };
+      res.nsmData[nsmIdx].val += val;
+      res.nsmData[nsmIdx].qty += qty;
+      res.nsmData[nsmIdx].tgtVal += tval;
+
+      // DM level
+      const dmIdx = r[DM];
+      if (!res.dmData[dmIdx]) res.dmData[dmIdx] = { val: 0, qty: 0, tgtVal: 0 };
+      res.dmData[dmIdx].val += val;
+      res.dmData[dmIdx].qty += qty;
+      res.dmData[dmIdx].tgtVal += tval;
 
       // Transaction Types
       const txIdx = r[TXTYPE];
@@ -875,8 +891,13 @@
             <div style="height:240px; position:relative;"><canvas id="chart-exec-monthly"></canvas></div>
           </div>
           <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">BU Contribution</h3>
-            <div style="height:240px; position:relative;"><canvas id="chart-exec-bu"></canvas></div>
+            <h3 id="exec-contrib-title" style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:4px;">
+              ${STATE.dm !== 'all' ? 'Medical Rep Contribution' : STATE.nsm !== 'all' ? 'DM Contribution' : STATE.buhead !== 'all' ? 'NSM Contribution' : 'BU Contribution'}
+            </h3>
+            <div style="font-size:10px; color:#94a3b8; margin-bottom:10px; font-weight:500;">
+              ${STATE.dm !== 'all' ? 'Reps under selected District Manager(s)' : STATE.nsm !== 'all' ? 'District Managers under selected NSM(s)' : STATE.buhead !== 'all' ? 'National Sales Managers under selected BU(s)' : 'Sales split by Business Unit'}
+            </div>
+            <div style="height:210px; position:relative;"><canvas id="chart-exec-drilldown"></canvas></div>
           </div>
         </div>
       `;
@@ -1184,47 +1205,105 @@
         currentChartInstances.push(chart);
       }
 
-      const ctxBu = document.getElementById("chart-exec-bu");
-      if (ctxBu) {
-        const sorted = Object.entries(res.buData)
-          .filter(([idx]) => cache.lookups.buheads[idx] && cache.lookups.buheads[idx] !== '(none)')
-          .sort((a,b) => b[1].val - a[1].val);
-        const labels = sorted.map(([idx]) => cache.lookups.buheads[idx] || 'Unknown');
+      const ctxDrill = document.getElementById("chart-exec-drilldown");
+      if (ctxDrill) {
+        // ── Determine drill level from deepest active filter ──
+        const hasDM  = STATE.dm  !== 'all' && Array.isArray(STATE.dm)  && STATE.dm.length  > 0;
+        const hasNSM = STATE.nsm !== 'all' && Array.isArray(STATE.nsm) && STATE.nsm.length > 0;
+        const hasBU  = STATE.buhead !== 'all' && Array.isArray(STATE.buhead) && STATE.buhead.length > 0;
+
+        let drillEntries, lookupArr;
+        if (hasDM) {
+          // Show Medical Reps under selected DMs
+          drillEntries = Object.entries(res.repData);
+          lookupArr    = cache.lookups.reps;
+        } else if (hasNSM) {
+          // Show DMs under selected NSMs
+          drillEntries = Object.entries(res.dmData);
+          lookupArr    = cache.lookups.dms;
+        } else if (hasBU) {
+          // Show NSMs under selected BUs
+          drillEntries = Object.entries(res.nsmData);
+          lookupArr    = cache.lookups.nsms;
+        } else {
+          // Default: BU level
+          drillEntries = Object.entries(res.buData);
+          lookupArr    = cache.lookups.buheads;
+        }
+
+        const NONE_LABELS = ['(none)', '', null, undefined];
+        const sorted = drillEntries
+          .filter(([idx]) => lookupArr[idx] && !NONE_LABELS.includes(lookupArr[idx]))
+          .sort((a, b) => b[1].val - a[1].val)
+          .slice(0, 12); // cap at 12 slices for readability
+
+        const labels = sorted.map(([idx]) => lookupArr[idx] || 'Unknown');
         const data   = sorted.map(([, v]) => v.val);
         const total  = data.reduce((s, v) => s + v, 0) || 1;
-        const pcts   = data.map(v => ((v / total) * 100).toFixed(1) + '%');
 
-        const chart = new Chart(ctxBu, {
-          type: 'doughnut',
-          data: {
-            labels: labels,
-            datasets: [{
-              data: data,
-              backgroundColor: ['#0f4c81', '#15803d', '#b45309', '#b91c1c', '#7c3aed', '#0891b2'],
-              borderWidth: 2,
-              borderColor: '#fff'
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'bottom',
-                labels: { color: '#475569', font: { size: 10, weight: '600' }, padding: 10 }
-              },
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => {
-                    const pct = ((ctx.parsed / total) * 100).toFixed(1);
-                    return ` ${ctx.label}: EGP ${(ctx.parsed/1000000).toFixed(2)}M (${pct}%)`;
+        const PALETTE = [
+          '#0f4c81','#15803d','#b45309','#b91c1c','#7c3aed',
+          '#0891b2','#9d174d','#065f46','#92400e','#1e3a5f',
+          '#4338ca','#0369a1'
+        ];
+
+        if (data.length === 0) {
+          ctxDrill.getContext('2d').fillStyle = '#94a3b8';
+          ctxDrill.getContext('2d').font = '12px Inter, sans-serif';
+          ctxDrill.getContext('2d').textAlign = 'center';
+          ctxDrill.getContext('2d').fillText('No data for current filters', ctxDrill.width/2, ctxDrill.height/2);
+        } else {
+          const chart = new Chart(ctxDrill, {
+            type: 'doughnut',
+            data: {
+              labels: labels,
+              datasets: [{
+                data: data,
+                backgroundColor: PALETTE,
+                borderWidth: 2,
+                borderColor: '#fff',
+                hoverOffset: 6
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  position: 'right',
+                  labels: {
+                    color: '#334155',
+                    font: { size: 10, weight: '600' },
+                    padding: 8,
+                    boxWidth: 10,
+                    generateLabels: (chart) => {
+                      const ds = chart.data.datasets[0];
+                      return chart.data.labels.map((label, i) => ({
+                        text: `${label}  ${((ds.data[i]/total)*100).toFixed(1)}%`,
+                        fillStyle: ds.backgroundColor[i],
+                        strokeStyle: '#fff',
+                        lineWidth: 1,
+                        index: i
+                      }));
+                    }
+                  }
+                },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => {
+                      const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                      const egp = ctx.parsed >= 1000000
+                        ? (ctx.parsed/1000000).toFixed(2) + 'M'
+                        : (ctx.parsed/1000).toFixed(1) + 'K';
+                      return `  ${ctx.label}: EGP ${egp}  (${pct}%)`;
+                    }
                   }
                 }
               }
             }
-          }
-        });
-        currentChartInstances.push(chart);
+          });
+          currentChartInstances.push(chart);
+        }
       }
     }
 
