@@ -2251,3 +2251,294 @@ body {
   filter: brightness(1.2);
 }
 
+
+/* =============================================================================
+   SALES CONSOLE — Premium Light-Mode Executive Design System
+   sc-* prefix namespace to avoid collisions with sfe / coverage modules
+   ============================================================================= */
+
+/* ── Shell ── */
+.sc-shell {
+  font-family: 'Inter', 'Outfit', system-ui, -apple-system, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+  min-height: calc(100vh - 70px);
+}
+
+/* ── Filter Panel ── */
+.sc-filter-panel {
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
+  overflow-y: auto;
+}
+.sc-filter-panel::-webkit-scrollbar { width: 4px; }
+.sc-filter-panel::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+.sc-filter-sep {
+  border-top: 1px solid #f1f5f9;
+  margin: 12px 0;
+}
+
+.sc-period-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.sc-period-btn:hover {
+  background: #0f4c81;
+  color: #fff;
+  border-color: #0f4c81;
+}
+
+.sc-select {
+  width: 100%;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  appearance: auto;
+}
+.sc-select:focus { border-color: #0f4c81; box-shadow: 0 0 0 3px rgba(15,76,129,0.1); }
+
+/* ── Top Command Bar ── */
+.sc-topbar {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.sc-icon-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+}
+.sc-icon-btn:hover { background: #e2e8f0; color: #0f172a; }
+
+.sc-action-btn {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.sc-action-btn:hover {
+  background: #0f4c81;
+  color: #fff;
+  border-color: #0f4c81;
+}
+
+/* ── Sub-Tab Navigation ── */
+.sc-nav-tabs {
+  display: flex;
+  gap: 2px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0 24px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.sc-nav-tabs::-webkit-scrollbar { height: 3px; }
+.sc-nav-tabs::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+.sc-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 12px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.sc-tab:hover { color: #0f172a; }
+.sc-tab.sc-tab-active {
+  color: #0f4c81;
+  border-bottom-color: #0f4c81;
+}
+
+/* ── KPI Grid ── */
+.sc-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.sc-kpi-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-top: 3px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.sc-kpi-card:hover {
+  box-shadow: 0 4px 16px rgba(15,23,42,0.08);
+  transform: translateY(-1px);
+}
+
+.sc-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.sc-kpi-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.sc-kpi-sub {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* ── Chart / Content Cards ── */
+.sc-chart-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+}
+.sc-chart-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 14px;
+}
+
+/* ── AI Executive Panel ── */
+.sc-ai-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  margin-top: 20px;
+  box-shadow: 0 1px 4px rgba(15,23,42,0.05);
+}
+
+.sc-ai-header {
+  background: linear-gradient(135deg, #f8fafc 0%, #f0f7ff 100%);
+  border-bottom: 1px solid #e2e8f0;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sc-ai-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0;
+}
+
+.sc-ai-card {
+  padding: 18px 20px;
+  border-right: 1px solid #f1f5f9;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #475569;
+}
+.sc-ai-card:last-child { border-right: none; }
+
+.sc-ai-card-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sc-ai-status { border-top: 3px solid #0f4c81; }
+.sc-ai-risk   { border-top: 3px solid #b91c1c; }
+.sc-ai-action { border-top: 3px solid #15803d; }
+
+/* ── Dropdown overrides inside sc-shell filter panel ── */
+.sc-filter-panel .search-drop-btn {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  border-radius: 6px !important;
+}
+.sc-filter-panel .search-drop-menu {
+  background: #fff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12) !important;
+  border-radius: 8px !important;
+}
+.sc-filter-panel .search-drop-input {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+.sc-filter-panel .search-drop-list label {
+  color: #0f172a !important;
+}
+.sc-filter-panel .search-drop-list::-webkit-scrollbar { width: 3px; }
+.sc-filter-panel .search-drop-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+/* ── Table overrides for light mode inside sc-shell ── */
+.sc-shell table { border-collapse: collapse; }
+.sc-shell thead tr th {
+  color: #64748b !important;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.sc-shell tbody tr:hover td { background: #f8fafc; }
+
+/* ── Hide old dark subtabs bar (replaced by sc-nav-tabs) ── */
+.sc-shell .sales-subtabs { display: none !important; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .sc-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .sc-ai-body  { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .sc-kpi-grid { grid-template-columns: 1fr 1fr; }
+  .sc-topbar   { padding: 12px 16px; }
+}

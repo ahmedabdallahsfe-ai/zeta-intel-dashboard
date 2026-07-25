@@ -325,16 +325,16 @@
     // Render component skeleton
     container.innerHTML = `
       <div class="search-drop-wrap" style="position:relative; margin-bottom:8px;">
-        <label style="font-size: 10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:2px;">${label}</label>
-        <button class="search-drop-btn" style="background:#1e2238; border:1px solid #2e3456; color:#fff; width:100%; font-size:11px; padding:6px 10px; border-radius:4px; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+        <label style="font-size:10px; color:#64748b; font-weight:600; display:block; margin-bottom:3px;">${label}</label>
+        <button class="search-drop-btn" style="background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; width:100%; font-size:11px; padding:6px 10px; border-radius:6px; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
           <span>${selectionText}</span>
           <span style="font-size:8px;">▼</span>
         </button>
-        <div class="search-drop-menu" style="display:none; position:absolute; top:42px; left:0; width:100%; background:#111827; border:1px solid #2e3456; border-radius:4px; z-index:999; padding:8px; box-shadow:0 10px 15px rgba(0,0,0,0.5);">
-          <input type="text" placeholder="Search..." class="search-drop-input" style="width:100%; background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:11px; padding:4px 8px; border-radius:4px; margin-bottom:6px; box-sizing:border-box;">
+        <div class="search-drop-menu" style="display:none; position:absolute; top:42px; left:0; width:100%; background:#fff; border:1px solid #e2e8f0; border-radius:8px; z-index:999; padding:10px; box-shadow:0 8px 24px rgba(15,23,42,0.12);">
+          <input type="text" placeholder="Search..." class="search-drop-input" style="width:100%; background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; font-size:11px; padding:5px 8px; border-radius:5px; margin-bottom:8px; box-sizing:border-box;">
           <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:10px;">
-            <span class="search-drop-all" style="color:#0f6cbd; cursor:pointer; font-weight:600;">Select All</span>
-            <span class="search-drop-clear" style="color:#8a94a6; cursor:pointer; font-weight:600;">Clear</span>
+            <span class="search-drop-all" style="color:#0f4c81; cursor:pointer; font-weight:600;">Select All</span>
+            <span class="search-drop-clear" style="color:#94a3b8; cursor:pointer; font-weight:600;">Clear</span>
           </div>
           <div class="search-drop-list" style="max-height:150px; overflow-y:auto; font-size:11px; display:flex; flex-direction:column; gap:4px;">
             <!-- Options populated here -->
@@ -374,7 +374,7 @@
       const filtered = availableItems.filter(item => item.name.toLowerCase().includes(query.toLowerCase()));
       
       if (filtered.length === 0) {
-        listDiv.innerHTML = `<div style="color:#8a94a6; font-style:italic; padding:4px;">No items found</div>`;
+        listDiv.innerHTML = `<div style="color:#94a3b8; font-style:italic; padding:4px;">No items found</div>`;
         return;
       }
 
@@ -392,8 +392,8 @@
         }
 
         return `
-          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#fff; padding:2px 0;">
-            <input type="checkbox" value="${item.idx}" ${isChecked ? 'checked' : ''} style="accent-color:#0f6cbd; margin:0;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#0f172a; padding:2px 0; font-size:11px;">
+            <input type="checkbox" value="${item.idx}" ${isChecked ? 'checked' : ''} style="accent-color:#0f4c81; margin:0;">
             <span>${item.name}</span>
           </label>
         `;
@@ -464,33 +464,48 @@
     const actual = res.salesValue;
     const target = res.tgtValue;
     const ach = target > 0 ? (actual / target) * 100 : 0;
-    
-    // Top Gainers and Losers
+
     const sortedBrands = Object.entries(res.brandData).map(([idx, val]) => ({
       name: cache.lookups.brands[idx] || "Unknown",
       val: val.val
     })).sort((a,b) => b.val - a.val);
 
     const topBrandStr = sortedBrands[0] ? `${sortedBrands[0].name} (EGP ${formatM(sortedBrands[0].val)})` : "N/A";
-    const statusText = ach >= 95 ? "exceeding commercial expectations" : "showing a performance gap against target";
-    
+    const statusText  = ach >= 95 ? "exceeding commercial objectives" : ach >= 80 ? "within acceptable range but below threshold" : "below target — requires management intervention";
+    const achColor    = ach >= 95 ? '#15803d' : ach >= 80 ? '#b45309' : '#b91c1c';
+    const achBg       = ach >= 95 ? '#f0fdf4' : ach >= 80 ? '#fffbeb' : '#fef2f2';
+
     return `
-      <div style="background: rgba(17,24,39,0.75); border: 1px solid #2e3456; border-radius: 8px; padding: 16px; margin-top: 16px;">
-        <h3 style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 10px; display:flex; align-items:center; gap:8px;">
-          <span style="color:#0f6cbd;">✦</span> Dynamic Commercial Strategic Insights
-        </h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; font-size:12px; line-height:1.6; color:#a3aed0;">
-          <div>
-            <h4 style="color:#fff; font-weight:600; margin-bottom:4px;">Business Status (What &amp; Why)</h4>
-            <p>Commercial performance YTD stands at <strong>${ach.toFixed(1)}% target achievement</strong>, ${statusText}. The key driver of this transaction volume is the brand segment <strong>${topBrandStr}</strong>, representing the highest share of sales value.</p>
+      <div class="sc-ai-panel" style="margin-top:20px;">
+        <div class="sc-ai-header">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:32px; height:32px; background:linear-gradient(135deg,#0f4c81,#3b82f6); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;">✦</div>
+            <div>
+              <div style="font-size:14px; font-weight:700; color:#0f172a;">AI Executive Insights</div>
+              <div style="font-size:11px; color:#64748b; margin-top:1px;">Dynamic commercial intelligence · Auto-generated</div>
+            </div>
           </div>
-          <div>
-            <h4 style="color:#fff; font-weight:600; margin-bottom:4px;">Identified Business Risks</h4>
-            <p>Low distributor fulfillment rates and return rates in peripheral bricks pose a risk to inventory pipelines. If regional ceilings are reached prematurely, secondary line execution might stall in Q3.</p>
+          <div style="background:${achBg}; border:1px solid ${achColor}30; border-radius:8px; padding:8px 16px; text-align:center;">
+            <div style="font-size:9px; font-weight:700; color:${achColor}; text-transform:uppercase; letter-spacing:0.08em;">Achievement</div>
+            <div style="font-size:22px; font-weight:800; color:${achColor};">${ach.toFixed(1)}%</div>
           </div>
-          <div>
-            <h4 style="color:#fff; font-weight:600; margin-bottom:4px;">Recommended Strategic Actions</h4>
-            <p>1. Reallocate ceiling balances to high-performing territories. 2. Implement target-incentive adjustments for District Managers with less than 85% achievement. 3. Target active pharmacy customer reach using focused promo offers.</p>
+        </div>
+        <div class="sc-ai-body">
+          <div class="sc-ai-card sc-ai-status">
+            <div class="sc-ai-card-label">📋 Business Status</div>
+            <p>Commercial performance stands at <strong>${ach.toFixed(1)}% target achievement</strong>, ${statusText}. The top revenue driver is <strong>${topBrandStr}</strong>, holding the highest share of total sales value in the current period.</p>
+          </div>
+          <div class="sc-ai-card sc-ai-risk">
+            <div class="sc-ai-card-label">⚠ Risk Signals</div>
+            <p>Elevated return rates in peripheral bricks are creating inventory pipeline risk. If regional ceilings are reached prematurely, secondary line execution may stall. Distributor fulfillment requires active monitoring.</p>
+          </div>
+          <div class="sc-ai-card sc-ai-action">
+            <div class="sc-ai-card-label">⚡ Priority Actions</div>
+            <ol style="margin:0; padding-left:16px; line-height:1.8;">
+              <li>Reallocate ceiling balances to highest-performing territories</li>
+              <li>Issue performance alerts to DMs below 85% target achievement</li>
+              <li>Deploy focused pharmacy promotions in at-risk bricks</li>
+            </ol>
           </div>
         </div>
       </div>
@@ -526,23 +541,23 @@
       if (share > 0.3) return "#0F6CBD"; // High Share
       if (share > 0.1) return "#2C81C8"; // Medium Share
       if (share > 0.01) return "#67A6DE"; // Low Share
-      return "#2a3250"; // Minimal Share / Empty
+      return "#e2e8f0"; // Minimal Share / Empty
     };
 
     return `
-      <div style="display:flex; gap:16px; align-items:center; background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
+      <div style="display:flex; gap:16px; align-items:center; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
         <div style="flex:1; max-width:280px;">
           <svg viewBox="0 0 300 240" style="width:100%; height:auto;">
             <!-- Delta / Alexandria -->
-            <path d="M 60,40 L 140,20 L 220,50 L 180,90 L 100,80 Z" fill="${getHexColor(deltaShare)}" stroke="#0b1220" stroke-width="2" class="map-path" data-name="Delta &amp; Alex" style="cursor:pointer; transition: fill 0.3s;"></path>
+            <path d="M 60,40 L 140,20 L 220,50 L 180,90 L 100,80 Z" fill="${getHexColor(deltaShare)}" stroke="#f8fafc" stroke-width="2" class="map-path" data-name="Delta &amp; Alex" style="cursor:pointer; transition: fill 0.3s;"></path>
             <!-- Cairo Metro -->
-            <circle cx="160" cy="110" r="28" fill="${getHexColor(cairoShare)}" stroke="#0b1220" stroke-width="2" class="map-path" data-name="Cairo Metro" style="cursor:pointer; transition: fill 0.3s;"></circle>
+            <circle cx="160" cy="110" r="28" fill="${getHexColor(cairoShare)}" stroke="#f8fafc" stroke-width="2" class="map-path" data-name="Cairo Metro" style="cursor:pointer; transition: fill 0.3s;"></circle>
             <!-- Upper Egypt -->
-            <path d="M 120,120 L 200,120 L 210,220 L 130,210 Z" fill="${getHexColor(upperShare)}" stroke="#0b1220" stroke-width="2" class="map-path" data-name="Upper Egypt" style="cursor:pointer; transition: fill 0.3s;"></path>
+            <path d="M 120,120 L 200,120 L 210,220 L 130,210 Z" fill="${getHexColor(upperShare)}" stroke="#f8fafc" stroke-width="2" class="map-path" data-name="Upper Egypt" style="cursor:pointer; transition: fill 0.3s;"></path>
           </svg>
         </div>
         <div style="flex:1;">
-          <h4 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:8px;">Egypt Regional Value Share</h4>
+          <h4 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:8px;">Egypt Regional Value Share</h4>
           <div style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
             <div style="display:flex; align-items:center; gap:8px;"><span style="display:inline-block; width:12px; height:12px; background:#0F6CBD; border-radius:2px;"></span> Cairo Metro: ${(cairoShare*100).toFixed(1)}%</div>
             <div style="display:flex; align-items:center; gap:8px;"><span style="display:inline-block; width:12px; height:12px; background:#2C81C8; border-radius:2px;"></span> Delta &amp; Alexandria: ${(deltaShare*100).toFixed(1)}%</div>
@@ -583,123 +598,159 @@
     const actual = res.salesValue;
     const target = res.tgtValue;
     const ach = target > 0 ? (actual / target) * 100 : 0;
-    
-    // Growth % (compare first half to second half of months as dummy proxy)
-    const growthVal = 14.8; 
+    const achColor = ach >= 95 ? '#15803d' : ach >= 80 ? '#b45309' : '#b91c1c';
+    const achBg   = ach >= 95 ? '#f0fdf4' : ach >= 80 ? '#fffbeb' : '#fef2f2';
 
-    // Render Master Layout: Collapsible Sidebar + Main Content Area
     root.innerHTML = `
-      <div class="sales-console-container" style="display:flex; background:#0b1220; color:#fff; font-family:'Inter', sans-serif; min-height:calc(100vh - 70px);">
-        
-        <!-- Left Filter Panel -->
-        <div id="sales-filter-panel" style="width:${STATE.collapsedFilters ? '0px' : '260px'}; min-width:${STATE.collapsedFilters ? '0px' : '260px'}; overflow:hidden; background:#111827; border-right:1px solid #2e3456; padding:${STATE.collapsedFilters ? '0px' : '16px'}; transition: all 0.3s; box-sizing:border-box;">
-          <div style="display:${STATE.collapsedFilters ? 'none' : 'block'};">
-            <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:#fff; font-weight:700; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-              <span>Global Presets</span>
-              <button id="sales-preset-reset" style="background:#dc2626; border:none; color:#fff; font-size:10px; padding:2px 6px; border-radius:3px; cursor:pointer;">Reset</button>
-            </h3>
+      <div class="sc-shell" style="display:flex; background:#f8fafc; color:#0f172a; font-family:'Inter','Outfit',system-ui,sans-serif; min-height:calc(100vh - 70px);">
 
-            <!-- Preset / Bookmark View Manager -->
-            <div style="display:flex; gap:6px; margin-bottom:12px;">
-              <button id="sales-preset-save" class="sfe-btn" style="flex:1; font-size:10px; padding:4px 6px; text-align:center;">Save View</button>
-              <button id="sales-preset-load" class="sfe-btn" style="flex:1; font-size:10px; padding:4px 6px; text-align:center; background:#1e2238;">Load View</button>
+        <!-- ── LEFT FILTER PANEL ── -->
+        <div id="sales-filter-panel" class="sc-filter-panel" style="
+          width:${STATE.collapsedFilters ? '0px' : '256px'};
+          min-width:${STATE.collapsedFilters ? '0px' : '256px'};
+          overflow:hidden;
+          background:#fff;
+          border-right:1px solid #e2e8f0;
+          padding:${STATE.collapsedFilters ? '0' : '20px 16px'};
+          transition:all 0.25s cubic-bezier(0.4,0,0.2,1);
+          box-sizing:border-box;
+          overflow-y:auto;
+        ">
+          <div style="display:${STATE.collapsedFilters ? 'none' : 'block'}; opacity:${STATE.collapsedFilters ? '0' : '1'};">
+
+            <!-- Panel Header -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Analysis Filters</span>
+              <button id="sales-preset-reset" style="background:none; border:1px solid #fca5a5; color:#dc2626; font-size:10px; font-weight:600; padding:3px 8px; border-radius:6px; cursor:pointer; letter-spacing:0.02em;">Reset All</button>
             </div>
 
-            <div style="border-top:1px solid #2e3456; margin:8px 0;"></div>
+            <!-- Saved Views -->
+            <div style="display:flex; gap:6px; margin-bottom:14px;">
+              <button id="sales-preset-save" style="flex:1; background:#0f4c81; color:#fff; border:none; font-size:10px; font-weight:600; padding:6px; border-radius:6px; cursor:pointer;">Save View</button>
+              <button id="sales-preset-load" style="flex:1; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; font-size:10px; font-weight:600; padding:6px; border-radius:6px; cursor:pointer;">Load View</button>
+            </div>
 
             <!-- Date Shortcuts -->
-            <label style="font-size:10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">Date Shortcuts</label>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:10px;">
-              <button class="sales-date-shortcut" data-type="ytd" style="background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:10px; padding:4px; border-radius:4px; cursor:pointer;">YTD</button>
-              <button class="sales-date-shortcut" data-type="ltm" style="background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:10px; padding:4px; border-radius:4px; cursor:pointer;">LTM</button>
+            <div style="margin-bottom:14px;">
+              <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:6px;">Period</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                <button class="sales-date-shortcut sc-period-btn" data-type="ytd">YTD</button>
+                <button class="sales-date-shortcut sc-period-btn" data-type="ltm">LTM</button>
+              </div>
             </div>
 
-            <!-- Cascading Multi-select Dropdown targets -->
+            <div class="sc-filter-sep"></div>
+
+            <!-- Hierarchy Filters -->
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:8px;">Organization</div>
             <div id="drop-bu" style="display:none;"></div>
             <div id="drop-nsm"></div>
             <div id="drop-rm"></div>
             <div id="drop-am"></div>
             <div id="drop-dm"></div>
             <div id="drop-rep"></div>
-            
-            <div style="border-top:1px solid #2e3456; margin:8px 0;"></div>
-            
+
+            <div class="sc-filter-sep"></div>
+
+            <!-- Product Filters -->
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:8px;">Product</div>
             <div id="drop-line"></div>
             <div id="drop-brand"></div>
             <div id="drop-prod"></div>
 
-            <div style="border-top:1px solid #2e3456; margin:8px 0;"></div>
-            
+            <div class="sc-filter-sep"></div>
+
+            <!-- Geography Filters -->
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:8px;">Geography</div>
             <div id="drop-reg"></div>
             <div id="drop-brick"></div>
+
+            <div class="sc-filter-sep"></div>
+
+            <!-- Channel Filters -->
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:8px;">Channel</div>
             <div id="drop-dist"></div>
             <div id="drop-chain"></div>
             <div id="drop-txtype"></div>
             <div id="drop-position"></div>
 
-            <!-- Boolean Flag Dropdowns -->
-            <div style="border-top:1px solid #2e3456; margin:8px 0;"></div>
+            <div class="sc-filter-sep"></div>
+
+            <!-- Boolean Flags -->
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:8px;">Transaction Flags</div>
             <div style="margin-bottom:8px;">
-              <label style="font-size:10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">IS TENDER</label>
-              <select id="select-tender" style="width:100%; background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:11px; padding:6px; border-radius:4px; outline:none; cursor:pointer;">
+              <label style="font-size:10px; color:#64748b; font-weight:600; display:block; margin-bottom:4px;">TENDER STATUS</label>
+              <select id="select-tender" class="sc-select">
                 <option value="all" ${STATE.isTender==='all'?'selected':''}>All Transactions</option>
-                <option value="true" ${STATE.isTender===true?'selected':''}>Tenders Only (Yes)</option>
-                <option value="false" ${STATE.isTender===false?'selected':''}>Non-Tenders Only (No)</option>
+                <option value="true" ${STATE.isTender===true?'selected':''}>Tenders Only</option>
+                <option value="false" ${STATE.isTender===false?'selected':''}>Non-Tenders Only</option>
               </select>
             </div>
-            
             <div style="margin-bottom:8px;">
-              <label style="font-size:10px; color:#8a94a6; font-weight:600; display:block; margin-bottom:4px;">IS BULK</label>
-              <select id="select-bulk" style="width:100%; background:#1e2238; border:1px solid #2e3456; color:#fff; font-size:11px; padding:6px; border-radius:4px; outline:none; cursor:pointer;">
+              <label style="font-size:10px; color:#64748b; font-weight:600; display:block; margin-bottom:4px;">BULK STATUS</label>
+              <select id="select-bulk" class="sc-select">
                 <option value="all" ${STATE.isBulk==='all'?'selected':''}>All Transactions</option>
-                <option value="true" ${STATE.isBulk===true?'selected':''}>Bulk Only (Yes)</option>
-                <option value="false" ${STATE.isBulk===false?'selected':''}>Non-Bulk Only (No)</option>
+                <option value="true" ${STATE.isBulk===true?'selected':''}>Bulk Only</option>
+                <option value="false" ${STATE.isBulk===false?'selected':''}>Non-Bulk Only</option>
               </select>
             </div>
           </div>
         </div>
 
-        <!-- Main Dashboard Workspace -->
-        <div style="flex:1; padding:20px; min-width:0;">
-          
-          <!-- Top bar header -->
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <!-- ── MAIN WORKSPACE ── -->
+        <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+          <!-- Top Command Bar -->
+          <div class="sc-topbar">
             <div style="display:flex; align-items:center; gap:12px;">
-              <button id="toggle-filters-btn" style="background:#1e2238; border:1px solid #2e3456; color:#fff; border-radius:4px; padding:6px 12px; font-size:11px; cursor:pointer;">
-                ${STATE.collapsedFilters ? '⇥ Show Filters' : '⇤ Hide Filters'}
+              <button id="toggle-filters-btn" class="sc-icon-btn" title="${STATE.collapsedFilters ? 'Show Filters' : 'Hide Filters'}">
+                ${STATE.collapsedFilters ? '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg>' : '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'}
               </button>
-              <h2 style="font-size:18px; font-weight:800; color:#fff; margin:0;">Zeta Commercial Intelligence</h2>
+              <div>
+                <div style="font-size:17px; font-weight:700; color:#0f172a; line-height:1.2;">Sales Performance</div>
+                <div style="font-size:11px; color:#64748b; font-weight:500; margin-top:1px;">Commercial Analytics · Zeta Pharmaceutical</div>
+              </div>
             </div>
-            
-            <!-- Export Hub -->
-            <div style="display:flex; gap:8px;">
-              <button class="sales-export-btn sfe-btn" data-type="png" style="font-size:11px; padding:6px 12px;">Export PNG</button>
-              <button class="sales-export-btn sfe-btn" data-type="pdf" style="font-size:11px; padding:6px 12px; background:#1e2238;">Export PDF</button>
-              <button class="sales-export-btn sfe-btn" data-type="csv" style="font-size:11px; padding:6px 12px; background:#1e2238;">Export CSV</button>
+
+            <!-- Achievement Badge -->
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="background:${achBg}; border:1px solid ${achColor}20; border-radius:10px; padding:6px 14px; text-align:center;">
+                <div style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:${achColor}; margin-bottom:1px;">Target Achievement</div>
+                <div style="font-size:20px; font-weight:800; color:${achColor}; line-height:1;">${ach.toFixed(1)}%</div>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="sales-export-btn sc-action-btn" data-type="csv">⬇ CSV</button>
+                <button class="sales-export-btn sc-action-btn" data-type="pdf">⬇ PDF</button>
+                <button class="sales-export-btn sc-action-btn" data-type="png">⬇ PNG</button>
+              </div>
             </div>
           </div>
 
-          <!-- Page Tabs Bar -->
-          <div class="sales-subtabs" style="display:flex; gap:6px; border-bottom:1px solid #2e3456; padding-bottom:1px; margin-bottom:16px; overflow-x:auto;">
-            <button class="sales-subtab ${STATE.subTab==='executive'?'active':''}" data-tab="executive" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Executive Overview</button>
-            <button class="sales-subtab ${STATE.subTab==='performance'?'active':''}" data-tab="performance" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Sales Performance</button>
-            <button class="sales-subtab ${STATE.subTab==='geography'?'active':''}" data-tab="geography" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Geography Map</button>
-            <button class="sales-subtab ${STATE.subTab==='product'?'active':''}" data-tab="product" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Product Analytics</button>
-            <button class="sales-subtab ${STATE.subTab==='customer'?'active':''}" data-tab="customer" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Customer Analytics</button>
-            <button class="sales-subtab ${STATE.subTab==='distributor'?'active':''}" data-tab="distributor" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Distributor share</button>
-            <button class="sales-subtab ${STATE.subTab==='salesforce'?'active':''}" data-tab="salesforce" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Sales Force KPIs</button>
-            <button class="sales-subtab ${STATE.subTab==='target'?'active':''}" data-tab="target" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Target Gap</button>
-            <button class="sales-subtab ${STATE.subTab==='transaction'?'active':''}" data-tab="transaction" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Transaction Types</button>
-            <button class="sales-subtab ${STATE.subTab==='advanced'?'active':''}" data-tab="advanced" style="background:none; border:none; color:#a3aed0; font-size:12px; font-weight:700; padding:8px 12px; cursor:pointer;">Advanced Engine</button>
+          <!-- Sub-Tab Navigation -->
+          <div class="sc-nav-tabs">
+            ${[
+              ['executive',   '📊 Executive'],
+              ['performance', '📈 Performance'],
+              ['geography',   '🗺 Geography'],
+              ['product',     '💊 Product'],
+              ['customer',    '🏥 Customer'],
+              ['distributor', '🏭 Distributor'],
+              ['salesforce',  '👥 Sales Force'],
+              ['target',      '🎯 Target'],
+              ['transaction', '🔄 Transactions'],
+              ['advanced',    '🧠 Advanced'],
+            ].map(([key, label]) => `
+              <button class="sc-tab ${STATE.subTab===key?'sc-tab-active':''}" data-tab="${key}">${label}</button>
+            `).join('')}
           </div>
 
-          <!-- Active Page Content Renders Here -->
-          <div id="sales-tab-content">
-            ${getPageContentHTML(res)}
+          <!-- Page Content -->
+          <div style="flex:1; padding:24px; overflow-y:auto;">
+            <div id="sales-tab-content">
+              ${getPageContentHTML(res)}
+            </div>
+            ${getStrategicNarrative(res)}
           </div>
-
-          <!-- Dynamic strategic AI narrative at bottom -->
-          ${getStrategicNarrative(res)}
         </div>
       </div>
     `;
@@ -749,47 +800,60 @@
     const salesPerCust = res.activeCusts.size > 0 ? totalVal / res.activeCusts.size : 0;
     const asp = totalQty > 0 ? totalVal / totalQty : 0;
 
+    const achColor = ach >= 95 ? '#15803d' : ach >= 80 ? '#b45309' : '#b91c1c';
+    const achBg   = ach >= 95 ? '#f0fdf4' : ach >= 80 ? '#fffbeb' : '#fef2f2';
+
     const kpiRowHTML = `
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin-bottom:16px;">
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">SALES VALUE</div>
-          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">EGP ${formatM(totalVal)}</div>
+      <div class="sc-kpi-grid">
+        <div class="sc-kpi-card">
+          <div class="sc-kpi-label">SALES VALUE</div>
+          <div class="sc-kpi-value">EGP ${formatM(totalVal)}</div>
+          <div class="sc-kpi-sub">Actual invoiced revenue</div>
         </div>
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">TARGET VALUE</div>
-          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">EGP ${formatM(target)}</div>
+        <div class="sc-kpi-card">
+          <div class="sc-kpi-label">TARGET VALUE</div>
+          <div class="sc-kpi-value">EGP ${formatM(target)}</div>
+          <div class="sc-kpi-sub">Period plan</div>
         </div>
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">SALES QTY</div>
-          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${formatM(totalQty)}</div>
+        <div class="sc-kpi-card" style="border-top:3px solid ${achColor};">
+          <div class="sc-kpi-label">TARGET ACH</div>
+          <div class="sc-kpi-value" style="color:${achColor};">${ach.toFixed(1)}%</div>
+          <div class="sc-kpi-sub" style="color:${achColor}; font-weight:600;">${ach>=95?'On Track':ach>=80?'At Risk':'Below Target'}</div>
         </div>
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">TARGET QTY</div>
-          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${formatM(res.tgtQty)}</div>
+        <div class="sc-kpi-card">
+          <div class="sc-kpi-label">SALES QTY</div>
+          <div class="sc-kpi-value">${formatM(totalQty)}</div>
+          <div class="sc-kpi-sub">Units sold</div>
         </div>
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">TARGET ACH %</div>
-          <div style="font-size:18px; font-weight:800; color:#16a34a; margin-top:4px;">${ach.toFixed(1)}%</div>
+        <div class="sc-kpi-card">
+          <div class="sc-kpi-label">TARGET QTY</div>
+          <div class="sc-kpi-value">${formatM(res.tgtQty)}</div>
+          <div class="sc-kpi-sub">Planned units</div>
         </div>
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">GROWTH %</div>
-          <div style="font-size:18px; font-weight:800; color:#16a34a; margin-top:4px;">+14.8%</div>
+        <div class="sc-kpi-card">
+          <div class="sc-kpi-label">ACTIVE CUSTOMERS</div>
+          <div class="sc-kpi-value">${res.activeCusts.size.toLocaleString()}</div>
+          <div class="sc-kpi-sub">Covered accounts</div>
         </div>
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">ACTIVE CUSTOMERS</div>
-          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${res.activeCusts.size.toLocaleString()}</div>
+        <div class="sc-kpi-card">
+          <div class="sc-kpi-label">ACTIVE EMPLOYEES</div>
+          <div class="sc-kpi-value">${activeEmpsCount}</div>
+          <div class="sc-kpi-sub">Field headcount</div>
         </div>
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">ACTIVE EMPS</div>
-          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">${activeEmpsCount}</div>
+        <div class="sc-kpi-card">
+          <div class="sc-kpi-label">SALES / REP</div>
+          <div class="sc-kpi-value">EGP ${formatM(salesPerRep)}</div>
+          <div class="sc-kpi-sub">Avg productivity</div>
         </div>
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">SALES / REP</div>
-          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">EGP ${formatM(salesPerRep)}</div>
+        <div class="sc-kpi-card">
+          <div class="sc-kpi-label">AVG SELLING PRICE</div>
+          <div class="sc-kpi-value">EGP ${asp.toFixed(1)}</div>
+          <div class="sc-kpi-sub">Per unit</div>
         </div>
-        <div class="sfe-card" style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:10px; color:#8a94a6; font-weight:600;">AVG PRICE (ASP)</div>
-          <div style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">EGP ${asp.toFixed(1)}</div>
+        <div class="sc-kpi-card">
+          <div class="sc-kpi-label">SALES / CUSTOMER</div>
+          <div class="sc-kpi-value">EGP ${formatM(salesPerCust)}</div>
+          <div class="sc-kpi-sub">Wallet share proxy</div>
         </div>
       </div>
     `;
@@ -798,12 +862,12 @@
       return `
         ${kpiRowHTML}
         <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Monthly Actual vs Target Sales Value</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Monthly Actual vs Target Sales Value</h3>
             <div style="height:240px; position:relative;"><canvas id="chart-exec-monthly"></canvas></div>
           </div>
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Brand Contribution</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Brand Contribution</h3>
             <div style="height:240px; position:relative;"><canvas id="chart-exec-brand"></canvas></div>
           </div>
         </div>
@@ -813,8 +877,8 @@
     if (STATE.subTab === "performance") {
       return `
         <div style="display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Actual vs Target Variance Analysis</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Actual vs Target Variance Analysis</h3>
             <div style="height:280px; position:relative;"><canvas id="chart-perf-variance"></canvas></div>
           </div>
         </div>
@@ -825,12 +889,12 @@
       return `
         <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:16px; margin-bottom:16px;">
           ${getSVGMapHTML(res)}
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Region Sales Performance Ranking</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Region Sales Performance Ranking</h3>
             <div style="max-height:240px; overflow-y:auto; font-size:11px;">
               <table style="width:100%; border-collapse:collapse; text-align:left;">
                 <thead>
-                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                  <tr style="border-bottom:2px solid #e2e8f0; color:#64748b;">
                     <th style="padding:6px 0;">Region</th>
                     <th>Sales (EGP)</th>
                     <th>% Share</th>
@@ -841,8 +905,8 @@
                     const name = cache.lookups.regions[idx] || "Unknown";
                     const pct = (data.val / (res.salesValue || 1.0)) * 100;
                     return `
-                      <tr style="border-bottom:1px solid #1e2238;">
-                        <td style="padding:6px 0; font-weight:600; color:#fff;">${name}</td>
+                      <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:6px 0; font-weight:600; color:#0f172a;">${name}</td>
                         <td>${data.val.toLocaleString()}</td>
                         <td style="color:#0f6cbd; font-weight:700;">${pct.toFixed(1)}%</td>
                       </tr>
@@ -859,20 +923,20 @@
     if (STATE.subTab === "product") {
       return `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Top 10 Product SKUs</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Top 10 Product SKUs</h3>
             <div style="max-height:260px; overflow-y:auto; font-size:11px;">
               <table style="width:100%; border-collapse:collapse; text-align:left;">
                 <thead>
-                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                  <tr style="border-bottom:2px solid #e2e8f0; color:#64748b;">
                     <th style="padding:6px 0;">Product SKU</th>
                     <th>Value (EGP)</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${Object.entries(res.prodData).sort((a,b)=>b[1].val - a[1].val).slice(0, 10).map(([idx, data]) => `
-                    <tr style="border-bottom:1px solid #1e2238;">
-                      <td style="padding:6px 0; font-weight:600; color:#fff;">${cache.lookups.products[idx] || "Unknown"}</td>
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                      <td style="padding:6px 0; font-weight:600; color:#0f172a;">${cache.lookups.products[idx] || "Unknown"}</td>
                       <td>${data.val.toLocaleString()}</td>
                     </tr>
                   `).join('')}
@@ -880,8 +944,8 @@
               </table>
             </div>
           </div>
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">SKU Contribution Pareto (80/20)</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">SKU Contribution Pareto (80/20)</h3>
             <div style="height:240px; position:relative;"><canvas id="chart-prod-pareto"></canvas></div>
           </div>
         </div>
@@ -891,20 +955,20 @@
     if (STATE.subTab === "customer") {
       return `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Top Pharmacy Chains</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Top Pharmacy Chains</h3>
             <div style="max-height:260px; overflow-y:auto; font-size:11px;">
               <table style="width:100%; border-collapse:collapse; text-align:left;">
                 <thead>
-                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                  <tr style="border-bottom:2px solid #e2e8f0; color:#64748b;">
                     <th style="padding:6px 0;">Chain</th>
                     <th>Sales (EGP)</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${Object.entries(res.chainData).sort((a,b)=>b[1].val - a[1].val).map(([idx, data]) => `
-                    <tr style="border-bottom:1px solid #1e2238;">
-                      <td style="padding:6px 0; font-weight:600; color:#fff;">${cache.lookups.chains[idx] || "Unknown"}</td>
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                      <td style="padding:6px 0; font-weight:600; color:#0f172a;">${cache.lookups.chains[idx] || "Unknown"}</td>
                       <td>${data.val.toLocaleString()}</td>
                     </tr>
                   `).join('')}
@@ -912,8 +976,8 @@
               </table>
             </div>
           </div>
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Active Customer Sales Distribution</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Active Customer Sales Distribution</h3>
             <div style="height:240px; position:relative;"><canvas id="chart-cust-dist"></canvas></div>
           </div>
         </div>
@@ -923,16 +987,16 @@
     if (STATE.subTab === "distributor") {
       return `
         <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Distributor Channel Volume Share</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Distributor Channel Volume Share</h3>
             <div style="height:240px; position:relative;"><canvas id="chart-dist-share"></canvas></div>
           </div>
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Distributor Leaderboard</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Distributor Leaderboard</h3>
             <div style="max-height:240px; overflow-y:auto; font-size:11px;">
               <table style="width:100%; border-collapse:collapse; text-align:left;">
                 <thead>
-                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                  <tr style="border-bottom:2px solid #e2e8f0; color:#64748b;">
                     <th style="padding:6px 0;">Distributor</th>
                     <th>Value (EGP)</th>
                     <th>Contribution</th>
@@ -943,8 +1007,8 @@
                     const name = cache.lookups.distributors[idx] || "Unknown";
                     const share = (data.val / (res.salesValue || 1)) * 100;
                     return `
-                      <tr style="border-bottom:1px solid #1e2238;">
-                        <td style="padding:6px 0; font-weight:600; color:#fff;">${name}</td>
+                      <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:6px 0; font-weight:600; color:#0f172a;">${name}</td>
                         <td>${data.val.toLocaleString()}</td>
                         <td style="color:#0f6cbd; font-weight:700;">${share.toFixed(1)}%</td>
                       </tr>
@@ -961,12 +1025,12 @@
     if (STATE.subTab === "salesforce") {
       return `
         <div style="display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Medical Representative Leaderboard</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Medical Representative Leaderboard</h3>
             <div style="max-height:280px; overflow-y:auto; font-size:11px;">
               <table style="width:100%; border-collapse:collapse; text-align:left;">
                 <thead>
-                  <tr style="border-bottom:1px solid #2e3456; color:#8a94a6;">
+                  <tr style="border-bottom:2px solid #e2e8f0; color:#64748b;">
                     <th style="padding:6px 0;">Rep Name</th>
                     <th>Hiring Date</th>
                     <th>Position Role</th>
@@ -981,10 +1045,10 @@
                     const pos = cache.lookups.rep_positions[idx] || "Representative";
                     const achievementPct = data.tgtVal > 0 ? (data.val / data.tgtVal) * 100 : 0;
                     return `
-                      <tr style="border-bottom:1px solid #1e2238;">
-                        <td style="padding:6px 0; font-weight:600; color:#fff;">${name}</td>
+                      <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:6px 0; font-weight:600; color:#0f172a;">${name}</td>
                         <td>${hDate}</td>
-                        <td style="color:#8a94a6;">${pos}</td>
+                        <td style="color:#64748b;">${pos}</td>
                         <td>${data.val.toLocaleString()}</td>
                         <td style="font-weight:700; color:${achievementPct>=95?'#16a34a':'#f59e0b'};">${achievementPct.toFixed(1)}%</td>
                       </tr>
@@ -1001,13 +1065,13 @@
     if (STATE.subTab === "target") {
       return `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Target Gap Breakdown</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Target Gap Breakdown</h3>
             <div style="height:240px; position:relative;"><canvas id="chart-target-bullet"></canvas></div>
           </div>
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
-            <h4 style="font-size:12px; color:#8a94a6; font-weight:600; margin:0 0 8px 0;">EXPECTED TARGET ACHIEVEMENT</h4>
-            <div style="font-size:36px; font-weight:900; color:#16a34a;">${ach.toFixed(1)}%</div>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+            <h4 style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 8px 0;">EXPECTED TARGET ACHIEVEMENT</h4>
+            <div style="font-size:36px; font-weight:900; color:${ach>=95?'#15803d':ach>=80?'#b45309':'#b91c1c'};">${ach.toFixed(1)}%</div>
             <div style="font-size:11px; color:#a3aed0; margin-top:8px;">Target Value: EGP ${formatM(target)} | Actual Value: EGP ${formatM(totalVal)}</div>
           </div>
         </div>
@@ -1017,27 +1081,27 @@
     if (STATE.subTab === "transaction") {
       return `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Transaction Type Contribution</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Transaction Type Contribution</h3>
             <div style="height:240px; position:relative;"><canvas id="chart-tx-type"></canvas></div>
           </div>
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px; font-size:12px; line-height:1.8;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Specific Quantities Summary</h3>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #2e3456; padding:6px 0;">
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; font-size:12px; line-height:1.8;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Specific Quantities Summary</h3>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:8px 0; color:#334155;">
               <span>Transfer Quantity</span>
-              <strong style="color:#fff;">${res.transferQty.toLocaleString()}</strong>
+              <strong style="color:#0f172a;">${res.transferQty.toLocaleString()}</strong>
             </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #2e3456; padding:6px 0;">
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:8px 0; color:#334155;">
               <span>Bulk Quantity</span>
-              <strong style="color:#fff;">${res.bulkQty.toLocaleString()}</strong>
+              <strong style="color:#0f172a;">${res.bulkQty.toLocaleString()}</strong>
             </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #2e3456; padding:6px 0;">
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:8px 0; color:#334155;">
               <span>National Ceiling</span>
-              <strong style="color:#fff;">${res.natCeiling.toLocaleString()}</strong>
+              <strong style="color:#0f172a;">${res.natCeiling.toLocaleString()}</strong>
             </div>
             <div style="display:flex; justify-content:space-between; padding:6px 0;">
               <span>Region Ceiling</span>
-              <strong style="color:#fff;">${res.regCeiling.toLocaleString()}</strong>
+              <strong style="color:#0f172a;">${res.regCeiling.toLocaleString()}</strong>
             </div>
           </div>
         </div>
@@ -1048,17 +1112,17 @@
       const forecast = computeForecastData(res);
       return `
         <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Advanced Predictive Forecast (Next 3 Months)</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Advanced Predictive Forecast (Next 3 Months)</h3>
             <div style="height:240px; position:relative;"><canvas id="chart-advanced-forecast"></canvas></div>
           </div>
-          <div style="background:#111827; border:1px solid #2e3456; border-radius:8px; padding:16px;">
-            <h3 style="font-size:13px; font-weight:700; color:#fff; margin-bottom:12px;">Representative Anomaly Warnings</h3>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Representative Anomaly Warnings</h3>
             <div style="max-height:220px; overflow-y:auto; font-size:11px;">
-              <div style="padding:6px; background:rgba(220,38,38,0.15); border-left:4px solid #dc2626; border-radius:4px; margin-bottom:6px;">
+              <div style="padding:10px; background:#fef2f2; border-left:4px solid #dc2626; border-radius:6px; margin-bottom:8px; color:#0f172a;">
                 <strong>Outlier Triggered:</strong> Rep Amr Giza exceeds +2.5 standard deviations in monthly returns volume.
               </div>
-              <div style="padding:6px; background:rgba(245,158,11,0.15); border-left:4px solid #f59e0b; border-radius:4px; margin-bottom:6px;">
+              <div style="padding:10px; background:#fffbeb; border-left:4px solid #f59e0b; border-radius:6px; margin-bottom:8px; color:#0f172a;">
                 <strong>Warning Triggered:</strong> Delta Rep 3 is under -1.8 standard deviations on target achievement.
               </div>
             </div>
