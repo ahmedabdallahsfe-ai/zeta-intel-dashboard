@@ -2986,3 +2986,65 @@ body {
   border-radius: 3px;
   transition: width 0.5s ease;
 }
+
+/* =============================================================================
+   ORGANOGRAM HEADCOUNT BREAKDOWN CARDS — Role-level employee counts
+   ============================================================================= */
+
+/* 7-column auto-fit grid for the headcount strip */
+.sfe-hc-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* Individual headcount card — slimmer than the standard sfe-kpi-card */
+.sfe-hc-card {
+  padding: 12px 14px !important;
+  border-radius: 10px !important;
+  border-top: 3px solid currentColor;
+  transition: box-shadow 0.2s, transform 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.sfe-hc-card:hover {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.10);
+  transform: translateY(-2px);
+}
+
+/* Subtitle line inside each card */
+.sfe-hc-sub {
+  display: block;
+  font-size: 9px;
+  color: #94a3b8;
+  font-weight: 500;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+/* Slightly larger value text for role cards */
+.sfe-hc-card .sfe-kpi-val {
+  font-size: 1.7rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.sfe-hc-card .sfe-kpi-icon {
+  font-size: 1.2rem !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 8px !important;
+  margin-bottom: 8px !important;
+}
+
+/* Responsive: collapse to 4 then 2 columns on smaller screens */
+@media (max-width: 1200px) {
+  .sfe-hc-grid { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 768px) {
+  .sfe-hc-grid { grid-template-columns: repeat(2, 1fr); }
+}

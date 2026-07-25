@@ -155,30 +155,54 @@
             </div>
           </div>
 
-          <!-- SFE Executive Scorecards -->
-          <div class="sfe-grid-3">
-            <div class="sfe-kpi-card">
-              <div class="sfe-kpi-icon">👥</div>
-              <div class="sfe-kpi-info">
-                <span class="sfe-kpi-val">${totalHeadcount}</span>
-                <span class="sfe-kpi-lbl">Total Planned Positions</span>
-              </div>
+
+          <!-- SFE Executive Scorecards - Role Breakdown -->
+          ${(() => {
+            // Count unique active people per role from filtered active positions
+            const active = filteredList.filter(r => r.status === 'Active');
+
+            // Unique BU Heads (bum field, non-empty, non-placeholder)
+            const buSet  = new Set(active.map(r => r.bum).filter(v => v && v !== '-' && v !== 'ALL' && v.trim()));
+            // Unique NSMs
+            const nsmSet = new Set(active.map(r => r.nsm).filter(v => v && v !== '-' && v !== 'ALL' && v.trim()));
+            // Unique ASMs
+            const asmSet = new Set(active.map(r => r.asm).filter(v => v && v !== '-' && v !== 'ALL' && v.trim()));
+            // Unique DMs
+            const dmSet  = new Set(active.map(r => r.dm).filter(v => v && v !== '-' && v !== 'ALL' && v.trim()));
+            // Medical Reps = active positions (each row = 1 rep territory/position)
+            const repCount = active.length;
+
+            const buCount  = buSet.size;
+            const nsmCount = nsmSet.size;
+            const asmCount = asmSet.size;
+            const dmCount  = dmSet.size;
+            const totalEmp = repCount; // total active field positions = rep-level rows
+
+            const card = (icon, iconColor, iconBg, value, label, sub) => `
+              <div class="sfe-kpi-card sfe-hc-card">
+                <div class="sfe-kpi-icon" style="color:${iconColor}; background:${iconBg};">${icon}</div>
+                <div class="sfe-kpi-info">
+                  <span class="sfe-kpi-val" style="color:${iconColor};">${value}</span>
+                  <span class="sfe-kpi-lbl">${label}</span>
+                  ${sub ? `<span class="sfe-hc-sub">${sub}</span>` : ''}
+                </div>
+              </div>`;
+
+            return `
+            <div style="margin-bottom:4px; font-size:0.78rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">
+              👥 Headcount Breakdown — Active Field Force
             </div>
-            <div class="sfe-kpi-card">
-              <div class="sfe-kpi-icon">✅</div>
-              <div class="sfe-kpi-info">
-                <span class="sfe-kpi-val">${activeHeadcount}</span>
-                <span class="sfe-kpi-lbl">Active Field Force</span>
-              </div>
-            </div>
-            <div class="sfe-kpi-card">
-              <div class="sfe-kpi-icon" style="color: #ef4444; background: rgba(239, 68, 68, 0.1);">⚠️</div>
-              <div class="sfe-kpi-info">
-                <span class="sfe-kpi-val">${totalVacant} <span style="font-size: 0.9rem; font-weight: normal; color: #64748b;">(${overallVacancyRate}%)</span></span>
-                <span class="sfe-kpi-lbl">Vacant Positions</span>
-              </div>
-            </div>
-          </div>
+            <div class="sfe-hc-grid">
+              ${card('🏢','#0f4c81','rgba(15,76,129,0.08)', buCount,  'Business Units',    buCount  > 0 ? [...buSet].join(' · ')  : '')}
+              ${card('🎯','#7c3aed','rgba(124,58,237,0.08)', nsmCount, 'National Sales Mgrs', nsmCount > 0 ? [...nsmSet].join(' · ') : '')}
+              ${card('📋','#0891b2','rgba(8,145,178,0.08)',  asmCount, 'Area Sales Mgrs',   asmCount > 0 ? `${asmCount} ASMs in scope` : '')}
+              ${card('📁','#b45309','rgba(180,83,9,0.08)',   dmCount,  'District Managers', dmCount  > 0 ? `${dmCount} DMs in scope` : '')}
+              ${card('💼','#15803d','rgba(21,128,61,0.08)',  repCount, 'Medical Reps',      repCount > 0 ? `Active field positions` : '')}
+              ${card('✅','#15803d','rgba(21,128,61,0.06)',  activeHeadcount, 'Total Active',  `${overallVacancyRate}% vacancy rate`)}
+              ${card('⚠️','#ef4444','rgba(239,68,68,0.08)',  totalVacant,     'Vacant Slots',  totalVacant > 0 ? `${(totalVacant/totalHeadcount*100).toFixed(1)}% open` : 'Fully staffed')}
+            </div>`;
+          })()}
+
 
           <!-- SFE Tabs Navigation -->
           <div class="sfe-tabs-header">
