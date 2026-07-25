@@ -611,6 +611,114 @@
     return { labels, values };
   }
 
+
+  // ── Dynamic Commercial Intelligence Engine ──────────────────────────────────
+  // Computes real business insights from aggregated data. Called once per render.
+  function computeInsights(res) {
+    const totalVal  = res.salesValue  || 0;
+    const totalTgt  = res.tgtValue    || 1;
+    const ach       = (totalVal / totalTgt) * 100;
+
+    // Monthly performance analysis
+    const months    = cache.lookups.months || [];
+    const mEntries  = Object.entries(res.monthlyData)
+      .map(([idx, d]) => ({ month: months[idx] || `M${idx}`, val: d.val, tgt: d.tgtVal,
+                             ach: d.tgtVal > 0 ? (d.val / d.tgtVal) * 100 : 0,
+                             gap: d.val - d.tgtVal }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    const bestMonth  = mEntries.reduce((a, b) => b.ach > a.ach ? b : a, mEntries[0] || {});
+    const worstMonth = mEntries.reduce((a, b) => b.ach < a.ach ? b : a, mEntries[0] || {});
+
+    // Month-over-month trend
+    let momTrend = 'stable';
+    if (mEntries.length >= 2) {
+      const last = mEntries[mEntries.length - 1].ach;
+      const prev = mEntries[mEntries.length - 2].ach;
+      momTrend = last > prev + 3 ? 'accelerating' : last < prev - 3 ? 'decelerating' : 'stable';
+    }
+
+    // Brand analysis
+    const brands = cache.lookups.brands || [];
+    const brandEntries = Object.entries(res.brandData)
+      .map(([idx, d]) => ({
+        name: brands[idx] || 'Unknown',
+        val: d.val, tgt: d.tgtVal || 0,
+        ach: d.tgtVal > 0 ? (d.val / d.tgtVal) * 100 : 0,
+        share: totalVal > 0 ? (d.val / totalVal) * 100 : 0,
+        gap: d.val - (d.tgtVal || 0)
+      }))
+      .filter(b => b.val > 0)
+      .sort((a, b) => b.val - a.val);
+
+    const topBrand   = brandEntries[0] || { name: 'N/A', val: 0, ach: 0 };
+    const atRiskBrands = brandEntries.filter(b => b.tgt > 0 && b.ach < 80)
+      .sort((a, b) => a.gap - b.gap); // most negative first
+    const overBrands   = brandEntries.filter(b => b.tgt > 0 && b.ach >= 110)
+      .sort((a, b) => b.ach - a.ach);
+
+    // Line analysis
+    const lines = cache.lookups.lines || [];
+    const lineEntries = Object.entries(res.brandData.lines || {});
+
+    // Rep performance
+    const repEntries = Object.entries(res.repData)
+      .filter(([idx]) => res.activeReps.has(parseInt(idx)))
+      .map(([idx, d]) => ({ ach: d.tgtVal > 0 ? (d.val / d.tgtVal) * 100 : null }))
+      .filter(d => d.ach !== null);
+    const repsBelow80  = repEntries.filter(r => r.ach < 80).length;
+    const repsAbove100 = repEntries.filter(r => r.ach >= 100).length;
+    const repsTotal    = repEntries.length;
+
+    // Distributor concentration
+    const dists = cache.lookups.distributors || [];
+    const distEntries = Object.entries(res.distData)
+      .map(([idx, d]) => ({ name: dists[idx] || 'Unknown', val: d.val,
+                             share: totalVal > 0 ? (d.val / totalVal) * 100 : 0 }))
+      .sort((a, b) => b.val - a.val);
+    const topDist = distEntries[0] || { name: 'N/A', share: 0 };
+
+    // Bulk concentration
+    const bulkRows   = res.bulkQty  || 0;
+    const bulkVal    = Object.values(res.txData || {}).reduce((s, d) => s, 0);
+
+    // Return rate
+    const returnVal = totalVal < 0 ? Math.abs(totalVal) : 0;
+
+    // Region analysis
+    const regions = cache.lookups.regions || [];
+    const regEntries = Object.entries(res.regionalData)
+      .map(([idx, d]) => ({ name: regions[idx] || 'Unknown', val: d.val,
+                             share: totalVal > 0 ? (d.val / totalVal) * 100 : 0 }))
+      .filter(r => r.name !== '(none)' && r.val > 0)
+      .sort((a, b) => b.val - a.val);
+    const topRegion = regEntries[0] || { name: 'N/A', share: 0 };
+
+    // Cumulative gap
+    const totalGap   = totalVal - totalTgt;
+    const gapFmt     = (g) => (g >= 0 ? '+' : '') + 'EGP ' + formatM(Math.abs(g)) + (g >= 0 ? ' above' : ' below') + ' target';
+
+    // Health score (composite 0-100)
+    const achScore   = Math.min(ach / 100, 1.3) * 40;                                         // 40 pts
+    const repScore   = repsTotal > 0 ? ((repsTotal - repsBelow80) / repsTotal) * 30 : 15;    // 30 pts
+    const concScore  = topDist.share < 50 ? 20 : topDist.share < 70 ? 12 : 5;               // 20 pts
+    const trendScore = momTrend === 'accelerating' ? 10 : momTrend === 'stable' ? 6 : 2;     // 10 pts
+    const healthScore = Math.min(100, Math.round(achScore + repScore + concScore + trendScore));
+    const healthColor = healthScore >= 80 ? '#15803d' : healthScore >= 60 ? '#b45309' : '#b91c1c';
+    const healthLabel = healthScore >= 80 ? 'STRONG' : healthScore >= 60 ? 'AT RISK' : 'CRITICAL';
+
+    return {
+      ach, totalVal, totalTgt, totalGap,
+      mEntries, bestMonth, worstMonth, momTrend,
+      brandEntries, topBrand, atRiskBrands, overBrands,
+      repsBelow80, repsAbove100, repsTotal,
+      topDist, distEntries,
+      topRegion, regEntries,
+      healthScore, healthColor, healthLabel,
+      gapFmt
+    };
+  }
+
   // Main UI Renderer
   function renderLayout() {
     const res = runAggregator();
@@ -883,32 +991,192 @@
     `;
 
     if (STATE.subTab === "executive") {
+      const ins = computeInsights(res);
+      const achColor  = ins.ach >= 100 ? '#15803d' : ins.ach >= 85 ? '#b45309' : '#b91c1c';
+      const achBg     = ins.ach >= 100 ? '#f0fdf4' : ins.ach >= 85 ? '#fffbeb' : '#fef2f2';
+      const gapLabel  = ins.totalGap >= 0 ? `▲ EGP ${formatM(ins.totalGap)} above target` : `▼ EGP ${formatM(Math.abs(ins.totalGap))} below target`;
+      const gapColor  = ins.totalGap >= 0 ? '#15803d' : '#b91c1c';
+
+      // Opportunity signals
+      const oppHtml = ins.overBrands.slice(0, 3).map(b =>
+        `<div class="sc-signal sc-signal-green">▲ <strong>${b.name}</strong> — ${b.ach.toFixed(0)}% achievement. Potential to expand.</div>`
+      ).join('') || '<div class="sc-signal sc-signal-muted">No significant overperformers detected.</div>';
+
+      // Risk signals
+      const riskHtml = ins.atRiskBrands.slice(0, 3).map(b =>
+        `<div class="sc-signal sc-signal-red">⚠ <strong>${b.name}</strong> — ${b.ach.toFixed(0)}% · EGP ${formatM(Math.abs(b.gap))} gap</div>`
+      ).join('') + (ins.repsBelow80 > 0
+        ? `<div class="sc-signal sc-signal-red">⚠ <strong>${ins.repsBelow80} reps</strong> below 80% target achievement</div>`
+        : '');
+
+      // Monthly sparkline badges
+      const sparkBadges = ins.mEntries.map(m => {
+        const c = m.ach >= 100 ? '#15803d' : m.ach >= 85 ? '#b45309' : '#b91c1c';
+        const bg = m.ach >= 100 ? '#f0fdf4' : m.ach >= 85 ? '#fffbeb' : '#fef2f2';
+        const shortM = m.month.replace('2026-', '').replace('01','Jan').replace('02','Feb').replace('03','Mar').replace('04','Apr').replace('05','May').replace('06','Jun').replace('07','Jul');
+        return `<div style="text-align:center; padding:8px 12px; background:${bg}; border-radius:8px; min-width:60px; flex:1;">
+          <div style="font-size:10px; color:${c}; font-weight:700; text-transform:uppercase;">${shortM}</div>
+          <div style="font-size:16px; font-weight:800; color:${c};">${m.ach.toFixed(0)}%</div>
+          <div style="font-size:9px; color:${c}; font-weight:600;">${m.gap >= 0 ? '+' : ''}${formatM(m.gap)}</div>
+        </div>`;
+      }).join('');
+
+      // Priority actions (data-driven)
+      const actions = [];
+      if (ins.atRiskBrands.length > 0) actions.push(`Intervene on <strong>${ins.atRiskBrands[0].name}</strong> (${ins.atRiskBrands[0].ach.toFixed(0)}% ach) — largest value gap in portfolio`);
+      if (ins.repsBelow80 > 0) actions.push(`Review field execution for <strong>${ins.repsBelow80} reps below 80%</strong> — escalate to DM level`);
+      if (ins.worstMonth && ins.worstMonth.ach < 85) actions.push(`Investigate <strong>${ins.worstMonth.month} performance collapse</strong> (${ins.worstMonth.ach.toFixed(0)}%) — identify root cause bricks`);
+      if (ins.topDist.share > 45) actions.push(`<strong>Distributor concentration risk</strong> — ${ins.topDist.name} controls ${ins.topDist.share.toFixed(0)}% of sales`);
+      if (ins.overBrands.length > 0) actions.push(`Scale success model of <strong>${ins.overBrands[0].name}</strong> (${ins.overBrands[0].ach.toFixed(0)}%) to at-risk brands`);
+      const actionsHtml = actions.map((a, i) =>
+        `<div class="sc-action-item"><span class="sc-action-num">${i + 1}</span><span>${a}</span></div>`
+      ).join('');
+
       return `
-        ${kpiRowHTML}
-        <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Monthly Actual vs Target Sales Value</h3>
-            <div style="height:240px; position:relative;"><canvas id="chart-exec-monthly"></canvas></div>
+        <!-- ── COMMAND HEADER: Health + Achievement ── -->
+        <div class="sc-command-header">
+          <div class="sc-health-block" style="border-left:4px solid ${ins.healthColor};">
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:${ins.healthColor}; margin-bottom:4px;">COMMERCIAL HEALTH</div>
+            <div style="font-size:36px; font-weight:900; color:${ins.healthColor}; line-height:1;">${ins.healthScore}</div>
+            <div style="font-size:11px; font-weight:700; color:${ins.healthColor}; margin-top:2px;">${ins.healthLabel}</div>
+            <div style="font-size:10px; color:#64748b; margin-top:6px;">Composite score: Achievement · SFE · Distribution · Trend</div>
           </div>
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 id="exec-contrib-title" style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:4px;">
-              ${STATE.dm !== 'all' ? 'Medical Rep Contribution' : STATE.nsm !== 'all' ? 'DM Contribution' : STATE.buhead !== 'all' ? 'NSM Contribution' : 'BU Contribution'}
-            </h3>
-            <div style="font-size:10px; color:#94a3b8; margin-bottom:10px; font-weight:500;">
-              ${STATE.dm !== 'all' ? 'Reps under selected District Manager(s)' : STATE.nsm !== 'all' ? 'District Managers under selected NSM(s)' : STATE.buhead !== 'all' ? 'National Sales Managers under selected BU(s)' : 'Sales split by Business Unit'}
+          <div class="sc-ach-block" style="background:${achBg}; border:1px solid ${achColor}20;">
+            <div style="font-size:10px; font-weight:700; color:${achColor}; text-transform:uppercase; letter-spacing:0.06em;">YTD ACHIEVEMENT</div>
+            <div style="font-size:42px; font-weight:900; color:${achColor}; line-height:1; margin:4px 0;">${ins.ach.toFixed(1)}%</div>
+            <div style="font-size:12px; font-weight:600; color:${gapColor};">${gapLabel}</div>
+            <div style="font-size:10px; color:#64748b; margin-top:4px;">EGP ${formatM(ins.totalVal)} actual · EGP ${formatM(ins.totalTgt)} target</div>
+          </div>
+          <div class="sc-monthly-strip">
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#64748b; margin-bottom:8px;">MONTHLY PULSE</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">${sparkBadges}</div>
+          </div>
+        </div>
+
+        <!-- ── KPI METRICS ROW ── -->
+        ${kpiRowHTML}
+
+        <!-- ── THREE INTELLIGENCE PANELS ── -->
+        <div class="sc-intel-grid">
+
+          <!-- Panel 1: Monthly trend chart -->
+          <div class="sc-intel-card" style="grid-column: span 2;">
+            <div class="sc-intel-card-header">
+              <div>
+                <div class="sc-intel-title">Monthly Performance Trend</div>
+                <div class="sc-intel-sub">Actual vs Target · Monthly achievement % overlay</div>
+              </div>
+              <div class="sc-trend-badge sc-trend-${ins.momTrend}">
+                ${ins.momTrend === 'accelerating' ? '↗ Accelerating' : ins.momTrend === 'decelerating' ? '↘ Decelerating' : '→ Stable'}
+              </div>
             </div>
-            <div style="height:210px; position:relative;"><canvas id="chart-exec-drilldown"></canvas></div>
+            <div style="height:220px; position:relative;"><canvas id="chart-exec-monthly"></canvas></div>
+          </div>
+
+          <!-- Panel 2: Contribution drilldown -->
+          <div class="sc-intel-card">
+            <div class="sc-intel-card-header">
+              <div>
+                <div class="sc-intel-title">${STATE.dm !== 'all' ? 'Rep Contribution' : STATE.am !== 'all' ? 'DM Contribution' : STATE.nsm !== 'all' ? 'DM Contribution' : 'Line Contribution'}</div>
+                <div class="sc-intel-sub">${STATE.dm !== 'all' ? 'Reps under selected DM' : STATE.am !== 'all' ? 'DMs under selected AM' : STATE.nsm !== 'all' ? 'DMs under NSM' : 'Sales by Product Line'}</div>
+              </div>
+            </div>
+            <div style="height:200px; position:relative;"><canvas id="chart-exec-drilldown"></canvas></div>
+          </div>
+
+        </div>
+
+        <!-- ── SIGNAL ROWS: Opportunities + Risks ── -->
+        <div class="sc-signal-grid">
+          <div class="sc-signal-panel">
+            <div class="sc-signal-title sc-signal-title-green">🚀 Opportunities</div>
+            ${oppHtml || '<div class="sc-signal sc-signal-muted">No significant opportunities detected in current filters.</div>'}
+          </div>
+          <div class="sc-signal-panel">
+            <div class="sc-signal-title sc-signal-title-red">⚠ Risk Signals</div>
+            ${riskHtml || '<div class="sc-signal sc-signal-muted">No critical risks detected.</div>'}
+          </div>
+          <div class="sc-signal-panel">
+            <div class="sc-signal-title sc-signal-title-blue">⚡ Priority Actions</div>
+            ${actionsHtml || '<div class="sc-signal sc-signal-muted">No priority actions at this time.</div>'}
           </div>
         </div>
       `;
     }
 
     if (STATE.subTab === "performance") {
+      const ins = computeInsights(res);
+      // Monthly gap table rows
+      const gapRows = ins.mEntries.map(m => {
+        const achC = m.ach >= 100 ? '#15803d' : m.ach >= 85 ? '#b45309' : '#b91c1c';
+        const shortM = m.month.replace('2026-','').replace('01','Jan').replace('02','Feb').replace('03','Mar').replace('04','Apr').replace('05','May').replace('06','Jun').replace('07','Jul');
+        return `<tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:8px 0; font-weight:600; color:#0f172a;">${shortM} ${m.month.substring(0,4)}</td>
+          <td style="text-align:right;">EGP ${formatM(m.val)}</td>
+          <td style="text-align:right;">EGP ${formatM(m.tgt)}</td>
+          <td style="text-align:right; font-weight:700; color:${achC};">${m.ach.toFixed(1)}%</td>
+          <td style="text-align:right; font-weight:600; color:${m.gap>=0?'#15803d':'#b91c1c'};">${m.gap>=0?'+':''}EGP ${formatM(Math.abs(m.gap))}</td>
+        </tr>`;
+      }).join('');
+
+      // Top brand contributors table
+      const brandRows = ins.brandEntries.slice(0, 12).map((b, i) => {
+        const achC = b.ach >= 100 ? '#15803d' : b.ach >= 85 ? '#b45309' : '#b91c1c';
+        const bar = Math.min(100, b.share);
+        return `<tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:7px 0;">
+            <div style="font-size:11px; font-weight:600; color:#0f172a; margin-bottom:3px;">${b.name}</div>
+            <div style="height:4px; background:#f1f5f9; border-radius:2px;">
+              <div style="width:${bar}%; height:100%; background:${achC}; border-radius:2px;"></div>
+            </div>
+          </td>
+          <td style="text-align:right; font-size:11px; white-space:nowrap;">EGP ${formatM(b.val)}</td>
+          <td style="text-align:right; font-size:11px; color:#64748b;">${b.share.toFixed(1)}%</td>
+          <td style="text-align:right; font-size:11px; font-weight:700; color:${achC};">${b.tgt>0?b.ach.toFixed(1)+'%':'—'}</td>
+        </tr>`;
+      }).join('');
+
       return `
-        <div style="display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:16px;">
+        <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px;">
           <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Actual vs Target Variance Analysis</h3>
-            <div style="height:280px; position:relative;"><canvas id="chart-perf-variance"></canvas></div>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+              <div>
+                <div style="font-size:13px; font-weight:700; color:#0f172a;">Sales vs Target — Monthly</div>
+                <div style="font-size:11px; color:#64748b; margin-top:2px;">Actual achievement % vs plan · EGP values</div>
+              </div>
+            </div>
+            <div style="height:260px; position:relative;"><canvas id="chart-perf-variance"></canvas></div>
+          </div>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:14px;">Monthly P&L Summary</div>
+            <table style="width:100%; border-collapse:collapse; font-size:11px;">
+              <thead>
+                <tr style="border-bottom:2px solid #e2e8f0;">
+                  <th style="padding:6px 0; text-align:left; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Month</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Actual</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Target</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Ach%</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Gap</th>
+                </tr>
+              </thead>
+              <tbody>${gapRows}</tbody>
+            </table>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+          <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:14px;">Brand Performance Ranking</div>
+          <div style="max-height:300px; overflow-y:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:11px;">
+              <thead>
+                <tr style="border-bottom:2px solid #e2e8f0;">
+                  <th style="padding:6px 0; text-align:left; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase; width:45%;">Brand</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Actual</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Share%</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Ach%</th>
+                </tr>
+              </thead>
+              <tbody>${brandRows}</tbody>
+            </table>
           </div>
         </div>
       `;
