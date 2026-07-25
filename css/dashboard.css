@@ -3135,3 +3135,16 @@ body {
 @media (max-width: 768px) {
   .sfe-hc-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
+
+/* 6-column override for headcount grid (5 role cards + 1 summary) */
+.sfe-hc-grid-6 {
+  grid-template-columns: repeat(6, 1fr) !important;
+}
+@media (max-width: 1300px) {
+  .sfe-hc-grid-6 { grid-template-columns: repeat(3, 1fr) !important; }
+}
+@media (max-width: 768px) {
+  .sfe-hc-grid-6 { grid-template-columns: repeat(2, 1fr) !important; }
+}
+/* Summary card gets special treatment */
+.sfe-hc-summary .sfe-kpi-info { width: 100%; }

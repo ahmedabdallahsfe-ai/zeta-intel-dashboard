@@ -158,41 +158,80 @@
 
           <!-- SFE Executive Scorecards - Role Breakdown (Active + Vacant per level) -->
           ${(() => {
-            const clean = v => v && v !== '-' && v !== 'ALL' && v.trim();
+            // A name is "real" (active) if it exists and does NOT contain the word "VACANT"
+            const isReal   = v => v && v.trim() && !v.trim().toUpperCase().includes('VACANT');
+            const isVacant = v => !v || !v.trim() || v.trim().toUpperCase().includes('VACANT');
 
-            const activeRows  = filteredList.filter(r => r.status === 'Active');
-            const vacantRows  = filteredList.filter(r => r.status === 'Vacant');
+            // Use ALL rows (both active-rep and vacant-rep rows) — manager names are
+            // filled even on vacant-rep rows; a manager is ONLY vacant if their own
+            // name slot is the VACANT placeholder.
+            const allRows = filteredList;
 
-            // ── Active counts (unique names per level) ──────────────────────
-            const buActive  = new Set(activeRows.map(r => r.bum).filter(clean)).size;
-            const nsmActive = new Set(activeRows.map(r => r.nsm).filter(clean)).size;
-            const asmActive = new Set(activeRows.map(r => r.asm).filter(clean)).size;
-            const dmActive  = new Set(activeRows.map(r => r.dm ).filter(clean)).size;
-            const repActive = activeRows.length; // each active row = 1 filled rep slot
+            // ── Collect unique names per level ─────────────────────────────
+            const bumAll = [...new Set(allRows.map(r => (r.bum || '').trim()))].filter(v => v);
+            const nsmAll = [...new Set(allRows.map(r => (r.nsm || '').trim()))].filter(v => v);
+            const asmAll = [...new Set(allRows.map(r => (r.asm || '').trim()))];  // keep blanks
+            const dmAll  = [...new Set(allRows.map(r => (r.dm  || '').trim()))];  // keep blanks
 
-            // ── Vacant counts per level ─────────────────────────────────────
-            // A BU-level vacancy = a vacant row whose BU slot is unfilled
-            const buVacant  = new Set(vacantRows.map(r => r.bum).filter(clean)).size;
-            const nsmVacant = new Set(vacantRows.map(r => r.nsm).filter(clean)).size;
-            const asmVacant = new Set(vacantRows.map(r => r.asm).filter(clean)).size;
-            const dmVacant  = new Set(vacantRows.map(r => r.dm ).filter(clean)).size;
-            const repVacant = vacantRows.length; // each vacant row = 1 open rep slot
+            const buActive  = bumAll.filter(isReal).length;
+            const buVacant  = bumAll.filter(isVacant).length;
+            const nsmActive = nsmAll.filter(isReal).length;
+            const nsmVacant = nsmAll.filter(isVacant).length;
+            const asmActive = asmAll.filter(isReal).length;
+            const asmVacant = asmAll.filter(isVacant).length;
+            const dmActive  = dmAll.filter(isReal).length;
+            const dmVacant  = dmAll.filter(isVacant).length;
+            // Rep level: row status drives active vs vacant
+            const repActive = filteredList.filter(r => r.status === 'Active').length;
+            const repVacant = filteredList.filter(r => r.status === 'Vacant').length;
 
-            // ── Card builder with Active + Vacant split ─────────────────────
+            // ── Summary totals ──────────────────────────────────────────────
+            const corpTotal   = totalHeadcount;
+            const corpActive  = activeHeadcount;
+            const corpVacant  = totalVacant;
+            const vacRate     = overallVacancyRate;
+
+            // ── Card builder: Active | Vacant split ────────────────────────
             const card = (icon, col, bg, actN, vacN, label) => `
               <div class="sfe-kpi-card sfe-hc-card" style="border-top-color:${col};">
                 <div class="sfe-kpi-icon" style="color:${col}; background:${bg};">${icon}</div>
                 <div class="sfe-kpi-info">
-                  <span class="sfe-kpi-lbl" style="margin-bottom:6px;">${label}</span>
+                  <span class="sfe-kpi-lbl">${label}</span>
                   <div class="sfe-hc-av-row">
-                    <div class="sfe-hc-av-cell sfe-hc-active">
+                    <div class="sfe-hc-av-cell">
                       <span class="sfe-hc-num">${actN}</span>
                       <span class="sfe-hc-tag sfe-tag-green">Active</span>
                     </div>
                     <div class="sfe-hc-divider"></div>
-                    <div class="sfe-hc-av-cell sfe-hc-vacant">
+                    <div class="sfe-hc-av-cell">
                       <span class="sfe-hc-num sfe-hc-num-red">${vacN}</span>
                       <span class="sfe-hc-tag sfe-tag-red">Vacant</span>
+                    </div>
+                  </div>
+                </div>
+              </div>`;
+
+            // ── Summary card (total corp) ───────────────────────────────────
+            const summaryCard = `
+              <div class="sfe-kpi-card sfe-hc-card sfe-hc-summary" style="border-top-color:#0f4c81;">
+                <div class="sfe-kpi-icon" style="color:#0f4c81; background:rgba(15,76,129,0.08);">🏭</div>
+                <div class="sfe-kpi-info">
+                  <span class="sfe-kpi-lbl">Total Corporation</span>
+                  <div style="display:flex; flex-direction:column; gap:5px; margin-top:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px;">
+                      <span style="color:#64748b; font-weight:600;">Planned</span>
+                      <span style="font-weight:800; color:#0f172a; font-size:13px;">${corpTotal}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px;">
+                      <span style="color:#64748b; font-weight:600;">Active</span>
+                      <span style="font-weight:800; color:#15803d; font-size:13px;">${corpActive}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px;">
+                      <span style="color:#64748b; font-weight:600;">Vacant</span>
+                      <span style="font-weight:800; color:#b91c1c; font-size:13px;">${corpVacant} <span style="font-weight:500; font-size:9px;">(${vacRate}%)</span></span>
+                    </div>
+                    <div style="height:4px; background:#f1f5f9; border-radius:2px; margin-top:2px; overflow:hidden;">
+                      <div style="width:${((corpActive/corpTotal)*100).toFixed(0)}%; height:100%; background:#15803d; border-radius:2px;"></div>
                     </div>
                   </div>
                 </div>
@@ -202,14 +241,16 @@
             <div style="margin-bottom:6px; font-size:0.78rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">
               👥 Headcount Breakdown — Active &amp; Vacant per Level
             </div>
-            <div class="sfe-hc-grid">
+            <div class="sfe-hc-grid sfe-hc-grid-6">
               ${card('🏢','#0f4c81','rgba(15,76,129,0.08)',  buActive,  buVacant,  'Business Units')}
               ${card('🎯','#7c3aed','rgba(124,58,237,0.08)', nsmActive, nsmVacant, 'National Sales Mgrs')}
               ${card('📋','#0891b2','rgba(8,145,178,0.08)',  asmActive, asmVacant, 'Area Sales Mgrs')}
               ${card('📁','#b45309','rgba(180,83,9,0.08)',   dmActive,  dmVacant,  'District Managers')}
               ${card('💼','#15803d','rgba(21,128,61,0.08)',  repActive, repVacant, 'Medical Reps')}
+              ${summaryCard}
             </div>`;
           })()}
+
 
 
           <!-- SFE Tabs Navigation -->
