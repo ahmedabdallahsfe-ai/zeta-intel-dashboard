@@ -200,6 +200,7 @@
       monthlyData: {},
       regionalData: {},
       brandData: {},
+      buData: {},
       prodData: {},
       chainData: {},
       distData: {},
@@ -281,6 +282,13 @@
       res.repData[repIdx].val += val;
       res.repData[repIdx].tgtVal += tval;
       res.repData[repIdx].qty += qty;
+
+      // Business Units
+      const buIdx = r[BU];
+      if (!res.buData[buIdx]) res.buData[buIdx] = { val: 0, qty: 0, tgtVal: 0 };
+      res.buData[buIdx].val += val;
+      res.buData[buIdx].qty += qty;
+      res.buData[buIdx].tgtVal += tval;
 
       // Transaction Types
       const txIdx = r[TXTYPE];
@@ -867,8 +875,8 @@
             <div style="height:240px; position:relative;"><canvas id="chart-exec-monthly"></canvas></div>
           </div>
           <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Brand Contribution</h3>
-            <div style="height:240px; position:relative;"><canvas id="chart-exec-brand"></canvas></div>
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">BU Contribution</h3>
+            <div style="height:240px; position:relative;"><canvas id="chart-exec-bu"></canvas></div>
           </div>
         </div>
       `;
@@ -1176,26 +1184,44 @@
         currentChartInstances.push(chart);
       }
 
-      const ctxBrand = document.getElementById("chart-exec-brand");
-      if (ctxBrand) {
-        const sorted = Object.entries(res.brandData).sort((a,b)=>b[1].val - a[1].val).slice(0, 5);
-        const labels = sorted.map(([idx]) => cache.lookups.brands[idx]);
-        const data = sorted.map(([, val]) => val.val);
+      const ctxBu = document.getElementById("chart-exec-bu");
+      if (ctxBu) {
+        const sorted = Object.entries(res.buData)
+          .filter(([idx]) => cache.lookups.buheads[idx] && cache.lookups.buheads[idx] !== '(none)')
+          .sort((a,b) => b[1].val - a[1].val);
+        const labels = sorted.map(([idx]) => cache.lookups.buheads[idx] || 'Unknown');
+        const data   = sorted.map(([, v]) => v.val);
+        const total  = data.reduce((s, v) => s + v, 0) || 1;
+        const pcts   = data.map(v => ((v / total) * 100).toFixed(1) + '%');
 
-        const chart = new Chart(ctxBrand, {
+        const chart = new Chart(ctxBu, {
           type: 'doughnut',
           data: {
             labels: labels,
             datasets: [{
               data: data,
-              backgroundColor: ['#0f6cbd', '#16a34a', '#f59e0b', '#dc2626', '#8a94a6'],
-              borderWidth: 0
+              backgroundColor: ['#0f4c81', '#15803d', '#b45309', '#b91c1c', '#7c3aed', '#0891b2'],
+              borderWidth: 2,
+              borderColor: '#fff'
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { color: '#a3aed0', font: { size: 9 } } } }
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#475569', font: { size: 10, weight: '600' }, padding: 10 }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                    return ` ${ctx.label}: EGP ${(ctx.parsed/1000000).toFixed(2)}M (${pct}%)`;
+                  }
+                }
+              }
+            }
           }
         });
         currentChartInstances.push(chart);
