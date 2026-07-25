@@ -201,6 +201,7 @@
       regionalData: {},
       brandData: {},
       buData: {},
+      lineData: {},
       nsmData: {},
       dmData: {},
       prodData: {},
@@ -284,6 +285,14 @@
       res.repData[repIdx].val += val;
       res.repData[repIdx].tgtVal += tval;
       res.repData[repIdx].qty += qty;
+
+      // Product Lines
+      const lnIdx = r[LINE];
+      if (!res.lineData[lnIdx]) res.lineData[lnIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0 };
+      res.lineData[lnIdx].val    += val;
+      res.lineData[lnIdx].qty    += qty;
+      res.lineData[lnIdx].tgtVal += tval;
+      res.lineData[lnIdx].tgtQty += tqty;
 
       // Business Units
       const buIdx = r[BU];
@@ -863,6 +872,7 @@
             ${[
               ['executive',   '📊 Executive'],
               ['performance', '📈 Performance'],
+              ['line',        '📋 Line P&L'],
               ['geography',   '🗺 Geography'],
               ['product',     '💊 Product'],
               ['customer',    '🏥 Customer'],
@@ -1182,6 +1192,198 @@
       `;
     }
 
+    if (STATE.subTab === "line") {
+      const lines = cache.lookups.lines || [];
+      const lineEntries = Object.entries(res.lineData)
+        .map(([idx, d]) => ({
+          name: lines[idx] || 'Unknown',
+          val: d.val, tgt: d.tgtVal, qty: d.qty,
+          ach: d.tgtVal > 0 ? (d.val / d.tgtVal) * 100 : 0,
+          gap: d.val - d.tgtVal
+        }))
+        .filter(l => l.val > 0 || l.tgt > 0)
+        .sort((a, b) => b.val - a.val);
+
+      const totalLineVal = lineEntries.reduce((s, l) => s + l.val, 0) || 1;
+
+      const lineRows = lineEntries.map((l, i) => {
+        const achC  = l.ach >= 100 ? '#15803d' : l.ach >= 85 ? '#b45309' : '#b91c1c';
+        const achBg = l.ach >= 100 ? '#f0fdf4' : l.ach >= 85 ? '#fffbeb' : '#fef2f2';
+        const share = (l.val / totalLineVal) * 100;
+        const barW  = Math.min(100, share).toFixed(1);
+        const rank  = i + 1;
+        return `<tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:9px 0; width:28px; font-size:10px; font-weight:800; color:#94a3b8;">${rank}</td>
+          <td style="padding:9px 0;">
+            <div style="font-size:11px; font-weight:700; color:#0f172a; margin-bottom:4px;">${l.name}</div>
+            <div style="height:5px; background:#f1f5f9; border-radius:3px; width:100%;">
+              <div style="width:${barW}%; height:100%; background:${achC}; border-radius:3px; transition:width 0.4s;"></div>
+            </div>
+          </td>
+          <td style="text-align:right; font-size:11px; white-space:nowrap; padding-left:8px;">EGP ${formatM(l.val)}</td>
+          <td style="text-align:right; font-size:11px; color:#64748b;">EGP ${formatM(l.tgt)}</td>
+          <td style="text-align:right; font-size:11px; font-weight:700; color:${achC}; background:${achBg}; padding:3px 8px; border-radius:5px;">${l.tgt > 0 ? l.ach.toFixed(1)+'%' : '—'}</td>
+          <td style="text-align:right; font-size:11px; font-weight:600; color:${l.gap >= 0 ? '#15803d' : '#b91c1c'};">${l.gap >= 0 ? '+' : ''}EGP ${formatM(Math.abs(l.gap))}</td>
+          <td style="text-align:right; font-size:11px; color:#64748b;">${share.toFixed(1)}%</td>
+        </tr>`;
+      }).join('');
+
+      // Line status summary
+      const onTrack   = lineEntries.filter(l => l.tgt > 0 && l.ach >= 100).length;
+      const atRisk    = lineEntries.filter(l => l.tgt > 0 && l.ach >= 80 && l.ach < 100).length;
+      const critical  = lineEntries.filter(l => l.tgt > 0 && l.ach < 80).length;
+      const totalGapM = lineEntries.reduce((s, l) => s + l.gap, 0);
+
+      return `
+        <!-- Line Status KPIs -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;">
+          <div class="sc-kpi-card" style="border-top-color:#15803d;">
+            <div class="sc-kpi-label">ON TRACK LINES</div>
+            <div class="sc-kpi-value" style="color:#15803d;">${onTrack}</div>
+            <div class="sc-kpi-sub">≥ 100% achievement</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:#b45309;">
+            <div class="sc-kpi-label">AT RISK LINES</div>
+            <div class="sc-kpi-value" style="color:#b45309;">${atRisk}</div>
+            <div class="sc-kpi-sub">80–99% achievement</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:#b91c1c;">
+            <div class="sc-kpi-label">CRITICAL LINES</div>
+            <div class="sc-kpi-value" style="color:#b91c1c;">${critical}</div>
+            <div class="sc-kpi-sub">< 80% achievement</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:${totalGapM>=0?'#15803d':'#b91c1c'};">
+            <div class="sc-kpi-label">PORTFOLIO GAP</div>
+            <div class="sc-kpi-value" style="color:${totalGapM>=0?'#15803d':'#b91c1c'};">${totalGapM>=0?'+':''}EGP ${formatM(Math.abs(totalGapM))}</div>
+            <div class="sc-kpi-sub">${totalGapM>=0?'Above':'Below'} target portfolio-wide</div>
+          </div>
+        </div>
+
+        <!-- Line breakdown chart + table -->
+        <div style="display:grid; grid-template-columns:1fr 1.8fr; gap:16px; margin-bottom:16px;">
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:4px;">Line Achievement</div>
+            <div style="font-size:10px; color:#94a3b8; margin-bottom:14px;">Ranked by achievement %</div>
+            <div style="height:320px; position:relative;"><canvas id="chart-line-ach"></canvas></div>
+          </div>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:4px;">Line P&L Scorecard</div>
+            <div style="font-size:10px; color:#94a3b8; margin-bottom:14px;">All lines · Actual vs Target · Achievement % · Gap</div>
+            <div style="max-height:340px; overflow-y:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                <thead>
+                  <tr style="border-bottom:2px solid #e2e8f0;">
+                    <th style="padding:6px 0; text-align:left; color:#64748b; font-size:10px; text-transform:uppercase;">#</th>
+                    <th style="text-align:left; color:#64748b; font-size:10px; text-transform:uppercase;">Line</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Actual</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Target</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Ach%</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Gap</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Share</th>
+                  </tr>
+                </thead>
+                <tbody>${lineRows}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (STATE.subTab === "line") {
+      const lines = cache.lookups.lines || [];
+      const lineEntries = Object.entries(res.lineData)
+        .map(([idx, d]) => ({
+          name: lines[idx] || 'Unknown',
+          val: d.val, tgt: d.tgtVal, qty: d.qty,
+          ach: d.tgtVal > 0 ? (d.val / d.tgtVal) * 100 : 0,
+          gap: d.val - d.tgtVal
+        }))
+        .filter(l => l.val > 0 || l.tgt > 0)
+        .sort((a, b) => b.val - a.val);
+
+      const totalLineVal = lineEntries.reduce((s, l) => s + l.val, 0) || 1;
+      const onTrack  = lineEntries.filter(l => l.tgt > 0 && l.ach >= 100).length;
+      const atRisk   = lineEntries.filter(l => l.tgt > 0 && l.ach >= 80 && l.ach < 100).length;
+      const critical = lineEntries.filter(l => l.tgt > 0 && l.ach < 80).length;
+      const totalGapM = lineEntries.reduce((s, l) => s + l.gap, 0);
+
+      const lineRows = lineEntries.map((l, i) => {
+        const achC  = l.ach >= 100 ? '#15803d' : l.ach >= 85 ? '#b45309' : '#b91c1c';
+        const achBg = l.ach >= 100 ? '#f0fdf4' : l.ach >= 85 ? '#fffbeb' : '#fef2f2';
+        const share = (l.val / totalLineVal) * 100;
+        const barW  = Math.min(100, share).toFixed(1);
+        return `<tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:9px 4px; width:24px; font-size:10px; font-weight:800; color:#94a3b8;">${i+1}</td>
+          <td style="padding:9px 0;">
+            <div style="font-size:11px; font-weight:700; color:#0f172a; margin-bottom:4px;">${l.name}</div>
+            <div style="height:4px; background:#f1f5f9; border-radius:2px; width:100%;">
+              <div style="width:${barW}%; height:100%; background:${achC}; border-radius:2px;"></div>
+            </div>
+          </td>
+          <td style="text-align:right; font-size:11px; white-space:nowrap; padding-left:8px;">EGP ${formatM(l.val)}</td>
+          <td style="text-align:right; font-size:11px; color:#64748b;">EGP ${formatM(l.tgt)}</td>
+          <td style="text-align:right; padding:3px 6px;">
+            <span style="font-size:11px; font-weight:700; color:${achC}; background:${achBg}; padding:2px 6px; border-radius:4px;">${l.tgt > 0 ? l.ach.toFixed(1)+'%' : '—'}</span>
+          </td>
+          <td style="text-align:right; font-size:11px; font-weight:600; color:${l.gap >= 0 ? '#15803d' : '#b91c1c'};">${l.gap >= 0 ? '+' : ''}EGP ${formatM(Math.abs(l.gap))}</td>
+          <td style="text-align:right; font-size:11px; color:#64748b;">${share.toFixed(1)}%</td>
+        </tr>`;
+      }).join('');
+
+      return `
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;">
+          <div class="sc-kpi-card" style="border-top-color:#15803d;">
+            <div class="sc-kpi-label">ON TRACK</div>
+            <div class="sc-kpi-value" style="color:#15803d;">${onTrack}</div>
+            <div class="sc-kpi-sub">Lines ≥ 100% achievement</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:#b45309;">
+            <div class="sc-kpi-label">AT RISK</div>
+            <div class="sc-kpi-value" style="color:#b45309;">${atRisk}</div>
+            <div class="sc-kpi-sub">Lines 80–99% achievement</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:#b91c1c;">
+            <div class="sc-kpi-label">CRITICAL</div>
+            <div class="sc-kpi-value" style="color:#b91c1c;">${critical}</div>
+            <div class="sc-kpi-sub">Lines < 80% achievement</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:${totalGapM>=0?'#15803d':'#b91c1c'};">
+            <div class="sc-kpi-label">PORTFOLIO GAP</div>
+            <div class="sc-kpi-value" style="color:${totalGapM>=0?'#15803d':'#b91c1c'};">${totalGapM>=0?'+':''}EGP ${formatM(Math.abs(totalGapM))}</div>
+            <div class="sc-kpi-sub">Combined variance to plan</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.8fr; gap:16px;">
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:4px;">Line Achievement Ranking</div>
+            <div style="font-size:10px; color:#94a3b8; margin-bottom:14px;">Horizontal bar · sorted high→low</div>
+            <div style="height:320px; position:relative;"><canvas id="chart-line-ach"></canvas></div>
+          </div>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:4px;">Line P&L Scorecard</div>
+            <div style="font-size:10px; color:#94a3b8; margin-bottom:14px;">All lines · Actual vs Target · Ach% · Gap · Share</div>
+            <div style="max-height:340px; overflow-y:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                <thead>
+                  <tr style="border-bottom:2px solid #e2e8f0;">
+                    <th style="padding:6px 4px; text-align:left; color:#64748b; font-size:10px; text-transform:uppercase;">#</th>
+                    <th style="text-align:left; color:#64748b; font-size:10px; text-transform:uppercase;">Line</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Actual</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Target</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Ach%</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Gap</th>
+                    <th style="text-align:right; color:#64748b; font-size:10px; text-transform:uppercase;">Share</th>
+                  </tr>
+                </thead>
+                <tbody>${lineRows}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     if (STATE.subTab === "geography") {
       return `
         <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:16px; margin-bottom:16px;">
@@ -1360,21 +1562,111 @@
     }
 
     if (STATE.subTab === "target") {
-      return `
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Target Gap Breakdown</h3>
-            <div style="height:240px; position:relative;"><canvas id="chart-target-bullet"></canvas></div>
+      const ins = computeInsights(res);
+      const achColor = ins.ach >= 100 ? '#15803d' : ins.ach >= 85 ? '#b45309' : '#b91c1c';
+      const nMonths  = ins.mEntries.length || 1;
+      const runRate  = ins.totalVal / nMonths;
+
+      // Rep distribution buckets
+      const repEntries = Object.entries(res.repData)
+        .filter(([idx]) => res.activeReps.has(parseInt(idx)))
+        .map(([idx, d]) => ({
+          name: cache.lookups.reps[idx] || 'Unknown',
+          ach: d.tgtVal > 0 ? (d.val / d.tgtVal) * 100 : null
+        }))
+        .filter(r => r.ach !== null);
+
+      const b120 = repEntries.filter(r => r.ach >= 120).length;
+      const b100 = repEntries.filter(r => r.ach >= 100 && r.ach < 120).length;
+      const b90  = repEntries.filter(r => r.ach >= 90  && r.ach < 100).length;
+      const b80  = repEntries.filter(r => r.ach >= 80  && r.ach < 90).length;
+      const bLow = repEntries.filter(r => r.ach < 80).length;
+      const total = repEntries.length || 1;
+
+      const bucket = (n, label, color, bg) =>
+        `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:${bg};border-radius:8px;margin-bottom:6px;">
+          <span style="font-size:11px;font-weight:600;color:${color};">${label}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="font-size:18px;font-weight:800;color:${color};">${n}</div>
+            <div style="font-size:10px;color:${color};font-weight:600;min-width:36px;">${((n/total)*100).toFixed(0)}%</div>
           </div>
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
-            <h4 style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 8px 0;">EXPECTED TARGET ACHIEVEMENT</h4>
-            <div style="font-size:36px; font-weight:900; color:${ach>=95?'#15803d':ach>=80?'#b45309':'#b91c1c'};">${ach.toFixed(1)}%</div>
-            <div style="font-size:11px; color:#a3aed0; margin-top:8px;">Target Value: EGP ${formatM(target)} | Actual Value: EGP ${formatM(totalVal)}</div>
+        </div>`;
+
+      const brandGapRows = ins.brandEntries.slice(0,15).map(b => {
+        const achC = b.ach >= 100 ? '#15803d' : b.ach >= 85 ? '#b45309' : '#b91c1c';
+        return `<tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:7px 0;font-size:11px;font-weight:600;color:#0f172a;">${b.name}</td>
+          <td style="text-align:right;font-size:11px;">EGP ${formatM(b.val)}</td>
+          <td style="text-align:right;font-size:11px;color:#64748b;">EGP ${formatM(b.tgt)}</td>
+          <td style="text-align:right;font-size:11px;font-weight:700;color:${achC};">${b.tgt>0?b.ach.toFixed(1)+'%':'—'}</td>
+          <td style="text-align:right;font-size:11px;font-weight:600;color:${b.gap>=0?'#15803d':'#b91c1c'};">${b.gap>=0?'+':''}EGP ${formatM(Math.abs(b.gap))}</td>
+        </tr>`;
+      }).join('');
+
+      return `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+          <div class="sc-kpi-card" style="border-top-color:${achColor};">
+            <div class="sc-kpi-label">YTD ACHIEVEMENT</div>
+            <div class="sc-kpi-value" style="color:${achColor};">${ins.ach.toFixed(1)}%</div>
+            <div class="sc-kpi-sub">EGP ${formatM(ins.totalVal)} of EGP ${formatM(ins.totalTgt)}</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:${ins.totalGap>=0?'#15803d':'#b91c1c'};">
+            <div class="sc-kpi-label">PORTFOLIO GAP</div>
+            <div class="sc-kpi-value" style="color:${ins.totalGap>=0?'#15803d':'#b91c1c'};">${ins.totalGap>=0?'+':''}EGP ${formatM(Math.abs(ins.totalGap))}</div>
+            <div class="sc-kpi-sub">${ins.totalGap>=0?'Surplus':'Deficit to close'}</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:#0f4c81;">
+            <div class="sc-kpi-label">MONTHLY RUN RATE</div>
+            <div class="sc-kpi-value">EGP ${formatM(runRate)}</div>
+            <div class="sc-kpi-sub">Avg over ${nMonths} months</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:#7c3aed;">
+            <div class="sc-kpi-label">REPS ON TARGET</div>
+            <div class="sc-kpi-value" style="color:#7c3aed;">${ins.repsAbove100}/${ins.repsTotal}</div>
+            <div class="sc-kpi-sub">${ins.repsBelow80} reps below 80%</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:16px;">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;">
+            <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:4px;">Target Gap by Brand</div>
+            <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;">EGP gap (Actual − Target) · top brands</div>
+            <div style="height:280px;position:relative;"><canvas id="chart-target-bullet"></canvas></div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;">
+            <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:4px;">Rep Achievement Distribution</div>
+            <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;">${total} reps with targets</div>
+            ${bucket(b120,'🏆 ≥ 120% — Champions','#15803d','#f0fdf4')}
+            ${bucket(b100,'✅ 100–119% — On Target','#15803d','#f7fef9')}
+            ${bucket(b90, '⚡ 90–99% — Close','#b45309','#fffbeb')}
+            ${bucket(b80, '⚠ 80–89% — At Risk','#b45309','#fefce8')}
+            ${bucket(bLow,'🔴 < 80% — Critical','#b91c1c','#fef2f2')}
+            <div style="margin-top:14px;height:6px;background:#f1f5f9;border-radius:3px;display:flex;overflow:hidden;gap:1px;">
+              <div style="width:${((b120+b100)/total*100).toFixed(0)}%;background:#15803d;border-radius:3px 0 0 3px;"></div>
+              <div style="width:${((b90+b80)/total*100).toFixed(0)}%;background:#b45309;"></div>
+              <div style="width:${(bLow/total*100).toFixed(0)}%;background:#b91c1c;border-radius:0 3px 3px 0;"></div>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;">
+            <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:4px;">Brand Gap Priority</div>
+            <div style="font-size:10px;color:#94a3b8;margin-bottom:14px;">Sorted by EGP value · top 15</div>
+            <div style="max-height:290px;overflow-y:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                <thead>
+                  <tr style="border-bottom:2px solid #e2e8f0;">
+                    <th style="text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;padding:5px 0;">Brand</th>
+                    <th style="text-align:right;color:#64748b;font-size:10px;text-transform:uppercase;">Actual</th>
+                    <th style="text-align:right;color:#64748b;font-size:10px;text-transform:uppercase;">Target</th>
+                    <th style="text-align:right;color:#64748b;font-size:10px;text-transform:uppercase;">Ach%</th>
+                    <th style="text-align:right;color:#64748b;font-size:10px;text-transform:uppercase;">Gap</th>
+                  </tr>
+                </thead>
+                <tbody>${brandGapRows}</tbody>
+              </table>
+            </div>
           </div>
         </div>
       `;
     }
-
     if (STATE.subTab === "transaction") {
       return `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
@@ -1406,28 +1698,90 @@
     }
 
     if (STATE.subTab === "advanced") {
-      const forecast = computeForecastData(res);
+      const ins = computeInsights(res);
+      const achColor = ins.ach >= 100 ? '#15803d' : ins.ach >= 85 ? '#b45309' : '#b91c1c';
+      const nMonths = ins.mEntries.length;
+      const trend3  = ins.mEntries.slice(-3).map(m => m.ach.toFixed(0)+'%').join(' → ');
+      const bestM   = ins.bestMonth  ? ins.bestMonth.month  + ' (' + ins.bestMonth.ach.toFixed(0)  + '%)' : 'N/A';
+      const worstM  = ins.worstMonth ? ins.worstMonth.month + ' (' + ins.worstMonth.ach.toFixed(0) + '%)' : 'N/A';
+
+      const item = (dot, text) =>
+        `<div class="sc-brief-item"><span class="sc-brief-dot" style="background:${dot};"></span>${text}</div>`;
+
+      const whatHtml = [
+        item('#0f4c81', `YTD sales: <strong>EGP ${formatM(ins.totalVal)}</strong> — <strong style="color:${achColor}">${ins.ach.toFixed(1)}% of target</strong> over ${nMonths} months.`),
+        item('#0f4c81', `Best month: <strong>${bestM}</strong> · Worst: <strong style="color:#b91c1c">${worstM}</strong>.`),
+        item('#0f4c81', `Last 3 months: <strong>${trend3}</strong> — momentum is <strong>${ins.momTrend}</strong>.`),
+        item('#0f4c81', `Top brand: <strong>${ins.topBrand.name}</strong> (EGP ${formatM(ins.topBrand.val)} · ${ins.topBrand.ach.toFixed(0)}% ach).`)
+      ].join('');
+
+      const whyItems = [];
+      if (ins.atRiskBrands.length > 0) whyItems.push(item('#b91c1c', `<strong>${ins.atRiskBrands.slice(0,3).map(b=>b.name).join(', ')}</strong> underperforming — combined EGP ${formatM(ins.atRiskBrands.slice(0,3).reduce((s,b)=>s+Math.abs(b.gap),0))} below target.`));
+      if (ins.repsBelow80 > 0) whyItems.push(item('#b91c1c', `<strong>${ins.repsBelow80}/${ins.repsTotal} reps (${((ins.repsBelow80/ins.repsTotal)*100).toFixed(0)}%)</strong> below 80% achievement — field execution gap.`));
+      if (ins.topDist.share > 40) whyItems.push(item('#b91c1c', `<strong>${ins.topDist.name}</strong> = ${ins.topDist.share.toFixed(0)}% of revenue — channel concentration limiting growth.`));
+      if (ins.worstMonth && ins.worstMonth.ach < 85) whyItems.push(item('#b91c1c', `<strong>${ins.worstMonth.month}</strong> at ${ins.worstMonth.ach.toFixed(0)}% — possible seasonality or field disruption.`));
+      const whyHtml = whyItems.join('') || item('#94a3b8', 'Insufficient variation for root cause detection at this filter level.');
+
+      const oppItems = [];
+      ins.overBrands.slice(0,3).forEach(b => oppItems.push(item('#15803d', `<strong>${b.name}</strong> at ${b.ach.toFixed(0)}% — replicate promotion model across at-risk lines.`)));
+      if (ins.repsBelow80 > 30) oppItems.push(item('#15803d', `Targeted coaching for ${ins.repsBelow80} underperforming reps could unlock EGP ${formatM(ins.totalTgt*0.05)}+ incremental.`));
+      const oppHtml = oppItems.join('') || item('#94a3b8', 'No significant opportunities at this filter level.');
+
+      const riskItems = [];
+      ins.atRiskBrands.slice(0,3).forEach(b => riskItems.push(item('#b91c1c', `<strong>${b.name}</strong> — ${b.ach.toFixed(0)}%, EGP ${formatM(Math.abs(b.gap))} below trajectory.`)));
+      if (ins.topDist.share > 45) riskItems.push(item('#b91c1c', `Single-distributor dependency: <strong>${ins.topDist.name}</strong> = ${ins.topDist.share.toFixed(0)}% of all revenue.`));
+      if (ins.repsBelow80 / ins.repsTotal > 0.3) riskItems.push(item('#b91c1c', `<strong>${((ins.repsBelow80/ins.repsTotal)*100).toFixed(0)}% of reps below 80%</strong> — systemic, not isolated.`));
+      const riskHtml = riskItems.join('') || item('#94a3b8', 'No critical risks at this filter level.');
+
+      const actions = [];
+      ins.atRiskBrands.slice(0,2).forEach(b => actions.push(`Commercial review: <strong>${b.name}</strong> ${b.ach.toFixed(0)}% ach, EGP ${formatM(Math.abs(b.gap))} gap — escalate to BU Head.`));
+      if (ins.repsBelow80 > 0) actions.push(`DM reviews for <strong>${ins.repsBelow80} reps < 80%</strong> — coaching vs. territory structure audit.`);
+      if (ins.worstMonth) actions.push(`Root cause: <strong>${ins.worstMonth.month}</strong> collapse — brick/rep/DM pattern analysis.`);
+      if (ins.overBrands.length) actions.push(`Scale <strong>${ins.overBrands[0].name}</strong> success model — proven demand signal.`);
+      if (ins.topDist.share > 45) actions.push(`Distributor diversification — reduce <strong>${ins.topDist.name}</strong> dependency below 40%.`);
+      const actHtml = actions.map((a,i) =>
+        `<div class="sc-action-item"><span class="sc-action-num">${i+1}</span><span>${a}</span></div>`
+      ).join('');
+
       return `
-        <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Advanced Predictive Forecast (Next 3 Months)</h3>
-            <div style="height:240px; position:relative;"><canvas id="chart-advanced-forecast"></canvas></div>
+        <div style="background:linear-gradient(135deg,#0f4c81 0%,#1e40af 100%);border-radius:14px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;gap:16px;">
+          <div style="font-size:28px;">🧠</div>
+          <div>
+            <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:-0.01em;">AI Executive Briefing</div>
+            <div style="font-size:11px;color:#93c5fd;margin-top:3px;">Auto-generated · ${nMonths} months · ${ins.repsTotal} reps · ${new Date().toLocaleTimeString()}</div>
           </div>
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Representative Anomaly Warnings</h3>
-            <div style="max-height:220px; overflow-y:auto; font-size:11px;">
-              <div style="padding:10px; background:#fef2f2; border-left:4px solid #dc2626; border-radius:6px; margin-bottom:8px; color:#0f172a;">
-                <strong>Outlier Triggered:</strong> Rep Amr Giza exceeds +2.5 standard deviations in monthly returns volume.
-              </div>
-              <div style="padding:10px; background:#fffbeb; border-left:4px solid #f59e0b; border-radius:6px; margin-bottom:8px; color:#0f172a;">
-                <strong>Warning Triggered:</strong> Delta Rep 3 is under -1.8 standard deviations on target achievement.
-              </div>
-            </div>
+          <div style="margin-left:auto;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:10px 16px;text-align:center;">
+            <div style="font-size:10px;color:#bfdbfe;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Health Score</div>
+            <div style="font-size:26px;font-weight:900;color:#fff;line-height:1.1;">${ins.healthScore}</div>
+            <div style="font-size:10px;font-weight:700;color:${ins.healthScore>=80?'#86efac':ins.healthScore>=60?'#fde68a':'#fca5a5'};">${ins.healthLabel}</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div class="sc-brief-panel sc-brief-blue">
+            <div class="sc-brief-heading">📊 What Happened</div>
+            ${whatHtml}
+          </div>
+          <div class="sc-brief-panel sc-brief-red">
+            <div class="sc-brief-heading">🔍 Why It Happened</div>
+            ${whyHtml}
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+          <div class="sc-brief-panel sc-brief-green">
+            <div class="sc-brief-heading">🚀 Opportunities</div>
+            ${oppHtml}
+          </div>
+          <div class="sc-brief-panel sc-brief-red">
+            <div class="sc-brief-heading">⚠ Risks</div>
+            ${riskHtml}
+          </div>
+          <div class="sc-brief-panel sc-brief-blue">
+            <div class="sc-brief-heading">⚡ Priority Actions</div>
+            ${actHtml}
           </div>
         </div>
       `;
     }
-
     return "";
   }
 
@@ -1439,6 +1793,47 @@
 
   // Render sub-page Chart.js instances
   function renderPageCharts(res) {
+    if (STATE.subTab === "line") {
+      const ctxLineAch = document.getElementById("chart-line-ach");
+      if (ctxLineAch) {
+        const lines = cache.lookups.lines || [];
+        const lineEntries = Object.entries(res.lineData)
+          .map(([idx, d]) => ({
+            name: (lines[idx] || "Unknown"),
+            ach: d.tgtVal > 0 ? (d.val / d.tgtVal) * 100 : 0,
+            val: d.val, tgt: d.tgtVal
+          }))
+          .filter(l => l.val > 0 || l.tgt > 0)
+          .sort((a, b) => b.ach - a.ach);
+        const colors = lineEntries.map(l =>
+          l.ach >= 100 ? "#15803d" : l.ach >= 85 ? "#b45309" : "#b91c1c"
+        );
+        const chart = new Chart(ctxLineAch, {
+          type: "bar",
+          data: {
+            labels: lineEntries.map(l => l.name),
+            datasets: [{ label: "Ach %", data: lineEntries.map(l => l.ach), backgroundColor: colors, borderRadius: 5, borderSkipped: false }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: (ctx) => {
+                const l = lineEntries[ctx.dataIndex];
+                return [` Ach: ${ctx.parsed.x.toFixed(1)}%`, ` Actual: EGP ${(l.val/1e6).toFixed(2)}M`, ` Target: EGP ${(l.tgt/1e6).toFixed(2)}M`];
+              }}}
+            },
+            scales: {
+              x: { grid: { color: "#f1f5f9" }, ticks: { color: "#64748b", font:{size:10}, callback: v => v+"%" }, title:{display:true,text:"Achievement %",color:"#94a3b8",font:{size:10}} },
+              y: { ticks: { color: "#334155", font:{size:10,weight:"600"} }, grid: { display:false } }
+            }
+          }
+        });
+        currentChartInstances.push(chart);
+      }
+    }
+
     if (STATE.subTab === "executive") {
       const ctxMonthly = document.getElementById("chart-exec-monthly");
       if (ctxMonthly) {

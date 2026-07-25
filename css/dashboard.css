@@ -2926,3 +2926,63 @@ body {
   .sc-intel-grid     { grid-template-columns: 1fr; }
   .sc-signal-grid    { grid-template-columns: 1fr; }
 }
+
+/* =============================================================================
+   AI EXECUTIVE BRIEFING + LINE P&L — Phase 2 components
+   ============================================================================= */
+
+/* ── Briefing panels ── */
+.sc-brief-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.sc-brief-blue  { border-top: 3px solid #0f4c81; }
+.sc-brief-red   { border-top: 3px solid #b91c1c; }
+.sc-brief-green { border-top: 3px solid #15803d; }
+.sc-brief-amber { border-top: 3px solid #b45309; }
+
+.sc-brief-heading {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #0f172a;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.sc-brief-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #334155;
+  margin-bottom: 8px;
+}
+.sc-brief-muted { color: #94a3b8; font-style: italic; }
+
+.sc-brief-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+/* ── Line P&L specific ── */
+.sc-line-bar-wrap {
+  height: 5px;
+  background: #f1f5f9;
+  border-radius: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+.sc-line-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
