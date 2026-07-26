@@ -11,6 +11,381 @@ var TARGETS_2026 = window.IQVIA_CACHE.targets;
 var ZETA_USERS = window.IQVIA_CACHE.users;
 
 // --- Original IQVIA Dashboard JavaScript Logic ---
+
+// The block below (CORE STATE through SORT TABLE) was missing entirely from
+// this file — dropped during the original "Option B migration" extraction
+// from the standalone iqvia_dashboard.html into this module. Every render
+// function in this file depends on STATE, flat, the column-index consts,
+// the aggregation helpers, and the chart-factory wrappers defined here, so
+// its absence produced "STATE is not defined" / "loadData is not defined"
+// the moment the IQVIA tab was opened. Restored verbatim from the source
+// standalone dashboard (D:\2026\iqvia\iqvia_dashboard.html, lines ~1490-1856)
+// with no logic changes — this is a restoration, not a rewrite.
+
+// ===================== CORE STATE =====================
+let flat = null;
+const STATE = {
+  metric: 'lcv', // 'lcv' or 'su' toggle
+  section: 'executive',
+  timeRange: 'mat',
+  fCorp: -1, fDm1: -1, fDm1Sel: new Set(), fAtc4: -1, fDm2: -1, fProd: -1,
+  fCorpSel: new Set(), fAtc4Sel: new Set(), fDm2Sel: new Set(),
+  fBUIdx: -1,  fBuSel: new Set(),
+  fLineIdx: -1, fLineSel: new Set(),
+  fRefMonth: null,  // period index used as reference end-month (null = latest)
+  cgCorpSel: new Set(), // LOCAL to Corp Growth Drivers page — never touches global filters
+  darkMode: true,
+  rendered: new Set()
+};
+
+// ===================== DATA LOADER =====================
+function loadData() {
+  try {
+    const binary = pako.inflate(Uint8Array.from(atob(B64_DATA), c => c.charCodeAt(0)));
+    const text = new TextDecoder().decode(binary);
+    flat = JSON.parse(text);
+    applyUserFilter();
+    buildCascadeIndex();
+    initApp();
+  } catch(e) {
+    console.error('Load error:', e);
+    const exec = document.getElementById('s-executive');
+    if(exec) exec.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;flex-direction:column;gap:12px;color:var(--acc3)"><div style="font-size:32px">⚠️</div><div style="font-size:14px;font-weight:600">Error: ' + e.message + '</div><pre style="font-size:9px;color:#ff9f45;text-align:left;max-width:95%;overflow:auto;margin-top:8px;padding:6px;background:rgba(0,0,0,.4);border-radius:4px">' + (e.stack||'no stack').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre></div>';
+  }
+}
+
+// Column indices in flat array (each row = 8 values)
+const CI=0,PI=1,TI=2,AI=3,D1I=4,D2I=5,LI=6,SI=7,LINEI=8,BUCI=9;
+
+// ===================== PERIOD UTILS =====================
+const P = LOOKUPS.periods;
+const NP = P.length;
+const latestP = P[NP-1];
+const latestY = parseInt(latestP.slice(0,4));
+const latestM = parseInt(latestP.slice(5,7));
+
+function getPeriodIndices(range) {
+  const ref  = (STATE && STATE.fRefMonth != null) ? STATE.fRefMonth : NP-1;
+  const refP = P[ref];
+  const refY = parseInt(refP.slice(0,4));
+  const refM = parseInt(refP.slice(5,7));
+  const all  = Array.from({length:NP}, (_,i) => i);
+  if(range === 'all')  return new Set(all.filter(i=>i<=ref));
+  if(range === 'curr') return new Set([ref]);
+  if(range === 'mat')  return new Set(all.filter(i=>i<=ref && i>ref-12));
+  if(range === 'ytd')  return new Set(all.filter(i=>parseInt(P[i].slice(0,4))===refY && parseInt(P[i].slice(5,7))<=refM));
+  if(range === '3m')   return new Set(all.filter(i=>i<=ref && i>ref-3));
+  if(range === '6m')   return new Set(all.filter(i=>i<=ref && i>ref-6));
+  return new Set(all.filter(i=>i<=ref));
+}
+
+function getPrevPeriodIndices(range) {
+  const ref  = (STATE && STATE.fRefMonth != null) ? STATE.fRefMonth : NP-1;
+  const refP = P[ref];
+  const refY = parseInt(refP.slice(0,4));
+  const refM = parseInt(refP.slice(5,7));
+  const all  = Array.from({length:NP}, (_,i) => i);
+  if(range === 'curr') return new Set([Math.max(0,ref-1)]);
+  if(range === 'mat')  return new Set(all.filter(i=>i<=ref-12 && i>ref-24));
+  if(range === 'ytd') {
+    const py=refY-1;
+    return new Set(all.filter(i=>parseInt(P[i].slice(0,4))===py && parseInt(P[i].slice(5,7))<=refM));
+  }
+  if(range === '3m') return new Set(all.filter(i=>i<=ref-3  && i>ref-6));
+  if(range === '6m') return new Set(all.filter(i=>i<=ref-6  && i>ref-12));
+  return new Set(all.filter(i=>i<ref-12));
+}
+
+// ===================== AGGREGATION ENGINE =====================
+function buildFilter() {
+  const tidxs = getPeriodIndices(STATE.timeRange);
+  return function(c,p,t,a,d1,d2) {
+    if(!tidxs.has(t)) return false;
+    if(STATE.fCorpSel?.size > 0 && !STATE.fCorpSel.has(c)) return false;
+    if(STATE.fDm1Sel?.size  > 0 && !STATE.fDm1Sel.has(d1)) return false;
+    if(STATE.fAtc4Sel?.size > 0 && !STATE.fAtc4Sel.has(a)) return false;
+    if(STATE.fDm2Sel?.size  > 0 && !STATE.fDm2Sel.has(d2)) return false;
+    if(STATE.fProd >= 0 && p !== STATE.fProd) return false;
+    return true;
+  };
+}
+
+function aggBy(dimIdx, filterFn, extraPeriodSet) {
+  // Returns Map: dim_idx -> {lcv, su}
+  const m = new Map();
+  const N = flat.length;
+  const pidxs = extraPeriodSet || getPeriodIndices(STATE.timeRange);
+  for(let i=0;i<N;i+=10) {
+    const c=flat[i],p=flat[i+1],t=flat[i+2],a=flat[i+3],d1=flat[i+4],d2=flat[i+5];
+    const ln=flat[i+LINEI],bu=flat[i+BUCI];
+    if(!pidxs.has(t)) continue;
+    if(filterFn && !filterFn(c,p,t,a,d1,d2,ln,bu)) continue;
+    const key = flat[i+dimIdx];
+    const lcv = flat[i+6], su = flat[i+7];
+    if(!m.has(key)) m.set(key,{lcv:0,su:0});
+    const v = m.get(key); v.lcv+=lcv; v.su+=su;
+  }
+  return m;
+}
+// ── Metric value helper — MV(o) returns o.lcv or o.su depending on STATE.metric
+function MV(o) { return o ? (o[STATE.metric] || 0) : 0; }
+function fmtMetricLabel() { return STATE.metric === 'lcv' ? 'LCV (EGP)' : 'Standard Units'; }
+
+// ── Dimension-only filter (period handled by aggBy's extraPeriodSet) ──────────
+function dimFilter() {
+  const noFilter = !(STATE.fCorpSel?.size > 0) && !(STATE.fDm1Sel?.size > 0) &&
+                   !(STATE.fAtc4Sel?.size > 0) && !(STATE.fDm2Sel?.size > 0) &&
+                   STATE.fProd < 0 && !(STATE.fBuSel?.size > 0) && !(STATE.fLineSel?.size > 0);
+  if(noFilter) return null;
+  return (c,p,t,a,d1,d2,ln,bu) => {
+    if(STATE.fCorpSel?.size > 0 && !STATE.fCorpSel.has(c)) return false;
+    if(STATE.fDm1Sel?.size  > 0 && !STATE.fDm1Sel.has(d1)) return false;
+    if(STATE.fAtc4Sel?.size > 0 && !STATE.fAtc4Sel.has(a)) return false;
+    if(STATE.fDm2Sel?.size  > 0 && !STATE.fDm2Sel.has(d2)) return false;
+    if(STATE.fProd >= 0 && p !== STATE.fProd) return false;
+    if(STATE.fLineSel?.size > 0 && !STATE.fLineSel.has(ln)) return false;
+    if(STATE.fBuSel?.size   > 0 && !STATE.fBuSel.has(bu)) return false;
+    return true;
+  };
+}
+
+// ── Metric toggle ─────────────────────────────────────────────────────────────
+function setMetric(m) {
+  STATE.metric = m;
+  const bl = document.getElementById('btn-lcv'), bs = document.getElementById('btn-su');
+  if(bl) { bl.className = 'tb-btn' + (m==='lcv' ? ' tb-btn-active' : ''); }
+  if(bs) { bs.className = 'tb-btn' + (m==='su'  ? ' tb-btn-active' : ''); }
+  STATE.rendered.clear();
+  renderSection(STATE.section);
+}
+
+
+
+function aggByPeriod(dimIdx, dimVal, extraFilter) {
+  // Returns Map: period_idx -> {lcv, su}
+  const m = new Map();
+  const N = flat.length;
+  for(let i=0;i<N;i+=10) {
+    const c=flat[i],p=flat[i+1],t=flat[i+2],a=flat[i+3],d1=flat[i+4],d2=flat[i+5];
+    if(flat[i+dimIdx] !== dimVal) continue;
+    if(extraFilter && !extraFilter(c,p,t,a,d1,d2)) continue;
+    if(!m.has(t)) m.set(t,{lcv:0,su:0});
+    const v=m.get(t); v.lcv+=flat[i+6]; v.su+=flat[i+7];
+  }
+  return m;
+}
+
+function aggTotalByPeriod(filterFn) {
+  const m = new Map();
+  const N = flat.length;
+  for(let i=0;i<N;i+=10) {
+    const c=flat[i],p=flat[i+1],t=flat[i+2],a=flat[i+3],d1=flat[i+4],d2=flat[i+5];
+    if(filterFn && !filterFn(c,p,t,a,d1,d2,flat[i+LINEI],flat[i+BUCI])) continue;
+    if(!m.has(t)) m.set(t,{lcv:0,su:0});
+    const v=m.get(t); v.lcv+=flat[i+6]; v.su+=flat[i+7];
+  }
+  return m;
+}
+
+function getRelationships(filterFn) {
+  // Maps: prodToCorps, prodToAtc4, prodToDm1, prodToDm2, corpToProds
+  const prodCorps=new Map(), prodAtc4=new Map(), prodDm1=new Map(), prodDm2=new Map(), corpProds=new Map();
+  const N=flat.length;
+  const pidxs = getPeriodIndices(STATE.timeRange);
+  for(let i=0;i<N;i+=10) {
+    const c=flat[i],p=flat[i+1],t=flat[i+2],a=flat[i+3],d1=flat[i+4],d2=flat[i+5];
+    const ln=flat[i+LINEI],bu=flat[i+BUCI];
+    if(!pidxs.has(t)) continue;
+    if(filterFn && !filterFn(c,p,t,a,d1,d2,ln,bu)) continue;
+    prodAtc4.set(p,a); prodDm1.set(p,d1); prodDm2.set(p,d2);
+    if(!corpProds.has(c)) corpProds.set(c,new Set());
+    corpProds.get(c).add(p);
+  }
+  return {prodAtc4,prodDm1,prodDm2,corpProds};
+}
+
+// ===================== FORMATTING =====================
+const EGP_SCALE = 1e9;
+function refPeriodLabel() {
+  const ref = (STATE && STATE.fRefMonth != null) ? STATE.fRefMonth : NP - 1;
+  return LOOKUPS.periods[ref] || '';
+}
+
+function fmtLCV(v) {
+  if(v >= 1e9) return (v/1e9).toFixed(2) + 'B';
+  if(v >= 1e6) return (v/1e6).toFixed(1) + 'M';
+  if(v >= 1e3) return (v/1e3).toFixed(0) + 'K';
+  return v.toFixed(0);
+}
+function fmtSU(v) {
+  if(v >= 1e9) return (v/1e9).toFixed(2) + 'B SU';
+  if(v >= 1e6) return (v/1e6).toFixed(1) + 'M SU';
+  if(v >= 1e3) return (v/1e3).toFixed(0) + 'K SU';
+  return v.toFixed(0) + ' SU';
+}
+function fmtPct(v) { return (v*100).toFixed(1) + '%'; }
+function fmtGrowth(v) {
+  if(!isFinite(v) || isNaN(v)) return '<span class="badge badge-neutral">N/A</span>';
+  const pct = (v*100).toFixed(1);
+  const cls = v > 0 ? 'badge-up' : (v < 0 ? 'badge-down' : 'badge-neutral');
+  const sign = v > 0 ? '+' : '';
+  return `<span class="badge ${cls}">${sign}${pct}%</span>`;
+}
+function fmtGrowthTxt(v) {
+  if(!isFinite(v)||isNaN(v)) return 'N/A';
+  return (v>0?'+':'') + (v*100).toFixed(1) + '%';
+}
+function growth(cur, prev) {
+  if(!prev || prev === 0) return cur > 0 ? Infinity : 0;
+  return (cur - prev) / prev;
+}
+
+// ===================== CHART FACTORY =====================
+const COLORS = ['#4c6ef5','#36c994','#ff5c6b','#ff9f45','#9775fa','#20c4f4','#f4d344','#cc5de8','#74c69d','#f76707','#3d85c8','#e06666','#ffd966','#8e7cc3','#a61c00'];
+const charts = {};
+
+function destroyChart(id) {
+  if(charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function lineChart(canvasId, labels, datasets, opts={}) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if(!ctx) return;
+  charts[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: datasets.map((d,i) => ({
+      label: d.label,
+      data: d.data,
+      borderColor: d.color || COLORS[i%COLORS.length],
+      backgroundColor: (d.color || COLORS[i%COLORS.length]) + '18',
+      fill: d.fill ?? false,
+      tension: 0.4,
+      pointRadius: labels.length > 24 ? 2 : 3,
+      pointHoverRadius: 5,
+      borderWidth: 2,
+      borderDash: d.dashed ? [5,4] : []
+    }))  },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--txt2'), font: {size:11} } }, tooltip: { mode:'index', intersect:false } },
+      scales: {
+        x: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--txt3'), maxRotation:45, font:{size:10} }, grid: { color: 'rgba(255,255,255,.04)' } },
+        y: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--txt3'), font:{size:10}, callback: v => fmtLCV(v) }, grid: { color: 'rgba(255,255,255,.04)' } }
+      },
+      ...opts
+    }
+  });
+}
+
+function barChart(canvasId, labels, datasets, opts={}) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if(!ctx) return;
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: datasets.map((d,i) => ({
+      label: d.label,
+      data: d.data,
+      backgroundColor: d.colors || (d.color || COLORS[i%COLORS.length]) + 'cc',
+      borderColor: d.color || COLORS[i%COLORS.length],
+      borderWidth: 1,
+      borderRadius: 4
+    })) },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: datasets.length > 1, labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--txt2'), font:{size:11} } }, tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + fmtLCV(ctx.raw) } } },
+      scales: {
+        x: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--txt3'), font:{size:10}, maxRotation:35 }, grid: { display:false } },
+        y: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--txt3'), font:{size:10}, callback: v => fmtLCV(v) }, grid: { color:'rgba(255,255,255,.04)' } }
+      },
+      ...opts
+    }
+  });
+}
+
+function hBarChart(canvasId, labels, data, colors, opts={}) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if(!ctx) return;
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: colors || COLORS.slice(0,labels.length).map(c=>c+'cc'), borderRadius:4 }] },
+    options: {
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ' ' + (opts._pct ? ctx.raw.toFixed(1)+'%' : fmtLCV(ctx.raw)) } } },
+      scales: {
+        x: { ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--txt3'),font:{size:10},callback:v=>fmtLCV(v) }, grid:{ color:'rgba(255,255,255,.04)' } },
+        y: { ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--txt2'),font:{size:11} }, grid:{ display:false } }
+      },
+      ...opts
+    }
+  });
+}
+
+function donutChart(canvasId, labels, data, opts={}) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if(!ctx) return;
+  charts[canvasId] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: COLORS.slice(0,labels.length), borderColor:'transparent', hoverBorderColor:'transparent' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout:'62%',
+      plugins: { legend: { position:'right', labels:{ color:getComputedStyle(document.documentElement).getPropertyValue('--txt2'),font:{size:10},padding:8 } } },
+      ...opts
+    }
+  });
+}
+
+function scatterChart(canvasId, datasets, opts={}) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if(!ctx) return;
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bubble',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{ labels:{ color:getComputedStyle(document.documentElement).getPropertyValue('--txt2'),font:{size:10} } } },
+      scales: {
+        x: { title:{ display:true, text:'Relative Market Share', color:getComputedStyle(document.documentElement).getPropertyValue('--txt2') }, ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--txt3') }, grid:{ color:'rgba(255,255,255,.04)' } },
+        y: { title:{ display:true, text:'Market Growth %', color:getComputedStyle(document.documentElement).getPropertyValue('--txt2') }, ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--txt3'),callback:v=>v+'%' }, grid:{ color:'rgba(255,255,255,.04)' } }
+      },
+      ...opts
+    }
+  });
+}
+
+// ===================== SORT TABLE =====================
+function sortTable(tbodyId, colIdx, asc) {
+  const tbody = document.getElementById(tbodyId);
+  if(!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a,b) => {
+    let va = a.cells[colIdx]?.textContent.replace(/[^0-9.\-+]/g,'') || '0';
+    let vb = b.cells[colIdx]?.textContent.replace(/[^0-9.\-+]/g,'') || '0';
+    va = parseFloat(va)||0; vb = parseFloat(vb)||0;
+    return asc ? va-vb : vb-va;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+function makeSortable(tableId) {
+  const tbl = document.getElementById(tableId);
+  if(!tbl) return;
+  tbl.querySelectorAll('th').forEach((th,i) => {
+    if(i===0) return;
+    let asc = false;
+    th.addEventListener('click', () => {
+      tbl.querySelectorAll('th').forEach(h => h.className = '');
+      asc = !asc;
+      th.className = asc ? 'sorted-asc' : 'sorted-desc';
+      sortTable(tableId+'-body', i, asc);
+    });
+  });
+}
+
 // ===================== SECTION: EXECUTIVE COMMAND CENTER =====================
 var TARGETS_2026 = [
   {bu:'CHC',line:'CHC',prod:'DOZOVA A KSM66',dm1:'ONLY_DOZOVA_ASHW',tgtDm1:null,dm2:'ONLY_DOZOVA_ASHW',tgtDm2:null},
@@ -3227,8 +3602,14 @@ function doLogout(){
   location.reload();
 }
 
+// Guarded: this file is loaded once for the whole shell (Coverage/Organogram/
+// Sales/IQVIA), so 'iqvia-zeta-login' only exists in the DOM while the IQVIA
+// workspace is the active tab. Without the null check this threw on every
+// keydown anywhere in the app (search boxes, filters, etc. on every other tab).
 document.addEventListener('keydown',function(e){
-  if(e.key==='Enter'&&!document.getElementById('iqvia-zeta-login').classList.contains('hidden'))doLogin();
+  if(e.key!=='Enter') return;
+  var loginEl = document.getElementById('iqvia-zeta-login');
+  if(loginEl && !loginEl.classList.contains('hidden')) doLogin();
 });
 
 function checkSession(){
@@ -7556,9 +7937,20 @@ function concToggle(id) {
 
 function toggleTheme() {
   STATE.darkMode = !STATE.darkMode;
-  document.documentElement.setAttribute('data-theme', STATE.darkMode ? 'dark' : 'light');
+  // css/iqvia.css was namespaced during platform integration so its light-mode
+  // override selector is now `.iqvia-dashboard-wrap[data-theme="light"]` — the
+  // attribute must live on the SAME element as that class, not on <html>.
+  // Setting it on document.documentElement (as the standalone dashboard did,
+  // where .iqvia-dashboard-wrap didn't exist and :root/html WAS the page)
+  // never matched here, so the toggle silently did nothing.
+  var wrap = document.querySelector('.iqvia-dashboard-wrap');
+  if(wrap) wrap.setAttribute('data-theme', STATE.darkMode ? 'dark' : 'light');
+  // Icon swap: the button starts as the ☀ glyph hardcoded in IQVIA_APP_STRUCTURE
+  // (dark mode active -> click for light/day). It must swap to a matching
+  // monochrome moon glyph (-> click for dark/night), not the literal words
+  // "Sun"/"Moon", which replaced the icon with plain text.
   var btn = document.querySelector('button[onclick="toggleTheme()"]');
-  if(btn) btn.textContent = STATE.darkMode ? 'Sun' : 'Moon';
+  if(btn) btn.textContent = STATE.darkMode ? '☀' : '☾';
 }
 
 function exportCSV() {
@@ -7957,38 +8349,23 @@ function fetchNotifications() {
     .catch(function(){ /* silent fail */ });
 }
 
-// ===================== BOOTSTRAP =====================
-// On page load: resume valid session OR show login screen
-(function(){
-  try {
-    var s = JSON.parse(localStorage.getItem('zeta_session') || 'null');
-    if(s && s.expires > Date.now()) {
-      var u = ZETA_USERS[s.email];
-      if(u) {
-        CURRENT_USER = u;
-        var loginEl = document.getElementById('iqvia-zeta-login');
-        if(loginEl) loginEl.classList.add('hidden');
-        var badgeName = document.getElementById('iqvia-badge-name');
-        var badgeRole = document.getElementById('iqvia-badge-role');
-        var userBadge = document.getElementById('iqvia-user-badge');
-        if(badgeName) badgeName.textContent = u.name;
-        if(badgeRole) badgeRole.textContent = u.role;
-        if(userBadge) userBadge.style.display = 'flex';
-        startDashboard();
-        fetchNotifications();
-        return;
-      }
-    }
-  } catch(e) {}
-  // No valid session — login screen is visible by default (no class needed)
-})();
-
 // --- Dynamic Module Controller ---
+// Session resume used to be a top-level BOOTSTRAP IIFE that ran the instant
+// this script was evaluated -- i.e. on every dashboard.html load, regardless
+// of which tab was active, and before the IQVIA DOM (login card, badges) was
+// ever injected. That only avoided throwing because every element lookup was
+// null-guarded; it also meant a resumed session never actually called
+// startDashboard()/fetchNotifications() in the embedded shell, since the
+// standalone-page BOOTSTRAP and this init() were two separate, divergent
+// code paths. Consolidated here: session resume only runs after init()
+// injects the real DOM, and now mirrors doLogin()'s post-auth behavior
+// (checkSession() + startDashboard() + fetchNotifications()) instead of
+// silently leaving the dashboard content unloaded after a resumed session.
 window.IQVIADashboard = {
   init(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
-    
+
     // Hide filters for Coverage dashboard
     const fb = document.getElementById('filter-bar');
     if (fb) fb.style.display = 'none';
@@ -8000,10 +8377,14 @@ window.IQVIADashboard = {
         ${IQVIA_APP_STRUCTURE}
       </div>
     `;
-    
-    // Start session check
+
+    // Resume a valid session (same as a fresh login's post-auth steps), or
+    // leave the login screen showing by default if there isn't one.
     setTimeout(() => {
-      checkSession();
+      if (checkSession()) {
+        startDashboard();
+        fetchNotifications();
+      }
     }, 50);
   },
   destroy() {

@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zeta Commercial Excellence Dashboard</title>
   <link rel="stylesheet" href="css/dashboard.css?v=20260723" />
+  <!-- Fully scoped under .iqvia-dashboard-wrap (namespaced 2026-07-26) — safe to load
+       on every tab; cannot leak into Coverage/Organogram/Sales styling. -->
+  <link rel="stylesheet" href="css/iqvia.css?v=20260726_namespaced" />
 </head>
 <body>
 
@@ -37,6 +40,10 @@
         <li class="menu-item" data-tab="sales">
           <span class="menu-icon">💰</span>
           <span class="menu-label">Sales Performance</span>
+        </li>
+        <li class="menu-item" data-tab="iqvia">
+          <span class="menu-icon">🌍</span>
+          <span class="menu-label">Market Intelligence</span>
         </li>
       </ul>
     </nav>
@@ -83,6 +90,7 @@
        js/sales.js checks this schema and shows a pending-refresh placeholder if the cache on disk is still the
        pre-fix version -- safe to deploy this script tag even before the cache file itself is regenerated. -->
   <script src="cache/sales.data.js?v=20260726_hierarchyfix"></script>
+  <script src="cache/iqvia.data.js?v=20260726_platformintegration"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script src="js/config.js?v=20260725_v2"></script>
@@ -99,6 +107,10 @@
   <script src="js/exporter.js?v=20260724"></script>
   <script src="js/sfe.js?v=20260724"></script>
   <script src="js/sales.js?v=20260726_hierarchyfix"></script>
+  <!-- v20260726_platformintegration = auto-bootstrap consolidated into IQVIADashboard.init()
+       (was a top-level IIFE + an unguarded document-wide keydown listener that threw on
+       every keystroke on every other tab) -- see js/iqvia.js comments near IQVIADashboard. -->
+  <script src="js/iqvia.js?v=20260726_platformintegration"></script>
 
   <script src="js/app.js?v=20260725_v2"></script>
 
