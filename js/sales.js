@@ -8,7 +8,11 @@
  */
 
 (function () {
-  const MONTH = 0, LINE = 1, BRAND = 2, PROD = 3, REP = 4, DM = 5, AM = 6, RM = 7, NSM = 8, BU = 9, REG = 10, BRICK = 11, DIST = 12;
+  // Enterprise hierarchy taxonomy (validated against cache/organogram.json):
+  // REP -> DM -> RM (Regional Manager) -> NSM -> BUHEAD (Business Unit Head) -> CM (Commercial Manager).
+  // CM is captured in the cache (lookups.cms) but deliberately has no filter dropdown below —
+  // single company-wide value, no analytical slicing power.
+  const MONTH = 0, LINE = 1, BRAND = 2, PROD = 3, REP = 4, DM = 5, RM = 6, NSM = 7, BUHEAD = 8, CM = 9, REG = 10, BRICK = 11, DIST = 12;
   const CHAIN = 13, MTYPE = 14, STYPE = 15, TXTYPE = 16, MASK = 17;
   const QTY = 18, VAL = 19, TGT_QTY = 20, TGT_VAL = 21, TRANS_QTY = 22, BULK_QTY = 23, NAT_CEIL = 24, REG_CEIL = 25, CUST_COUNT = 26;
 
@@ -19,10 +23,10 @@
     [PROD]: 'products',
     [REP]: 'reps',
     [DM]: 'dms',
-    [AM]: 'ams',
     [RM]: 'rms',
     [NSM]: 'nsms',
-    [BU]: 'buheads',
+    [BUHEAD]: 'buheads',
+    [CM]: 'cms',
     [REG]: 'regions',
     [BRICK]: 'bricks',
     [DIST]: 'distributors',
@@ -35,6 +39,24 @@
   let cache = null;
   let decodedRows = [];
   let currentChartInstances = [];
+
+  // Bumped in refresh_sales.py whenever the row layout or lookups' key
+  // naming changes. Must match cache.meta.schemaVersion or this module
+  // refuses to render (see isCacheStale/renderCachePendingState below) --
+  // guards against ever reading an old cache with the corrected hierarchy
+  // naming and silently showing wrong BUHEAD/NSM/RM names.
+  const REQUIRED_SCHEMA_VERSION = 2;
+
+  // True if the loaded cache predates the hierarchy-naming fix (missing
+  // meta entirely, wrong/old schemaVersion, or missing the 'cms' lookup
+  // that v2 introduced for Emp6/Commercial Manager).
+  function isCacheStale() {
+    if (!cache) return true;
+    if (!cache.meta || typeof cache.meta.schemaVersion !== 'number') return true;
+    if (cache.meta.schemaVersion < REQUIRED_SCHEMA_VERSION) return true;
+    if (!cache.lookups || !Array.isArray(cache.lookups.cms)) return true;
+    return false;
+  }
 
   const STATE = {
     subTab: "executive",
@@ -49,7 +71,6 @@
     buhead: "all",
     nsm: "all",
     rm: "all",
-    am: "all",
     dm: "all",
     rep: "all",
     reg: "all",
@@ -85,6 +106,37 @@
     }
   }
 
+  // Shown instead of the dashboard when cache/sales.json predates the
+  // hierarchy-naming fix (see isCacheStale). Keeps the tab visible and
+  // navigable while making it unmistakable that nothing is broken --
+  // the corrected ETL just hasn't been run yet.
+  function renderCachePendingState() {
+    const root = document.getElementById("app-root");
+    if (!root) return;
+    root.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:center; min-height:calc(100vh - 140px); padding:24px;">
+        <div style="max-width:520px; text-align:center; background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:40px 36px; box-shadow:0 1px 3px rgba(15,23,42,0.06), 0 8px 24px rgba(15,23,42,0.04);">
+          <div style="width:56px; height:56px; margin:0 auto 20px; border-radius:14px; background:#eff6ff; display:flex; align-items:center; justify-content:center;">
+            <svg width="28" height="28" fill="none" stroke="#0f4c81" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 4v16h16M4 15l4-4 4 3 6-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:17px; font-weight:700; color:#0f172a; margin-bottom:8px;">Sales Performance — Cache Update Pending</div>
+          <div style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:20px;">
+            This tab's data cache predates the corrected commercial hierarchy
+            (BU Head &rarr; NSM &rarr; RM &rarr; DM &rarr; Rep). Run
+            <code style="background:#f1f5f9; padding:1px 6px; border-radius:4px; font-size:12px;">refresh_sales.py</code>
+            (or <code style="background:#f1f5f9; padding:1px 6px; border-radius:4px; font-size:12px;">refresh.bat</code>)
+            to regenerate <code style="background:#f1f5f9; padding:1px 6px; border-radius:4px; font-size:12px;">cache/sales.json</code> —
+            this page will render automatically the next time it loads, no further changes needed.
+          </div>
+          <div style="display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:20px; padding:5px 14px;">
+            <span style="width:6px; height:6px; border-radius:50%; background:#f59e0b; display:inline-block;"></span>
+            WAITING ON CACHE SCHEMA v${REQUIRED_SCHEMA_VERSION}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   // Check if row is allowed by global filters, with an optional field to ignore for dropdown cascading
   function isRowAllowed(r, ignoreKey = null) {
     const mask = r[MASK];
@@ -103,10 +155,11 @@
     }
     if (ignoreKey !== "brand" && STATE.brand !== "all" && !STATE.brand.includes(r[BRAND])) return false;
     if (ignoreKey !== "prod" && STATE.prod !== "all" && !STATE.prod.includes(r[PROD])) return false;
-    if (ignoreKey !== "buhead" && STATE.buhead !== "all" && !STATE.buhead.includes(r[BU])) return false;
+    // Note: CM (Emp6/Commercial Manager, r[CM]) is intentionally not filterable —
+    // single company-wide value, no analytical slicing power.
+    if (ignoreKey !== "buhead" && STATE.buhead !== "all" && !STATE.buhead.includes(r[BUHEAD])) return false;
     if (ignoreKey !== "nsm" && STATE.nsm !== "all" && !STATE.nsm.includes(r[NSM])) return false;
     if (ignoreKey !== "rm" && STATE.rm !== "all" && !STATE.rm.includes(r[RM])) return false;
-    if (ignoreKey !== "am" && STATE.am !== "all" && !STATE.am.includes(r[AM])) return false;
     if (ignoreKey !== "dm" && STATE.dm !== "all" && !STATE.dm.includes(r[DM])) return false;
     if (ignoreKey !== "rep" && STATE.rep !== "all" && !STATE.rep.includes(r[REP])) return false;
     if (ignoreKey !== "reg" && STATE.reg !== "all" && !STATE.reg.includes(r[REG])) return false;
@@ -192,10 +245,10 @@
       activeCusts: new Set(),
       activeReps: new Set(),
       activeDms: new Set(),
-      activeAms: new Set(),
       activeRms: new Set(),
       activeNsms: new Set(),
-      activeBus: new Set(),
+      activeBuheads: new Set(),
+      activeCms: new Set(),
       
       monthlyData: {},
       regionalData: {},
@@ -236,10 +289,10 @@
 
       if (r[REP] !== 0) res.activeReps.add(r[REP]);
       if (r[DM] !== 0) res.activeDms.add(r[DM]);
-      if (r[AM] !== 0) res.activeAms.add(r[AM]);
       if (r[RM] !== 0) res.activeRms.add(r[RM]);
       if (r[NSM] !== 0) res.activeNsms.add(r[NSM]);
-      if (r[BU] !== 0) res.activeBus.add(r[BU]);
+      if (r[BUHEAD] !== 0) res.activeBuheads.add(r[BUHEAD]);
+      if (r[CM] !== 0) res.activeCms.add(r[CM]);
 
       // Monthly aggregation
       const mIdx = r[MONTH];
@@ -294,8 +347,8 @@
       res.lineData[lnIdx].tgtVal += tval;
       res.lineData[lnIdx].tgtQty += tqty;
 
-      // Business Units
-      const buIdx = r[BU];
+      // Business Units (BU Head level)
+      const buIdx = r[BUHEAD];
       if (!res.buData[buIdx]) res.buData[buIdx] = { val: 0, qty: 0, tgtVal: 0 };
       res.buData[buIdx].val += val;
       res.buData[buIdx].qty += qty;
@@ -481,10 +534,10 @@
 
   // Cascade triggers: resetting child filters if parent changes
   function triggerFilterUpdate(key) {
-    if (key === "buhead") { STATE.nsm = "all"; STATE.rm = "all"; STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
-    if (key === "nsm") { STATE.rm = "all"; STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
-    if (key === "rm") { STATE.am = "all"; STATE.dm = "all"; STATE.rep = "all"; }
-    if (key === "am") { STATE.dm = "all"; STATE.rep = "all"; }
+    // Cascade: BUHEAD -> NSM -> RM -> DM -> REP. CM (Emp6) has no filter, so no cascade entry.
+    if (key === "buhead") { STATE.nsm = "all"; STATE.rm = "all"; STATE.dm = "all"; STATE.rep = "all"; }
+    if (key === "nsm") { STATE.rm = "all"; STATE.dm = "all"; STATE.rep = "all"; }
+    if (key === "rm") { STATE.dm = "all"; STATE.rep = "all"; }
     if (key === "dm") { STATE.rep = "all"; }
     if (key === "line") { STATE.brand = "all"; STATE.prod = "all"; }
     if (key === "brand") { STATE.prod = "all"; }
@@ -784,10 +837,10 @@
 
             <!-- Hierarchy Filters -->
             <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:8px;">Organization</div>
-            <div id="drop-bu" style="display:none;"></div>
+            <!-- CM (Emp6/Commercial Manager) intentionally has no filter control: single company-wide value -->
+            <div id="drop-buhead"></div>
             <div id="drop-nsm"></div>
             <div id="drop-rm"></div>
-            <div id="drop-am"></div>
             <div id="drop-dm"></div>
             <div id="drop-rep"></div>
 
@@ -898,9 +951,9 @@
     `;
 
     // Render dropdown inputs (5-level hierarchy mapping)
-    renderSearchableDropdown("drop-nsm", "BU HEAD", NSM, "nsm");
-    renderSearchableDropdown("drop-rm", "NSM", RM, "rm");
-    renderSearchableDropdown("drop-am", "RM (REGIONAL MANAGER)", AM, "am");
+    renderSearchableDropdown("drop-buhead", "BU HEAD", BUHEAD, "buhead");
+    renderSearchableDropdown("drop-nsm", "NSM", NSM, "nsm");
+    renderSearchableDropdown("drop-rm", "RM (REGIONAL MANAGER)", RM, "rm");
     renderSearchableDropdown("drop-dm", "DM (DISTRICT MANAGER)", DM, "dm");
     renderSearchableDropdown("drop-rep", "MEDICAL REP", REP, "rep");
     
@@ -931,10 +984,10 @@
     const activeEmpNames = new Set();
     if (res.activeReps) res.activeReps.forEach(idx => { const n = cache.lookups.reps[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
     if (res.activeDms) res.activeDms.forEach(idx => { const n = cache.lookups.dms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
-    if (res.activeAms) res.activeAms.forEach(idx => { const n = cache.lookups.ams[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
     if (res.activeRms) res.activeRms.forEach(idx => { const n = cache.lookups.rms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
     if (res.activeNsms) res.activeNsms.forEach(idx => { const n = cache.lookups.nsms[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
-    if (res.activeBus) res.activeBus.forEach(idx => { const n = cache.lookups.buheads[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    if (res.activeBuheads) res.activeBuheads.forEach(idx => { const n = cache.lookups.buheads[idx]; if (n && n !== "(none)") activeEmpNames.add(n); });
+    // CM (res.activeCms / cache.lookups.cms) intentionally excluded — not filterable, not shown in this panel.
 
     const activeEmpsCount = activeEmpNames.size || 1;
     const activeRepsCount = res.activeReps.size || 1;
@@ -1087,8 +1140,8 @@
           <div class="sc-intel-card">
             <div class="sc-intel-card-header">
               <div>
-                <div class="sc-intel-title">${STATE.dm !== 'all' ? 'Rep Contribution' : STATE.am !== 'all' ? 'DM Contribution' : STATE.nsm !== 'all' ? 'DM Contribution' : 'Line Contribution'}</div>
-                <div class="sc-intel-sub">${STATE.dm !== 'all' ? 'Reps under selected DM' : STATE.am !== 'all' ? 'DMs under selected AM' : STATE.nsm !== 'all' ? 'DMs under NSM' : 'Sales by Product Line'}</div>
+                <div class="sc-intel-title">${STATE.dm !== 'all' ? 'Rep Contribution' : STATE.rm !== 'all' ? 'DM Contribution' : STATE.nsm !== 'all' ? 'DM Contribution' : 'Line Contribution'}</div>
+                <div class="sc-intel-sub">${STATE.dm !== 'all' ? 'Reps under selected DM' : STATE.rm !== 'all' ? 'DMs under selected RM' : STATE.nsm !== 'all' ? 'DMs under NSM' : 'Sales by Product Line'}</div>
               </div>
             </div>
             <div style="height:200px; position:relative;"><canvas id="chart-exec-drilldown"></canvas></div>
@@ -2229,7 +2282,6 @@
       buhead: STATE.buhead,
       nsm: STATE.nsm,
       rm: STATE.rm,
-      am: STATE.am,
       dm: STATE.dm,
       rep: STATE.rep,
       reg: STATE.reg,
@@ -2281,7 +2333,6 @@
     STATE.buhead = "all";
     STATE.nsm = "all";
     STATE.rm = "all";
-    STATE.am = "all";
     STATE.dm = "all";
     STATE.rep = "all";
     STATE.reg = "all";
@@ -2409,8 +2460,17 @@
   // Register dashboard interface hook
   window.SalesDashboard = {
     init(containerId) {
-      document.body.classList.add('sales-mode');
       decompressCache();
+      if (isCacheStale()) {
+        // Old/missing cache: show the pending-refresh placeholder and stop.
+        // Deliberately skip 'sales-mode' body class + renderLayout() so no
+        // filter/chart wiring runs against data that doesn't match this
+        // version of the module.
+        console.warn('[Sales] cache is stale or missing (schemaVersion < ' + REQUIRED_SCHEMA_VERSION + '); showing pending-refresh placeholder.');
+        renderCachePendingState();
+        return;
+      }
+      document.body.classList.add('sales-mode');
       renderLayout();
     },
     destroy() {
