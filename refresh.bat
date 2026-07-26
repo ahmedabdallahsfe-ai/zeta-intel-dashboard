@@ -2,20 +2,18 @@
 setlocal enabledelayedexpansion
 REM ==========================================================================
 REM refresh.bat
-REM Double-click entry point for the Coverage Dashboard.
-REM   1) Runs refresh.py (reads the Excel workbook, validates, cleans,
-REM      aggregates, writes cache\*.json + cache\*.data.js)
-REM   2) On success, opens dashboard.html in Google Chrome
-REM      (or the default browser if Chrome isn't found)
-REM Never edit the dashboard by running dashboard.html directly after
-REM changing the workbook -- always refresh via this script first.
+REM Unified double-click entry point for the ZETA Commercial Excellence Dashboard.
+REM   1) Runs refresh.py (SFE & Coverage aggregation)
+REM   2) Runs refresh_iqvia.py (IQVIA Market Share aggregation)
+REM   3) Commits and pushes all data caches and code changes to GitHub Pages
+REM   4) Opens dashboard.html in Google Chrome
 REM ==========================================================================
 
 cd /d "%~dp0"
 
 echo.
 echo ============================================================
-echo   Coverage Dashboard - Refresh
+echo   Zeta Commercial Excellence Dashboard - Unified Refresh
 echo ============================================================
 echo.
 
@@ -37,36 +35,50 @@ if errorlevel 1 (
     set "PYTHON_CMD=python"
 )
 
-REM --- ensure dependencies are installed (fast no-op if already present) --
+REM --- ensure dependencies are installed ------------------------------------
 echo Checking dependencies...
 %PYTHON_CMD% -c "import pandas, openpyxl, python_calamine" >nul 2>nul
 if errorlevel 1 (
     echo Installing required packages from requirements.txt ...
     %PYTHON_CMD% -m pip install -r requirements.txt --quiet --disable-pip-version-check
     if errorlevel 1 (
-        echo [ERROR] Failed to install dependencies. Check your internet connection
-        echo and Python/pip installation, then try again.
+        echo [ERROR] Failed to install dependencies. Check your internet connection.
         pause
         exit /b 1
     )
 )
 
-REM --- run the ETL / aggregation pipeline ----------------------------------
-echo Reading workbook and rebuilding cache...
+REM --- run the SFE / Coverage Aggregation ----------------------------------
+echo Reading SFE ^& Coverage workbooks...
 echo.
 %PYTHON_CMD% refresh.py
 set "REFRESH_EXIT=%ERRORLEVEL%"
 
-echo.
 if not "%REFRESH_EXIT%"=="0" (
     echo ============================================================
-    echo   Refresh FAILED - see logs\refresh.log for details
+    echo   [ERROR] SFE Refresh FAILED - see logs\refresh.log
     echo ============================================================
     echo.
     pause
     exit /b 1
 )
 
+REM --- run the Sales Aggregation ------------------------------------------
+echo.
+echo Reading Sales workbook...
+%PYTHON_CMD% refresh_sales.py
+set "SALES_EXIT=%ERRORLEVEL%"
+
+if not "%SALES_EXIT%"=="0" (
+    echo ============================================================
+    echo   [ERROR] Sales Refresh FAILED
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+echo.
 echo ============================================================
 echo   Refresh complete - pushing to GitHub...
 echo ============================================================
@@ -95,6 +107,9 @@ if "%GIT_CMD%"=="" (
     "%GIT_CMD%" add -f cache/teamkpis.data.js
     "%GIT_CMD%" add -f cache/records.data.js
     "%GIT_CMD%" add -f cache/organogram.data.js
+    "%GIT_CMD%" add -f cache/sales.json
+    "%GIT_CMD%" add -f cache/sales.data.js
+    "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js
     "%GIT_CMD%" add css/*.css
     "%GIT_CMD%" add dashboard.html

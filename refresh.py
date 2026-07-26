@@ -528,6 +528,9 @@ def build_kpis(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logge
     not_seen_pct = safe_round(not_seen_count / row_count) if row_count else None
     total_unique_customers = int(latest_active_rows["Customer Name"].nunique())
 
+    over_freq_count = int((latest_active_rows["Visits Count"] > latest_active_rows["Frequency"]).sum())
+    below_freq_count = int((latest_active_rows["Visits Count"] < latest_active_rows["Frequency"]).sum())
+
     kpis = {
         "activeReps": headcount,
         "resignedReps": resigned,
@@ -549,6 +552,8 @@ def build_kpis(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logge
         "notSeenPct": not_seen_pct,
         "totalUniqueCustomers": total_unique_customers,
         "totalSharedCustomers": row_count,
+        "overFreqCount": over_freq_count,
+        "belowFreqCount": below_freq_count,
     }
     logger.info("KPIs computed for latest period '%s': %s", latest_period, kpis)
     return kpis
@@ -575,6 +580,8 @@ def build_trend(df: pd.DataFrame, roster: pd.DataFrame, logger: logging.Logger) 
         freq_sum = int(active_rows["Frequency"].fillna(0).sum())
         visits_sum = int(active_rows["Visits Count"].fillna(0).sum())
         covered_sum = int(active_rows["Covered Doctors"].fillna(0).sum())
+        over_freq_count = int((active_rows["Visits Count"] > active_rows["Frequency"]).sum())
+        below_freq_count = int((active_rows["Visits Count"] < active_rows["Frequency"]).sum())
         rows.append({
             "period": period,
             "coveragePct": safe_round(active_rows["Covered Doctors"].mean()) if row_count else None,
@@ -592,6 +599,8 @@ def build_trend(df: pd.DataFrame, roster: pd.DataFrame, logger: logging.Logger) 
             "notSeenPct": safe_round((row_count - covered_sum) / row_count) if row_count else None,
             "totalUniqueCustomers": int(active_rows["Customer Name"].nunique()),
             "totalSharedCustomers": row_count,
+            "overFreqCount": over_freq_count,
+            "belowFreqCount": below_freq_count,
         })
 
     logger.info("Trend built across %d periods", len(rows))
@@ -1294,41 +1303,65 @@ def run_organogram_aggregation(organogram_path: Path, df_coverage: pd.DataFrame,
             "district": str(r["District"]) if not pd.isna(r["District"]) else ""
         })
 
+    # Active Positions list (Active territories/roles)
+    active_positions_list = []
+    df_active_rows = df_pos[~df_pos["Medical Rep"].astype(str).str.contains("VACANT", case=False, na=True)]
+    for _, r in df_active_rows.iterrows():
+        active_positions_list.append({
+            "position": str(r["Position"]),
+            "line": str(r["Line"]),
+            "bum": str(r["BUM"]) if not pd.isna(r["BUM"]) else "",
+            "nsm": str(r["NSM"]) if not pd.isna(r["NSM"]) else "",
+            "asm": str(r["ASM"]) if not pd.isna(r["ASM"]) else "",
+            "dm": str(r["District Manager"]) if not pd.isna(r["District Manager"]) else "",
+            "area": str(r["Area"]) if not pd.isna(r["Area"]) else "",
+            "district": str(r["District"]) if not pd.isna(r["District"]) else ""
+        })
+
     # 4. Span of Control
     # DMs reporting to ASMs
-    dm_positions = df_pos.drop_duplicates(subset=["District Manager"])
-    # filter out vacant DMs
-    dm_positions = dm_positions[~dm_positions["District Manager"].astype(str).str.upper().str.startswith("VACANT")]
-    asm_groups = dm_positions.groupby("ASM")
-    asm_span = asm_groups["District Manager"].nunique()
     asm_span_list = []
-    for asm, count in asm_span.items():
+    for asm, g in df_pos.groupby("ASM"):
         if pd.isna(asm) or asm == "" or "VACANT" in str(asm).upper():
             continue
-        line = dm_positions[dm_positions["ASM"] == asm]["Line"].iloc[0] if asm in dm_positions["ASM"].values else ""
+        line = g["Line"].iloc[0] if len(g) > 0 else ""
+        
+        # Active DMs under this ASM
+        active_dms = g[~g["District Manager"].astype(str).str.upper().str.startswith("VACANT")]["District Manager"].nunique()
+        # Vacant DMs under this ASM
+        vacant_dms = g[g["District Manager"].astype(str).str.upper().str.startswith("VACANT")]["District Manager"].nunique()
+        planned_dms = active_dms + vacant_dms
+        
         asm_span_list.append({
             "managerName": asm,
             "line": line,
-            "spanCount": int(count),
-            "overloaded": count > 4
+            "spanCount": int(active_dms),
+            "vacantCount": int(vacant_dms),
+            "plannedCount": int(planned_dms),
+            "overloaded": active_dms > 4
         })
     asm_span_list = sorted(asm_span_list, key=lambda x: x["spanCount"], reverse=True)
 
     # Reps reporting to DMs
-    # filter out vacant reps
-    active_rep_positions = df_pos[~df_pos["Medical Rep"].astype(str).str.upper().str.startswith("VACANT")]
-    dm_groups = active_rep_positions.groupby("District Manager")
-    dm_span = dm_groups["Medical Rep"].nunique()
     dm_span_list = []
-    for dm, count in dm_span.items():
+    for dm, g in df_pos.groupby("District Manager"):
         if pd.isna(dm) or dm == "" or "VACANT" in str(dm).upper():
             continue
-        line = active_rep_positions[active_rep_positions["District Manager"] == dm]["Line"].iloc[0] if dm in active_rep_positions["District Manager"].values else ""
+        line = g["Line"].iloc[0] if len(g) > 0 else ""
+        
+        # Active reps under this DM
+        active_reps = g[~g["Medical Rep"].astype(str).str.upper().str.startswith("VACANT")]["Medical Rep"].nunique()
+        # Vacant positions under this DM
+        vacant_reps = g[g["Medical Rep"].astype(str).str.upper().str.startswith("VACANT")]["Position"].nunique()
+        planned_reps = active_reps + vacant_reps
+        
         dm_span_list.append({
             "managerName": dm,
             "line": line,
-            "spanCount": int(count),
-            "overloaded": count > 8
+            "spanCount": int(active_reps),
+            "vacantCount": int(vacant_reps),
+            "plannedCount": int(planned_reps),
+            "overloaded": active_reps > 8
         })
     dm_span_list = sorted(dm_span_list, key=lambda x: x["spanCount"], reverse=True)
 
@@ -1339,12 +1372,25 @@ def run_organogram_aggregation(organogram_path: Path, df_coverage: pd.DataFrame,
     for rep, g in active_assignments.groupby("Medical Rep"):
         brick_count = g["702 Bricks"].nunique()
         first_row = g.iloc[0]
+        
+        bricks_details = []
+        for _, row in g.drop_duplicates(subset=["702 Bricks"]).iterrows():
+            bricks_details.append({
+                "brick": str(row["702 Bricks"]) if not pd.isna(row["702 Bricks"]) else "",
+                "position": str(row["Position"]) if not pd.isna(row["Position"]) else "",
+                "area": str(row["Area"]) if not pd.isna(row["Area"]) else "",
+                "district": str(row["District"]) if not pd.isna(row["District"]) else ""
+            })
+            
         rep_details.append({
             "rep": rep,
             "line": str(first_row["Line"]),
+            "bum": str(first_row["BUM"]) if not pd.isna(first_row["BUM"]) else "",
+            "nsm": str(first_row["NSM"]) if not pd.isna(first_row["NSM"]) else "",
             "dm": str(first_row["District Manager"]) if not pd.isna(first_row["District Manager"]) else "",
             "asm": str(first_row["ASM"]) if not pd.isna(first_row["ASM"]) else "",
-            "bricks": int(brick_count)
+            "bricks": int(brick_count),
+            "brickList": bricks_details
         })
     
     rep_details_sorted = sorted(rep_details, key=lambda x: x["bricks"], reverse=True)
@@ -1463,7 +1509,7 @@ def run_organogram_aggregation(organogram_path: Path, df_coverage: pd.DataFrame,
 
     # Average tenure in months for active June reps
     active_june_reps = june_roster[june_roster["IsActive"] & june_roster["HiringDate"].notna()]
-    tenure_days = (june_date - active_june_reps["HiringDate"]).dt.days
+    tenure_days = (june_date - active_june_reps["HiringDate"]).dt.days.clip(lower=0)
     tenure_months = tenure_days / 30.4375
     avg_rep_tenure_months = float(tenure_months.mean()) if len(tenure_months) > 0 else 0.0
 
@@ -1491,16 +1537,19 @@ def run_organogram_aggregation(organogram_path: Path, df_coverage: pd.DataFrame,
         "vacancyByLine": line_stats,
         "vacancyByManager": manager_vacancy,
         "vacantPositions": vacant_positions_list,
+        "activePositions": active_positions_list,
+        "dmHierarchy": {},
         "spanOfControl": {
             "dmSpan": dm_span_list,
             "asmSpan": asm_span_list,
-            "averageDmSpan": round(float(dm_span.mean()), 1) if len(dm_span) > 0 else 0.0,
-            "averageAsmSpan": round(float(asm_span.mean()), 1) if len(asm_span) > 0 else 0.0,
+            "averageDmSpan": round(np.mean([m["spanCount"] for m in dm_span_list]), 1) if len(dm_span_list) > 0 else 0.0,
+            "averageAsmSpan": round(np.mean([m["spanCount"] for m in asm_span_list]), 1) if len(asm_span_list) > 0 else 0.0,
         },
         "brickWorkload": {
             "averageBricksPerRep": round(avg_bricks, 1),
             "buckets": brick_buckets,
-            "overloadedReps": overloaded_reps_list
+            "overloadedReps": overloaded_reps_list,
+            "reps": rep_details_sorted
         },
         "tenureStability": {
             "probationTurnover": probation_turnover_series,

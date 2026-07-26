@@ -654,6 +654,19 @@
     `;
   }
 
+  // res.monthlyData / res.dmData / etc. are keyed by the numeric lookup
+  // INDEX (0,1,2...), not the "2026-01" string itself -- that string only
+  // lives at cache.lookups.months[idx]. Every chart that labels an axis
+  // with months must resolve through this lookup first, or it prints the
+  // raw index (e.g. "0","1","2" instead of "Jan","Feb","Mar").
+  const MONTH_SHORT_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function monthIndexToLabel(idx) {
+    const monthStr = (cache && cache.lookups && cache.lookups.months) ? cache.lookups.months[idx] : null;
+    if (!monthStr) return String(idx);
+    const monthNum = parseInt(monthStr.split("-")[1], 10);
+    return MONTH_SHORT_NAMES[monthNum - 1] || monthStr;
+  }
+
   // --- Client-Side Analytics Algorithms (Page 10) ---
   function computeForecastData(res) {
     // Generate exponential smoothing forecast for next 3 periods
@@ -1893,11 +1906,7 @@
         const sortedMonths = Object.keys(res.monthlyData).sort();
         const vals = sortedMonths.map(m => res.monthlyData[m].val);
         const tgts = sortedMonths.map(m => res.monthlyData[m].tgtVal);
-        const labels = sortedMonths.map(m => {
-          const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-          const monthNum = parseInt(m.split("-")[1], 10);
-          return names[monthNum - 1] || m;
-        });
+        const labels = sortedMonths.map(monthIndexToLabel);
 
         const chart = new Chart(ctxMonthly, {
           type: 'bar',
@@ -2027,7 +2036,7 @@
       const ctxVariance = document.getElementById("chart-perf-variance");
       if (ctxVariance) {
         const sortedMonths = Object.keys(res.monthlyData).sort();
-        const labels = sortedMonths.map(m => m);
+        const labels = sortedMonths.map(monthIndexToLabel);
         const data = sortedMonths.map(m => {
           const act = res.monthlyData[m].val;
           const tgt = res.monthlyData[m].tgtVal;
@@ -2155,7 +2164,7 @@
       const ctxTarget = document.getElementById("chart-target-bullet");
       if (ctxTarget) {
         const sortedMonths = Object.keys(res.monthlyData).sort();
-        const labels = sortedMonths.map(m => m);
+        const labels = sortedMonths.map(monthIndexToLabel);
         const actuals = sortedMonths.map(m => res.monthlyData[m].val);
         const targets = sortedMonths.map(m => res.monthlyData[m].tgtVal);
 
@@ -2214,7 +2223,7 @@
         const forecast = computeForecastData(res);
         const sortedMonths = Object.keys(res.monthlyData).sort();
         
-        const labels = [...sortedMonths.slice(-3), ...forecast.labels];
+        const labels = [...sortedMonths.slice(-3).map(monthIndexToLabel), ...forecast.labels];
         const actuals = [...sortedMonths.slice(-3).map(m => res.monthlyData[m].val), null, null, null];
         const forecastVals = [null, null, null, ...forecast.values];
 
@@ -2382,8 +2391,10 @@
       });
     }
 
-    // Sub-page switching
-    document.querySelectorAll(".sales-subtab").forEach(tab => {
+    // Sub-page switching (buttons render with class "sc-tab" — see the
+    // sc-nav-tabs template above; this selector must match that, not a
+    // "sales-subtab" class that was never actually rendered anywhere)
+    document.querySelectorAll(".sc-tab").forEach(tab => {
       tab.addEventListener("click", () => {
         STATE.subTab = tab.dataset.tab;
         renderLayout();
