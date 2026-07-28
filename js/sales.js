@@ -384,7 +384,8 @@
       distData: {},
       repData: {},
       txData: {},
-      positionData: {}
+      positionData: {},
+      clusterData: {}
     };
 
     for (let i = 0; i < len; i++) {
@@ -435,10 +436,40 @@
       res.monthlyData[mIdx].tgtQty += tqty;
 
       // Regional
+      // tgtVal/tgtQty added 2026-07-29 (Geography tab redesign attempt),
+      // then found to be uniformly zero at this granularity -- verified
+      // directly against the cache: every mirror/target row (TGT_VAL>0)
+      // carries REG=0 ("(none)"), meaning targets are set at Line/Brand/
+      // Product/Rep level only, never broken down by Region. Kept (not
+      // reverted) since the field is honest -- it just always reads 0 --
+      // and costs nothing; the Geography tab itself was corrected to a
+      // contribution/concentration framing instead of achievement, since
+      // that's the metric that's actually real here.
       const rIdx = r[REG];
-      if (!res.regionalData[rIdx]) res.regionalData[rIdx] = { val: 0, qty: 0 };
+      if (!res.regionalData[rIdx]) res.regionalData[rIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0 };
       res.regionalData[rIdx].val += val;
       res.regionalData[rIdx].qty += qty;
+      res.regionalData[rIdx].tgtVal += tval;
+      res.regionalData[rIdx].tgtQty += tqty;
+
+      // Customer commercial cluster (2026-07-29, Customer tab redesign) --
+      // same SUBTYPE_TO_CLUSTER grouping the Executive Customer Channel
+      // Mix KPI uses (getCustomerClusterMix), applied here so the Sales
+      // tab's own Customer subtab respects the FULL current filter set
+      // (getCustomerClusterMix is BU/Line-scoped only, built for the
+      // Executive Command Center's narrower semantic interface).
+      // tgtVal here has the SAME "always zero" property as regionalData
+      // above (mirror rows carry STYPE=0 too) -- kept for the same
+      // reason, unused by the Customer tab's own (concentration-based)
+      // rendering.
+      const rawSubType = cache.lookups.sub_types[r[STYPE]];
+      const clusterName = subTypeToCluster(rawSubType);
+      if (clusterName) {
+        if (!res.clusterData[clusterName]) res.clusterData[clusterName] = { val: 0, qty: 0, tgtVal: 0 };
+        res.clusterData[clusterName].val += val;
+        res.clusterData[clusterName].qty += qty;
+        res.clusterData[clusterName].tgtVal += tval;
+      }
 
       // Brands
       // NOTE: tgtVal/tgtQty added 2026-07-26 -- this accumulator previously
@@ -1101,7 +1132,6 @@
           <div class="sc-nav-tabs">
             ${[
               ['executive',   '📊 Executive'],
-              ['performance', '📈 Performance'],
               ['line',        '📋 Line P&L'],
               ['geography',   '🗺 Geography'],
               ['product',     '💊 Product'],
@@ -1109,7 +1139,6 @@
               ['distributor', '🏭 Distributor'],
               ['salesforce',  '👥 Sales Force'],
               ['target',      '🎯 Target'],
-              ['transaction', '🔄 Transactions'],
               ['advanced',    '🧠 Advanced'],
             ].map(([key, label]) => `
               <button class="sc-tab ${STATE.subTab===key?'sc-tab-active':''}" data-tab="${key}">${label}</button>
@@ -1346,84 +1375,6 @@
       `;
     }
 
-    if (STATE.subTab === "performance") {
-      const ins = computeInsights(res);
-      // Monthly gap table rows
-      const gapRows = ins.mEntries.map(m => {
-        const achC = m.ach >= 100 ? '#15803d' : m.ach >= 85 ? '#b45309' : '#b91c1c';
-        const shortM = m.month.replace('2026-','').replace('01','Jan').replace('02','Feb').replace('03','Mar').replace('04','Apr').replace('05','May').replace('06','Jun').replace('07','Jul');
-        return `<tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:8px 0; font-weight:600; color:#0f172a;">${shortM} ${m.month.substring(0,4)}</td>
-          <td style="text-align:right;">EGP ${formatM(m.val)}</td>
-          <td style="text-align:right;">EGP ${formatM(m.tgt)}</td>
-          <td style="text-align:right; font-weight:700; color:${achC};">${m.ach.toFixed(1)}%</td>
-          <td style="text-align:right; font-weight:600; color:${m.gap>=0?'#15803d':'#b91c1c'};">${m.gap>=0?'+':''}EGP ${formatM(Math.abs(m.gap))}</td>
-        </tr>`;
-      }).join('');
-
-      // Top brand contributors table
-      const brandRows = ins.brandEntries.slice(0, 12).map((b, i) => {
-        const achC = b.ach >= 100 ? '#15803d' : b.ach >= 85 ? '#b45309' : '#b91c1c';
-        const bar = Math.min(100, b.share);
-        return `<tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:7px 0;">
-            <div style="font-size:11px; font-weight:600; color:#0f172a; margin-bottom:3px;">${b.name}</div>
-            <div style="height:4px; background:#f1f5f9; border-radius:2px;">
-              <div style="width:${bar}%; height:100%; background:${achC}; border-radius:2px;"></div>
-            </div>
-          </td>
-          <td style="text-align:right; font-size:11px; white-space:nowrap;">EGP ${formatM(b.val)}</td>
-          <td style="text-align:right; font-size:11px; color:#64748b;">${b.share.toFixed(1)}%</td>
-          <td style="text-align:right; font-size:11px; font-weight:700; color:${achC};">${b.tgt>0?b.ach.toFixed(1)+'%':'—'}</td>
-        </tr>`;
-      }).join('');
-
-      return `
-        <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
-              <div>
-                <div style="font-size:13px; font-weight:700; color:#0f172a;">Sales vs Target — Monthly</div>
-                <div style="font-size:11px; color:#64748b; margin-top:2px;">Actual achievement % vs plan · EGP values</div>
-              </div>
-            </div>
-            <div style="height:260px; position:relative;"><canvas id="chart-perf-variance"></canvas></div>
-          </div>
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:14px;">Monthly P&L Summary</div>
-            <table style="width:100%; border-collapse:collapse; font-size:11px;">
-              <thead>
-                <tr style="border-bottom:2px solid #e2e8f0;">
-                  <th style="padding:6px 0; text-align:left; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Month</th>
-                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Actual</th>
-                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Target</th>
-                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Ach%</th>
-                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Gap</th>
-                </tr>
-              </thead>
-              <tbody>${gapRows}</tbody>
-            </table>
-          </div>
-        </div>
-        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-          <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:14px;">Brand Performance Ranking</div>
-          <div style="max-height:300px; overflow-y:auto;">
-            <table style="width:100%; border-collapse:collapse; font-size:11px;">
-              <thead>
-                <tr style="border-bottom:2px solid #e2e8f0;">
-                  <th style="padding:6px 0; text-align:left; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase; width:45%;">Brand</th>
-                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Actual</th>
-                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Share%</th>
-                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Ach%</th>
-                </tr>
-              </thead>
-              <tbody>${brandRows}</tbody>
-            </table>
-          </div>
-        </div>
-      `;
-    }
-
     if (STATE.subTab === "line") {
       const lines = cache.lookups.lines || [];
       const lineEntries = Object.entries(res.lineData)
@@ -1617,33 +1568,97 @@
     }
 
     if (STATE.subTab === "geography") {
+      // REDESIGNED 2026-07-29 ("make best practice geography tab
+      // analysis"), 2nd pass: the FIRST redesign attempt added Target/
+      // Achievement/Gap columns, then live-data validation caught that
+      // this cache's target/mirror rows all carry REG=0 ("(none)") --
+      // targets are only ever set at Line/Brand/Product/Rep granularity,
+      // never at Region level (confirmed: every mirror row's REG index
+      // is 0, vs. 16 distinct Lines carrying real targets). An
+      // achievement framing here would have shown "—"/EGP 0 in every
+      // row and a fake "total gap" equal to the full actual value --
+      // worse than the original, not better. Corrected to the metric
+      // that's actually real at this granularity: CONTRIBUTION/
+      // CONCENTRATION (same honest framing Executive's Customer Channel
+      // Mix KPI already established for an analogous no-target
+      // dimension -- see buildCustomerClusterMixCard() in
+      // js/executive.js and the Customer tab redesign just below).
+      // Map visualization kept; ranking now shows share, rank, and a
+      // running Pareto cumulative % (which regions make up 80% of
+      // revenue) -- a genuinely answerable, non-fabricated question.
+      const regions = cache.lookups.regions || [];
+      const geoEntries = Object.entries(res.regionalData)
+        .map(([idx, d]) => ({ name: regions[idx] || 'Unknown', val: d.val, qty: d.qty }))
+        .filter(r => r.name !== '(none)' && r.val > 0)
+        .sort((a, b) => b.val - a.val);
+
+      const totalGeoVal = geoEntries.reduce((s, r) => s + r.val, 0) || 1;
+      const topRegion = geoEntries[0] || { name: 'N/A', val: 0 };
+      const concentrationPct = (topRegion.val / totalGeoVal) * 100;
+      const concTier = concentrationPct < 25 ? { label: 'Excellent', color: '#15803d' }
+        : concentrationPct < 40 ? { label: 'On Track', color: '#0f6cbd' }
+        : concentrationPct < 55 ? { label: 'At Risk', color: '#b45309' }
+        : { label: 'Critical', color: '#b91c1c' };
+
+      let cum = 0;
+      const geoRows = geoEntries.map((r, i) => {
+        const share = (r.val / totalGeoVal) * 100;
+        cum += share;
+        const barC = i === 0 ? '#0f6cbd' : '#67a6de';
+        const barW = Math.min(100, share).toFixed(1);
+        return `<tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:9px 0; width:24px; font-size:10px; font-weight:800; color:#94a3b8;">${i + 1}</td>
+          <td style="padding:9px 0;">
+            <div style="font-size:11px; font-weight:700; color:#0f172a; margin-bottom:4px;">${r.name}</div>
+            <div style="height:5px; background:#f1f5f9; border-radius:3px; width:100%;">
+              <div style="width:${barW}%; height:100%; background:${barC}; border-radius:3px;"></div>
+            </div>
+          </td>
+          <td style="text-align:right; font-size:11px; white-space:nowrap; padding-left:8px;">EGP ${formatM(r.val)}</td>
+          <td style="text-align:right; font-size:11px; font-weight:700; color:#0f6cbd;">${share.toFixed(1)}%</td>
+          <td style="text-align:right; font-size:11px; color:#64748b;">${cum.toFixed(1)}%</td>
+        </tr>`;
+      }).join('');
+
       return `
-        <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:16px; margin-bottom:16px;">
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;">
+          <div class="sc-kpi-card">
+            <div class="sc-kpi-label">REGIONS ACTIVE</div>
+            <div class="sc-kpi-value">${geoEntries.length}</div>
+            <div class="sc-kpi-sub">With recorded sales</div>
+          </div>
+          <div class="sc-kpi-card">
+            <div class="sc-kpi-label">TOP REGION</div>
+            <div class="sc-kpi-value" style="font-size:16px;">${topRegion.name}</div>
+            <div class="sc-kpi-sub">EGP ${formatM(topRegion.val)}</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:${concTier.color};">
+            <div class="sc-kpi-label">REGIONAL CONCENTRATION</div>
+            <div class="sc-kpi-value" style="color:${concTier.color};">${concentrationPct.toFixed(1)}%</div>
+            <div class="sc-kpi-sub" style="color:${concTier.color}; font-weight:600;">${concTier.label}</div>
+          </div>
+          <div class="sc-kpi-card">
+            <div class="sc-kpi-label">TOTAL SALES VALUE</div>
+            <div class="sc-kpi-value">EGP ${formatM(totalGeoVal)}</div>
+            <div class="sc-kpi-sub">All regions, current filters</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.3fr 1.7fr; gap:16px; margin-bottom:16px;">
           ${getSVGMapHTML(res)}
           <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Region Sales Performance Ranking</h3>
-            <div style="max-height:240px; overflow-y:auto; font-size:11px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Region Contribution Ranking</h3>
+            <div style="max-height:320px; overflow-y:auto;">
               <table style="width:100%; border-collapse:collapse; text-align:left;">
                 <thead>
                   <tr style="border-bottom:2px solid #e2e8f0; color:#64748b;">
-                    <th style="padding:6px 0;">Region</th>
-                    <th>Sales (EGP)</th>
-                    <th>% Share</th>
+                    <th style="padding:6px 0; font-size:10px; font-weight:700; text-transform:uppercase;">#</th>
+                    <th style="font-size:10px; font-weight:700; text-transform:uppercase;">Region</th>
+                    <th style="text-align:right; font-size:10px; font-weight:700; text-transform:uppercase;">Sales (EGP)</th>
+                    <th style="text-align:right; font-size:10px; font-weight:700; text-transform:uppercase;">Share%</th>
+                    <th style="text-align:right; font-size:10px; font-weight:700; text-transform:uppercase;">Cumulative%</th>
                   </tr>
                 </thead>
-                <tbody>
-                  ${Object.entries(res.regionalData).map(([idx, data]) => {
-                    const name = cache.lookups.regions[idx] || "Unknown";
-                    const pct = (data.val / (res.salesValue || 1.0)) * 100;
-                    return `
-                      <tr style="border-bottom:1px solid #f1f5f9;">
-                        <td style="padding:6px 0; font-weight:600; color:#0f172a;">${name}</td>
-                        <td>${data.val.toLocaleString()}</td>
-                        <td style="color:#0f6cbd; font-weight:700;">${pct.toFixed(1)}%</td>
-                      </tr>
-                    `;
-                  }).join('')}
-                </tbody>
+                <tbody>${geoRows}</tbody>
               </table>
             </div>
           </div>
@@ -1652,6 +1667,30 @@
     }
 
     if (STATE.subTab === "product") {
+      // Brand Performance Ranking -- relocated here 2026-07-29 from the
+      // now-removed Performance tab (user request: "remove Performance
+      // tab and move Brand Performance Ranking chart to Product tab").
+      // A product-level view (SKU) plus a brand-level ranking (roll-up
+      // of SKUs) belong together -- Product is the natural home, not a
+      // standalone Performance tab duplicating Executive's own
+      // achievement framing.
+      const ins = computeInsights(res);
+      const brandRows = ins.brandEntries.slice(0, 12).map((b) => {
+        const achC = b.ach >= 100 ? '#15803d' : b.ach >= 85 ? '#b45309' : '#b91c1c';
+        const bar = Math.min(100, b.share);
+        return `<tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:7px 0;">
+            <div style="font-size:11px; font-weight:600; color:#0f172a; margin-bottom:3px;">${b.name}</div>
+            <div style="height:4px; background:#f1f5f9; border-radius:2px;">
+              <div style="width:${bar}%; height:100%; background:${achC}; border-radius:2px;"></div>
+            </div>
+          </td>
+          <td style="text-align:right; font-size:11px; white-space:nowrap;">EGP ${formatM(b.val)}</td>
+          <td style="text-align:right; font-size:11px; color:#64748b;">${b.share.toFixed(1)}%</td>
+          <td style="text-align:right; font-size:11px; font-weight:700; color:${achC};">${b.tgt>0?b.ach.toFixed(1)+'%':'—'}</td>
+        </tr>`;
+      }).join('');
+
       return `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
           <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
@@ -1680,36 +1719,130 @@
             <div style="height:240px; position:relative;"><canvas id="chart-prod-pareto"></canvas></div>
           </div>
         </div>
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+          <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:14px;">Brand Performance Ranking</div>
+          <div style="max-height:300px; overflow-y:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:11px;">
+              <thead>
+                <tr style="border-bottom:2px solid #e2e8f0;">
+                  <th style="padding:6px 0; text-align:left; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase; width:45%;">Brand</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Actual</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Share%</th>
+                  <th style="text-align:right; color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Ach%</th>
+                </tr>
+              </thead>
+              <tbody>${brandRows}</tbody>
+            </table>
+          </div>
+        </div>
       `;
     }
 
     if (STATE.subTab === "customer") {
+      // REDESIGNED 2026-07-29 ("make best practice customer tab analysis
+      // based on customer analysis and clustering made"), 2nd pass:
+      // replaces the old Chain-only view with the SAME commercial-
+      // cluster methodology behind the Executive Command Center's
+      // Customer Channel Mix KPI (SUBTYPE_TO_CLUSTER, jointly defined
+      // with the business owner in sales_subtypes.xlsx -- see the
+      // mapping's own comment above). "Chain" alone under-represented
+      // the real customer base: institutions, clinics, hospitals,
+      // e-commerce, and generic trade channels never showed up in the
+      // old Chain-only table at all. Sourced from res.clusterData
+      // (added this same pass to runAggregator()), which -- unlike the
+      // Executive interface's BU/Line-scoped getCustomerClusterMix() --
+      // respects the Sales tab's FULL current filter set.
+      //
+      // CORRECTED (same day, 2nd pass): the first version of this
+      // redesign added a Target/Achievement% column -- live-data
+      // validation then showed every mirror/target row carries STYPE=0
+      // ("(none)"), i.e. targets are never set at customer-channel
+      // granularity, only Line/Brand/Product/Rep. Achievement% would
+      // have shown "—" for every channel. Dropped in favor of the
+      // metric that's actually real here: CONCENTRATION (top channel's
+      // share of total), exactly matching buildCustomerClusterMixCard()
+      // in js/executive.js's own established thresholds and rationale
+      // (a customer base overly reliant on one channel carries more
+      // channel risk than one spread more evenly) -- kept, not removed,
+      // since that part of the design was already correct.
+      const clusterEntries = Object.entries(res.clusterData)
+        .map(([name, d]) => ({ name: name, val: d.val, qty: d.qty }))
+        .filter(c => c.val > 0)
+        .sort((a, b) => b.val - a.val);
+
+      const totalCustVal = clusterEntries.reduce((s, c) => s + c.val, 0) || 1;
+      const topCluster = clusterEntries[0] || { name: 'N/A', val: 0 };
+      const concentrationPct = (topCluster.val / totalCustVal) * 100;
+      const concTierFor = (pct) => pct < 25 ? { label: 'Excellent', color: '#15803d', bg: '#f0fdf4' }
+        : pct < 40 ? { label: 'On Track', color: '#0f6cbd', bg: '#eff6ff' }
+        : pct < 55 ? { label: 'At Risk', color: '#b45309', bg: '#fffbeb' }
+        : { label: 'Critical', color: '#b91c1c', bg: '#fef2f2' };
+      const concTier = concTierFor(concentrationPct);
+
+      let cum = 0;
+      const custRows = clusterEntries.map((c, i) => {
+        const share = (c.val / totalCustVal) * 100;
+        cum += share;
+        const tier = concTierFor(share);
+        const barW = Math.min(100, share).toFixed(1);
+        return `<tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:9px 0; width:24px; font-size:10px; font-weight:800; color:#94a3b8;">${i + 1}</td>
+          <td style="padding:9px 0;">
+            <div style="font-size:11px; font-weight:700; color:#0f172a; margin-bottom:4px;">${c.name}</div>
+            <div style="height:5px; background:#f1f5f9; border-radius:3px; width:100%;">
+              <div style="width:${barW}%; height:100%; background:${tier.color}; border-radius:3px;"></div>
+            </div>
+          </td>
+          <td style="text-align:right; font-size:11px; white-space:nowrap; padding-left:8px;">EGP ${formatM(c.val)}</td>
+          <td style="text-align:right; font-size:11px; font-weight:700; color:${tier.color}; background:${tier.bg}; padding:3px 8px; border-radius:5px;">${share.toFixed(1)}%</td>
+          <td style="text-align:right; font-size:11px; color:#64748b;">${cum.toFixed(1)}%</td>
+        </tr>`;
+      }).join('');
+
       return `
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;">
+          <div class="sc-kpi-card">
+            <div class="sc-kpi-label">ACTIVE CUSTOMERS</div>
+            <div class="sc-kpi-value">${res.activeCusts.size.toLocaleString()}</div>
+            <div class="sc-kpi-sub">Unique accounts, current filters</div>
+          </div>
+          <div class="sc-kpi-card">
+            <div class="sc-kpi-label">TOP CHANNEL</div>
+            <div class="sc-kpi-value" style="font-size:16px;">${topCluster.name}</div>
+            <div class="sc-kpi-sub">EGP ${formatM(topCluster.val)}</div>
+          </div>
+          <div class="sc-kpi-card" style="border-top-color:${concTier.color};">
+            <div class="sc-kpi-label">CHANNEL CONCENTRATION</div>
+            <div class="sc-kpi-value" style="color:${concTier.color};">${concentrationPct.toFixed(1)}%</div>
+            <div class="sc-kpi-sub" style="color:${concTier.color}; font-weight:600;">${concTier.label}</div>
+          </div>
+          <div class="sc-kpi-card">
+            <div class="sc-kpi-label">CHANNELS ACTIVE</div>
+            <div class="sc-kpi-value">${clusterEntries.length}</div>
+            <div class="sc-kpi-sub">Commercial clusters with sales</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.3fr; gap:16px; margin-bottom:16px;">
           <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Top Pharmacy Chains</h3>
-            <div style="max-height:260px; overflow-y:auto; font-size:11px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Channel Concentration</h3>
+            <div style="height:280px; position:relative;"><canvas id="chart-cust-dist"></canvas></div>
+          </div>
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Channel Contribution Ranking</h3>
+            <div style="max-height:320px; overflow-y:auto;">
               <table style="width:100%; border-collapse:collapse; text-align:left;">
                 <thead>
                   <tr style="border-bottom:2px solid #e2e8f0; color:#64748b;">
-                    <th style="padding:6px 0;">Chain</th>
-                    <th>Sales (EGP)</th>
+                    <th style="padding:6px 0; font-size:10px; font-weight:700; text-transform:uppercase;">#</th>
+                    <th style="font-size:10px; font-weight:700; text-transform:uppercase;">Channel</th>
+                    <th style="text-align:right; font-size:10px; font-weight:700; text-transform:uppercase;">Sales (EGP)</th>
+                    <th style="text-align:right; font-size:10px; font-weight:700; text-transform:uppercase;">Share%</th>
+                    <th style="text-align:right; font-size:10px; font-weight:700; text-transform:uppercase;">Cumulative%</th>
                   </tr>
                 </thead>
-                <tbody>
-                  ${Object.entries(res.chainData).sort((a,b)=>b[1].val - a[1].val).map(([idx, data]) => `
-                    <tr style="border-bottom:1px solid #f1f5f9;">
-                      <td style="padding:6px 0; font-weight:600; color:#0f172a;">${cache.lookups.chains[idx] || "Unknown"}</td>
-                      <td>${data.val.toLocaleString()}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
+                <tbody>${custRows}</tbody>
               </table>
             </div>
-          </div>
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Active Customer Sales Distribution</h3>
-            <div style="height:240px; position:relative;"><canvas id="chart-cust-dist"></canvas></div>
           </div>
         </div>
       `;
@@ -1899,36 +2032,6 @@
         </div>
       `;
     }
-    if (STATE.subTab === "transaction") {
-      return `
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Transaction Type Contribution</h3>
-            <div style="height:240px; position:relative;"><canvas id="chart-tx-type"></canvas></div>
-          </div>
-          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; font-size:12px; line-height:1.8;">
-            <h3 style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">Specific Quantities Summary</h3>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:8px 0; color:#334155;">
-              <span>Transfer Quantity</span>
-              <strong style="color:#0f172a;">${res.transferQty.toLocaleString()}</strong>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:8px 0; color:#334155;">
-              <span>Bulk Quantity</span>
-              <strong style="color:#0f172a;">${res.bulkQty.toLocaleString()}</strong>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:8px 0; color:#334155;">
-              <span>National Ceiling</span>
-              <strong style="color:#0f172a;">${res.natCeiling.toLocaleString()}</strong>
-            </div>
-            <div style="display:flex; justify-content:space-between; padding:6px 0;">
-              <span>Region Ceiling</span>
-              <strong style="color:#0f172a;">${res.regCeiling.toLocaleString()}</strong>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
     if (STATE.subTab === "advanced") {
       const ins = computeInsights(res);
       const achColor = ins.ach >= 100 ? '#15803d' : ins.ach >= 85 ? '#b45309' : '#b91c1c';
@@ -2183,43 +2286,6 @@
       // comment above the Monthly Trend panel for why.
     }
 
-    if (STATE.subTab === "performance") {
-      const ctxVariance = document.getElementById("chart-perf-variance");
-      if (ctxVariance) {
-        const sortedMonths = Object.keys(res.monthlyData).sort();
-        const labels = sortedMonths.map(monthIndexToLabel);
-        const data = sortedMonths.map(m => {
-          const act = res.monthlyData[m].val;
-          const tgt = res.monthlyData[m].tgtVal;
-          return tgt > 0 ? ((act - tgt) / tgt) * 100 : 0;
-        });
-
-        const chart = new Chart(ctxVariance, {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Variance % against Target',
-              data: data,
-              borderColor: '#16a34a',
-              backgroundColor: 'transparent',
-              borderWidth: 2,
-              tension: 0.1
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              x: { grid: { display: false }, ticks: { color: '#a3aed0' } },
-              y: { grid: { color: '#2e3456' }, ticks: { color: '#a3aed0', callback: v => v.toFixed(0) + "%" } }
-            }
-          }
-        });
-        currentChartInstances.push(chart);
-      }
-    }
-
     if (STATE.subTab === "product") {
       const ctxPareto = document.getElementById("chart-prod-pareto");
       if (ctxPareto) {
@@ -2258,26 +2324,56 @@
     }
 
     if (STATE.subTab === "customer") {
+      // REDESIGNED 2026-07-29 alongside the Customer tab HTML above --
+      // horizontal bar of commercial clusters (res.clusterData).
+      // CORRECTED (2nd pass, same day): tiered by each channel's own
+      // CONCENTRATION share, not Target Achievement% -- customer-channel
+      // targets don't exist in this cache (every mirror/target row
+      // carries STYPE=0/"(none)"), so achievement coloring would have
+      // shown gray ("no target") for every single bar. Same 25/40/55%
+      // thresholds as the KPI strip's concentration badge and
+      // buildCustomerClusterMixCard() in js/executive.js. Replaces the
+      // old chainData pie chart, which (a) only covered named chains,
+      // missing every institutional/generic-channel customer, and (b)
+      // used leftover dark-theme tick/legend colors barely visible on
+      // this light card.
       const ctxDist = document.getElementById("chart-cust-dist");
       if (ctxDist) {
-        const sorted = Object.entries(res.chainData).sort((a,b)=>b[1].val - a[1].val);
-        const labels = sorted.map(([idx]) => cache.lookups.chains[idx]);
-        const vals = sorted.map(([, val]) => val.val);
+        const sorted = Object.entries(res.clusterData)
+          .filter(([, d]) => d.val > 0)
+          .sort((a, b) => a[1].val - b[1].val); // ascending so the biggest bar renders at the top of a horizontal chart
+        const totalVal = sorted.reduce((s, [, d]) => s + d.val, 0) || 1;
+        const labels = sorted.map(([name]) => name);
+        const vals = sorted.map(([, d]) => d.val);
+        const concColorFor = (share) => share < 25 ? '#15803d' : share < 40 ? '#0f6cbd' : share < 55 ? '#b45309' : '#b91c1c';
+        const barColors = sorted.map(([, d]) => concColorFor((d.val / totalVal) * 100));
 
         const chart = new Chart(ctxDist, {
-          type: 'pie',
+          type: 'bar',
           data: {
             labels: labels,
-            datasets: [{
-              data: vals,
-              backgroundColor: ['#0f6cbd', '#16a34a', '#f59e0b', '#dc2626', '#8a94a6'],
-              borderWidth: 0
-            }]
+            datasets: [{ label: 'Sales Value', data: vals, backgroundColor: barColors, borderRadius: 4, maxBarThickness: 22 }]
           },
           options: {
+            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { color: '#a3aed0' } } }
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#0f172a', titleFont: { size: 12, weight: '700' }, bodyFont: { size: 11 }, padding: 10,
+                callbacks: {
+                  label: (ctx) => {
+                    const share = (ctx.parsed.x / totalVal) * 100;
+                    return '  EGP ' + formatM(ctx.parsed.x) + '  (' + share.toFixed(1) + '% of total)';
+                  }
+                }
+              }
+            },
+            scales: {
+              x: { beginAtZero: true, grid: { color: '#f1f5f9' }, border: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => 'EGP ' + formatM(v) } },
+              y: { grid: { display: false }, ticks: { color: '#334155', font: { size: 11, weight: '600' } } }
+            }
           }
         });
         currentChartInstances.push(chart);
@@ -2341,32 +2437,6 @@
       }
     }
 
-    if (STATE.subTab === "transaction") {
-      const ctxTx = document.getElementById("chart-tx-type");
-      if (ctxTx) {
-        const sorted = Object.entries(res.txData).sort((a,b)=>b[1].val - a[1].val);
-        const labels = sorted.map(([idx]) => cache.lookups.transaction_types[idx]);
-        const vals = sorted.map(([, val]) => val.val);
-
-        const chart = new Chart(ctxTx, {
-          type: 'pie',
-          data: {
-            labels: labels,
-            datasets: [{
-              data: vals,
-              backgroundColor: ['#0f6cbd', '#16a34a', '#f59e0b', '#dc2626', '#8a94a6'],
-              borderWidth: 0
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { color: '#a3aed0' } } }
-          }
-        });
-        currentChartInstances.push(chart);
-      }
-    }
 
     if (STATE.subTab === "advanced") {
       const ctxFc = document.getElementById("chart-advanced-forecast");
