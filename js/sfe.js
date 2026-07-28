@@ -136,10 +136,27 @@
      * getBusinessSummary() returns, so the caller can rank across BUs
      * (line=null) or across lines within one BU (line set) the same way
      * every other Line-aware card on this page already does.
-     * `line` is a CANONICAL name matching vacancyByLine's own row.line
-     * values (already canonical -- e.g. CHC_SALES is its own distinct
-     * row here, same as in Sales -- no normalizeLine() needed). Pass
-     * null/omit for the whole-BU figure.
+     * `line` is a CANONICAL name (SEMANTIC.normalizeLine() already
+     * applied by the caller, e.g. buildLinePerformanceTable()'s
+     * covByLine keys). Pass null/omit for the whole-BU figure.
+     *
+     * BUG FIX (2026-07-29, same day, 2nd pass -- user report: "cns and
+     * derma has no results in positions count"): row.line here is
+     * organogram's RAW spelling, which is NOT always already canonical --
+     * LINE_SYNONYMS in semantic-model.js documents exactly two
+     * exceptions ("NEUROSCIENCE" -> "CNS", "DERMA" -> "Derma"). The
+     * original version of this function compared the raw row.line
+     * directly against the canonical `line` param, which silently
+     * matched zero rows for these two lines (Planned Headcount = 0,
+     * Sales per Position = null) while every other line worked by
+     * coincidence (their raw and canonical spellings happen to be
+     * identical). Root-caused by the user, not caught by testing --
+     * the jsdom validation only exercised CHC/CHC_SALES, whose raw
+     * spelling already matches canonical, so this never triggered.
+     * Fixed by normalizing row.line before the compare, exactly like
+     * getBusinessSummary() above already does via lineToBU() (which
+     * normalizes internally) -- this function just needed the same
+     * treatment for the line-level compare, not only the BU-level one.
      */
     getFilteredHeadcountForLine(bu, line) {
       if (typeof window.SEMANTIC === 'undefined') {
@@ -154,8 +171,9 @@
 
       let total = 0, active = 0, vacant = 0;
       vacancyByLine.forEach(row => {
+        const rowCanon = window.SEMANTIC.normalizeLine(row.line);
         if (window.SEMANTIC.lineToBU(row.line) !== bu) return;
-        if (line && row.line !== line) return;
+        if (line && rowCanon !== line) return;
         total += row.total || 0;
         active += row.active || 0;
         vacant += row.vacant || 0;
