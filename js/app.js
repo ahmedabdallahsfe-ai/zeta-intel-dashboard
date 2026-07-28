@@ -324,6 +324,9 @@ function buildLayout() {
         ${chartCardHtml("chart-class-visits-distribution", "Class Visits Contribution", "chart-card-small")}
         ${chartCardHtml("chart-specialty-visits-distribution", "Specialty Visits Contribution", "chart-card-small")}
       </div>
+      <div style="margin-top: 24px;">
+        ${chartCardHtml("chart-class-visit-achievement", "Class Visit Achievement &mdash; Target vs Actual", "", "chart-wrap chart-wrap-wide")}
+      </div>
     </div>`;
   root.appendChild(trendsSection);
 
@@ -833,6 +836,64 @@ function renderTrendCharts(result) {
   } else {
     const canvas = document.getElementById("chart-class-visits-distribution");
     if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No class visits data.");
+  }
+
+  // Class Visit Achievement: Target vs Actual, grouped horizontal bar
+  // (2026-07-28). Raw visit counts, not %, so this overrides the shared
+  // horizontalBarChart()'s default percent-axis/tooltip formatting. Actual
+  // bars are colored by achievement status (>=100% green, 70-99% amber,
+  // <70% red) against a neutral gray Target reference bar -- Target itself
+  // has no "good/bad," only Actual-vs-Target does. Sorted worst-first by
+  // analytics.js so the classes most behind target are immediately visible.
+  const classAchData = result.classVisitAchievement || [];
+  if (classAchData.length) {
+    // This dataset commonly has 25-35+ class codes (ABC/tier segmentation
+    // is fine-grained) -- a fixed 320px wrap would cram every row into an
+    // unreadable sliver. Grow the wrap to fit every row instead of capping
+    // the list, since this is a "what needs attention" execution view and
+    // silently dropping the worst-performing classes would defeat the point.
+    const achWrap = document.getElementById("chart-class-visit-achievement")?.parentElement;
+    if (achWrap) achWrap.style.height = Math.max(320, classAchData.length * 26 + 40) + "px";
+
+    const achLabels = classAchData.map(r => r.name || "(Blank)");
+    const targetValues = classAchData.map(r => r.targetVisits);
+    const actualValues = classAchData.map(r => r.actualVisits);
+    const actualColors = classAchData.map(r => {
+      if (r.achievementPct === null) return "#94A3B8"; // no target -- neutral
+      if (r.achievementPct >= 1) return "#10B981";      // on/over target
+      if (r.achievementPct >= 0.7) return "#F59E0B";    // at-risk
+      return "#EF4444";                                  // critical
+    });
+
+    Charts.horizontalBarChart(
+      "chart-class-visit-achievement",
+      achLabels,
+      [
+        { label: "Target Visits", data: targetValues, backgroundColor: "#CBD5E1", borderRadius: 3, barPercentage: 0.7 },
+        { label: "Actual Visits", data: actualValues, backgroundColor: actualColors, borderRadius: 3, barPercentage: 0.7 },
+      ],
+      {
+        scales: { x: { beginAtZero: true, ticks: { callback: (v) => v.toLocaleString() } } },
+        plugins: {
+          legend: { display: true, position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const row = classAchData[ctx.dataIndex];
+                if (ctx.dataset.label === "Actual Visits") {
+                  const pct = row.achievementPct === null ? "—" : (row.achievementPct * 100).toFixed(1) + "%";
+                  return ` Actual: ${row.actualVisits.toLocaleString()} (${pct} of target)`;
+                }
+                return ` Target: ${row.targetVisits.toLocaleString()}`;
+              },
+            },
+          },
+        },
+      }
+    );
+  } else {
+    const canvas = document.getElementById("chart-class-visit-achievement");
+    if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No class visit achievement data.");
   }
 
   // Specialty Visits Contribution horizontal bar chart

@@ -665,15 +665,38 @@ const Analytics = (() => {
 
     const classDistribution = [];
     const classVisitsDistribution = [];
+    // classVisitAchievement (2026-07-28): Target vs Actual visits per class,
+    // for the "Class Visit Achievement" chart -- freqSum is the same
+    // target-visits accumulator that feeds the KPI-level totalTargetVisits/
+    // visitAchievementPct (see accumulate() above), just grouped by class
+    // instead of by period. Sorted ascending by achievement % so the
+    // worst-performing (most under-target) classes surface first -- this is
+    // an execution/action tab, so "what needs attention" belongs at the top.
+    const classVisitAchievement = [];
     byClass.forEach((g, classIdx) => {
       const name = dims.classes[classIdx];
       if (name !== undefined && g.rowCount > 0) {
         classDistribution.push({ name, count: g.rowCount });
         classVisitsDistribution.push({ name, count: g.visitsSum });
+        classVisitAchievement.push({
+          name,
+          targetVisits: Math.round(g.freqSum),
+          actualVisits: Math.round(g.visitsSum),
+          // Fraction (0-1), not 0-100 -- matches visitAchievementPct's
+          // platform-wide convention (see KPI-level visitAchievementPct
+          // above); app.js's "percent1"-style formatting multiplies by
+          // 100 at display time, same as every other *Pct field here.
+          achievementPct: round4(g.freqSum > 0 ? g.visitsSum / g.freqSum : null),
+        });
       }
     });
     classDistribution.sort((a, b) => b.count - a.count);
     classVisitsDistribution.sort((a, b) => b.count - a.count);
+    classVisitAchievement.sort((a, b) => {
+      const av = a.achievementPct === null ? Infinity : a.achievementPct;
+      const bv = b.achievementPct === null ? Infinity : b.achievementPct;
+      return av - bv;
+    });
 
     const specialtyDistribution = [];
     const specialtyVisitsDistribution = [];
@@ -791,7 +814,7 @@ const Analytics = (() => {
     return {
       kpis, trend, teamComparison, managerRanking, areaManagerRanking,
       specialtyCoverage, classCoverage, typeDistribution, classDistribution, specialtyDistribution,
-      classVisitsDistribution, specialtyVisitsDistribution,
+      classVisitsDistribution, specialtyVisitsDistribution, classVisitAchievement,
       leaderboards: { top, bottom },
       attrition: { byPeriod: byPeriodAttrition, byTeam: attritionByTeam },
       vacancies: { total: kpiVacancy, byTeam: vacancyByTeamMap, details: vacancyDetails },
