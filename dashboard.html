@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/design-system.css?v=20260726_exec" />
   <link rel="stylesheet" href="css/animations.css?v=20260726_exec" />
   <link rel="stylesheet" href="css/layout.css?v=20260726_exec" />
-  <link rel="stylesheet" href="css/components.css?v=20260728_customerhealth" />
+  <link rel="stylesheet" href="css/components.css?v=20260728_cardfix" />
   <link rel="stylesheet" href="css/utilities.css?v=20260726_exec" />
 </head>
 <body>
@@ -110,7 +110,7 @@
        Currently covers the Retail and Chain Pharmacy clusters only -- see the ETL
        script's CLUSTERS_TO_BUILD to extend. Optional at load time: sales.js falls
        back to the existing flat cluster->sub_type list for any cluster not present. -->
-  <script src="cache/customer_analytics.data.js?v=20260728_v1"></script>
+  <script src="cache/customer_analytics.data.js?v=20260728_bupenetration"></script>
   <script src="cache/iqvia.data.js?v=20260728_june"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
@@ -150,7 +150,7 @@
        v20260728_clustermix = SUBTYPE_TO_CLUSTER map + getCustomerClusterMix()
        added for the Customer Channel Mix KPI card (cluster-then-sub_type
        drill -- see sales_subtypes.xlsx for the clustering source of truth). -->
-  <script src="js/sales.js?v=20260728_customerhealth"></script>
+  <script src="js/sales.js?v=20260728_bupenetration"></script>
   <script src="js/iqvia.js?v=20260726_v4evidence"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
@@ -161,7 +161,7 @@
        in the cache). KPI 6 (Customer Dynamics) is now served, at cluster
        (not individual-customer) granularity, by the Customer Channel Mix
        card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
-  <script src="js/executive.js?v=20260728_customerhealth"></script>
+  <script src="js/executive.js?v=20260728_bupenetration"></script>
 
   <script src="js/app.js?v=20260727_execkpi"></script>
 

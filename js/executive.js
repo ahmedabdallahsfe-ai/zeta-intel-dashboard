@@ -852,6 +852,12 @@
       .sort((a, c) => c.penetrationPct - a.penetrationPct)
       .slice(0, 10)
       .map(s => ({ label: s.sku + (s.inCore ? " (core)" : ""), value: s.penetrationPct, pctLabel: s.penetrationPct.toFixed(1) + "%" }));
+    // 2026-07-28: SKU penetration is BU-scoped when a specific BU is
+    // selected (see getClusterCustomerHealth's skuPenetrationScope) --
+    // label it explicitly so it's clear the list isn't the all-BU view.
+    const skuScopeLabel = health.skuPenetrationScope && health.skuPenetrationScope !== "All"
+      ? ` — ${health.skuPenetrationScope} only`
+      : " — All BUs";
 
     return `
       <div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:14px;">
@@ -886,7 +892,7 @@
       </div>
 
       <div>
-        <div style="font-size:13px;font-weight:600;color:var(--color-text-primary,#0F172A);margin-bottom:8px;">Top SKU Penetration (% of cluster's customers who bought it at least once)</div>
+        <div style="font-size:13px;font-weight:600;color:var(--color-text-primary,#0F172A);margin-bottom:8px;">Top SKU Penetration${skuScopeLabel} (% of cluster's customers who bought it at least once)</div>
         ${global.DS.rankedBarList({ items: topSkus, maxItems: 10 })}
       </div>
     `;

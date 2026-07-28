@@ -3086,6 +3086,13 @@
      * transactions in this cluster were tagged to a line in that BU --
      * see the cache's per-customer `bus` field). Pass bu=null/"All" for
      * the company-wide, all-BU figure.
+     *
+     * SKU penetration is ALSO BU-scoped when `bu` is set (2026-07-28): the
+     * returned `skuPenetration` list and its penetration %s reflect only
+     * that BU's purchases and that BU's customer count as the denominator
+     * -- see etl/build_customer_analytics_cache.py's skuPenetrationByBU.
+     * `skuPenetrationScope` on the result tells the caller which list it
+     * actually got ('All' or the BU name) in case of a fallback.
      */
     getClusterCustomerHealth(bu, cluster) {
       decompressCustomerAnalyticsCache();
@@ -3131,7 +3138,16 @@
         basketBuckets: basketBuckets,
         coreSkuCount: clusterData.coreSkuCount,
         totalSkuCount: clusterData.totalSkuCount,
-        skuPenetration: clusterData.skuPenetration, // company-wide penetration; BU-level penetration not yet split out
+        // BU-scoped penetration (2026-07-28): use the selected BU's own SKU
+        // list + denominator (customers active under that BU) when available;
+        // fall back to the company-wide list for "All" or for any BU the ETL
+        // didn't compute (shouldn't happen for Retail/Chain Pharmacy, but a
+        // cluster added later via CLUSTERS_TO_BUILD before a full re-run
+        // could still be missing skuPenetrationByBU).
+        skuPenetration: (wantBU && clusterData.skuPenetrationByBU && clusterData.skuPenetrationByBU[wantBU])
+          ? clusterData.skuPenetrationByBU[wantBU]
+          : clusterData.skuPenetration,
+        skuPenetrationScope: (wantBU && clusterData.skuPenetrationByBU && clusterData.skuPenetrationByBU[wantBU]) ? wantBU : 'All',
         customers: customers,
         generatedAt: customerAnalyticsCache.generatedAt,
       };

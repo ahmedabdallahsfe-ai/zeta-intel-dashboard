@@ -36,10 +36,15 @@
 /* ── Grids ───────────────────────────────────────────────────────────── */
 
 /* KPI row: fills available width, wraps gracefully, never fewer than
-   ~180px per tile so numbers stay legible on narrow viewports. */
+   ~240px per tile so numbers stay legible on narrow viewports. (Bumped
+   from 180px on 2026-07-28 -- too tight for the 3-column Target/
+   Achievement/Variance row inside each Executive KPI card, which was
+   forcing cards wider than their track and spilling text into the next
+   column. See components.css's .ds-exec-kpi-* fixes from the same date
+   for the companion min-width/wrap fixes on the card's internal layout.) */
 .ds-grid-kpi {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--space-4);
 }
 
