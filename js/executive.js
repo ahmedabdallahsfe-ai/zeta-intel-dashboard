@@ -538,35 +538,44 @@
 
   // ---------------------------------------------------------------------
   // KPI 10 -- Sales Productivity
-  // Composed at this layer (not duplicated in Sales or SFE): Sales'
-  // actualYTD (EGP) / SFE's headcountActive (real reps), platform-wide
-  // average as the benchmark -- exactly the "platform average" pattern
-  // already established for Workload % elsewhere on this platform.
+  // REDEFINED 2026-07-29 to match the Sales tab's own "SALES / POSITION"
+  // KPI methodology: Sales' actualYTD (EGP) / Sales' own activePositions
+  // (distinct deployed territory codes, 7 known placeholder/unknown codes
+  // excluded -- see EXCLUDED_POSITIONS in js/sales.js), platform-wide
+  // average as the benchmark. Previously this divided by SFE's
+  // headcountActive (employed reps) instead -- switched to Sales' own
+  // position count so this KPI reads "revenue per deployed territory"
+  // consistently with the Sales tab, rather than "revenue per employed
+  // rep" (a materially different denominator: headcount includes reps on
+  // leave/vacant-adjacent assignments, position count reflects actual
+  // territory deployment). Sourced entirely through Sales'
+  // getBusinessSummary() per the module-boundary principle -- SFE is no
+  // longer a dependency for this card.
   // ---------------------------------------------------------------------
   function buildSalesProductivityCard(summaries, filters) {
     const bu = filters.bu;
-    if (!summaries.sales || !summaries.sales.ok || !summaries.sfe || !summaries.sfe.ok) {
+    if (!summaries.sales || !summaries.sales.ok) {
       return unavailableCard("salesProductivity", "Sales Productivity", "module_unavailable");
     }
     const perBU = {};
-    let platformActual = 0, platformHeads = 0;
+    let platformActual = 0, platformPositions = 0;
     global.SEMANTIC.BU_LIST.forEach(b => {
-      const s = summaries.sales.bu[b], h = summaries.sfe.bu[b];
-      if (s && h && h.headcountActive > 0) {
-        perBU[b] = s.actualYTD / h.headcountActive;
-        platformActual += s.actualYTD; platformHeads += h.headcountActive;
+      const s = summaries.sales.bu[b];
+      if (s && s.activePositions > 0) {
+        perBU[b] = s.actualYTD / s.activePositions;
+        platformActual += s.actualYTD; platformPositions += s.activePositions;
       } else {
         perBU[b] = null;
       }
     });
-    const platformAvg = platformHeads > 0 ? platformActual / platformHeads : null;
+    const platformAvg = platformPositions > 0 ? platformActual / platformPositions : null;
     const val = perBU[bu];
     const achievementPct = (val !== null && platformAvg) ? (val / platformAvg) * 100 : null;
     const rankInfo = rank(perBU, "desc")[bu];
 
     return {
       kpiId: "salesProductivity", name: "Sales Productivity",
-      mainValue: fmtM(val), mainValueSub: "Sales per Medical Rep · Current YTD",
+      mainValue: fmtM(val), mainValueSub: "Sales per Deployed Position · Current YTD",
       performance: { target: fmtM(platformAvg) + " (platform avg)", achievementPct: fmtPct1(achievementPct), variance: fmtSignedM(val !== null && platformAvg !== null ? val - platformAvg : null) },
       comparison: null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: "Business Units",

@@ -2650,6 +2650,14 @@
      * Non-Promoted/Other Markets are out of scope for this interface
      * by design (see semantic-model.js).
      *
+     * `activePositions` (added 2026-07-29): distinct count of deployed
+     * territory/position codes for the BU, EXCLUDED_POSITIONS filtered out
+     * (same 7 placeholder codes as the Sales tab's own "SALES / POSITION"
+     * KPI). This is Sales' own denominator for productivity metrics --
+     * consumers like the Executive Command Center should prefer this over
+     * SFE's headcountActive when the goal is "revenue per deployed
+     * territory" rather than "revenue per employed rep."
+     *
      * YTD here means "all months present in this cache" -- the cache
      * currently holds Jan-May 2026 only, with no prior-year rows, so
      * Sales cannot compute its own YoY growth. That comparison is
@@ -2672,9 +2680,11 @@
 
       const totals = {};
       const byMonth = {}; // bu -> { monthIdx -> actualVal }
+      const activePositions = {}; // bu -> Set of deployed, non-placeholder position codes
       window.SEMANTIC.BU_LIST.forEach(bu => {
         totals[bu] = { actualYTD: 0, targetYTD: 0 };
         byMonth[bu] = {};
+        activePositions[bu] = new Set();
       });
 
       for (let i = 0; i < decodedRows.length; i++) {
@@ -2686,6 +2696,13 @@
         t.targetYTD += r[TGT_VAL];
         const m = r[MONTH];
         byMonth[bu][m] = (byMonth[bu][m] || 0) + r[VAL];
+        // Deployed-territory count, same convention as the Sales tab's own
+        // "SALES / POSITION" KPI (2026-07-29): distinct position codes,
+        // excluding the 7 known placeholder/unknown codes in
+        // EXCLUDED_POSITIONS. Numerator (actualYTD above) is unaffected --
+        // it still includes revenue booked against those placeholder codes.
+        const rowPos = cache.lookups.rep_positions[r[REP]];
+        if (rowPos && !EXCLUDED_POSITIONS.has(rowPos)) activePositions[bu].add(rowPos);
       }
 
       const buOut = {};
@@ -2700,6 +2717,7 @@
           targetYTD: t.targetYTD,
           achievementPct: achievementPct,
           momGrowthPct: momGrowthPct,
+          activePositions: activePositions[bu].size,
           unit: 'EGP',
           confidence: months.length >= 3 ? 'high' : 'low' // trend needs >=3 months to mean much
         };
