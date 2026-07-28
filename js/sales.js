@@ -96,6 +96,24 @@
   let decodedRows = [];
   let currentChartInstances = [];
 
+  // SALES / POSITION denominator exclusions (2026-07-29, per Ahmed's
+  // request). These are placeholder position codes (auto-generated for
+  // unfilled/unknown/vacant territory slots), not real deployed positions
+  // -- counting them in the "how many territories are we dividing revenue
+  // across" denominator would understate true per-territory productivity.
+  // Their sales VALUE is still included in the numerator; only the
+  // position headcount is affected. Exact-string match against
+  // cache.lookups.rep_positions values.
+  const EXCLUDED_POSITIONS = new Set([
+    "POS_Diab_MR_Unknown_1054",
+    "POS_GIT II_MR_Unknown_1061",
+    "POS_Unknown_MR_CHC",
+    "POS_Unknown_MR_CVM-II",
+    "POS_Unknown_MR_DIAB-III",
+    "POS_Unknown_MR_GIT-III",
+    "POS_Vacant_MR_ORTHO-I",
+  ]);
+
   // Customer Analytics cache (2026-07-28) -- SEPARATE from the main Sales
   // cache above, loaded from window.CUSTOMER_ANALYTICS_CACHE (see
   // etl/build_customer_analytics_cache.py + dashboard.html's script tag
@@ -347,6 +365,7 @@
       
       activeCusts: new Set(),
       activeReps: new Set(),
+      activePositions: new Set(),
       activeDms: new Set(),
       activeRms: new Set(),
       activeNsms: new Set(),
@@ -391,6 +410,16 @@
       res.regCeiling += regc;
 
       if (r[REP] !== 0) res.activeReps.add(r[REP]);
+      // SALES / POSITION denominator (2026-07-29, per Ahmed's request):
+      // distinct deployed positions/territories with activity this
+      // period, excluding placeholder Unknown/Vacant position codes (see
+      // EXCLUDED_POSITIONS below) -- those aren't real assigned
+      // territories, so counting them would understate per-territory
+      // productivity. Their sales VALUE still counts in the numerator
+      // (totalVal, unchanged) -- only the headcount denominator excludes
+      // them.
+      const rowPos = cache.lookups.rep_positions[r[REP]];
+      if (rowPos && !EXCLUDED_POSITIONS.has(rowPos)) res.activePositions.add(rowPos);
       if (r[DM] !== 0) res.activeDms.add(r[DM]);
       if (r[RM] !== 0) res.activeRms.add(r[RM]);
       if (r[NSM] !== 0) res.activeNsms.add(r[NSM]);
@@ -1139,8 +1168,14 @@
     // CM (res.activeCms / cache.lookups.cms) intentionally excluded — not filterable, not shown in this panel.
 
     const activeEmpsCount = activeEmpNames.size || 1;
-    const activeRepsCount = res.activeReps.size || 1;
-    const salesPerRep = totalVal / activeRepsCount;
+    // SALES / POSITION (2026-07-29, redefined from "sales / distinct rep
+    // name" per Ahmed's request): denominator is distinct deployed
+    // positions/territories (res.activePositions, EXCLUDED_POSITIONS
+    // filtered out during aggregation), numerator is totalVal unchanged
+    // -- ALL sales value counts, including any attributed to excluded
+    // positions, since only the headcount denominator is affected.
+    const activePositionsCount = res.activePositions.size || 1;
+    const salesPerPosition = totalVal / activePositionsCount;
     const salesPerCust = res.activeCusts.size > 0 ? totalVal / res.activeCusts.size : 0;
     const asp = totalQty > 0 ? totalVal / totalQty : 0;
 
@@ -1185,9 +1220,9 @@
           <div class="sc-kpi-sub">Field headcount</div>
         </div>
         <div class="sc-kpi-card">
-          <div class="sc-kpi-label">SALES / REP</div>
-          <div class="sc-kpi-value">EGP ${formatM(salesPerRep)}</div>
-          <div class="sc-kpi-sub">Avg productivity</div>
+          <div class="sc-kpi-label">SALES / POSITION</div>
+          <div class="sc-kpi-value">EGP ${formatM(salesPerPosition)}</div>
+          <div class="sc-kpi-sub">Per deployed territory</div>
         </div>
         <div class="sc-kpi-card">
           <div class="sc-kpi-label">AVG SELLING PRICE</div>
