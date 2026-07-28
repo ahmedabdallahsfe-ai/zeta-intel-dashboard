@@ -1225,10 +1225,16 @@
         <!-- ── KPI METRICS ROW ── -->
         ${kpiRowHTML}
 
-        <!-- ── THREE INTELLIGENCE PANELS ── -->
+        <!-- ── INTELLIGENCE PANELS ── -->
+        <!-- Was two panels (Monthly Trend + Contribution drilldown); the
+             drilldown panel removed 2026-07-29 per Ahmed's request ("remove
+             this chart Line Contribution" -- its default/unfiltered state
+             showed a "Line Contribution" title, drilling into DM/RM/NSM
+             relabeled it to DM/Rep Contribution, same chart/canvas
+             throughout). Monthly Trend now spans the full row. -->
         <div class="sc-intel-grid">
 
-          <!-- Panel 1: Monthly trend chart -->
+          <!-- Monthly trend chart -->
           <div class="sc-intel-card" style="grid-column: span 2;">
             <div class="sc-intel-card-header">
               <div>
@@ -1240,17 +1246,6 @@
               </div>
             </div>
             <div style="height:220px; position:relative;"><canvas id="chart-exec-monthly"></canvas></div>
-          </div>
-
-          <!-- Panel 2: Contribution drilldown -->
-          <div class="sc-intel-card">
-            <div class="sc-intel-card-header">
-              <div>
-                <div class="sc-intel-title">${STATE.dm !== 'all' ? 'Rep Contribution' : STATE.rm !== 'all' ? 'DM Contribution' : STATE.nsm !== 'all' ? 'DM Contribution' : 'Line Contribution'}</div>
-                <div class="sc-intel-sub">${STATE.dm !== 'all' ? 'Reps under selected DM' : STATE.rm !== 'all' ? 'DMs under selected RM' : STATE.nsm !== 'all' ? 'DMs under NSM' : 'Sales by Product Line'}</div>
-              </div>
-            </div>
-            <div style="height:200px; position:relative;"><canvas id="chart-exec-drilldown"></canvas></div>
           </div>
 
         </div>
@@ -2023,106 +2018,9 @@
         currentChartInstances.push(chart);
       }
 
-      const ctxDrill = document.getElementById("chart-exec-drilldown");
-      if (ctxDrill) {
-        // ── Determine drill level from deepest active filter ──
-        const hasDM  = STATE.dm  !== 'all' && Array.isArray(STATE.dm)  && STATE.dm.length  > 0;
-        const hasNSM = STATE.nsm !== 'all' && Array.isArray(STATE.nsm) && STATE.nsm.length > 0;
-        const hasBU  = STATE.buhead !== 'all' && Array.isArray(STATE.buhead) && STATE.buhead.length > 0;
-
-        let drillEntries, lookupArr;
-        if (hasDM) {
-          // Show Medical Reps under selected DMs
-          drillEntries = Object.entries(res.repData);
-          lookupArr    = cache.lookups.reps;
-        } else if (hasNSM) {
-          // Show DMs under selected NSMs
-          drillEntries = Object.entries(res.dmData);
-          lookupArr    = cache.lookups.dms;
-        } else if (hasBU) {
-          // Show NSMs under selected BUs
-          drillEntries = Object.entries(res.nsmData);
-          lookupArr    = cache.lookups.nsms;
-        } else {
-          // Default: BU level
-          drillEntries = Object.entries(res.buData);
-          lookupArr    = cache.lookups.buheads;
-        }
-
-        const NONE_LABELS = ['(none)', '', null, undefined];
-        const sorted = drillEntries
-          .filter(([idx]) => lookupArr[idx] && !NONE_LABELS.includes(lookupArr[idx]))
-          .sort((a, b) => b[1].val - a[1].val)
-          .slice(0, 12); // cap at 12 slices for readability
-
-        const labels = sorted.map(([idx]) => lookupArr[idx] || 'Unknown');
-        const data   = sorted.map(([, v]) => v.val);
-        const total  = data.reduce((s, v) => s + v, 0) || 1;
-
-        const PALETTE = [
-          '#0f4c81','#15803d','#b45309','#b91c1c','#7c3aed',
-          '#0891b2','#9d174d','#065f46','#92400e','#1e3a5f',
-          '#4338ca','#0369a1'
-        ];
-
-        if (data.length === 0) {
-          ctxDrill.getContext('2d').fillStyle = '#94a3b8';
-          ctxDrill.getContext('2d').font = '12px Inter, sans-serif';
-          ctxDrill.getContext('2d').textAlign = 'center';
-          ctxDrill.getContext('2d').fillText('No data for current filters', ctxDrill.width/2, ctxDrill.height/2);
-        } else {
-          const chart = new Chart(ctxDrill, {
-            type: 'doughnut',
-            data: {
-              labels: labels,
-              datasets: [{
-                data: data,
-                backgroundColor: PALETTE,
-                borderWidth: 2,
-                borderColor: '#fff',
-                hoverOffset: 6
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  position: 'right',
-                  labels: {
-                    color: '#334155',
-                    font: { size: 10, weight: '600' },
-                    padding: 8,
-                    boxWidth: 10,
-                    generateLabels: (chart) => {
-                      const ds = chart.data.datasets[0];
-                      return chart.data.labels.map((label, i) => ({
-                        text: `${label}  ${((ds.data[i]/total)*100).toFixed(1)}%`,
-                        fillStyle: ds.backgroundColor[i],
-                        strokeStyle: '#fff',
-                        lineWidth: 1,
-                        index: i
-                      }));
-                    }
-                  }
-                },
-                tooltip: {
-                  callbacks: {
-                    label: (ctx) => {
-                      const pct = ((ctx.parsed / total) * 100).toFixed(1);
-                      const egp = ctx.parsed >= 1000000
-                        ? (ctx.parsed/1000000).toFixed(2) + 'M'
-                        : (ctx.parsed/1000).toFixed(1) + 'K';
-                      return `  ${ctx.label}: EGP ${egp}  (${pct}%)`;
-                    }
-                  }
-                }
-              }
-            }
-          });
-          currentChartInstances.push(chart);
-        }
-      }
+      // chart-exec-drilldown (the "Line/DM/Rep Contribution" doughnut,
+      // relabeled by drill depth) removed 2026-07-29 -- see the HTML-side
+      // comment above the Monthly Trend panel for why.
     }
 
     if (STATE.subTab === "performance") {
