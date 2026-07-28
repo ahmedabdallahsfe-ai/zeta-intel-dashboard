@@ -238,7 +238,22 @@
     if (ignoreKey !== "prod" && STATE.prod !== "all" && !STATE.prod.includes(r[PROD])) return false;
     // Note: CM (Emp6/Commercial Manager, r[CM]) is intentionally not filterable —
     // single company-wide value, no analytical slicing power.
-    if (ignoreKey !== "buhead" && STATE.buhead !== "all" && !STATE.buhead.includes(r[BUHEAD])) return false;
+
+    // BU HEAD: "Non-Promoted" excluded from the default ("all") state
+    // (2026-07-29, per Ahmed's request) -- same pattern as Line/CHC_SALES
+    // above. Non-Promoted is out of commercial scope platform-wide (see
+    // semantic-model.js's CONTEXT_SEGMENTS), so it shouldn't silently
+    // inflate headline BU-level totals; it's still explicitly selectable
+    // via the dropdown if someone specifically wants to look at it.
+    const rowBuhead = r[BUHEAD];
+    const nonPromotedIdx = cache && cache.lookups && cache.lookups.buheads ? cache.lookups.buheads.indexOf("Non-Promoted") : -1;
+    if (ignoreKey !== "buhead") {
+      if (STATE.buhead === "all") {
+        if (nonPromotedIdx !== -1 && rowBuhead === nonPromotedIdx) return false;
+      } else {
+        if (!STATE.buhead.includes(rowBuhead)) return false;
+      }
+    }
     if (ignoreKey !== "nsm" && STATE.nsm !== "all" && !STATE.nsm.includes(r[NSM])) return false;
     if (ignoreKey !== "rm" && STATE.rm !== "all" && !STATE.rm.includes(r[RM])) return false;
     if (ignoreKey !== "dm" && STATE.dm !== "all" && !STATE.dm.includes(r[DM])) return false;
@@ -552,17 +567,34 @@
         return;
       }
 
+      // Values excluded from the default ("all") checked state -- picked
+      // by name, not hardcoded index, so this survives the lookup array
+      // being reordered by a future cache refresh. Add an entry here (not
+      // a copy-pasted if/else branch) for any future stateKey that needs
+      // the same treatment. Line/CHC_SALES was the original case (BU
+      // Sales Rep channel double-counting a BU's Pharmacy-channel line);
+      // BU Head/Non-Promoted added 2026-07-29 per Ahmed's request --
+      // Non-Promoted is out of commercial scope platform-wide (see
+      // semantic-model.js's CONTEXT_SEGMENTS) so it shouldn't silently
+      // inflate headline BU-level totals by default.
+      const DEFAULT_EXCLUDED_VALUE = { line: "CHC_SALES", buhead: "Non-Promoted" };
+      function getDefaultExcludedIdx(key) {
+        const name = DEFAULT_EXCLUDED_VALUE[key];
+        if (!name || !cache || !cache.lookups) return -1;
+        const lookupKey = COLUMN_TO_LOOKUP[
+          key === "line" ? LINE : key === "buhead" ? BUHEAD : -1
+        ];
+        const list = lookupKey ? cache.lookups[lookupKey] : null;
+        return list ? list.indexOf(name) : -1;
+      }
+
       listDiv.innerHTML = filtered.map(item => {
-        let isChecked = false;
-        if (stateKey === "line") {
-          const chcSalesIdx = cache && cache.lookups && cache.lookups.lines ? cache.lookups.lines.indexOf("CHC_SALES") : -1;
-          if (STATE.line === "all") {
-            isChecked = (chcSalesIdx !== -1 && item.idx !== chcSalesIdx);
-          } else {
-            isChecked = STATE.line.includes(item.idx);
-          }
+        let isChecked;
+        if (STATE[stateKey] === "all") {
+          const excludedIdx = getDefaultExcludedIdx(stateKey);
+          isChecked = (excludedIdx === -1 || item.idx !== excludedIdx);
         } else {
-          isChecked = (STATE[stateKey] === "all" || STATE[stateKey].includes(item.idx));
+          isChecked = STATE[stateKey].includes(item.idx);
         }
 
         return `
@@ -578,10 +610,14 @@
         cb.addEventListener("change", () => {
           const idx = (stateKey === "position") ? cb.value : parseInt(cb.value, 10);
           let currentSelection = STATE[stateKey];
-          
+
           if (currentSelection === "all") {
-            // Convert to explicit selection minus the unchecked item
-            currentSelection = availableItems.map(x => x.idx);
+            // Convert to explicit selection -- start from what was actually
+            // checked (respects the default-excluded value above), not the
+            // raw available list, otherwise the excluded item would sneak
+            // back in as soon as the user toggles any OTHER checkbox.
+            const excludedIdx = getDefaultExcludedIdx(stateKey);
+            currentSelection = availableItems.map(x => x.idx).filter(i => i !== excludedIdx);
           }
 
           if (cb.checked) {
