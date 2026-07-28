@@ -1197,14 +1197,14 @@
       ).join('');
 
       return `
-        <!-- ── COMMAND HEADER: Health + Achievement ── -->
+        <!-- ── COMMAND HEADER: Achievement + Monthly Pulse ── -->
+        <!-- COMMERCIAL HEALTH block removed 2026-07-29 per Ahmed's request --
+             was a composite score (Achievement/SFE/Distribution/Trend) shown
+             alongside YTD Achievement here. computeInsights() still computes
+             ins.healthScore/healthColor/healthLabel -- they're used by the AI
+             Executive Briefing's separate "Health Score" badge, which was
+             intentionally kept (different subtab, different label). -->
         <div class="sc-command-header">
-          <div class="sc-health-block" style="border-left:4px solid ${ins.healthColor};">
-            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:${ins.healthColor}; margin-bottom:4px;">COMMERCIAL HEALTH</div>
-            <div style="font-size:36px; font-weight:900; color:${ins.healthColor}; line-height:1;">${ins.healthScore}</div>
-            <div style="font-size:11px; font-weight:700; color:${ins.healthColor}; margin-top:2px;">${ins.healthLabel}</div>
-            <div style="font-size:10px; color:#64748b; margin-top:6px;">Composite score: Achievement · SFE · Distribution · Trend</div>
-          </div>
           <div class="sc-ach-block" style="background:${achBg}; border:1px solid ${achColor}20;">
             <div style="font-size:10px; font-weight:700; color:${achColor}; text-transform:uppercase; letter-spacing:0.06em;">YTD ACHIEVEMENT</div>
             <div style="font-size:42px; font-weight:900; color:${achColor}; line-height:1; margin:4px 0;">${ins.ach.toFixed(1)}%</div>

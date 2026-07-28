@@ -2746,10 +2746,14 @@ body {
    EXECUTIVE COMMAND CENTER — CEO / BU Head landing page components
    ============================================================================= */
 
-/* ── Command Header: Health + Achievement + Monthly Pulse ── */
+/* ── Command Header: Achievement + Monthly Pulse ── */
+/* Was a 3-column grid (Health 160px / Achievement 220px / Monthly 1fr) --
+   the Commercial Health block was removed 2026-07-29 (see js/sales.js),
+   so this is now 2 columns. .sc-health-block kept (unused, harmless) in
+   case the block ever comes back. */
 .sc-command-header {
   display: grid;
-  grid-template-columns: 160px 220px 1fr;
+  grid-template-columns: 220px 1fr;
   gap: 16px;
   background: #fff;
   border: 1px solid #e2e8f0;
