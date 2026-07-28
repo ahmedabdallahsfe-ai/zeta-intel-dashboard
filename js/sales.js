@@ -2027,27 +2027,109 @@
     if (STATE.subTab === "executive") {
       const ctxMonthly = document.getElementById("chart-exec-monthly");
       if (ctxMonthly) {
+        // Redesigned 2026-07-29 ("make best practice view", per Ahmed).
+        // Prior version had two real problems, not just polish:
+        //  1. Tick/gridline colors (#a3aed0 ticks, #2e3456 gridlines) were
+        //     leftover dark-theme values on a WHITE .sc-intel-card
+        //     background -- close to invisible in practice.
+        //  2. No visual signal for "did this month hit target" beyond
+        //     eyeballing bar-vs-line height -- forces the reader to do the
+        //     comparison manually every month, every time.
+        // Fixes applied, matching conventions already established
+        // elsewhere in this exact file (monthly pulse sparkline badges
+        // use the identical green/amber/red achievement tiering; KPI
+        // achievement colors reused verbatim):
+        //  - Actual bars colored by achievement tier (pre-attentive scan,
+        //    no mental math required)
+        //  - Target rendered as a dashed line (standard "goal vs actual"
+        //    convention -- solid = what happened, dashed = the plan)
+        //  - Y axis starts at zero (bar charts must, or height comparisons
+        //    lie) and ticks are EGP-formatted instead of raw numbers
+        //  - Unified tooltip (mode:'index') shows Actual, Target, and
+        //    Achievement % together for whichever month is hovered
+        //  - Neutral light-theme colors that are actually legible on #fff
         const sortedMonths = Object.keys(res.monthlyData).sort();
         const vals = sortedMonths.map(m => res.monthlyData[m].val);
         const tgts = sortedMonths.map(m => res.monthlyData[m].tgtVal);
+        const achs = sortedMonths.map((m, i) => tgts[i] > 0 ? (vals[i] / tgts[i]) * 100 : null);
         const labels = sortedMonths.map(monthIndexToLabel);
+
+        const achColorFor = (ach) => ach === null ? '#94a3b8' : ach >= 100 ? '#15803d' : ach >= 85 ? '#b45309' : '#b91c1c';
+        const barColors = achs.map(achColorFor);
 
         const chart = new Chart(ctxMonthly, {
           type: 'bar',
           data: {
             labels: labels,
             datasets: [
-              { label: 'Actual Sales', data: vals, backgroundColor: '#0f6cbd', borderRadius:4 },
-              { label: 'Target Sales', data: tgts, type: 'line', borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3 }
+              {
+                label: 'Actual Sales',
+                data: vals,
+                backgroundColor: barColors,
+                borderRadius: 6,
+                maxBarThickness: 42,
+                order: 2
+              },
+              {
+                label: 'Target',
+                data: tgts,
+                type: 'line',
+                borderColor: '#64748b',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                borderDash: [6, 4],
+                pointRadius: 4,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#64748b',
+                pointBorderWidth: 2,
+                tension: 0,
+                order: 1
+              }
             ]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#a3aed0', font: { size: 10 } } } },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: {
+                position: 'top',
+                align: 'end',
+                labels: { color: '#334155', font: { size: 11, weight: '600' }, usePointStyle: true, boxWidth: 8, padding: 14 }
+              },
+              tooltip: {
+                backgroundColor: '#0f172a',
+                titleFont: { size: 12, weight: '700' },
+                bodyFont: { size: 11 },
+                padding: 10,
+                callbacks: {
+                  label: (ctx) => {
+                    const egp = 'EGP ' + formatM(ctx.parsed.y);
+                    if (ctx.dataset.label === 'Actual Sales') {
+                      const i = ctx.dataIndex;
+                      const achLabel = achs[i] === null ? 'no target' : `${achs[i].toFixed(1)}% of target`;
+                      return `  Actual: ${egp}  (${achLabel})`;
+                    }
+                    return `  Target: ${egp}`;
+                  }
+                }
+              }
+            },
             scales: {
-              x: { grid: { display: false }, ticks: { color: '#a3aed0', font: { size: 10 } } },
-              y: { grid: { color: '#2e3456' }, ticks: { color: '#a3aed0', font: { size: 10 } } }
+              x: {
+                grid: { display: false },
+                ticks: { color: '#64748b', font: { size: 11, weight: '600' } }
+              },
+              y: {
+                beginAtZero: true,
+                grid: { color: '#f1f5f9' },
+                border: { display: false },
+                ticks: {
+                  color: '#94a3b8',
+                  font: { size: 10 },
+                  callback: (v) => 'EGP ' + formatM(v)
+                }
+              }
             }
           }
         });
