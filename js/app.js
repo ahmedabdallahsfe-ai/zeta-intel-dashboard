@@ -16,7 +16,7 @@ let sections = {}; // id -> section-body element, populated once by buildLayout(
 let filenameSuffix = "AllData"; // active-filter suffix, refreshed every render, read by every export button's exportFileName
 let _lastFilterState = null; // stored so the Not-Seen modal can call getNotSeenCustomers with current filters
 let _lastResult = null; // stored so the At-Risk tiers modal can find tier lists
-let currentTab = "coverage";
+let currentTab = "executive"; // Executive Command Center is the platform's default landing page
 
 document.addEventListener("DOMContentLoaded", () => {
   Loader.init();
@@ -47,13 +47,25 @@ document.addEventListener("DOMContentLoaded", () => {
     window.__selfCheck = { ok: true, mismatches: [] };
   }
 
-  Loader.setMessage("Creating dashboard layout...");
-  buildLayout();
+  // Coverage's own section-tree (KPI cards, tables, charts) is only needed
+  // when Coverage is the active tab. Building it unconditionally at boot
+  // would inject the full layout into #app-root just to have the Executive
+  // Command Center (the platform's default landing page) overwrite it
+  // immediately. buildLayout() still runs, on demand, the first time the
+  // user clicks into the Coverage tab -- see the sidebar click handler below.
+  if (currentTab === "coverage") {
+    Loader.setMessage("Creating dashboard layout...");
+    buildLayout();
+  }
   wireChartExportDelegation();
 
   if (hasRecords) {
     const filterBarEl = document.getElementById("filter-bar");
     const chipsEl = document.getElementById("filter-chips");
+    // Filters.init() wires the persistent global filter bar (it lives outside
+    // #app-root and is never torn down) and fires its callback once
+    // immediately -- this must still run at boot regardless of which tab is
+    // active, so filtering works the moment the user switches to Coverage.
     Filters.init(filterBarEl, chipsEl, dashboard.dimensions, (filterState) => {
       // Per-section busy indicator: cheap at today's row counts (recompute
       // is well under 100ms) but keeps every section honest if the dataset
@@ -87,8 +99,11 @@ document.addEventListener("DOMContentLoaded", () => {
         : dashboard;
       renderAll(filtered, dashboard.dimensions, filterState);
     });
-    // Render the pre-computed June snapshot directly.
-    renderAll(dashboard, dashboard.dimensions, {});
+    // Render the pre-computed June snapshot directly -- only when Coverage
+    // is actually the active tab (see buildLayout() guard above).
+    if (currentTab === "coverage") {
+      renderAll(dashboard, dashboard.dimensions, {});
+    }
   }
 
   // Sidebar toggle collapse
@@ -112,6 +127,8 @@ document.addEventListener("DOMContentLoaded", () => {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Sales Performance";
     } else if (tab === "iqvia") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Market Intelligence";
+    } else if (tab === "executive") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Executive Command Center";
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -119,6 +136,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize title
   updateTopbarTitle(currentTab);
+
+  // Render the default landing workspace (Executive Command Center) at boot.
+  // Mirrors the same on-demand init() pattern used for Sales/SFE/IQVIA in the
+  // tab-switch handler below -- just invoked once here since Executive is
+  // the tab that's already active on page load.
+  if (currentTab === "executive" && window.ExecutiveDashboard) {
+    window.ExecutiveDashboard.init("app-root");
+  }
 
   // Sidebar tab switching
   const menuItems = document.querySelectorAll("#sidebar-nav .menu-item");
@@ -137,9 +162,12 @@ document.addEventListener("DOMContentLoaded", () => {
       if (currentTab === "iqvia" && window.IQVIADashboard) {
         window.IQVIADashboard.destroy();
       }
+      if (currentTab === "executive" && window.ExecutiveDashboard) {
+        window.ExecutiveDashboard.destroy();
+      }
       currentTab = tab;
       updateTopbarTitle(tab);
-      
+
       if (tab === "coverage") {
         if (window.SFEDashboard) {
           window.SFEDashboard.destroy();
@@ -173,6 +201,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (window.IQVIADashboard) {
           window.IQVIADashboard.init("app-root");
+        }
+      } else if (tab === "executive") {
+        if (window.SFEDashboard) {
+          window.SFEDashboard.destroy();
+        }
+        if (window.ExecutiveDashboard) {
+          window.ExecutiveDashboard.init("app-root");
         }
       }
     });
@@ -509,7 +544,12 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
 /** Re-render every section from a fresh Analytics.run() result. Called on
  * initial load and on every filter change. */
 function renderAll(result, dims, filterState) {
-  if (currentTab === "sfe") return;
+  // Coverage's section-tree only exists in #app-root while Coverage is the
+  // active tab (see the buildLayout() guards in the boot sequence and the
+  // sidebar tab-switch handler) -- every other tab (sfe/sales/iqvia/executive)
+  // owns #app-root itself and must never have Coverage's renderers write into
+  // stale/detached `sections` references.
+  if (currentTab !== "coverage") return;
   _lastResult = result;
   renderExecutiveSummary(result, filterState);
   UI.renderKpiCards(sections.kpis, result.kpis, result.kpiDeltas, result.trend.series);

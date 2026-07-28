@@ -36,9 +36,90 @@
     [TXTYPE]: 'transaction_types'
   };
 
+  // ---------------------------------------------------------------------
+  // Customer Channel Mix -- sub_type -> commercial cluster (2026-07-28).
+  //
+  // Sales' row-level cache has no individual customer name or ID -- its
+  // finest granularity for "who bought this" is the `sub_types` lookup
+  // (58 raw values), which is itself a mix of named pharmacy/institution
+  // accounts (e.g. "Ezzaby", "Abdeen Ph") and generic trade-channel
+  // labels (e.g. "Retail", "MOH", "Stores"). This map groups those 58
+  // raw values into commercially meaningful clusters for executive
+  // reporting. Defined jointly with the business owner (deliverable:
+  // sales_subtypes.xlsx, "Sub Types" + "Group Analysis" tabs) --
+  // update BOTH the spreadsheet and this map together if the grouping
+  // changes; they must stay in sync.
+  //
+  // NOTE (important limitation, do not overclaim in the UI): within a
+  // cluster, "customer name" in the Customer Channel Mix card actually
+  // means "sub_type value" -- for named-account sub_types (Chain
+  // Pharmacy, Independent Pharmacy) this genuinely reads like a customer
+  // name; for the generic-label sub_types (Retail, Stores, MOH, etc.)
+  // it is a channel label, not an individual account. There is no
+  // deeper per-doctor/per-pharmacy identity available in this cache
+  // (see cache.customers -- it carries only an anonymized numeric ID,
+  // no name lookup) -- that would require an ETL enhancement, same
+  // constraint that deferred KPI 6 (Customer Dynamics).
+  const SUBTYPE_TO_CLUSTER = {
+    "Abdeen Ph": "Chain Pharmacy", "Abo Ali Ph": "Chain Pharmacy", "Agzakhana Ph": "Chain Pharmacy",
+    "Al Fouad Ph": "Chain Pharmacy", "Alserafy Ph": "Chain Pharmacy", "Auxilio": "Chain Pharmacy",
+    "Balbaa Ph": "Chain Pharmacy", "Delmar&Attalla Ph": "Chain Pharmacy", "El Khabiry": "Chain Pharmacy",
+    "El Taiby PH": "Chain Pharmacy", "El-Biesy": "Chain Pharmacy", "Eslam fathy Ph": "Chain Pharmacy",
+    "Ezz Eldin PH": "Chain Pharmacy", "Ezzaby": "Chain Pharmacy", "Khalil PH": "Chain Pharmacy",
+    "Maher Chain Alex": "Chain Pharmacy", "Mahfouz": "Chain Pharmacy", "Misr Chain": "Chain Pharmacy",
+    "Nabil Eltarshouby Ph": "Chain Pharmacy", "Nour Ph": "Chain Pharmacy", "Ramadan Pharmacy": "Chain Pharmacy",
+    "Sally PH": "Chain Pharmacy", "Seif PH": "Chain Pharmacy", "Shokr": "Chain Pharmacy",
+    "Tarshobi PH": "Chain Pharmacy", "Walid El Tarshobi": "Chain Pharmacy", "Yasser Hefny": "Chain Pharmacy",
+    "Al Safa": "Chain Pharmacy", "Dawaa": "Chain Pharmacy", "Gardenia": "Chain Pharmacy",
+    "HEFNY PHs": "Chain Pharmacy", "Optimus": "Chain Pharmacy", "Sehha": "Chain Pharmacy",
+    "Yodawi": "Chain Pharmacy", "Chain": "Chain Pharmacy",
+    "EgyDrug_Pharmacies": "Retail",
+    "Behera PHs": "Stores", "Elsyadla": "Stores", "Stores": "Stores", "SubAgent": "Stores",
+    "Special PHs": "Retail", "Account": "Retail", "Retail": "Retail",
+    "Army": "Institutional / Government", "Educational Hosp.": "Institutional / Government",
+    "HI": "Institutional / Government", "MOH": "Institutional / Government",
+    "Petrol": "Institutional / Government", "Police": "Institutional / Government",
+    "Univ.": "Institutional / Government",
+    "POLY Clinic": "POLY Clinic",
+    "Private": "Retail",
+    "Private Clinic": "Private Clinic",
+    "Private Hospital": "Private Hospital",
+    "E-Commerce Allocated": "E-Commerce",
+    "Non UPA": "OTHERS", "NON WORKING": "OTHERS", "Other": "OTHERS",
+  };
+  function subTypeToCluster(rawSubType) {
+    if (rawSubType === null || rawSubType === undefined || rawSubType === "(none)") return null;
+    return SUBTYPE_TO_CLUSTER.hasOwnProperty(rawSubType) ? SUBTYPE_TO_CLUSTER[rawSubType] : "Uncategorized";
+  }
+
   let cache = null;
   let decodedRows = [];
   let currentChartInstances = [];
+
+  // Customer Analytics cache (2026-07-28) -- SEPARATE from the main Sales
+  // cache above, loaded from window.CUSTOMER_ANALYTICS_CACHE (see
+  // etl/build_customer_analytics_cache.py + dashboard.html's script tag
+  // comment for why this is a distinct cache/source). Decompressed lazily,
+  // once, on first use -- same pattern as decompressCache() below.
+  let customerAnalyticsCache = null;
+  function decompressCustomerAnalyticsCache() {
+    if (customerAnalyticsCache !== null) return;
+    if (typeof window.CUSTOMER_ANALYTICS_CACHE === 'undefined') {
+      customerAnalyticsCache = false; // sentinel: "checked, not available" (not null = "not yet checked")
+      return;
+    }
+    try {
+      const b64 = window.CUSTOMER_ANALYTICS_CACHE.b64Data;
+      const strData = atob(b64);
+      const charData = strData.split('').map(x => x.charCodeAt(0));
+      const bytes = new Uint8Array(charData);
+      const decompressed = pako.ungzip(bytes, { to: 'string' });
+      customerAnalyticsCache = JSON.parse(decompressed);
+    } catch (e) {
+      console.error('[Sales] Failed to decompress customer analytics cache', e);
+      customerAnalyticsCache = false;
+    }
+  }
 
   // Bumped in refresh_sales.py whenever the row layout or lookups' key
   // naming changes. Must match cache.meta.schemaVersion or this module
@@ -60,7 +141,7 @@
 
   const STATE = {
     subTab: "executive",
-    theme: "dark",
+    theme: "light", // platform default is light ("sun") mode across every workspace; unused today (no theme toggle wired in Sales), kept consistent for whenever one is added
     collapsedFilters: false,
     
     // Multi-select lists (arrays of indices, or "all")
@@ -309,10 +390,17 @@
       res.regionalData[rIdx].qty += qty;
 
       // Brands
+      // NOTE: tgtVal/tgtQty added 2026-07-26 -- this accumulator previously
+      // only summed val/qty, so every downstream brandEntries.ach/.tgt read
+      // (atRiskBrands, overBrands, Brand Performance Ranking, Target Gap by
+      // Brand) was silently always 0/0% regardless of real performance.
+      // Fixed to mirror lineData/monthlyData's existing tgtVal pattern below.
       const bIdx = r[BRAND];
-      if (!res.brandData[bIdx]) res.brandData[bIdx] = { val: 0, qty: 0 };
+      if (!res.brandData[bIdx]) res.brandData[bIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0 };
       res.brandData[bIdx].val += val;
       res.brandData[bIdx].qty += qty;
+      res.brandData[bIdx].tgtVal += tval;
+      res.brandData[bIdx].tgtQty += tqty;
 
       // Products
       const pIdx = r[PROD];
@@ -2484,6 +2572,571 @@
       document.body.classList.add('sales-mode');
       renderLayout();
     },
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getBusinessSummary()
+     * ------------------------------------------------------------------
+     * The one and only way the Executive Command Center (or any future
+     * workspace) reads Sales data. It never reaches into `cache`,
+     * `decodedRows`, or any other internal of this module directly --
+     * this module owns its own calculations and exposes only this
+     * standardized business object, per the platform's module-boundary
+     * principle (2026-07-26 architecture direction).
+     *
+     * Contract (identical shape across Sales/Coverage/SFE/IQVIA):
+     *   { ok, status, asOfDate, source, bu: { <BU>: {...metrics} } }
+     * `bu` is keyed by SEMANTIC.BU_LIST only (CHC/Cluster/DIAB/GIT) --
+     * Non-Promoted/Other Markets are out of scope for this interface
+     * by design (see semantic-model.js).
+     *
+     * YTD here means "all months present in this cache" -- the cache
+     * currently holds Jan-May 2026 only, with no prior-year rows, so
+     * Sales cannot compute its own YoY growth. That comparison is
+     * IQVIA's job (it has multi-year history); Sales' contribution is
+     * Target vs Actual achievement and internal MoM trend.
+     */
+    getBusinessSummary() {
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: {} };
+      }
+      if (typeof window.SEMANTIC === 'undefined') {
+        console.error('[Sales] getBusinessSummary() requires js/semantic-model.js to be loaded first.');
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: {} };
+      }
+      const lines = cache.lookups.lines;
+      const months = cache.lookups.months;
+      const lastIdx = months.length - 1;
+      const prevIdx = months.length - 2;
+
+      const totals = {};
+      const byMonth = {}; // bu -> { monthIdx -> actualVal }
+      window.SEMANTIC.BU_LIST.forEach(bu => {
+        totals[bu] = { actualYTD: 0, targetYTD: 0 };
+        byMonth[bu] = {};
+      });
+
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const bu = window.SEMANTIC.lineToBU(lines[r[LINE]]);
+        if (!bu) continue;
+        const t = totals[bu];
+        t.actualYTD += r[VAL];
+        t.targetYTD += r[TGT_VAL];
+        const m = r[MONTH];
+        byMonth[bu][m] = (byMonth[bu][m] || 0) + r[VAL];
+      }
+
+      const buOut = {};
+      window.SEMANTIC.BU_LIST.forEach(bu => {
+        const t = totals[bu];
+        const achievementPct = t.targetYTD > 0 ? (t.actualYTD / t.targetYTD) * 100 : null;
+        const lastVal = byMonth[bu][lastIdx] || 0;
+        const prevVal = byMonth[bu][prevIdx] || 0;
+        const momGrowthPct = prevVal > 0 ? ((lastVal - prevVal) / prevVal) * 100 : null;
+        buOut[bu] = {
+          actualYTD: t.actualYTD,
+          targetYTD: t.targetYTD,
+          achievementPct: achievementPct,
+          momGrowthPct: momGrowthPct,
+          unit: 'EGP',
+          confidence: months.length >= 3 ? 'high' : 'low' // trend needs >=3 months to mean much
+        };
+      });
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: months[lastIdx] || null,
+        source: 'sales',
+        bu: buOut
+      };
+    },
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getBrandAchievement(bu)
+     * ------------------------------------------------------------------
+     * Per-brand Value-basis achievement for ONE Business Unit, Non-Tender
+     * transactions only (2026-07-26 request -- "Brand Portfolio Health"
+     * in the Executive Evidence Score now sources from Sales, not IQVIA
+     * market share). Deliberately a FRESH single-row pass over
+     * decodedRows, not a read of runAggregator()'s STATE-dependent
+     * brandData -- the Executive Command Center is a separate consumer
+     * and must not depend on whatever filters happen to be set on the
+     * interactive Sales tab at the moment this is called.
+     *
+     * Row-level convention confirmed empirically before writing this:
+     * every row is EITHER a real transaction row (VAL>0, TGT_VAL=0) OR a
+     * "mirror" target row (VAL=0, TGT_VAL>0) -- summing both columns
+     * across all rows in a filtered set gives the correct combined
+     * actual-vs-target without double counting. Mirror/target rows are
+     * NEVER tender-flagged (confirmed: 0 rows are both isMirror and
+     * isTender in the current cache), so excluding isTender rows only
+     * ever removes real tender transactions -- it never silently drops
+     * target data for the remaining non-tender brands.
+     *
+     * achievementPct = actualValue / targetValue * 100, Value basis
+     * (EGP), exactly what "ach is value based" asked for.
+     *
+     * EXTENDED 2026-07-27 (Sales Value KPI card): now also accumulates
+     * units (QTY/TGT_QTY) alongside value, and computes each brand's
+     * contributionPct = its share of this BU's total Non-Tender VALUE
+     * (not units -- "contribution based on value" per request). Optional
+     * `line` param (a canonical line name, e.g. from SEMANTIC.normalizeLine())
+     * additionally scopes to one line within the BU -- omit/pass null for
+     * the whole-BU figure (identical to the pre-2026-07-27 behavior).
+     */
+    getBrandAchievement(bu, line) {
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, brands: [] };
+      }
+      if (typeof window.SEMANTIC === 'undefined') {
+        console.error('[Sales] getBrandAchievement() requires js/semantic-model.js to be loaded first.');
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, brands: [] };
+      }
+      const lines = cache.lookups.lines;
+      const brandsLk = cache.lookups.brands || [];
+      const months = cache.lookups.months;
+
+      const acc = new Map(); // brandIdx -> { val, tgtVal, qty, tgtQty }
+      let totalVal = 0;
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const rawLine = lines[r[LINE]];
+        const rBu = window.SEMANTIC.lineToBU(rawLine);
+        if (rBu !== bu) continue;
+        if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
+        const isTender = (r[MASK] & 2) > 0;
+        if (isTender) continue; // Non-Tender only, per request
+        const bIdx = r[BRAND];
+        if (!acc.has(bIdx)) acc.set(bIdx, { val: 0, tgtVal: 0, qty: 0, tgtQty: 0 });
+        const a = acc.get(bIdx);
+        a.val += r[VAL];
+        a.tgtVal += r[TGT_VAL];
+        a.qty += r[QTY];
+        a.tgtQty += r[TGT_QTY];
+        totalVal += r[VAL];
+      }
+
+      const brands = Array.from(acc.entries())
+        .map(([idx, a]) => ({
+          name: brandsLk[idx] || 'Unknown',
+          actualValue: a.val,
+          targetValue: a.tgtVal,
+          actualQty: a.qty,
+          targetQty: a.tgtQty,
+          achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
+          contributionPct: totalVal > 0 ? (a.val / totalVal) * 100 : null,
+        }))
+        .filter(b => b.targetValue > 0 || b.actualValue > 0) // drop dimension noise with nothing on either side
+        .sort((x, y) => (x.achievementPct === null ? Infinity : x.achievementPct) - (y.achievementPct === null ? Infinity : y.achievementPct));
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: months[months.length - 1] || null,
+        source: 'sales',
+        bu: bu,
+        line: line || 'All',
+        unit: 'EGP',
+        scope: 'Non-Tender transactions only, Value basis',
+        totalActualValue: totalVal,
+        brands: brands,
+      };
+    },
+
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getLineSalesSummary(bu)
+     * ------------------------------------------------------------------
+     * Executive KPI 11 (Line Performance, 2026-07-27): per-Line Sales
+     * Achievement within one BU. Grouped by SEMANTIC.normalizeLine(), NOT
+     * the raw cache.lookups.lines string -- Sales tags the CHC line
+     * "CHC_SALES" while every other cache calls it "CHC" (see
+     * LINE_SYNONYMS in semantic-model.js). Grouping by the raw string
+     * would show CHC_SALES as a second, phantom line and -- per the
+     * user's explicit confirmation (2026-07-27) -- double the apparent
+     * CHC total if ever summed, since CHC_SALES's rows ARE CHC's sales,
+     * just under a different spelling. normalizeLine() collapses both
+     * spellings into the single canonical "CHC" bucket before grouping,
+     * exactly like lineToBU() already does for the BU-level rollup.
+     *
+     * CORRECTED 2026-07-27 (user: "make right calculation for sales
+     * achievement"): now Non-Tender only, matching getBrandAchievement()'s
+     * and getSalesAchievementSummary()'s definition of "Achievement" --
+     * this is a Line cut of the SAME "Sales Achievement" headline number
+     * KPI 5 shows, so it must use the identical definition or the two
+     * won't reconcile. Was previously all-transaction basis; that was the
+     * bug (KPI 5's headline and its own Line-filtered mode used different
+     * bases depending on whether a Line was selected).
+     */
+    getLineSalesSummary(bu) {
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, lines: [] };
+      }
+      if (typeof window.SEMANTIC === 'undefined') {
+        console.error('[Sales] getLineSalesSummary() requires js/semantic-model.js to be loaded first.');
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, lines: [] };
+      }
+      const linesLk = cache.lookups.lines;
+      const months = cache.lookups.months;
+
+      const acc = new Map(); // canonicalLineName -> { val, tgtVal }
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const rawLine = linesLk[r[LINE]];
+        if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        const isTender = (r[MASK] & 2) > 0;
+        if (isTender) continue; // Non-Tender only -- see header comment
+        const canon = window.SEMANTIC.normalizeLine(rawLine);
+        if (!acc.has(canon)) acc.set(canon, { val: 0, tgtVal: 0 });
+        const a = acc.get(canon);
+        a.val += r[VAL];
+        a.tgtVal += r[TGT_VAL];
+      }
+
+      const lines = Array.from(acc.entries())
+        .map(([name, a]) => ({
+          name: name,
+          actualValue: a.val,
+          targetValue: a.tgtVal,
+          achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
+        }))
+        .filter(l => l.targetValue > 0 || l.actualValue > 0)
+        .sort((x, y) => y.actualValue - x.actualValue);
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: months[months.length - 1] || null,
+        source: 'sales',
+        bu: bu,
+        unit: 'EGP',
+        scope: 'Non-Tender transactions only, Value basis',
+        lines: lines,
+      };
+    },
+
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getSalesAchievementSummary(bu, line)
+     * ------------------------------------------------------------------
+     * Executive KPI 5 (2026-07-27 correction -- "make right calculation
+     * for sales achievement"): THE canonical Sales Achievement number,
+     * Non-Tender transactions only, Value basis -- the SAME definition
+     * getBrandAchievement()/getLineSalesSummary()/getItemAchievement()
+     * already use. Previously KPI 5 read getBusinessSummary()'s
+     * all-transaction achievementPct instead, which included Tender
+     * business and didn't reconcile with every other Achievement-basis
+     * figure on this platform (Brand Portfolio Health, Sales Value, the
+     * Line Performance table). This function replaces that as KPI 5's
+     * source of truth. `line` is optional (a canonical line name) to
+     * scope to one line within the BU; omit/pass null for the whole-BU
+     * figure. Includes a Non-Tender MoM growth figure (byMonth, same
+     * two-month-lookback convention as getBusinessSummary()'s
+     * momGrowthPct) so the trend indicator is on the same basis as the
+     * headline, not silently mixing bases.
+     */
+    getSalesAchievementSummary(bu, line) {
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, line: line || 'All' };
+      }
+      if (typeof window.SEMANTIC === 'undefined') {
+        console.error('[Sales] getSalesAchievementSummary() requires js/semantic-model.js to be loaded first.');
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, line: line || 'All' };
+      }
+      const linesLk = cache.lookups.lines;
+      const months = cache.lookups.months;
+      const lastIdx = months.length - 1;
+      const prevIdx = months.length - 2;
+
+      let actualYTD = 0, targetYTD = 0;
+      const byMonth = {};
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const rawLine = linesLk[r[LINE]];
+        if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
+        const isTender = (r[MASK] & 2) > 0;
+        if (isTender) continue; // Non-Tender only -- see header comment
+        actualYTD += r[VAL];
+        targetYTD += r[TGT_VAL];
+        const m = r[MONTH];
+        byMonth[m] = (byMonth[m] || 0) + r[VAL];
+      }
+
+      const achievementPct = targetYTD > 0 ? (actualYTD / targetYTD) * 100 : null;
+      const lastVal = byMonth[lastIdx] || 0;
+      const prevVal = byMonth[prevIdx] || 0;
+      const momGrowthPct = prevVal > 0 ? ((lastVal - prevVal) / prevVal) * 100 : null;
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: months[lastIdx] || null,
+        source: 'sales',
+        bu: bu,
+        line: line || 'All',
+        unit: 'EGP',
+        scope: 'Non-Tender transactions only, Value basis',
+        actualYTD: actualYTD,
+        targetYTD: targetYTD,
+        achievementPct: achievementPct,
+        momGrowthPct: momGrowthPct,
+        confidence: months.length >= 3 ? 'high' : 'low',
+      };
+    },
+
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getItemAchievement(bu, brandName, line)
+     * ------------------------------------------------------------------
+     * Executive KPI 5 drill-down (2026-07-27 request): "Only for CHC,
+     * Brand cards become clickable to Item level." Mirrors
+     * getBrandAchievement()'s exact convention (Non-Tender, Value basis)
+     * one level finer -- grouped by PROD (SKU/item). Enforces the
+     * CHC-only rule itself (returns a clear 'bu_not_supported' status for
+     * the other 3 BUs) so callers can't accidentally wire this into a
+     * Cluster/DIAB/GIT brand card.
+     *
+     * EXTENDED 2026-07-27 (Sales Value KPI card): `brandName` is now
+     * OPTIONAL -- pass null/undefined to aggregate items across ALL of
+     * CHC's brands at once (the Sales Value card's CHC popup shows items
+     * directly, not brands, per request). Also accumulates units
+     * (QTY/TGT_QTY) and each item's contributionPct (share of the
+     * returned scope's total Non-Tender VALUE), and accepts an optional
+     * `line` param exactly like getBrandAchievement()'s.
+     */
+    getItemAchievement(bu, brandName, line) {
+      if (bu !== 'CHC') {
+        return { ok: false, status: 'bu_not_supported', asOfDate: null, source: 'sales', bu: bu, brand: brandName || null, items: [] };
+      }
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, brand: brandName || null, items: [] };
+      }
+      if (typeof window.SEMANTIC === 'undefined') {
+        console.error('[Sales] getItemAchievement() requires js/semantic-model.js to be loaded first.');
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, brand: brandName || null, items: [] };
+      }
+      const lines = cache.lookups.lines;
+      const brandsLk = cache.lookups.brands || [];
+      const productsLk = cache.lookups.products || [];
+      const months = cache.lookups.months;
+      let brandIdx = null;
+      if (brandName) {
+        brandIdx = brandsLk.indexOf(brandName);
+        if (brandIdx < 0) {
+          return { ok: false, status: 'brand_not_found', asOfDate: null, source: 'sales', bu: bu, brand: brandName, items: [] };
+        }
+      }
+
+      const acc = new Map(); // productIdx -> { val, tgtVal, qty, tgtQty }
+      let totalVal = 0;
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const rawLine = lines[r[LINE]];
+        if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
+        if (brandIdx !== null && r[BRAND] !== brandIdx) continue;
+        const isTender = (r[MASK] & 2) > 0;
+        if (isTender) continue; // Non-Tender only, same convention as getBrandAchievement()
+        const pIdx = r[PROD];
+        if (!acc.has(pIdx)) acc.set(pIdx, { val: 0, tgtVal: 0, qty: 0, tgtQty: 0 });
+        const a = acc.get(pIdx);
+        a.val += r[VAL];
+        a.tgtVal += r[TGT_VAL];
+        a.qty += r[QTY];
+        a.tgtQty += r[TGT_QTY];
+        totalVal += r[VAL];
+      }
+
+      const items = Array.from(acc.entries())
+        .map(([idx, a]) => ({
+          name: productsLk[idx] || 'Unknown',
+          actualValue: a.val,
+          targetValue: a.tgtVal,
+          actualQty: a.qty,
+          targetQty: a.tgtQty,
+          achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
+          contributionPct: totalVal > 0 ? (a.val / totalVal) * 100 : null,
+        }))
+        .filter(it => it.targetValue > 0 || it.actualValue > 0)
+        .sort((x, y) => (x.achievementPct === null ? Infinity : x.achievementPct) - (y.achievementPct === null ? Infinity : y.achievementPct));
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: months[months.length - 1] || null,
+        source: 'sales',
+        bu: bu,
+        brand: brandName || null,
+        line: line || 'All',
+        unit: 'EGP',
+        scope: 'Non-Tender transactions only, Value basis',
+        totalActualValue: totalVal,
+        items: items,
+      };
+    },
+
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getCustomerClusterMix(bu, line)
+     * ------------------------------------------------------------------
+     * Executive "Customer Channel Mix" KPI card (2026-07-28). Non-Tender,
+     * Value basis -- same convention as every other Achievement-family
+     * figure on this platform (getBrandAchievement, getLineSalesSummary,
+     * getSalesAchievementSummary, getItemAchievement). Groups every
+     * transaction's `sub_types` value into a commercial cluster via
+     * subTypeToCluster() (see the SUBTYPE_TO_CLUSTER map above for the
+     * mapping and its source-of-truth spreadsheet). Two-level result:
+     * cluster-level totals (for the card's main view) and, nested inside
+     * each cluster, the raw sub_type ("customer") breakdown for the
+     * drill-down modal -- mirrors getBrandAchievement()/
+     * getItemAchievement()'s brand-then-item drill pattern, just
+     * cluster-then-sub_type instead. `line` is optional (a canonical
+     * line name) to scope to one line within the BU; omit/pass null for
+     * the whole-BU figure.
+     */
+    getCustomerClusterMix(bu, line) {
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, line: line || 'All', clusters: [] };
+      }
+      if (typeof window.SEMANTIC === 'undefined') {
+        console.error('[Sales] getCustomerClusterMix() requires js/semantic-model.js to be loaded first.');
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, line: line || 'All', clusters: [] };
+      }
+      const linesLk = cache.lookups.lines;
+      const subTypesLk = cache.lookups.sub_types;
+      const months = cache.lookups.months;
+
+      // clusterName -> { val, subTypes: Map(subTypeName -> val) }
+      const clusterAcc = new Map();
+      let totalVal = 0;
+
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const rawLine = linesLk[r[LINE]];
+        if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
+        const isTender = (r[MASK] & 2) > 0;
+        if (isTender) continue; // Non-Tender only -- see header comment
+
+        const rawSubType = subTypesLk[r[STYPE]];
+        const cluster = subTypeToCluster(rawSubType);
+        if (cluster === null) continue; // "(none)" sub_type -- unattributed, excluded from the mix
+
+        if (!clusterAcc.has(cluster)) clusterAcc.set(cluster, { val: 0, subTypes: new Map() });
+        const c = clusterAcc.get(cluster);
+        c.val += r[VAL];
+        c.subTypes.set(rawSubType, (c.subTypes.get(rawSubType) || 0) + r[VAL]);
+        totalVal += r[VAL];
+      }
+
+      const clusters = Array.from(clusterAcc.entries())
+        .map(([name, c]) => ({
+          name: name,
+          actualValue: c.val,
+          contributionPct: totalVal > 0 ? (c.val / totalVal) * 100 : null,
+          customerCount: c.subTypes.size,
+          customers: Array.from(c.subTypes.entries())
+            .map(([subTypeName, val]) => ({
+              name: subTypeName,
+              actualValue: val,
+              contributionPctOfCluster: c.val > 0 ? (val / c.val) * 100 : null,
+              contributionPctOfTotal: totalVal > 0 ? (val / totalVal) * 100 : null,
+            }))
+            .sort((a, b) => b.actualValue - a.actualValue),
+        }))
+        .sort((a, b) => b.actualValue - a.actualValue);
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: months[months.length - 1] || null,
+        source: 'sales',
+        bu: bu,
+        line: line || 'All',
+        unit: 'EGP',
+        scope: 'Non-Tender transactions only, Value basis',
+        totalActualValue: totalVal,
+        clusters: clusters,
+      };
+    },
+
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getClusterCustomerHealth(bu, cluster)
+     * ------------------------------------------------------------------
+     * Customer Channel Mix's "Customer Health" drill (2026-07-28): unique
+     * customers, New/Lost/Retained/Reactivated bridge, frequency
+     * segmentation, and Full/Partial/None SKU-basket segmentation for one
+     * cluster, plus the full per-customer list (for the paginated grid)
+     * and the ranked SKU penetration list. Reads the SEPARATE Customer
+     * Analytics cache (window.CUSTOMER_ANALYTICS_CACHE) -- see
+     * decompressCustomerAnalyticsCache() above and
+     * etl/build_customer_analytics_cache.py for why this isn't the same
+     * cache getCustomerClusterMix() reads.
+     *
+     * Currently only covers clusters the ETL script has been run for
+     * (Retail, Chain Pharmacy as of 2026-07-28) -- returns status
+     * 'cluster_not_available' for any other cluster so callers can fall
+     * back to the flatter sub_type list getCustomerClusterMix() already
+     * provides, rather than showing broken/empty UI.
+     *
+     * `bu` narrows the customer list and re-derives every count from that
+     * narrowed list (a customer counts toward a BU if ANY of their
+     * transactions in this cluster were tagged to a line in that BU --
+     * see the cache's per-customer `bus` field). Pass bu=null/"All" for
+     * the company-wide, all-BU figure.
+     */
+    getClusterCustomerHealth(bu, cluster) {
+      decompressCustomerAnalyticsCache();
+      if (!customerAnalyticsCache) {
+        return { ok: false, status: 'cache_unavailable', source: 'customerAnalytics', bu: bu || 'All', cluster: cluster };
+      }
+      const clusterData = customerAnalyticsCache.clusters && customerAnalyticsCache.clusters[cluster];
+      if (!clusterData) {
+        return { ok: false, status: 'cluster_not_available', source: 'customerAnalytics', bu: bu || 'All', cluster: cluster };
+      }
+
+      const wantBU = bu && bu !== 'All' ? bu : null;
+      const customers = wantBU
+        ? clusterData.customers.filter(c => c.bus && c.bus.indexOf(wantBU) >= 0)
+        : clusterData.customers;
+
+      // Recompute every aggregate from the (possibly BU-narrowed) customer
+      // list rather than reusing the cache's pre-baked company-wide
+      // totals, so bu-scoping is honest rather than approximate.
+      const bridge = { new: 0, lost: 0, retained: 0, reactivated: 0 };
+      const frequencyBuckets = { frequent: 0, occasional: 0, oneTime: 0 };
+      const basketBuckets = { full: 0, partial: 0, none: 0 };
+      customers.forEach(c => {
+        const segKey = c.bridgeSegment === 'New' ? 'new' : c.bridgeSegment === 'Lost' ? 'lost'
+          : c.bridgeSegment === 'Retained' ? 'retained' : c.bridgeSegment === 'Reactivated' ? 'reactivated' : null;
+        if (segKey) bridge[segKey] += 1;
+        const freqKey = c.frequencySegment === 'Frequent' ? 'frequent' : c.frequencySegment === 'Occasional' ? 'occasional' : 'oneTime';
+        frequencyBuckets[freqKey] += 1;
+        const basketKey = c.basketSegment === 'Full' ? 'full' : c.basketSegment === 'Partial' ? 'partial' : 'none';
+        basketBuckets[basketKey] += 1;
+      });
+
+      return {
+        ok: true,
+        status: 'ready',
+        source: 'customerAnalytics',
+        bu: bu || 'All',
+        cluster: cluster,
+        months: clusterData.months,
+        totalCustomers: customers.length,
+        bridge: bridge,
+        frequencyBuckets: frequencyBuckets,
+        basketBuckets: basketBuckets,
+        coreSkuCount: clusterData.coreSkuCount,
+        totalSkuCount: clusterData.totalSkuCount,
+        skuPenetration: clusterData.skuPenetration, // company-wide penetration; BU-level penetration not yet split out
+        customers: customers,
+        generatedAt: customerAnalyticsCache.generatedAt,
+      };
+    },
+
     destroy() {
       document.body.classList.remove('sales-mode');
       destroyCharts();

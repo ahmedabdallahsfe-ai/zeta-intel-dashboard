@@ -27,8 +27,14 @@
       // Add 'sfe-mode' class to body to dynamically hide global filters
       document.body.classList.add('sfe-mode');
 
-      // Reset filters on init
-      this.resetFilters();
+      // Deliberately NOT calling resetFilters() here -- this.filters/
+      // searchVacantQuery/searchSpanQuery are module-level state that
+      // should survive switching to another tab and back, same as every
+      // other workspace's in-page navigation. resetFilters() previously
+      // ran on every init(), silently wiping the user's cascading filters
+      // and search text each time they returned to this tab. The object
+      // literal above already defines correct 'ALL'/'' defaults for a
+      // genuinely first-ever load, so no reset call is needed here.
       this.render();
     },
 
@@ -61,6 +67,62 @@
         spanOfControl: { dmSpan: [], asmSpan: [], averageDmSpan: 0, averageAsmSpan: 0 },
         brickWorkload: { averageBricksPerRep: 0, buckets: { light: 0, balanced: 0, dense: 0, overloaded: 0 }, overloadedReps: [] },
         tenureStability: { probationTurnover: [], nonProbationTurnover: [], currentRampUpRate: 0, averageRepTenureMonths: 0, lifecycleCounts: { probation: 0, nonProbation: 0 }, trainingAlerts: [] }
+      };
+    },
+
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getBusinessSummary()
+     * ------------------------------------------------------------------
+     * SFE's contribution to the Executive Command Center: headcount/
+     * vacancy rolled up from the existing vacancyByLine breakdown
+     * (already computed correctly elsewhere in this module) via the
+     * shared Line -> BU crosswalk. Same standardized shape as Sales/
+     * Coverage/IQVIA's interfaces: { ok, status, asOfDate, source, bu }.
+     * Reads only through this.getData() -- never window.DASHBOARD_ORGANOGRAM
+     * directly -- so this stays the one place SFE's data shape can change
+     * without breaking the Executive Command Center.
+     */
+    getBusinessSummary() {
+      if (typeof window.SEMANTIC === 'undefined') {
+        console.error('[SFE] getBusinessSummary() requires js/semantic-model.js to be loaded first.');
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sfe', bu: {} };
+      }
+      const data = this.getData();
+      const vacancyByLine = data.vacancyByLine || [];
+      if (vacancyByLine.length === 0) {
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sfe', bu: {} };
+      }
+
+      const acc = {};
+      window.SEMANTIC.BU_LIST.forEach(bu => { acc[bu] = { total: 0, active: 0, vacant: 0 }; });
+
+      vacancyByLine.forEach(row => {
+        const bu = window.SEMANTIC.lineToBU(row.line);
+        if (!bu) return; // Non-Promoted/Other Markets or unrecognized -- out of scope here
+        acc[bu].total += row.total || 0;
+        acc[bu].active += row.active || 0;
+        acc[bu].vacant += row.vacant || 0;
+      });
+
+      const buOut = {};
+      window.SEMANTIC.BU_LIST.forEach(bu => {
+        const a = acc[bu];
+        const vacancyRatePct = a.total > 0 ? (a.vacant / a.total) * 100 : null;
+        buOut[bu] = {
+          headcountTotal: a.total,
+          headcountActive: a.active,
+          headcountVacant: a.vacant,
+          vacancyRatePct: vacancyRatePct,
+          confidence: a.total > 0 ? 'high' : 'low'
+        };
+      });
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: null, // organogram.json is a point-in-time headcount snapshot, not period-stamped
+        source: 'sfe',
+        bu: buOut
       };
     },
 
@@ -168,10 +230,17 @@
             const allRows = filteredList;
 
             // ── Collect unique names per level ─────────────────────────────
+            // Blank/missing level data is excluded entirely here (not counted as
+            // Active, not counted as Vacant) via .filter(v => v) -- a genuine
+            // "VACANT" placeholder string still passes through and is correctly
+            // counted as Vacant by isVacant() below; only true blanks are dropped.
+            // ASM/DM previously kept blanks in the set, which meant a blank ASM/DM
+            // silently counted as Vacant (isVacant('') is true) -- this both
+            // over-counted Vacant and under-represented the real denominator.
             const bumAll = [...new Set(allRows.map(r => (r.bum || '').trim()))].filter(v => v);
             const nsmAll = [...new Set(allRows.map(r => (r.nsm || '').trim()))].filter(v => v);
-            const asmAll = [...new Set(allRows.map(r => (r.asm || '').trim()))];  // keep blanks
-            const dmAll  = [...new Set(allRows.map(r => (r.dm  || '').trim()))];  // keep blanks
+            const asmAll = [...new Set(allRows.map(r => (r.asm || '').trim()))].filter(v => v);
+            const dmAll  = [...new Set(allRows.map(r => (r.dm  || '').trim()))].filter(v => v);
 
             const buActive  = bumAll.filter(isReal).length;
             const buVacant  = bumAll.filter(isVacant).length;

@@ -8,6 +8,15 @@
   <!-- Fully scoped under .iqvia-dashboard-wrap (namespaced 2026-07-26) — safe to load
        on every tab; cannot leak into Coverage/Organogram/Sales styling. -->
   <link rel="stylesheet" href="css/iqvia.css?v=20260726_namespaced" />
+  <!-- Shared Design System (Phase 3 foundation) — tokens/animations/layout/components/
+       utilities, all under a .ds- prefix guaranteed not to collide with the existing
+       .sc-*/.sfe-*/.iqvia-* class families. Consumer: Executive Command Center
+       (2026-07-27 rebuild -- Executive KPI cards + filter bar). -->
+  <link rel="stylesheet" href="css/design-system.css?v=20260726_exec" />
+  <link rel="stylesheet" href="css/animations.css?v=20260726_exec" />
+  <link rel="stylesheet" href="css/layout.css?v=20260726_exec" />
+  <link rel="stylesheet" href="css/components.css?v=20260728_customerhealth" />
+  <link rel="stylesheet" href="css/utilities.css?v=20260726_exec" />
 </head>
 <body>
 
@@ -29,7 +38,11 @@
         <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Sidebar" style="background: transparent; border: none; color: #8a94a6; font-size: 1.2rem; cursor: pointer; padding: 4px 8px; border-radius: 6px;">☰</button>
       </div>
       <ul class="sidebar-menu">
-        <li class="menu-item active" data-tab="coverage">
+        <li class="menu-item active" data-tab="executive">
+          <span class="menu-icon">🧭</span>
+          <span class="menu-label">Executive Command Center</span>
+        </li>
+        <li class="menu-item" data-tab="coverage">
           <span class="menu-icon">📊</span>
           <span class="menu-label">Operational and Execution</span>
         </li>
@@ -90,10 +103,26 @@
        js/sales.js checks this schema and shows a pending-refresh placeholder if the cache on disk is still the
        pre-fix version -- safe to deploy this script tag even before the cache file itself is regenerated. -->
   <script src="cache/sales.data.js?v=20260726_hierarchyfix"></script>
-  <script src="cache/iqvia.data.js?v=20260726_platformintegration"></script>
+  <!-- Customer Analytics cache (2026-07-28): a SEPARATE cache from a SEPARATE source
+       (TOTAL_SALES_2026.xlsx, via etl/build_customer_analytics_cache.py) -- the main
+       Sales cache above has no customer identity at all. Powers the Customer Channel
+       Mix card's Cluster -> Customer Health drill (bridge, frequency, SKU basket).
+       Currently covers the Retail and Chain Pharmacy clusters only -- see the ETL
+       script's CLUSTERS_TO_BUILD to extend. Optional at load time: sales.js falls
+       back to the existing flat cluster->sub_type list for any cluster not present. -->
+  <script src="cache/customer_analytics.data.js?v=20260728_v1"></script>
+  <script src="cache/iqvia.data.js?v=20260728_june"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script src="js/config.js?v=20260725_v2"></script>
+
+  <!-- Design System component library (Phase 3 foundation, self-contained, no cache
+       dependency) -- loaded early so every module can consume window.DS. -->
+  <script src="js/components.js?v=20260728_customerhealth"></script>
+
+  <!-- Enterprise semantic layer (Phase 4-lite): Line -> Business Unit crosswalk.
+       Self-contained (no cache dependency) -- shared by every getBusinessSummary(). -->
+  <script src="js/semantic-model.js?v=20260727_chc2lines"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script src="js/utils.js?v=20260724"></script>
@@ -105,14 +134,36 @@
   <script src="js/tables.js?v=20260724"></script>
   <script src="js/filters.js?v=20260724"></script>
   <script src="js/exporter.js?v=20260724"></script>
+  <!-- Coverage's standardized getBusinessSummary() interface -- reads only through
+       CacheStore (defined above) and SEMANTIC (defined above); adds no new UI. -->
+  <!-- v20260727_execkpi = getFilteredCoverageByType() and getFilteredCoverageForLine()
+       added for the Executive KPI cards' click-through and Line filter.
+       v20260727_chc2lines = getFilteredCoverageForLine() scopes CHC's
+       "CHC_SALES" line by Title=Sales Representative/Type=Pharmacy
+       instead of the standard Medical Representative/Contract-Doctor-
+       Hospital scope (CHC has two real lines, not one -- see
+       semantic-model.js). -->
+  <script src="js/coverage-interface.js?v=20260727_chc2lines"></script>
   <script src="js/sfe.js?v=20260724"></script>
-  <script src="js/sales.js?v=20260726_hierarchyfix"></script>
-  <!-- v20260726_platformintegration = auto-bootstrap consolidated into IQVIADashboard.init()
-       (was a top-level IIFE + an unguarded document-wide keydown listener that threw on
-       every keystroke on every other tab) -- see js/iqvia.js comments near IQVIADashboard. -->
-  <script src="js/iqvia.js?v=20260726_platformintegration"></script>
+  <!-- v20260727_execkpi = getLineSalesSummary() and getItemAchievement() added for
+       the Executive KPI cards (Line Performance, CHC Brand-to-Item drill).
+       v20260728_clustermix = SUBTYPE_TO_CLUSTER map + getCustomerClusterMix()
+       added for the Customer Channel Mix KPI card (cluster-then-sub_type
+       drill -- see sales_subtypes.xlsx for the clustering source of truth). -->
+  <script src="js/sales.js?v=20260728_customerhealth"></script>
+  <script src="js/iqvia.js?v=20260726_v4evidence"></script>
 
-  <script src="js/app.js?v=20260725_v2"></script>
+  <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
+       Default landing page. Reads only through SEMANTIC, DS, and the four
+       getBusinessSummary()-family interfaces above; never touches module
+       internals. KPI 7 (SKU Penetration) remains deferred pending a
+       refresh_sales.py ETL update (customer x product granularity not yet
+       in the cache). KPI 6 (Customer Dynamics) is now served, at cluster
+       (not individual-customer) granularity, by the Customer Channel Mix
+       card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
+  <script src="js/executive.js?v=20260728_customerhealth"></script>
+
+  <script src="js/app.js?v=20260727_execkpi"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

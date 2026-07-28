@@ -2056,13 +2056,18 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Hide global filters and Topbar PDF export on SFE and Sales dashboards */
-.sfe-mode #filter-bar-container, 
+/* Hide global filters and Topbar PDF export on SFE, Sales, and Executive
+   Command Center dashboards -- each owns its own self-contained view and
+   does not read the shared Coverage filter bar. */
+.sfe-mode #filter-bar-container,
 .sfe-mode .filter-bar-wrap,
 .sfe-mode #topbar-export-pdf,
-.sales-mode #filter-bar-container, 
+.sales-mode #filter-bar-container,
 .sales-mode .filter-bar-wrap,
-.sales-mode #topbar-export-pdf {
+.sales-mode #topbar-export-pdf,
+.executive-mode #filter-bar-container,
+.executive-mode .filter-bar-wrap,
+.executive-mode #topbar-export-pdf {
   display: none !important;
 }
 

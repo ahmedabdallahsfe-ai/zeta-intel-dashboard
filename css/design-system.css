@@ -1,0 +1,148 @@
+/* =====================================================================
+   ZETA ENTERPRISE DESIGN SYSTEM — design-system.css
+   =====================================================================
+   PLATFORM ASSET. Owned by the platform, not by any workspace.
+   Every workspace consumes these tokens; no workspace may redefine them.
+
+   This file defines TOKENS ONLY (custom properties) — no selectors that
+   render anything. Component implementations live in components.css;
+   layout primitives in layout.css; keyframes in animations.css; one-off
+   helper classes in utilities.css.
+
+   Load order on any page that uses the design system:
+     1. design-system.css   (tokens — must load first)
+     2. animations.css      (keyframes — components.css references them)
+     3. layout.css
+     4. components.css
+     5. utilities.css        (highest specificity intentionally: utility
+                               classes should win, so they load last)
+
+   Sourcing note: these values were chosen by auditing the four existing
+   modules (Coverage/dashboard.css, Sales/sales.js "sc-*", SFE/sfe.js,
+   IQVIA/iqvia.css) and keeping whichever value already had the strongest
+   consensus or clearest brand basis, rather than inventing a new look:
+     - #0F4C81 (primary) is the color already used for the brand/logo
+       text in the sidebar (dashboard.html .brand-text) — the one place
+       brand identity was already explicit.
+     - #E2E8F0 (border) and #64748B (secondary text) were near-universal
+       across all four modules already — that consensus is preserved.
+     - The clamp()-based fluid type scale is IQVIA's pattern, the only
+       module that had actually tokenized before this file existed.
+   ===================================================================== */
+
+:root {
+  /* ── Brand / Primary ────────────────────────────────────────────── */
+  --color-primary:        #0F4C81;
+  --color-primary-hover:  #0B3A63;
+  --color-primary-active: #082C4C;
+  --color-primary-light:  #E8F0F7; /* tinted backgrounds, badges, selected states */
+
+  /* ── Semantic status colors ─────────────────────────────────────── */
+  --color-success:        #15803D;
+  --color-success-light:  #DCFCE7;
+  --color-warning:        #B45309;
+  --color-warning-light:  #FEF3C7;
+  --color-danger:         #DC2626;
+  --color-danger-light:   #FEE2E2;
+  --color-info:           #0891B2;
+  --color-info-light:     #CFFAFE;
+
+  /* ── Surfaces ────────────────────────────────────────────────────── */
+  --color-background:     #F4F6F9; /* page/app background */
+  --color-surface:        #FFFFFF; /* card/panel background */
+  --color-surface-alt:    #F8FAFC; /* secondary panel background (e.g. table header, KPI tile) */
+  --color-surface-inverse:#0F172A; /* dark surfaces, e.g. tooltips */
+  --color-border:         #E2E8F0;
+  --color-border-strong:  #CBD5E1;
+
+  /* ── Text ────────────────────────────────────────────────────────── */
+  --color-text-primary:   #0F172A;
+  --color-text-secondary: #64748B;
+  --color-text-tertiary:  #94A3B8;
+  --color-text-inverse:   #FFFFFF;
+  --color-text-link:      var(--color-primary);
+
+  /* ── Categorical chart palette (series/pies/bars — 10 slots) ───────
+     Order matters: series/slices should consume in this order so any
+     chart with N categories looks the same regardless of which
+     workspace renders it. */
+  --chart-1: #0F4C81; /* primary blue   */
+  --chart-2: #15803D; /* green          */
+  --chart-3: #B45309; /* amber          */
+  --chart-4: #DC2626; /* red            */
+  --chart-5: #7C3AED; /* purple         */
+  --chart-6: #0891B2; /* cyan           */
+  --chart-7: #DB2777; /* pink           */
+  --chart-8: #65A30D; /* lime           */
+  --chart-9: #EA580C; /* orange         */
+  --chart-10:#475569; /* slate (other)  */
+
+  /* ── Typography ──────────────────────────────────────────────────── */
+  --font-family-base: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  --font-family-mono:  ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Fluid type scale (clamp(min, preferred, max)) so every workspace
+     scales identically across laptop/external-monitor widths. */
+  --fs-xs:        clamp(11px, 0.75vw, 12px);
+  --fs-sm:        clamp(12px, 0.82vw, 13px);
+  --fs-base:      clamp(13px, 0.90vw, 14px);
+  --fs-md:        clamp(14px, 0.95vw, 16px);
+  --fs-lg:        clamp(16px, 1.10vw, 18px);
+  --fs-xl:        clamp(18px, 1.30vw, 22px);
+  --fs-2xl:       clamp(22px, 1.60vw, 26px);
+  --fs-3xl:       clamp(26px, 2.00vw, 32px);
+  --fs-kpi-value: clamp(24px, 2.30vw, 36px);
+
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+  --fw-black:    800;
+
+  --line-height-tight: 1.2;
+  --line-height-base:  1.5;
+  --line-height-loose: 1.7;
+
+  /* ── Spacing scale (4px rhythm — the rhythm already implied across
+     Coverage/Sales/SFE, just never made explicit) ───────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-7:  28px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ── Radius scale ────────────────────────────────────────────────── */
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;
+  --radius-2xl:  16px;
+  --radius-full: 999px;
+
+  /* ── Shadows ─────────────────────────────────────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.10);
+  --shadow-hover: 0 4px 14px rgba(15, 23, 42, 0.10);
+  --shadow-focus: 0 0 0 3px rgba(15, 76, 129, 0.15); /* primary-tinted focus ring */
+
+  /* ── Transitions ─────────────────────────────────────────────────── */
+  --transition-fast:    0.15s ease;
+  --transition-base:    0.2s ease;
+  --transition-slow:    0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-sidebar: 0.28s cubic-bezier(0.4, 0, 0.2, 1); /* matches the existing sidebar-collapse feel */
+
+  /* ── Z-index scale (named, so components never guess) ──────────── */
+  --z-dropdown: 100;
+  --z-sticky:   200;
+  --z-overlay:  900;
+  --z-modal:    1000;
+  --z-toast:    1100;
+  --z-tooltip:  1200;
+}

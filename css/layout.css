@@ -1,0 +1,96 @@
+/* =====================================================================
+   ZETA ENTERPRISE DESIGN SYSTEM — layout.css
+   =====================================================================
+   PLATFORM ASSET. Structural primitives only — grids, flex containers,
+   page-section wrappers, responsive column behavior. No color, no
+   shadow, no typography here; those belong to components.css. This file
+   answers "how things are arranged," components.css answers "what they
+   look like."
+   Depends on design-system.css tokens (--space-*). Load AFTER
+   design-system.css + animations.css, BEFORE components.css.
+   ===================================================================== */
+
+/* ── Page shell ──────────────────────────────────────────────────────── */
+
+.ds-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  box-sizing: border-box;
+}
+
+.ds-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ds-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* ── Grids ───────────────────────────────────────────────────────────── */
+
+/* KPI row: fills available width, wraps gracefully, never fewer than
+   ~180px per tile so numbers stay legible on narrow viewports. */
+.ds-grid-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.ds-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+.ds-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
+.ds-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); }
+
+/* Asymmetric two-column layout for "main chart + side panel" sections
+   (the pattern every workspace already reaches for independently). */
+.ds-grid-main-side {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 1024px) {
+  .ds-grid-3, .ds-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .ds-grid-main-side { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .ds-grid-2, .ds-grid-3, .ds-grid-4 { grid-template-columns: 1fr; }
+  .ds-page { padding: var(--space-4); gap: var(--space-4); }
+}
+
+/* ── Flex helpers ────────────────────────────────────────────────────── */
+
+.ds-flex          { display: flex; }
+.ds-flex-col      { display: flex; flex-direction: column; }
+.ds-flex-wrap     { flex-wrap: wrap; }
+.ds-items-center  { align-items: center; }
+.ds-items-start   { align-items: flex-start; }
+.ds-items-end     { align-items: flex-end; }
+.ds-justify-between { justify-content: space-between; }
+.ds-justify-center   { justify-content: center; }
+.ds-justify-end       { justify-content: flex-end; }
+
+.ds-gap-1 { gap: var(--space-1); }
+.ds-gap-2 { gap: var(--space-2); }
+.ds-gap-3 { gap: var(--space-3); }
+.ds-gap-4 { gap: var(--space-4); }
+.ds-gap-6 { gap: var(--space-6); }
+
+/* ── Panel scaffolding (used by both cards and the filter sidebar) ──── */
+
+.ds-panel-fixed-width {
+  width: 280px;
+  min-width: 280px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1024px) {
+  .ds-panel-fixed-width { width: 240px; min-width: 240px; }
+}
