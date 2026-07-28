@@ -638,8 +638,15 @@
         salesValue: s ? s.actualValue : null,
         targetValue: s ? s.targetValue : null,
         contributionPct: (s && totalSalesValue > 0) ? (s.actualValue / totalSalesValue) * 100 : null,
-        salesPerRep: (s && c.headcount > 0) ? s.actualValue / c.headcount : null,
-        headcount: c.headcount,
+        // Sourced from Sales' own activePositions (deployed territory
+        // count, EXCLUDED_POSITIONS filtered), NOT Coverage's rep
+        // headcount -- fixed 2026-07-29 to match the SALES/POSITION
+        // convention used everywhere else on this platform. Coverage's
+        // headcount (c.headcount) is still used above for the
+        // coverage%/right-freq% weighted averages, which legitimately
+        // need real rep headcount, not deployed-position count.
+        salesPerPosition: s ? s.salesPerPosition : null,
+        activePositions: s ? s.activePositions : 0,
       };
     }).sort((a, b) => (b.salesAchievementPct === null ? -Infinity : b.salesAchievementPct) - (a.salesAchievementPct === null ? -Infinity : a.salesAchievementPct));
 
@@ -1071,8 +1078,8 @@
         { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
         { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
         { key: "contributionPct", label: "Contribution %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "salesPerRep", label: "Sales per Rep", align: "right", format: v => v === null ? "—" : fmtM(v) },
-        { key: "headcount", label: "Headcount", align: "right" },
+        { key: "salesPerPosition", label: "Sales per Position", align: "right", format: v => v === null ? "—" : fmtM(v) },
+        { key: "activePositions", label: "Positions", align: "right" },
       ],
       rows: data.rows,
     });

@@ -2847,6 +2847,16 @@
      * won't reconcile. Was previously all-transaction basis; that was the
      * bug (KPI 5's headline and its own Line-filtered mode used different
      * bases depending on whether a Line was selected).
+     *
+     * EXTENDED 2026-07-29 (Line Performance headcount/Sales-per-Rep fix):
+     * each line now also carries activePositions (distinct deployed
+     * position codes, EXCLUDED_POSITIONS filtered out -- not
+     * tender-scoped) and salesPerPosition (actualValue / activePositions).
+     * Replaces Coverage's per-line rep headcount as the denominator for
+     * Executive KPI 11's "Headcount"/"Sales per Rep" columns, which were
+     * previously mismatched against this platform's SALES/POSITION
+     * convention (a Coverage rep headcount, not a Sales deployed-position
+     * count).
      */
     getLineSalesSummary(bu) {
       decompressCache();
@@ -2861,13 +2871,22 @@
       const months = cache.lookups.months;
 
       const acc = new Map(); // canonicalLineName -> { val, tgtVal }
+      const posByLine = new Map(); // canonicalLineName -> Set of deployed position codes
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
         const rawLine = linesLk[r[LINE]];
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        const canon = window.SEMANTIC.normalizeLine(rawLine);
+        // Deployed-position tracking is NOT tender-filtered -- a
+        // territory is deployed regardless of transaction type, same
+        // convention as getBusinessSummary()'s activePositions (2026-07-29).
+        const rowPos = cache.lookups.rep_positions[r[REP]];
+        if (rowPos && !EXCLUDED_POSITIONS.has(rowPos)) {
+          if (!posByLine.has(canon)) posByLine.set(canon, new Set());
+          posByLine.get(canon).add(rowPos);
+        }
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only -- see header comment
-        const canon = window.SEMANTIC.normalizeLine(rawLine);
         if (!acc.has(canon)) acc.set(canon, { val: 0, tgtVal: 0 });
         const a = acc.get(canon);
         a.val += r[VAL];
@@ -2875,12 +2894,17 @@
       }
 
       const lines = Array.from(acc.entries())
-        .map(([name, a]) => ({
-          name: name,
-          actualValue: a.val,
-          targetValue: a.tgtVal,
-          achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
-        }))
+        .map(([name, a]) => {
+          const activePositions = posByLine.has(name) ? posByLine.get(name).size : 0;
+          return {
+            name: name,
+            actualValue: a.val,
+            targetValue: a.tgtVal,
+            achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
+            activePositions: activePositions,
+            salesPerPosition: activePositions > 0 ? a.val / activePositions : null,
+          };
+        })
         .filter(l => l.targetValue > 0 || l.actualValue > 0)
         .sort((x, y) => y.actualValue - x.actualValue);
 
