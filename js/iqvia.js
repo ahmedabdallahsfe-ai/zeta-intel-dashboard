@@ -8574,26 +8574,38 @@ window.IQVIADashboard = {
    * Same auth gating as getBusinessSummary(): no valid session -> return
    * status 'auth_required' with an empty segments array, never a
    * fabricated number.
+   *
+   * EXTENDED 2026-07-29 (Executive KPI 8/9 Line-filter support, "let all
+   * cards dynamic with filters line"): optional `line` param -- every
+   * TARGETS_2026 row already carries its own `line` field (see the
+   * product-mapping table above), so scoping `buTargets` to
+   * `t.line === line` is sufficient to scope EVERYTHING downstream
+   * (segments AND the blended `total`, since both are built entirely
+   * from `resolved`, which is itself built entirely from `buTargets`) --
+   * no other part of this function needs to change. null/omit `line`
+   * keeps the existing whole-BU behavior, so every other caller of this
+   * function (Market Intelligence, the standalone Evidence Dashboard)
+   * is unaffected.
    */
-  getDM1DM2MarketIntel(bu) {
+  getDM1DM2MarketIntel(bu, line) {
     const user = getValidSessionUser();
     if (!user) {
-      return { ok: false, status: 'auth_required', asOfDate: null, source: 'iqvia', bu: bu, segments: [] };
+      return { ok: false, status: 'auth_required', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
     }
     if (typeof window.SEMANTIC === 'undefined') {
       console.error('[IQVIA] getDM1DM2MarketIntel() requires js/semantic-model.js to be loaded first.');
-      return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'iqvia', bu: bu, segments: [] };
+      return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
     }
     if (!flat) {
       try { loadData(); } catch (e) { /* loadData() already logs internally */ }
     }
     if (!flat) {
-      return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'iqvia', bu: bu, segments: [] };
+      return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
     }
 
-    const buTargets = TARGETS_2026.filter(t => t.bu === bu);
+    const buTargets = TARGETS_2026.filter(t => t.bu === bu && (!line || t.line === line));
     if (buTargets.length === 0) {
-      return { ok: true, status: 'ready', asOfDate: refPeriodLabel(), source: 'iqvia', bu: bu, segments: [] };
+      return { ok: true, status: 'ready', asOfDate: refPeriodLabel(), source: 'iqvia', bu: bu, line: line || null, segments: [] };
     }
 
     const zetaIdx = LOOKUPS.corps.findIndex(c => c && c.toUpperCase().includes('ZETA PHARM'));
@@ -8787,6 +8799,7 @@ window.IQVIADashboard = {
       asOfDate: refPeriodLabel(),
       source: 'iqvia',
       bu: bu,
+      line: line || null,
       segments: segments,
       total: total,
     };

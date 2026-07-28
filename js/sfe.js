@@ -126,6 +126,57 @@
       };
     },
 
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getFilteredHeadcountForLine(bu, line)
+     * ------------------------------------------------------------------
+     * Executive KPI 3 (Sales Force Health) Line-filter support
+     * (2026-07-29, "let all cards dynamic with filters line"): mirrors
+     * Coverage's getFilteredCoverageForLine(bu, line) convention -- a
+     * single BU(+optional line)-scoped object, not the multi-BU dict
+     * getBusinessSummary() returns, so the caller can rank across BUs
+     * (line=null) or across lines within one BU (line set) the same way
+     * every other Line-aware card on this page already does.
+     * `line` is a CANONICAL name matching vacancyByLine's own row.line
+     * values (already canonical -- e.g. CHC_SALES is its own distinct
+     * row here, same as in Sales -- no normalizeLine() needed). Pass
+     * null/omit for the whole-BU figure.
+     */
+    getFilteredHeadcountForLine(bu, line) {
+      if (typeof window.SEMANTIC === 'undefined') {
+        console.error('[SFE] getFilteredHeadcountForLine() requires js/semantic-model.js to be loaded first.');
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sfe', bu: bu, line: line || null };
+      }
+      const data = this.getData();
+      const vacancyByLine = data.vacancyByLine || [];
+      if (vacancyByLine.length === 0) {
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sfe', bu: bu, line: line || null };
+      }
+
+      let total = 0, active = 0, vacant = 0;
+      vacancyByLine.forEach(row => {
+        if (window.SEMANTIC.lineToBU(row.line) !== bu) return;
+        if (line && row.line !== line) return;
+        total += row.total || 0;
+        active += row.active || 0;
+        vacant += row.vacant || 0;
+      });
+      const vacancyRatePct = total > 0 ? (vacant / total) * 100 : null;
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: null,
+        source: 'sfe',
+        bu: bu,
+        line: line || null,
+        headcountTotal: total,
+        headcountActive: active,
+        headcountVacant: vacant,
+        vacancyRatePct: vacancyRatePct,
+        confidence: total > 0 ? 'high' : 'low'
+      };
+    },
+
     // Build the master planned territories list for cascading filtering
     getHierarchyList() {
       const data = this.getData();

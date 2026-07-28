@@ -229,28 +229,46 @@
   // platform, so "Performance" is framed against the only defensible
   // implicit target -- 100% filled (0% vacancy) -- documented, not
   // silently invented.
+  //
+  // MADE LINE-AWARE 2026-07-29 ("let all cards dynamic with filters
+  // line"): now reads SFEDashboard.getFilteredHeadcountForLine(bu, line)
+  // directly instead of the pre-collected multi-BU summaries.sfe dict --
+  // same pattern buildCoverageFamilyCard()/buildSalesAchievementCard()
+  // already use, so ranking flips to "Lines within BU" when a line is
+  // selected, exactly like every other Line-aware card on this page.
   // ---------------------------------------------------------------------
-  function buildSFECard(summaries, filters) {
-    const bu = filters.bu;
-    if (!summaries.sfe || !summaries.sfe.ok || !summaries.sfe.bu[bu]) {
-      return unavailableCard("sfe", "Sales Force Health", summaries.sfe ? summaries.sfe.status : "module_unavailable");
-    }
-    const a = summaries.sfe.bu[bu];
-    const fillRatePct = a.vacancyRatePct !== null ? 100 - a.vacancyRatePct : null;
+  function buildSFECard(filters) {
+    const bu = filters.bu, line = filters.line;
+    const scoped = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, line === "All" ? null : line);
+    if (!scoped || !scoped.ok) return unavailableCard("sfe", "Sales Force Health", scoped ? scoped.status : "module_unavailable");
+    const fillRatePct = scoped.vacancyRatePct !== null ? 100 - scoped.vacancyRatePct : null;
 
-    const vals = {};
-    global.SEMANTIC.BU_LIST.forEach(b => {
-      const s = summaries.sfe.bu[b];
-      vals[b] = s && s.vacancyRatePct !== null ? s.vacancyRatePct : null;
-    });
-    const rankInfo = rank(vals, "asc")[bu]; // lower vacancy = better = rank 1
+    let rankInfo, rankUnit;
+    if (line === "All") {
+      const vals = {};
+      global.SEMANTIC.BU_LIST.forEach(b => {
+        const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", b, null);
+        vals[b] = (r && r.ok && r.vacancyRatePct !== null) ? r.vacancyRatePct : null;
+      });
+      rankInfo = rank(vals, "asc")[bu]; // lower vacancy = better = rank 1
+      rankUnit = "Business Units";
+    } else {
+      const lines = linesForBU(bu);
+      const vals = {};
+      lines.forEach(l => {
+        const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, l);
+        vals[l] = (r && r.ok && r.vacancyRatePct !== null) ? r.vacancyRatePct : null;
+      });
+      rankInfo = rank(vals, "asc")[line];
+      rankUnit = "Lines within " + bu;
+    }
 
     return {
       kpiId: "sfe", name: "Sales Force Health",
-      mainValue: fmtInt(a.headcountTotal), mainValueSub: "Total Manpower · Active " + fmtInt(a.headcountActive) + " · Vacant " + fmtInt(a.headcountVacant),
-      performance: { target: "100% Filled", achievementPct: fmtPct1(fillRatePct), variance: fmtSignedPts(a.vacancyRatePct !== null ? -a.vacancyRatePct : null) + " vacancy" },
+      mainValue: fmtInt(scoped.headcountTotal), mainValueSub: "Total Manpower · Active " + fmtInt(scoped.headcountActive) + " · Vacant " + fmtInt(scoped.headcountVacant) + (line !== "All" ? " · " + line : ""),
+      performance: { target: "100% Filled", achievementPct: fmtPct1(fillRatePct), variance: fmtSignedPts(scoped.vacancyRatePct !== null ? -scoped.vacancyRatePct : null) + " vacancy" },
       comparison: null,
-      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: "Business Units",
+      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(fillRatePct),
       trend: null, trendLabel: "Point-in-time headcount snapshot (organogram.json is not period-stamped)",
       clickable: true, dblClickable: true,
@@ -452,10 +470,17 @@
   // approximation, same convention as the platform's prior Total
   // Portfolio cards); "vs DM1"/"vs DM2" comparison section shows each
   // market definition individually.
+  //
+  // MADE LINE-AWARE 2026-07-29 ("let all cards dynamic with filters
+  // line"): getDM1DM2MarketIntel(bu, line) now scopes its blended total
+  // to just that line's DM1/DM2 markets (see the extended doc comment on
+  // that function in js/iqvia.js). Ranking flips to "Lines within BU",
+  // same pattern as every other Line-aware card.
   // ---------------------------------------------------------------------
   function buildMarketShareCard(filters) {
-    const bu = filters.bu;
-    const dm1dm2 = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu);
+    const bu = filters.bu, line = filters.line;
+    const lineArg = line === "All" ? null : line;
+    const dm1dm2 = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, lineArg);
     if (!dm1dm2 || !dm1dm2.ok || !dm1dm2.total) {
       const reason = dm1dm2 ? dm1dm2.status : "module_unavailable";
       const card = unavailableCard("marketShare", "Market Share", reason);
@@ -470,23 +495,32 @@
     const gapPts = (sharePct != null && targetPct != null) ? sharePct - targetPct : null;
     const evi = avg(d1.evi, d2.evi);
 
-    const vals = {};
-    global.SEMANTIC.BU_LIST.forEach(b => {
-      const bd1d2 = b === bu ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b);
-      if (bd1d2 && bd1d2.ok && bd1d2.total) {
-        vals[b] = avg(bd1d2.total.dm1.ytd.su.sharePct, bd1d2.total.dm2.ytd.su.sharePct);
-      } else {
-        vals[b] = null;
-      }
-    });
-    const rankInfo = rank(vals, "desc")[bu];
+    let rankInfo, rankUnit;
+    if (line === "All") {
+      const vals = {};
+      global.SEMANTIC.BU_LIST.forEach(b => {
+        const bd1d2 = b === bu ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, null);
+        vals[b] = (bd1d2 && bd1d2.ok && bd1d2.total) ? avg(bd1d2.total.dm1.ytd.su.sharePct, bd1d2.total.dm2.ytd.su.sharePct) : null;
+      });
+      rankInfo = rank(vals, "desc")[bu];
+      rankUnit = "Business Units";
+    } else {
+      const lines = linesForBU(bu);
+      const vals = {};
+      lines.forEach(l => {
+        const ld1d2 = l === line ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
+        vals[l] = (ld1d2 && ld1d2.ok && ld1d2.total) ? avg(ld1d2.total.dm1.ytd.su.sharePct, ld1d2.total.dm2.ytd.su.sharePct) : null;
+      });
+      rankInfo = rank(vals, "desc")[line];
+      rankUnit = "Lines within " + bu;
+    }
 
     return {
       kpiId: "marketShare", name: "Market Share",
-      mainValue: fmtPct1(sharePct), mainValueSub: "YTD · SU basis · excl. Other Markets",
+      mainValue: fmtPct1(sharePct), mainValueSub: "YTD · SU basis · excl. Other Markets" + (line !== "All" ? " · " + line : ""),
       performance: { target: fmtPct1(targetPct), achievementPct: fmtPct1(achievementPct), variance: fmtSignedPts(gapPts) },
       comparison: { dm1: fmtPct1(d1.sharePct), dm2: fmtPct1(d2.sharePct) },
-      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: "Business Units",
+      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
       trend: evi !== null ? (evi >= 100 ? "up" : "down") : null,
       trendLabel: evi !== null ? "EI Index " + Math.round(evi) : "EI Index unavailable",
@@ -498,10 +532,16 @@
   // KPI 9 -- Business Unit Growth
   // Source: IQVIA, YTD, SU basis for the headline (comparison section
   // folds in the Value basis too, per "EI ytd su and value").
+  //
+  // MADE LINE-AWARE 2026-07-29 ("let all cards dynamic with filters
+  // line"): same getDM1DM2MarketIntel(bu, line) extension as Market
+  // Share (KPI 8) above. Ranking flips to "Lines within BU" when a line
+  // is selected.
   // ---------------------------------------------------------------------
   function buildBUGrowthCard(filters) {
-    const bu = filters.bu;
-    const dm1dm2 = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu);
+    const bu = filters.bu, line = filters.line;
+    const lineArg = line === "All" ? null : line;
+    const dm1dm2 = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, lineArg);
     if (!dm1dm2 || !dm1dm2.ok || !dm1dm2.total) {
       const reason = dm1dm2 ? dm1dm2.status : "module_unavailable";
       const card = unavailableCard("buGrowth", "Business Unit Growth", reason);
@@ -517,25 +557,39 @@
     const evi = avg(d1su.evi, d2su.evi);
     const zetaGrowthVal = avg(d1val.zetaGrowthPct, d2val.zetaGrowthPct);
 
-    const vals = {};
-    global.SEMANTIC.BU_LIST.forEach(b => {
-      const bd1d2 = b === bu ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b);
-      if (bd1d2 && bd1d2.ok && bd1d2.total) {
-        const bz = avg(bd1d2.total.dm1.ytd.su.zetaGrowthPct, bd1d2.total.dm2.ytd.su.zetaGrowthPct);
-        const bm = avg(bd1d2.total.dm1.ytd.su.marketGrowthPct, bd1d2.total.dm2.ytd.su.marketGrowthPct);
-        vals[b] = (bz != null && bm != null) ? bz - bm : null;
-      } else {
-        vals[b] = null;
-      }
-    });
-    const rankInfo = rank(vals, "desc")[bu];
+    function growthGapFor(d1d2) {
+      if (!d1d2 || !d1d2.ok || !d1d2.total) return null;
+      const bz = avg(d1d2.total.dm1.ytd.su.zetaGrowthPct, d1d2.total.dm2.ytd.su.zetaGrowthPct);
+      const bm = avg(d1d2.total.dm1.ytd.su.marketGrowthPct, d1d2.total.dm2.ytd.su.marketGrowthPct);
+      return (bz != null && bm != null) ? bz - bm : null;
+    }
+
+    let rankInfo, rankUnit;
+    if (line === "All") {
+      const vals = {};
+      global.SEMANTIC.BU_LIST.forEach(b => {
+        const bd1d2 = b === bu ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, null);
+        vals[b] = growthGapFor(bd1d2);
+      });
+      rankInfo = rank(vals, "desc")[bu];
+      rankUnit = "Business Units";
+    } else {
+      const lines = linesForBU(bu);
+      const vals = {};
+      lines.forEach(l => {
+        const ld1d2 = l === line ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
+        vals[l] = growthGapFor(ld1d2);
+      });
+      rankInfo = rank(vals, "desc")[line];
+      rankUnit = "Lines within " + bu;
+    }
 
     return {
       kpiId: "buGrowth", name: "Business Unit Growth",
-      mainValue: fmtSignedPct(zetaGrowth), mainValueSub: "Zeta Growth · YTD SU (Value basis: " + fmtSignedPct(zetaGrowthVal) + ")",
+      mainValue: fmtSignedPct(zetaGrowth), mainValueSub: "Zeta Growth · YTD SU (Value basis: " + fmtSignedPct(zetaGrowthVal) + ")" + (line !== "All" ? " · " + line : ""),
       performance: { target: "Market " + fmtSignedPct(marketGrowth), achievementPct: fmtPct1(evi), variance: fmtSignedPts(growthGap) + " gap" },
       comparison: { dm1: "SU " + fmtSignedPct(d1su.zetaGrowthPct) + " · Val " + fmtSignedPct(d1val.zetaGrowthPct), dm2: "SU " + fmtSignedPct(d2su.zetaGrowthPct) + " · Val " + fmtSignedPct(d2val.zetaGrowthPct) },
-      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: "Business Units",
+      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(evi),
       trend: evi !== null ? (evi >= 100 ? "up" : "down") : null,
       trendLabel: evi !== null ? "EI Index " + Math.round(evi) : "EI Index unavailable",
@@ -555,39 +609,84 @@
   // consistently with the Sales tab, rather than "revenue per employed
   // rep" (a materially different denominator: headcount includes reps on
   // leave/vacant-adjacent assignments, position count reflects actual
-  // territory deployment). Sourced entirely through Sales'
-  // getBusinessSummary() per the module-boundary principle -- SFE is no
-  // longer a dependency for this card.
+  // territory deployment).
+  //
+  // MADE LINE-AWARE 2026-07-29 ("let all cards dynamic with filters
+  // line"). Two branches, each internally consistent but on a DIFFERENT
+  // basis from each other -- flagged here and in the card's trendLabel
+  // rather than silently glossed over:
+  //   - line="All": unchanged from the redefinition above. Sourced from
+  //     Sales' getBusinessSummary() (per-BU actualYTD/activePositions),
+  //     which is an ALL-TRANSACTION basis (Tender + Non-Tender) --
+  //     matches the Sales tab's own SALES/POSITION card exactly.
+  //   - line set: sourced from Sales' getLineSalesSummary(bu), which is
+  //     Non-Tender ONLY (same basis as Sales Achievement/Line
+  //     Performance elsewhere on this page -- see that function's own
+  //     doc comment in js/sales.js). Benchmark reframes from "platform
+  //     avg" to "<BU> avg" (this BU's own other lines), since comparing
+  //     one line's per-position productivity against the whole
+  //     platform's would compare very different population sizes.
+  // A value discontinuity when toggling Line between "All" and a
+  // specific line is therefore expected (different transaction scope,
+  // different benchmark population) -- not a bug. Unifying both onto one
+  // basis is a reasonable follow-up if wanted, but wasn't done here to
+  // avoid silently changing the already-validated "All" mode numbers.
   // ---------------------------------------------------------------------
   function buildSalesProductivityCard(summaries, filters) {
-    const bu = filters.bu;
+    const bu = filters.bu, line = filters.line;
     if (!summaries.sales || !summaries.sales.ok) {
       return unavailableCard("salesProductivity", "Sales Productivity", "module_unavailable");
     }
-    const perBU = {};
-    let platformActual = 0, platformPositions = 0;
-    global.SEMANTIC.BU_LIST.forEach(b => {
-      const s = summaries.sales.bu[b];
-      if (s && s.activePositions > 0) {
-        perBU[b] = s.actualYTD / s.activePositions;
-        platformActual += s.actualYTD; platformPositions += s.activePositions;
-      } else {
-        perBU[b] = null;
+
+    let val, platformAvg, rankInfo, rankUnit, benchmarkLabel, basisNote;
+
+    if (line === "All") {
+      const perBU = {};
+      let platformActual = 0, platformPositions = 0;
+      global.SEMANTIC.BU_LIST.forEach(b => {
+        const s = summaries.sales.bu[b];
+        if (s && s.activePositions > 0) {
+          perBU[b] = s.actualYTD / s.activePositions;
+          platformActual += s.actualYTD; platformPositions += s.activePositions;
+        } else {
+          perBU[b] = null;
+        }
+      });
+      platformAvg = platformPositions > 0 ? platformActual / platformPositions : null;
+      val = perBU[bu];
+      rankInfo = rank(perBU, "desc")[bu];
+      rankUnit = "Business Units";
+      benchmarkLabel = " (platform avg)";
+      basisNote = "Benchmark = platform-wide average, not an official SFE target. All-transaction basis.";
+    } else {
+      const lineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu);
+      if (!lineData || !lineData.ok) {
+        return unavailableCard("salesProductivity", "Sales Productivity", lineData ? lineData.status : "module_unavailable");
       }
-    });
-    const platformAvg = platformPositions > 0 ? platformActual / platformPositions : null;
-    const val = perBU[bu];
+      const perLine = {};
+      let buActual = 0, buPositions = 0;
+      lineData.lines.forEach(l => {
+        perLine[l.name] = l.activePositions > 0 ? l.salesPerPosition : null;
+        buActual += l.actualValue; buPositions += l.activePositions;
+      });
+      platformAvg = buPositions > 0 ? buActual / buPositions : null;
+      val = perLine[line] !== undefined ? perLine[line] : null;
+      rankInfo = rank(perLine, "desc")[line];
+      rankUnit = "Lines within " + bu;
+      benchmarkLabel = " (" + bu + " avg)";
+      basisNote = "Benchmark = " + bu + "'s own average across lines. Non-Tender basis (differs from the platform-wide 'All' view, which is all-transaction).";
+    }
+
     const achievementPct = (val !== null && platformAvg) ? (val / platformAvg) * 100 : null;
-    const rankInfo = rank(perBU, "desc")[bu];
 
     return {
       kpiId: "salesProductivity", name: "Sales Productivity",
-      mainValue: fmtM(val), mainValueSub: "Sales per Deployed Position · Current YTD",
-      performance: { target: fmtM(platformAvg) + " (platform avg)", achievementPct: fmtPct1(achievementPct), variance: fmtSignedM(val !== null && platformAvg !== null ? val - platformAvg : null) },
+      mainValue: fmtM(val), mainValueSub: "Sales per Deployed Position · Current YTD" + (line !== "All" ? " · " + line : ""),
+      performance: { target: fmtM(platformAvg) + benchmarkLabel, achievementPct: fmtPct1(achievementPct), variance: fmtSignedM(val !== null && platformAvg !== null ? val - platformAvg : null) },
       comparison: null,
-      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: "Business Units",
+      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
-      trend: null, trendLabel: "Benchmark = platform-wide average, not an official SFE target",
+      trend: null, trendLabel: basisNote,
       clickable: false, dblClickable: true,
     };
   }
@@ -637,6 +736,24 @@
       const s = salesByLine.get(name);
       const coveragePct = c.headcount > 0 ? c.coveredWeighted / c.headcount : null;
       const rightFreqPct = c.headcount > 0 ? c.rfWeighted / c.headcount : null;
+      // REVISED 2026-07-29 (2nd pass): "Positions" here now means Planned
+      // Headcount -- SFE's organogram total for this line (active +
+      // vacant budgeted slots), sourced from
+      // SFEDashboard.getFilteredHeadcountForLine(bu, line).headcountTotal.
+      // Deliberately NOT Sales' activePositions (deployed/transacting
+      // territory count, EXCLUDED_POSITIONS filtered) -- that's a
+      // materially different population (a vacant planned slot
+      // contributes to Planned Headcount but never to activePositions,
+      // since it has no transactions). Sales' activePositions is still
+      // the right denominator for the Sales tab's own SALES/POSITION
+      // card and the Sales Productivity KPI (unchanged) -- this is a
+      // Line Performance-table-only redefinition, scoped exactly like
+      // the Period filter above. Coverage's headcount (c.headcount,
+      // real ACTIVE rep count under a specific Title/Status scope) is
+      // still used above for the coverage%/right-freq% weighted
+      // averages -- a third, distinct population from both of these.
+      const sfeLine = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, name);
+      const plannedHeadcount = (sfeLine && sfeLine.ok) ? sfeLine.headcountTotal : 0;
       return {
         name: name,
         coveragePct: coveragePct,
@@ -645,15 +762,8 @@
         salesValue: s ? s.actualValue : null,
         targetValue: s ? s.targetValue : null,
         contributionPct: (s && totalSalesValue > 0) ? (s.actualValue / totalSalesValue) * 100 : null,
-        // Sourced from Sales' own activePositions (deployed territory
-        // count, EXCLUDED_POSITIONS filtered), NOT Coverage's rep
-        // headcount -- fixed 2026-07-29 to match the SALES/POSITION
-        // convention used everywhere else on this platform. Coverage's
-        // headcount (c.headcount) is still used above for the
-        // coverage%/right-freq% weighted averages, which legitimately
-        // need real rep headcount, not deployed-position count.
-        salesPerPosition: s ? s.salesPerPosition : null,
-        activePositions: s ? s.activePositions : 0,
+        salesPerPosition: (s && plannedHeadcount > 0) ? s.actualValue / plannedHeadcount : null,
+        activePositions: plannedHeadcount,
       };
     }).sort((a, b) => (b.salesAchievementPct === null ? -Infinity : b.salesAchievementPct) - (a.salesAchievementPct === null ? -Infinity : a.salesAchievementPct));
 
@@ -1053,7 +1163,7 @@
     const cardsHtml = []
       .concat(renderCard(buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 90, filters)))
       .concat(renderCard(buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 70, filters)))
-      .concat(renderCard(buildSFECard(summaries, filters)))
+      .concat(renderCard(buildSFECard(filters)))
       .concat(renderCard(buildSalesAchievementCard(filters)))
       .concat(renderCard(buildSalesValueCard(filters)))
       .concat(renderCard(buildCustomerClusterMixCard(filters)))
