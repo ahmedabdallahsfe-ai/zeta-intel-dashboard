@@ -163,7 +163,14 @@
 
     // Flag toggles ("all", true, false)
     isBulk: "all",
-    isTender: "all",
+    // Defaults to false (Non-Tenders Only), not "all" (2026-07-29, per
+    // Ahmed's request): several standalone KPI computations elsewhere in
+    // this file (getBrandAchievement, getLinePerformance, etc.) already
+    // unconditionally exclude tender rows -- "TENDER STATUS default
+    // unselect tenders only" brings the main global filter's DEFAULT
+    // view in line with that same convention. "All Transactions" and
+    // "Tenders Only" both remain one dropdown click away.
+    isTender: false,
     isOffer: "all",
     isUpa: "all",
     isMirror: "all"
@@ -2460,7 +2467,7 @@
     STATE.txtype = "all";
     STATE.position = "all";
     STATE.isBulk = "all";
-    STATE.isTender = "all";
+    STATE.isTender = false; // matches the STATE initializer default -- see its comment
     STATE.isOffer = "all";
     STATE.isUpa = "all";
     STATE.isMirror = "all";
