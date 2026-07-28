@@ -78,6 +78,25 @@ if not "%SALES_EXIT%"=="0" (
     exit /b 1
 )
 
+REM --- run the IQVIA Market Share Aggregation ------------------------------
+REM Added 2026-07-28: this step was documented in the header comment above
+REM but was never actually wired in -- IQVIA refreshes had to be run and
+REM pushed by hand every time. Reads iqvia_source\IQVIA_SOURCE.xlsx (copy it
+REM in from wherever IQVIA exports the latest workbook before running this).
+echo.
+echo Reading IQVIA workbook...
+%PYTHON_CMD% refresh_iqvia.py
+set "IQVIA_EXIT=%ERRORLEVEL%"
+
+if not "%IQVIA_EXIT%"=="0" (
+    echo ============================================================
+    echo   [ERROR] IQVIA Refresh FAILED
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
 echo.
 echo ============================================================
 echo   Refresh complete - pushing to GitHub...
@@ -109,6 +128,10 @@ if "%GIT_CMD%"=="" (
     "%GIT_CMD%" add -f cache/organogram.data.js
     "%GIT_CMD%" add -f cache/sales.json
     "%GIT_CMD%" add -f cache/sales.data.js
+    "%GIT_CMD%" add -f cache/iqvia.json
+    "%GIT_CMD%" add -f cache/iqvia.data.js
+    "%GIT_CMD%" add -f cache/customer_analytics.json
+    "%GIT_CMD%" add -f cache/customer_analytics.data.js
     "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js
     "%GIT_CMD%" add css/*.css
