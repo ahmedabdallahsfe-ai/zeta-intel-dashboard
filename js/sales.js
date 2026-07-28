@@ -2857,8 +2857,19 @@
      * previously mismatched against this platform's SALES/POSITION
      * convention (a Coverage rep headcount, not a Sales deployed-position
      * count).
+     *
+     * EXTENDED 2026-07-29 (Line Performance Period filter): optional
+     * `months` param -- null/undefined/"all"/[] means every month in the
+     * cache (previous behavior, unchanged). An array of month INDEX
+     * values (numbers or numeric strings, matching cache.lookups.months
+     * indices -- see getAvailableMonths()) scopes both the value/target
+     * accumulation AND the deployed-position count to just those months.
+     * An empty array is treated the same as "all", not "zero months" --
+     * matches DS.filterDropdown's own "0 selected reads as All" label
+     * convention, so the Period control's summary text and the actual
+     * data never disagree.
      */
-    getLineSalesSummary(bu) {
+    getLineSalesSummary(bu, months) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, lines: [] };
@@ -2868,7 +2879,8 @@
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, lines: [] };
       }
       const linesLk = cache.lookups.lines;
-      const months = cache.lookups.months;
+      const monthsLk = cache.lookups.months;
+      const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
 
       const acc = new Map(); // canonicalLineName -> { val, tgtVal }
       const posByLine = new Map(); // canonicalLineName -> Set of deployed position codes
@@ -2876,6 +2888,7 @@
         const r = decodedRows[i];
         const rawLine = linesLk[r[LINE]];
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        if (monthFilter && !monthFilter.has(r[MONTH])) continue;
         const canon = window.SEMANTIC.normalizeLine(rawLine);
         // Deployed-position tracking is NOT tender-filtered -- a
         // territory is deployed regardless of transaction type, same
@@ -2911,13 +2924,35 @@
       return {
         ok: true,
         status: 'ready',
-        asOfDate: months[months.length - 1] || null,
+        asOfDate: monthsLk[monthsLk.length - 1] || null,
         source: 'sales',
         bu: bu,
         unit: 'EGP',
         scope: 'Non-Tender transactions only, Value basis',
         lines: lines,
       };
+    },
+
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getAvailableMonths()
+     * ------------------------------------------------------------------
+     * Added 2026-07-29 for the Executive Command Center's Line
+     * Performance Period filter (scoped to that section only -- the
+     * platform-wide Period selector in the global filter bar is a
+     * separate, still-disabled control, since Coverage/SFE have no
+     * month dimension to filter by). Returns the cache's month index ->
+     * display-label mapping so a consumer never has to reach into
+     * cache.lookups.months directly, per the module-boundary principle.
+     */
+    getAvailableMonths() {
+      decompressCache();
+      if (!cache || !cache.lookups || !Array.isArray(cache.lookups.months)) {
+        return { ok: false, months: [] };
+      }
+      const months = cache.lookups.months
+        .map((key, idx) => ({ idx: idx, key: key, label: monthIndexToLabel(idx) }))
+        .sort((a, b) => a.key.localeCompare(b.key));
+      return { ok: true, months: months };
     },
 
     /**

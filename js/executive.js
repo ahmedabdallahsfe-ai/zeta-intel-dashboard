@@ -152,6 +152,13 @@
   // Filter state + BU line lists.
   // ---------------------------------------------------------------------
   let _filters = { bu: "CHC", line: "All" };
+  // Local Period state for the Line Performance section ONLY (2026-07-29)
+  // -- NOT the platform-wide Period selector in the global filter bar,
+  // which stays disabled since Coverage/SFE have no month dimension to
+  // filter by (see renderFilterBar()). "all" = every month in the cache
+  // (default, unchanged prior behavior); an array of month index values
+  // scopes the table's Sales-derived columns to just those months.
+  let _linePerfMonths = "all";
   let _container = null;
 
   function linesForBU(bu) {
@@ -603,9 +610,9 @@
   // transactions plain "CHC" -- it tags all of CHC's sales
   // "CHC_SALES"), which is expected.
   // ---------------------------------------------------------------------
-  function buildLinePerformanceTable(bu) {
+  function buildLinePerformanceTable(bu, months) {
     const covData = safeCall("coverage", "CoverageDashboard", "getLineAndTerritoryBreakdown", bu);
-    const salesData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu);
+    const salesData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, months);
     if (!covData || !covData.ok) return { ok: false, status: covData ? covData.status : "module_unavailable" };
 
     // Group Coverage's raw per-team rows by canonical line (CHC and
@@ -1062,13 +1069,47 @@
 
   function renderLinePerformanceSection(ctx) {
     if (ctx.filters.line !== "All") return null; // redundant once a single line is already selected
-    const data = buildLinePerformanceTable(ctx.filters.bu);
+    const monthsInfo = safeCall("sales", "SalesDashboard", "getAvailableMonths");
+    const monthsParam = _linePerfMonths === "all" ? null : _linePerfMonths;
+    const data = buildLinePerformanceTable(ctx.filters.bu, monthsParam);
+
     const wrap = document.createElement("div");
     wrap.className = "ds-mt-4";
+
+    const headerRow = document.createElement("div");
+    headerRow.style.cssText = "display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-2,8px);";
+    const titleEl = document.createElement("div");
+    titleEl.style.cssText = "font-weight:600;font-size:var(--fs-sm,13px);";
+    titleEl.textContent = "Line Performance within " + ctx.filters.bu;
+    headerRow.appendChild(titleEl);
+
+    // Period filter, scoped to this section only -- Coverage %/Right-Freq %
+    // columns have no month dimension (organogram is a point-in-time
+    // snapshot) and stay unaffected regardless of the selection; only the
+    // Sales-derived columns (Sales Value/Target/Achievement/Contribution/
+    // Sales per Position/Positions) recompute for the chosen months.
+    if (monthsInfo && monthsInfo.ok && monthsInfo.months.length > 1) {
+      const periodDropdown = global.DS.filterDropdown({
+        label: "Period",
+        options: monthsInfo.months.map(m => ({ value: String(m.idx), label: m.label })),
+        selected: _linePerfMonths === "all" ? [] : _linePerfMonths.map(String),
+        onChange: function (selectedArr) {
+          _linePerfMonths = selectedArr.length === 0 ? "all" : selectedArr;
+          render(ctx.container);
+        },
+      });
+      headerRow.appendChild(periodDropdown);
+    }
+    wrap.appendChild(headerRow);
+
     if (!data.ok) {
-      wrap.innerHTML = `<div style="font-size:var(--fs-xs,12px);color:var(--color-text-tertiary,#94A3B8);">Line Performance unavailable (${escapeAttr(data.status)}).</div>`;
+      const msg = document.createElement("div");
+      msg.style.cssText = "font-size:var(--fs-xs,12px);color:var(--color-text-tertiary,#94A3B8);";
+      msg.textContent = "Line Performance unavailable (" + data.status + ").";
+      wrap.appendChild(msg);
       return wrap;
     }
+
     const table = global.DS.table({
       columns: [
         { key: "name", label: "Line" },
@@ -1084,7 +1125,9 @@
       rows: data.rows,
     });
     const scopeNote = data.scope ? `<div style="font-size:var(--fs-xs,12px);color:var(--color-text-tertiary,#94A3B8);margin-bottom:var(--space-2,8px);">Sales figures: ${escapeAttr(data.scope)}. Contribution % = share of ${escapeAttr(ctx.filters.bu)}'s total Sales Value.</div>` : "";
-    wrap.innerHTML = `<div style="font-weight:600;font-size:var(--fs-sm,13px);margin-bottom:var(--space-2,8px);">Line Performance within ${escapeAttr(ctx.filters.bu)}</div>` + scopeNote + table;
+    const bodyWrap = document.createElement("div");
+    bodyWrap.innerHTML = scopeNote + table;
+    wrap.appendChild(bodyWrap);
     return wrap;
   }
 
