@@ -926,12 +926,16 @@
             </div>
 
             <!-- Date Shortcuts -->
+            <!-- LTM button replaced 2026-07-29 with a proper Month multi-select
+                 (per Ahmed's request) -- driven by cache.lookups.months via
+                 renderSearchableDropdown, same mechanism as every other filter
+                 here, so it's dynamic: whatever months are actually in the
+                 refreshed cache show up automatically, no hardcoded list to
+                 maintain as new months get added. -->
             <div style="margin-bottom:14px;">
               <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:6px;">Period</div>
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-                <button class="sales-date-shortcut sc-period-btn" data-type="ytd">YTD</button>
-                <button class="sales-date-shortcut sc-period-btn" data-type="ltm">LTM</button>
-              </div>
+              <button class="sales-date-shortcut sc-period-btn" data-type="ytd" style="width:100%; margin-bottom:8px;">YTD</button>
+              <div id="drop-month"></div>
             </div>
 
             <div class="sc-filter-sep"></div>
@@ -1052,6 +1056,7 @@
     `;
 
     // Render dropdown inputs (5-level hierarchy mapping)
+    renderSearchableDropdown("drop-month", "MONTH", MONTH, "month");
     renderSearchableDropdown("drop-buhead", "BU HEAD", BUHEAD, "buhead");
     renderSearchableDropdown("drop-nsm", "NSM", NSM, "nsm");
     renderSearchableDropdown("drop-rm", "RM (REGIONAL MANAGER)", RM, "rm");
@@ -2459,11 +2464,10 @@
       const year = latest.substring(0, 4);
       const filtered = sorted.filter(m => m.startsWith(year) && m <= latest).map(m => cache.lookups.months.indexOf(m));
       STATE.month = filtered;
-    } else if (type === "ltm") {
-      // Last 12 months
-      const filtered = sorted.slice(-12).map(m => cache.lookups.months.indexOf(m));
-      STATE.month = filtered;
     }
+    // "ltm" (Last 12 Months) shortcut removed 2026-07-29 -- replaced by the
+    // Month dropdown filter (drop-month), which lets Ahmed pick any exact
+    // set of months instead of a fixed trailing-12 window.
 
     renderLayout();
   }
