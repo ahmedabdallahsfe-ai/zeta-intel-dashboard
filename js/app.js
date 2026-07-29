@@ -2,14 +2,23 @@
  * app.js
  * ======
  * Application entry point and orchestrator. Boot sequence:
- *   Loader.show -> CacheStore.init -> Analytics.init -> self-check ->
- *   build static section shells (once) -> Filters.init (drives the first
- *   render) -> Loader.hide.
+ *   Auth gate (js/auth.js) -> Loader.show -> CacheStore.init ->
+ *   Analytics.init -> self-check -> build static section shells (once) ->
+ *   Filters.init (drives the first render) -> Loader.hide.
  *
  * Every subsequent filter change re-runs Analytics.run() and calls
  * renderAll() again -- charts update in place (charts.js), tables
  * re-render against their own remembered sort/search/page state
  * (tables.js), everything else is cheap innerHTML replacement.
+ *
+ * AUTHENTICATION (2026-07-29): the entire app -- every workspace, not
+ * just Market Intelligence/IQVIA -- now sits behind a single sign-in
+ * gate (#app-login-gate, styled in css/dashboard.css, logic in
+ * js/auth.js). DOMContentLoaded no longer boots the app directly; it
+ * wires the gate first, then either boots immediately (valid session
+ * already in localStorage) or waits for a successful sign-in. The old
+ * boot body is unchanged in substance -- just moved into the named
+ * startApp() function so it can be invoked from either path.
  */
 
 let sections = {}; // id -> section-body element, populated once by buildLayout()
@@ -19,6 +28,86 @@ let _lastResult = null; // stored so the At-Risk tiers modal can find tier lists
 let currentTab = "executive"; // Executive Command Center is the platform's default landing page
 
 document.addEventListener("DOMContentLoaded", () => {
+  wireLoginGate();
+  const signedInUser = window.AUTH ? window.AUTH.getValidSessionUser() : null;
+  if (signedInUser) {
+    hideLoginGate();
+    renderTopbarUserBadge();
+    startApp();
+  }
+  // Else: the gate is visible by default (no "hidden" class in the HTML) --
+  // wireLoginGate()'s Sign In handler calls startApp() itself on success.
+});
+
+/**
+ * Wires the app-wide login gate's form once at boot. Safe to call even
+ * though the gate may never be shown (valid session already present) --
+ * it only attaches listeners, it doesn't check auth state itself.
+ */
+function wireLoginGate() {
+  const btn = document.getElementById("app-login-btn");
+  const emailEl = document.getElementById("app-login-email");
+  const pwdEl = document.getElementById("app-login-pwd");
+  const errEl = document.getElementById("app-login-error");
+  if (!btn || !emailEl || !pwdEl || !errEl || !window.AUTH) return;
+
+  async function attemptLogin() {
+    errEl.classList.remove("show");
+    btn.disabled = true;
+    btn.textContent = "Signing in...";
+    const result = await window.AUTH.login(emailEl.value, pwdEl.value);
+    if (result.ok) {
+      hideLoginGate();
+      renderTopbarUserBadge();
+      startApp();
+    } else {
+      errEl.textContent = result.error;
+      errEl.classList.add("show");
+      btn.disabled = false;
+      btn.textContent = "Sign In";
+    }
+  }
+
+  btn.addEventListener("click", attemptLogin);
+  [emailEl, pwdEl].forEach((el) => {
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") attemptLogin();
+    });
+  });
+}
+
+function hideLoginGate() {
+  const gate = document.getElementById("app-login-gate");
+  if (gate) gate.classList.add("hidden");
+}
+
+/**
+ * Renders the signed-in user's name/role + a Sign Out control in the
+ * global topbar (visible on every tab, unlike the old IQVIA-only
+ * badge). Called once at boot and again right after a fresh sign-in.
+ */
+function renderTopbarUserBadge() {
+  const slot = document.getElementById("topbar-user-badge-slot");
+  if (!slot || !window.AUTH) return;
+  const user = window.AUTH.getValidSessionUser();
+  if (!user) { slot.innerHTML = ""; return; }
+  slot.innerHTML = `
+    <div class="topbar-user-badge">
+      <div class="badge-avatar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      </div>
+      <div class="badge-info">
+        <span class="badge-name">${user.name}</span>
+        <span class="badge-role">${user.role}</span>
+      </div>
+      <div class="badge-signout" id="topbar-signout-btn">Sign out</div>
+    </div>
+  `;
+  const signoutBtn = document.getElementById("topbar-signout-btn");
+  if (signoutBtn) signoutBtn.addEventListener("click", () => window.AUTH.logout());
+}
+
+function startApp() {
   Loader.init();
   Loader.show("Loading dashboard...");
 
@@ -215,7 +304,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   Loader.hide();
   wireNotSeenModal();
-});
+}
 
 /** Wire the topbar "Export Dashboard as PDF" button once at boot. */
 function wireDashboardExport() {

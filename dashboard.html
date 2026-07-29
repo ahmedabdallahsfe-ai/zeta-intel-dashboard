@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zeta Commercial Excellence Dashboard</title>
-  <link rel="stylesheet" href="css/dashboard.css?v=20260729_rmhealth" />
+  <link rel="stylesheet" href="css/dashboard.css?v=20260729_appwideauth" />
   <!-- Fully scoped under .iqvia-dashboard-wrap (namespaced 2026-07-26) — safe to load
        on every tab; cannot leak into Coverage/Organogram/Sales styling. -->
   <link rel="stylesheet" href="css/iqvia.css?v=20260726_namespaced" />
@@ -19,6 +19,41 @@
   <link rel="stylesheet" href="css/utilities.css?v=20260726_exec" />
 </head>
 <body>
+
+  <!-- App-wide authentication gate (2026-07-29): shown before anything
+       else renders, and hidden the instant a valid session already
+       exists (js/app.js checks this first, before any tab boots). This
+       replaces the old IQVIA-only login -- one sign-in now covers every
+       workspace (Coverage, Zeta Organogram, Sales, Executive, Market
+       Intelligence). See js/auth.js for the session/credential logic;
+       source of truth is Zeta_Dashboard_User_Config.xlsx via
+       refresh_iqvia.py -> cache/iqvia.data.js's IQVIA_CACHE.users. -->
+  <div id="app-login-gate" class="app-login-gate">
+    <div class="app-login-card">
+      <div class="app-login-logo">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="48" height="48" rx="12" fill="#0077b6"/>
+          <path d="M10 14h28l-14 10L10 14z" fill="#00a8e8"/>
+          <path d="M24 24l14-10v20H10V14l14 10z" fill="rgba(255,255,255,0.15)"/>
+          <text x="24" y="38" text-anchor="middle" font-family="Arial" font-weight="900" font-size="11" fill="#fff" letter-spacing="1">ZETA</text>
+        </svg>
+        <div class="app-login-logo-text">
+          <h1>Zeta Commercial Excellence</h1>
+          <p>Secure Access</p>
+        </div>
+      </div>
+      <div class="app-login-field">
+        <label>Email Address</label>
+        <input type="email" id="app-login-email" placeholder="your.name@zeta-pharma.com" autocomplete="email" />
+      </div>
+      <div class="app-login-field">
+        <label>Password</label>
+        <input type="password" id="app-login-pwd" placeholder="Enter your password" autocomplete="current-password" />
+      </div>
+      <button class="app-login-btn" id="app-login-btn" type="button">Sign In</button>
+      <div class="app-login-error" id="app-login-error"></div>
+    </div>
+  </div>
 
   <!-- Loading overlay: shown while cache loads and the UI renders -->
   <div id="loading-overlay" class="loading-overlay">
@@ -70,6 +105,7 @@
       <h1 id="topbar-title">Zeta Commercial Excellence Dashboard</h1>
     </div>
     <div class="topbar-actions">
+      <div id="topbar-user-badge-slot"></div>
       <button type="button" id="topbar-export-pdf" class="topbar-export-btn" title="Export the dashboard as PDF">Export PDF</button>
     </div>
   </header>
@@ -118,6 +154,13 @@
   <script src="cache/customer_analytics.data.js?v=20260728_bupenetration"></script>
   <script src="cache/iqvia.data.js?v=20260728_june"></script>
 
+  <!-- App-wide authentication (2026-07-29): self-contained platform asset
+       (same pattern as semantic-model.js below), no dependency on any
+       workspace module. Must load after cache/iqvia.data.js (reads
+       IQVIA_CACHE.users) and before js/app.js (the boot sequence gates
+       on it first). See js/auth.js for the full rationale. -->
+  <script src="js/auth.js?v=20260729_appwideauth"></script>
+
   <!-- Configuration (no hardcoded values below this point) -->
   <script src="js/config.js?v=20260725_v2"></script>
 
@@ -156,7 +199,7 @@
        added for the Customer Channel Mix KPI card (cluster-then-sub_type
        drill -- see sales_subtypes.xlsx for the clustering source of truth). -->
   <script src="js/sales.js?v=20260729_salesrestructure"></script>
-  <script src="js/iqvia.js?v=20260729_lineaware"></script>
+  <script src="js/iqvia.js?v=20260729_appwideauth"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
        Default landing page. Reads only through SEMANTIC, DS, and the four
@@ -168,7 +211,7 @@
        card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
   <script src="js/executive.js?v=20260729_lineaware"></script>
 
-  <script src="js/app.js?v=20260728_classvisitach"></script>
+  <script src="js/app.js?v=20260729_appwideauth"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">
