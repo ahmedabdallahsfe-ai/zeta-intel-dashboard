@@ -107,9 +107,77 @@
     location.reload();
   }
 
+  /**
+   * ROLE-BASED DATA SCOPE (2026-07-29)
+   * -----------------------------------------------------------------
+   * Zeta_Dashboard_User_Config.xlsx's "Allowed BU" / "Allowed Lines"
+   * columns were always meant to restrict WHAT a signed-in user can
+   * see, not just gate whether they can sign in at all (e.g. Kamal
+   * Allam is a DIAB-only BU Manager -- he should never see CHC/
+   * Cluster/GIT data, in any workspace). getValidSessionUser() already
+   * exposes .bu/.lines from that sheet (null = unrestricted/Admin-like,
+   * an array = the exact allowed set); these helpers are the one place
+   * every workspace (Coverage, SFE, Sales, Executive -- IQVIA already
+   * has its own, deliberately different, dm1s/market-based scope, see
+   * iqvia.js's applyUserFilter()) turns that into a yes/no decision or
+   * a filtered option list, instead of five separate re-implementations.
+   *
+   * Lines are the authoritative, finer-grained scope -- a user can be
+   * restricted to a subset of their own BU's lines (e.g. Amr Khalifa's
+   * Allowed Lines is "CHC" only, not "CHC,CHC_SALES", even though both
+   * lines belong to his allowed CHC business unit). isLineAllowed()
+   * normalizes through SEMANTIC.normalizeLine() first so raw-spelling
+   * variants (NEUROSCIENCE/DERMA vs canonical CNS/Derma) still compare
+   * correctly, exactly like every other line comparison on this
+   * platform.
+   */
+  function getScope() {
+    var u = getValidSessionUser();
+    if (!u) return { unrestricted: false, bus: [], lines: [] };
+    return {
+      unrestricted: !u.bu && !u.lines,
+      bus: u.bu || null,       // null = every BU allowed
+      lines: u.lines || null   // null = every line allowed
+    };
+  }
+
+  function isBuAllowed(bu) {
+    var s = getScope();
+    if (s.bus === null) return true;
+    return s.bus.indexOf(bu) >= 0;
+  }
+
+  function isLineAllowed(rawLine) {
+    var s = getScope();
+    if (s.lines === null) return true;
+    var canon = (global.SEMANTIC && global.SEMANTIC.normalizeLine) ? global.SEMANTIC.normalizeLine(rawLine) : rawLine;
+    return s.lines.indexOf(canon) >= 0;
+  }
+
+  /** Filter an array of BU names down to the ones this user may see. */
+  function filterAllowedBUs(buArray) {
+    var s = getScope();
+    if (s.bus === null) return buArray.slice();
+    return buArray.filter(function (b) { return s.bus.indexOf(b) >= 0; });
+  }
+
+  /** Filter an array of (raw or canonical) line names down to the ones
+   * this user may see. Returns the ORIGINAL strings, just filtered --
+   * does not rewrite spellings. */
+  function filterAllowedLines(lineArray) {
+    var s = getScope();
+    if (s.lines === null) return lineArray.slice();
+    return lineArray.filter(function (l) { return isLineAllowed(l); });
+  }
+
   global.AUTH = {
     getValidSessionUser: getValidSessionUser,
     login: login,
-    logout: logout
+    logout: logout,
+    getScope: getScope,
+    isBuAllowed: isBuAllowed,
+    isLineAllowed: isLineAllowed,
+    filterAllowedBUs: filterAllowedBUs,
+    filterAllowedLines: filterAllowedLines
   };
 })(window);

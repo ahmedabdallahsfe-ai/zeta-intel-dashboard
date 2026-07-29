@@ -259,6 +259,16 @@
         if (!STATE.line.includes(rowLine)) return false;
       }
     }
+    // ROLE-BASED ACCESS SCOPE (2026-07-29): regardless of the user's own
+    // filter selection (or the "all" default above), never surface rows
+    // outside their permitted lines. Single choke point -- isRowAllowed()
+    // gates both the main aggregator loop AND the cascading dropdown-
+    // option builder (getFilteredLookupList()), so this scopes the whole
+    // Sales workspace (data + filter options) in one place.
+    if (window.AUTH && window.AUTH.getScope().lines !== null) {
+      const rowLineName = cache.lookups.lines[rowLine];
+      if (!window.AUTH.isLineAllowed(rowLineName)) return false;
+    }
     if (ignoreKey !== "brand" && STATE.brand !== "all" && !STATE.brand.includes(r[BRAND])) return false;
     if (ignoreKey !== "prod" && STATE.prod !== "all" && !STATE.prod.includes(r[PROD])) return false;
     // Note: CM (Emp6/Commercial Manager, r[CM]) is intentionally not filterable —
@@ -2948,6 +2958,11 @@
         console.error('[Sales] getLineSalesSummary() requires js/semantic-model.js to be loaded first.');
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, lines: [] };
       }
+      // ROLE-BASED ACCESS SCOPE (2026-07-29): backstop, mirrors
+      // coverage-interface.js/sfe.js's equivalent interfaces.
+      if (window.AUTH && !window.AUTH.isBuAllowed(bu)) {
+        return { ok: false, status: 'access_denied', asOfDate: null, source: 'sales', bu: bu, lines: [] };
+      }
       const linesLk = cache.lookups.lines;
       const monthsLk = cache.lookups.months;
       const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
@@ -2989,6 +3004,10 @@
           };
         })
         .filter(l => l.targetValue > 0 || l.actualValue > 0)
+        // Role-based scope: exclude any line the signed-in user isn't
+        // allowed (e.g. Amr Khalifa's Allowed Lines is "CHC" only, not
+        // "CHC,CHC_SALES", even though bu="CHC" itself is allowed).
+        .filter(l => !window.AUTH || window.AUTH.isLineAllowed(l.name))
         .sort((x, y) => y.actualValue - x.actualValue);
 
       return {

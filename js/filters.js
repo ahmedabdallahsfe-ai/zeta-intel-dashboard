@@ -88,7 +88,26 @@ const Filters = (() => {
       status: dims.statuses, experience: dims.experiences, type: dims.types,
       title: dims.titles,
     };
-    return map[fieldId] || [];
+    let list = map[fieldId] || [];
+    // ROLE-BASED ACCESS SCOPE (2026-07-29): "Team" is Coverage's own name
+    // for the Line dimension (coverage-interface.js's getBusinessSummary()
+    // already rolls team up to BU via SEMANTIC.lineToBU(row.team)) -- a
+    // restricted user should never even see a disallowed team as a
+    // selectable option, not just have it silently filtered out of the
+    // numbers. See allowedTeamNames()/getState() for the data-layer half.
+    if (fieldId === "team" && window.AUTH && window.AUTH.getScope().lines !== null) {
+      list = allowedTeamNames();
+    }
+    return list;
+  }
+
+  /** Raw Coverage "Team" names (dims.teams) the signed-in user is allowed
+   * to see, resolved through SEMANTIC.normalizeLine() so raw-spelling
+   * variants (NEUROSCIENCE/DERMA) still compare correctly against the
+   * user's canonical Allowed Lines list. */
+  function allowedTeamNames() {
+    if (!dims || !dims.teams || !window.AUTH) return (dims && dims.teams) || [];
+    return dims.teams.filter((t) => window.AUTH.isLineAllowed(t));
   }
 
   // -------------------------------------------------------------------------
@@ -290,7 +309,21 @@ const Filters = (() => {
   function getState() {
     // analytics.js expects "klass" for the class filter (reserved-word boundary).
     // period is now also an array: [] = latest, ["Jun"] = specific, etc.
-    return Object.assign({}, state, { klass: state.class });
+    const out = Object.assign({}, state, { klass: state.class });
+    // ROLE-BASED ACCESS SCOPE (2026-07-29): force "team" (Coverage's Line
+    // dimension) into the signed-in user's allowed scope regardless of
+    // their own selection -- an empty selection means "all", which for a
+    // restricted user must mean "all of MY allowed teams", not literally
+    // every team in the dataset. The dropdown (dimListFor) already hides
+    // disallowed options, so this is the backstop that makes it a real
+    // data boundary, not just a UI one.
+    if (window.AUTH && window.AUTH.getScope().lines !== null) {
+      const allowedTeams = allowedTeamNames();
+      out.team = (Array.isArray(out.team) && out.team.length > 0)
+        ? out.team.filter((t) => allowedTeams.indexOf(t) >= 0)
+        : allowedTeams;
+    }
+    return out;
   }
 
   function resetAll() {

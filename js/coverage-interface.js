@@ -392,6 +392,22 @@
       return { ok: false, status: "cache_unavailable", asOfDate: null, source: "coverage", bu: bu, line: line || null };
     }
 
+    // ROLE-BASED ACCESS SCOPE (2026-07-29): a signed-in user restricted
+    // to specific BUs/Lines (Zeta_Dashboard_User_Config.xlsx) must never
+    // get real numbers back for a BU/Line outside that scope, even if a
+    // caller (buggy or otherwise) asks for one directly -- same
+    // "authentication is not bypassed" rule IQVIA's getBusinessSummary()
+    // already enforces for the no-session case, extended to per-user
+    // scope. The Executive Command Center's own filter dropdown already
+    // only offers allowed BUs/Lines (see js/executive.js), so this
+    // should never actually trigger in normal use -- it's the backstop.
+    if (window.AUTH && !window.AUTH.isBuAllowed(bu)) {
+      return { ok: false, status: "access_denied", asOfDate: latestPeriod, source: "coverage", bu: bu, line: line || null };
+    }
+    if (window.AUTH && line && !window.AUTH.isLineAllowed(line)) {
+      return { ok: false, status: "access_denied", asOfDate: latestPeriod, source: "coverage", bu: bu, line: line || null };
+    }
+
     const F = {
       period: 0, team: 1, businessUnit: 2, nsm: 3, areaManager: 4, manager: 5,
       employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,

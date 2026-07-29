@@ -8551,6 +8551,17 @@ window.IQVIADashboard = {
     if (!user) {
       return { ok: false, status: 'auth_required', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
     }
+    // ROLE-BASED ACCESS SCOPE (2026-07-29): backstop against an
+    // out-of-scope bu/line request, mirroring every other module's
+    // Line-aware interface. Deliberately separate from applyUserFilter()
+    // below, which scopes IQVIA's OWN market-intelligence view by dm1s
+    // (competitor markets) -- this is the bu/lines (Zeta org) scope.
+    if (window.AUTH && !window.AUTH.isBuAllowed(bu)) {
+      return { ok: false, status: 'access_denied', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
+    }
+    if (window.AUTH && line && !window.AUTH.isLineAllowed(line)) {
+      return { ok: false, status: 'access_denied', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
+    }
     if (typeof window.SEMANTIC === 'undefined') {
       console.error('[IQVIA] getDM1DM2MarketIntel() requires js/semantic-model.js to be loaded first.');
       return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };

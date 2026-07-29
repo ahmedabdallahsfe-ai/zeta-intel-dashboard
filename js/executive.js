@@ -151,7 +151,7 @@
   // ---------------------------------------------------------------------
   // Filter state + BU line lists.
   // ---------------------------------------------------------------------
-  let _filters = { bu: "CHC", line: "All" };
+  let _filters = { bu: "CHC", line: "All" }; // re-clamped to the signed-in user's scope in init(), see clampFiltersToScope()
   // Local Period state for the Line Performance section ONLY (2026-07-29)
   // -- NOT the platform-wide Period selector in the global filter bar,
   // which stays disabled since Coverage/SFE have no month dimension to
@@ -177,6 +177,53 @@
   }
 
   // ---------------------------------------------------------------------
+  // ROLE-BASED ACCESS SCOPE (2026-07-29): "Kamal Allam should see only
+  // DIAB" -- every BU/Line selection this page offers, and every
+  // ranking loop that walks BU_LIST/linesForBU(), is clamped to the
+  // signed-in user's Allowed BU/Lines (js/auth.js). Falls back to
+  // "everyone allowed" if AUTH isn't loaded (defensive only -- it's
+  // always loaded before this file, see dashboard.html script order).
+  // ---------------------------------------------------------------------
+  function isBuRestricted() {
+    return !!(global.AUTH && global.AUTH.getScope().bus !== null);
+  }
+
+  function getAllowedBUList() {
+    if (!global.AUTH) return global.SEMANTIC.BU_LIST.slice();
+    return global.AUTH.filterAllowedBUs(global.SEMANTIC.BU_LIST);
+  }
+
+  function getAllowedLinesForBU(bu) {
+    const all = linesForBU(bu);
+    if (!global.AUTH) return all;
+    return global.AUTH.filterAllowedLines(all);
+  }
+
+  /** Default filter state on first load: restricted users land directly
+   * on their own (first) allowed BU instead of the hardcoded "CHC". */
+  function defaultFilters() {
+    const allowed = getAllowedBUList();
+    return { bu: allowed.length > 0 ? allowed[0] : "CHC", line: "All" };
+  }
+
+  /** Re-clamp module-level filter state to the current user's scope.
+   * Called at init() so a stale/hardcoded default (evaluated at script
+   * load, before any session exists) can never leak an out-of-scope BU
+   * or line into the very first render. */
+  function clampFiltersToScope() {
+    const allowedBUs = getAllowedBUList();
+    if (allowedBUs.length === 0) return; // AUTH not ready yet -- leave as-is, nothing to clamp against
+    if (allowedBUs.indexOf(_filters.bu) < 0) {
+      _filters.bu = allowedBUs[0];
+      _filters.line = "All";
+    }
+    if (_filters.line !== "All") {
+      const allowedLines = getAllowedLinesForBU(_filters.bu);
+      if (allowedLines.indexOf(_filters.line) < 0) _filters.line = "All";
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // KPI 1 & 2 -- Operational Coverage / Right Frequency
   // Source: Coverage. Same filtered population (Title=Medical
   // Representative, Experience=Non-Probation, Status=Active, Type in
@@ -192,16 +239,16 @@
     const variance = mainVal !== null ? mainVal - target : null;
 
     let rankInfo, rankUnit;
-    if (line === "All") {
+    if (line === "All" && !isBuRestricted()) {
       const vals = {};
-      global.SEMANTIC.BU_LIST.forEach(b => {
+      getAllowedBUList().forEach(b => {
         const r = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", b, null);
         vals[b] = (r && r.ok) ? r[metricKey] : null;
       });
       rankInfo = rank(vals, "desc")[bu];
       rankUnit = "Business Units";
     } else {
-      const lines = linesForBU(bu);
+      const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
         const r = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, l);
@@ -244,16 +291,16 @@
     const fillRatePct = scoped.vacancyRatePct !== null ? 100 - scoped.vacancyRatePct : null;
 
     let rankInfo, rankUnit;
-    if (line === "All") {
+    if (line === "All" && !isBuRestricted()) {
       const vals = {};
-      global.SEMANTIC.BU_LIST.forEach(b => {
+      getAllowedBUList().forEach(b => {
         const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", b, null);
         vals[b] = (r && r.ok && r.vacancyRatePct !== null) ? r.vacancyRatePct : null;
       });
       rankInfo = rank(vals, "asc")[bu]; // lower vacancy = better = rank 1
       rankUnit = "Business Units";
     } else {
-      const lines = linesForBU(bu);
+      const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
         const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, l);
@@ -297,16 +344,16 @@
     if (!scoped || !scoped.ok) return unavailableCard("salesAchievement", "Sales Achievement", scoped ? scoped.status : "module_unavailable");
 
     let rankInfo, rankUnit;
-    if (line === "All") {
+    if (line === "All" && !isBuRestricted()) {
       const vals = {};
-      global.SEMANTIC.BU_LIST.forEach(b => {
+      getAllowedBUList().forEach(b => {
         const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, null);
         vals[b] = (s && s.ok) ? s.achievementPct : null;
       });
       rankInfo = rank(vals, "desc")[bu];
       rankUnit = "Business Units";
     } else {
-      const lines = linesForBU(bu);
+      const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
         const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, l);
@@ -356,16 +403,16 @@
     if (!t) return unavailableCard("salesValue", "Sales Value", "module_unavailable");
 
     let rankInfo, rankUnit;
-    if (line === "All") {
+    if (line === "All" && !isBuRestricted()) {
       const vals = {};
-      global.SEMANTIC.BU_LIST.forEach(b => {
+      getAllowedBUList().forEach(b => {
         const bt = nonTenderTotals(b, "All");
         vals[b] = bt ? bt.achievementPct : null;
       });
       rankInfo = rank(vals, "desc")[bu];
       rankUnit = "Business Units";
     } else {
-      const lines = linesForBU(bu);
+      const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
         const lt = nonTenderTotals(bu, l);
@@ -431,16 +478,16 @@
     }
 
     let rankInfo, rankUnit;
-    if (line === "All") {
+    if (line === "All" && !isBuRestricted()) {
       const vals = {};
-      global.SEMANTIC.BU_LIST.forEach(b => {
+      getAllowedBUList().forEach(b => {
         const bd = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null);
         vals[b] = (bd && bd.ok && bd.clusters.length) ? bd.clusters[0].contributionPct : null;
       });
       rankInfo = rank(vals, "asc")[bu];
       rankUnit = "Business Units";
     } else {
-      const lines = linesForBU(bu);
+      const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
         const ld = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, l);
@@ -496,16 +543,16 @@
     const evi = avg(d1.evi, d2.evi);
 
     let rankInfo, rankUnit;
-    if (line === "All") {
+    if (line === "All" && !isBuRestricted()) {
       const vals = {};
-      global.SEMANTIC.BU_LIST.forEach(b => {
+      getAllowedBUList().forEach(b => {
         const bd1d2 = b === bu ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, null);
         vals[b] = (bd1d2 && bd1d2.ok && bd1d2.total) ? avg(bd1d2.total.dm1.ytd.su.sharePct, bd1d2.total.dm2.ytd.su.sharePct) : null;
       });
       rankInfo = rank(vals, "desc")[bu];
       rankUnit = "Business Units";
     } else {
-      const lines = linesForBU(bu);
+      const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
         const ld1d2 = l === line ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
@@ -565,16 +612,16 @@
     }
 
     let rankInfo, rankUnit;
-    if (line === "All") {
+    if (line === "All" && !isBuRestricted()) {
       const vals = {};
-      global.SEMANTIC.BU_LIST.forEach(b => {
+      getAllowedBUList().forEach(b => {
         const bd1d2 = b === bu ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, null);
         vals[b] = growthGapFor(bd1d2);
       });
       rankInfo = rank(vals, "desc")[bu];
       rankUnit = "Business Units";
     } else {
-      const lines = linesForBU(bu);
+      const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
         const ld1d2 = l === line ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
@@ -640,10 +687,10 @@
 
     let val, platformAvg, rankInfo, rankUnit, benchmarkLabel, basisNote;
 
-    if (line === "All") {
+    if (line === "All" && !isBuRestricted()) {
       const perBU = {};
       let platformActual = 0, platformPositions = 0;
-      global.SEMANTIC.BU_LIST.forEach(b => {
+      getAllowedBUList().forEach(b => {
         const s = summaries.sales.bu[b];
         if (s && s.activePositions > 0) {
           perBU[b] = s.actualYTD / s.activePositions;
@@ -665,7 +712,12 @@
       }
       const perLine = {};
       let buActual = 0, buPositions = 0;
-      lineData.lines.forEach(l => {
+      // Role-based scope: a user can be restricted to a SUBSET of their
+      // own BU's lines (e.g. Amr Khalifa's Allowed Lines is "CHC" only,
+      // excluding CHC_SALES even though both belong to his allowed CHC
+      // BU) -- exclude disallowed lines from the benchmark/ranking pool
+      // entirely, not just from what's displayed.
+      lineData.lines.filter(l => !global.AUTH || global.AUTH.isLineAllowed(l.name)).forEach(l => {
         perLine[l.name] = l.activePositions > 0 ? l.salesPerPosition : null;
         buActual += l.actualValue; buPositions += l.activePositions;
       });
@@ -1125,13 +1177,17 @@
   // Rendering.
   // ---------------------------------------------------------------------
   function renderFilterBar(ctx) {
-    const buOptions = global.SEMANTIC.BU_LIST.map(b => ({ value: b, label: b }));
-    const lineOptions = [{ value: "All", label: "All Lines" }].concat(linesForBU(ctx.filters.bu).map(l => ({ value: l, label: l })));
+    // Role-based scope (2026-07-29): restricted users only ever see their
+    // own allowed BUs/lines as selectable options -- there is no way to
+    // switch into another BU's data through this dropdown at all, not
+    // just a data-layer block after the fact.
+    const buOptions = getAllowedBUList().map(b => ({ value: b, label: b }));
+    const lineOptions = [{ value: "All", label: "All Lines" }].concat(getAllowedLinesForBU(ctx.filters.bu).map(l => ({ value: l, label: l })));
 
     const wrap = document.createElement("div");
     wrap.className = "ds-exec-filterbar";
 
-    const buSelect = global.DS.select({ id: "exec-filter-bu", label: "Business Unit", options: buOptions, value: ctx.filters.bu });
+    const buSelect = global.DS.select({ id: "exec-filter-bu", label: "Business Unit", options: buOptions, value: ctx.filters.bu, disabled: buOptions.length <= 1 });
     const lineSelect = global.DS.select({ id: "exec-filter-line", label: "Line", options: lineOptions, value: ctx.filters.line });
     const periodSelect = global.DS.select({ id: "exec-filter-period", label: "Period", options: [{ value: "latest", label: "Latest Period" }], value: "latest", disabled: true });
     const cmpSelect = global.DS.select({ id: "exec-filter-cmp", label: "Comparison Period", options: [{ value: "YTD", label: "YTD" }], value: "YTD", disabled: true });
@@ -1293,6 +1349,7 @@
       document.body.classList.add("executive-mode");
       container.classList.add("ds-page-root");
       _container = container;
+      clampFiltersToScope();
       render(container);
     },
     destroy() {

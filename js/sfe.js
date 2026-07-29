@@ -163,6 +163,17 @@
         console.error('[SFE] getFilteredHeadcountForLine() requires js/semantic-model.js to be loaded first.');
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sfe', bu: bu, line: line || null };
       }
+      // ROLE-BASED ACCESS SCOPE (2026-07-29): backstop against an
+      // out-of-scope bu/line request, mirroring coverage-interface.js's
+      // getFilteredCoverageForLine(). The Executive filter dropdown
+      // already restricts what it will ever ask for.
+      if (window.AUTH && !window.AUTH.isBuAllowed(bu)) {
+        return { ok: false, status: 'access_denied', asOfDate: null, source: 'sfe', bu: bu, line: line || null };
+      }
+      if (window.AUTH && line && !window.AUTH.isLineAllowed(line)) {
+        return { ok: false, status: 'access_denied', asOfDate: null, source: 'sfe', bu: bu, line: line || null };
+      }
+
       const data = this.getData();
       const vacancyByLine = data.vacancyByLine || [];
       if (vacancyByLine.length === 0) {
@@ -223,6 +234,18 @@
           status: 'Vacant'
         });
       });
+
+      // ROLE-BASED ACCESS SCOPE (2026-07-29): single choke point -- every
+      // consumer of this list (populateDropdowns(), getFilteredList(),
+      // isDmInFilter(), render()'s own KPI/chart computations) derives
+      // from this one array, so filtering here scopes the whole SFE
+      // workspace (dropdown options AND data) in one place. row.line is
+      // organogram's raw spelling (NEUROSCIENCE/DERMA), so this goes
+      // through window.AUTH.isLineAllowed() which normalizes first --
+      // same fix as getFilteredHeadcountForLine()'s CNS/Derma bug above.
+      if (window.AUTH && window.AUTH.getScope().lines !== null) {
+        return list.filter(row => window.AUTH.isLineAllowed(row.line));
+      }
 
       return list;
     },
