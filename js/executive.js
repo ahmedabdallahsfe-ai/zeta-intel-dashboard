@@ -685,7 +685,7 @@
       return unavailableCard("salesProductivity", "Sales Productivity", "module_unavailable");
     }
 
-    let val, platformAvg, rankInfo, rankUnit, benchmarkLabel, basisNote;
+    let val, platformAvg, rankInfo, rankUnit, benchmarkLabel, basisNote, isWholeBuView = false;
 
     if (line === "All" && !isBuRestricted()) {
       const perBU = {};
@@ -722,19 +722,43 @@
         buActual += l.actualValue; buPositions += l.activePositions;
       });
       platformAvg = buPositions > 0 ? buActual / buPositions : null;
-      val = perLine[line] !== undefined ? perLine[line] : null;
-      rankInfo = rank(perLine, "desc")[line];
-      rankUnit = "Lines within " + bu;
+      if (line === "All") {
+        // BU-restricted user viewing the whole-BU level (2026-07-30 fix,
+        // was showing N/A): this is a NEW case that didn't exist before
+        // role-based scoping -- a restricted user's default state is
+        // line="All" with no "other BUs" to rank against, so they land
+        // here instead of the BU_LIST branch above. perLine has no "All"
+        // key (it's keyed by real line names), so the old
+        // `perLine[line]` lookup always returned undefined -> null ->
+        // N/A. The correct whole-BU value is the same aggregate already
+        // computed as platformAvg (this BU's own actual/positions across
+        // every allowed line) -- no separate BU-vs-BU ranking is
+        // meaningful for a restricted user, so rank is intentionally
+        // left blank rather than fabricated. Benchmark/achievement% is
+        // ALSO suppressed below (not just left at a trivial 100%) --
+        // val and platformAvg are the identical number here by
+        // construction, so "achievement vs BU avg" would be a tautology.
+        val = platformAvg;
+        rankInfo = null;
+        rankUnit = null;
+        isWholeBuView = true;
+      } else {
+        val = perLine[line] !== undefined ? perLine[line] : null;
+        rankInfo = rank(perLine, "desc")[line];
+        rankUnit = "Lines within " + bu;
+      }
       benchmarkLabel = " (" + bu + " avg)";
-      basisNote = "Benchmark = " + bu + "'s own average across lines. Non-Tender basis (differs from the platform-wide 'All' view, which is all-transaction).";
+      basisNote = isWholeBuView
+        ? "Whole-" + bu + " aggregate across every line you can see. Select a specific line to compare it against this " + bu + " average."
+        : "Benchmark = " + bu + "'s own average across lines. Non-Tender basis (differs from the platform-wide 'All' view, which is all-transaction).";
     }
 
-    const achievementPct = (val !== null && platformAvg) ? (val / platformAvg) * 100 : null;
+    const achievementPct = (val !== null && platformAvg && !isWholeBuView) ? (val / platformAvg) * 100 : null;
 
     return {
       kpiId: "salesProductivity", name: "Sales Productivity",
       mainValue: fmtM(val), mainValueSub: "Sales per Deployed Position · Current YTD" + (line !== "All" ? " · " + line : ""),
-      performance: { target: fmtM(platformAvg) + benchmarkLabel, achievementPct: fmtPct1(achievementPct), variance: fmtSignedM(val !== null && platformAvg !== null ? val - platformAvg : null) },
+      performance: { target: isWholeBuView ? "—" : (fmtM(platformAvg) + benchmarkLabel), achievementPct: fmtPct1(achievementPct), variance: isWholeBuView ? "—" : fmtSignedM(val !== null && platformAvg !== null ? val - platformAvg : null) },
       comparison: null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
