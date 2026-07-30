@@ -98,15 +98,19 @@ if not "%IQVIA_EXIT%"=="0" (
 )
 
 REM --- run the To-Market vs In-Market (TMS/IMS) Aggregation ----------------
-REM Added 2026-07-31: reads "TO MARKET_IN MARKET\TMS VS IMS.xlsx". This is
-REM a small, fast source file (unlike Sales/Coverage/IQVIA) so it is safe
-REM to run unconditionally here even if that folder/file doesn't exist --
-REM the script exits cleanly with a message instead of failing the whole
-REM refresh if the file is missing.
+REM Revised 2026-07-31: this workspace is embedded as-is via iframe (see
+REM js/app.js's renderTomarketTab()) rather than rebuilt into this app's
+REM own cache format, so refresh here just calls the original dashboard's
+REM own refresh script -- "TO MARKET_IN MARKET\refresh_dashboard.py" --
+REM which reads "TMS VS IMS.xlsx" and rewrites that folder's index.html
+REM in place. Runs WITHOUT --push (that flag pushes to two separate,
+REM unrelated GitHub repos this platform's refresh has nothing to do
+REM with -- see that script's own header comment); the regenerated
+REM index.html is committed by THIS repo's own push step below instead.
 if exist "TO MARKET_IN MARKET\TMS VS IMS.xlsx" (
     echo.
     echo Reading To-Market vs In-Market workbook...
-    %PYTHON_CMD% etl\build_tms_ims_cache.py
+    %PYTHON_CMD% "TO MARKET_IN MARKET\refresh_dashboard.py"
     set "TMSIMS_EXIT=%ERRORLEVEL%"
     if not "%TMSIMS_EXIT%"=="0" (
         echo ============================================================
@@ -156,8 +160,7 @@ if "%GIT_CMD%"=="" (
     "%GIT_CMD%" add -f cache/iqvia.data.js
     "%GIT_CMD%" add -f cache/customer_analytics.json
     "%GIT_CMD%" add -f cache/customer_analytics.data.js
-    "%GIT_CMD%" add -f cache/tms_ims.json
-    "%GIT_CMD%" add -f cache/tms_ims.data.js
+    "%GIT_CMD%" add "TO MARKET_IN MARKET/index.html"
     "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js
     "%GIT_CMD%" add css/*.css

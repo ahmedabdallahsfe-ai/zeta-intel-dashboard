@@ -157,14 +157,6 @@
        back to the existing flat cluster->sub_type list for any cluster not present. -->
   <script src="cache/customer_analytics.data.js?v=20260730_junemerge"></script>
   <script src="cache/iqvia.data.js?v=20260729_dm1fix"></script>
-  <!-- TMS vs IMS cache (2026-07-31): a THIRD separate cache from a THIRD
-       separate source ("TO MARKET_IN MARKET/TMS VS IMS.xlsx", via
-       etl/build_tms_ims_cache.py) -- sell-in (TMS/trade shipments) vs
-       sell-out (IMS/IQVIA-reported) brand+SKU-level data, crossing every
-       Business Unit at once. Powers js/tms-ims.js's "To-Market vs
-       In-Market" workspace, visible only to unrestricted users (Allowed
-       BU = ALL, Allowed Lines = ALL) -- see js/auth.js's getScope(). -->
-  <script src="cache/tms_ims.data.js?v=20260731_init"></script>
 
   <!-- App-wide authentication (2026-07-29): self-contained platform asset
        (same pattern as semantic-model.js below), no dependency on any
@@ -223,13 +215,7 @@
        card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
   <script src="js/executive.js?v=20260730_exportbtn"></script>
 
-  <!-- To-Market vs In-Market (2026-07-31): Sell-In (TMS) vs Sell-Out (IMS)
-       Control Tower. Unrestricted-users-only workspace -- see
-       cache/tms_ims.data.js comment above and js/auth.js's
-       getScope().unrestricted. Reads only DS, AUTH, and its own cache. -->
-  <script src="js/tms-ims.js?v=20260731_init"></script>
-
-  <script src="js/app.js?v=20260731_tomarket"></script>
+  <script src="js/app.js?v=20260731_tomarket2"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

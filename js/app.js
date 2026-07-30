@@ -231,9 +231,10 @@ function startApp() {
   // To-Market vs In-Market sidebar entry (2026-07-31): brand/SKU-level
   // trade data crosses every BU at once, so it's only shown to
   // unrestricted users (Allowed BU = ALL and Allowed Lines = ALL) --
-  // js/tms-ims.js itself also refuses to render for anyone else, this
-  // just keeps the entry out of the sidebar entirely for scoped users
-  // instead of showing them a dead-end "Access restricted" click target.
+  // renderTomarketTab() below also refuses to render for anyone else,
+  // this just keeps the entry out of the sidebar entirely for scoped
+  // users instead of showing them a dead-end "Access restricted" click
+  // target.
   const tomarketMenuItem = document.getElementById("menu-item-tomarket");
   if (tomarketMenuItem) {
     const scope = window.AUTH ? window.AUTH.getScope() : { unrestricted: false };
@@ -267,9 +268,6 @@ function startApp() {
       }
       if (currentTab === "executive" && window.ExecutiveDashboard) {
         window.ExecutiveDashboard.destroy();
-      }
-      if (currentTab === "tomarket" && window.TmsImsDashboard) {
-        window.TmsImsDashboard.destroy();
       }
       currentTab = tab;
       updateTopbarTitle(tab);
@@ -319,15 +317,43 @@ function startApp() {
         if (window.SFEDashboard) {
           window.SFEDashboard.destroy();
         }
-        if (window.TmsImsDashboard) {
-          window.TmsImsDashboard.init("app-root");
-        }
+        renderTomarketTab(document.getElementById("app-root"));
       }
     });
   });
 
   Loader.hide();
   wireNotSeenModal();
+}
+
+/**
+ * To-Market vs In-Market (2026-07-31, revised): renders the ORIGINAL,
+ * already-tuned React dashboard from "TO MARKET_IN MARKET/index.html" in
+ * an iframe rather than a vanilla-JS reimplementation -- Ahmed's own
+ * prototype there is the version he wants shown, not a rebuild of it.
+ * That file is fully self-contained (React/ReactDOM/Recharts/Babel-
+ * standalone + Tailwind, all CDN, own embedded dataset refreshed by
+ * "TO MARKET_IN MARKET/refresh_dashboard.py") -- an iframe is the
+ * correct integration here: zero risk of its Babel/Tailwind/React
+ * globals colliding with this app's own script stack, and no
+ * duplication of its logic to keep in sync. Access is still gated the
+ * same way as the sidebar entry (unrestricted users only) so a scoped
+ * user can't reach it by manipulating the tab click directly.
+ */
+function renderTomarketTab(container) {
+  if (!container) return;
+  const scope = window.AUTH ? window.AUTH.getScope() : { unrestricted: false };
+  if (!scope.unrestricted) {
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "🔒",
+          title: "Access restricted",
+          hint: "The To-Market vs In-Market workspace is available to unrestricted (Allowed BU = ALL, Allowed Lines = ALL) users only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  container.innerHTML = `<iframe src="TO%20MARKET_IN%20MARKET/index.html" title="To-Market vs In-Market" style="width:100%;height:calc(100vh - 74px);border:0;display:block;background:#fff;"></iframe>`;
 }
 
 /** Wire the topbar "Export Dashboard as PDF" button once at boot. */
