@@ -2263,6 +2263,27 @@ body {
   display: none !important;
 }
 
+/* To-Market vs In-Market tab embeds a fully self-contained standalone page
+   (TO MARKET_IN MARKET/index.html) via <iframe>. That page controls its own
+   layout/responsiveness entirely -- our only job is to make sure #app-root's
+   own max-width/padding/margin (see .container rules above) don't shrink
+   the iframe's viewport, and that no ancestor scrolls independently of the
+   iframe (which would cause nested/double scrollbars). */
+.tomarket-mode #app-root.container {
+  max-width: none !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.tomarket-mode .main-content-area {
+  overflow: hidden !important;
+}
+.tomarket-mode #app-root {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+}
+
 
 /* ==========================================================================
    Sidebar Collapse Animation & Transitions

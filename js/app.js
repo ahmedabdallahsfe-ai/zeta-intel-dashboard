@@ -368,16 +368,50 @@ function renderTomarketTab(container) {
       : "<p>Access restricted.</p>";
     return;
   }
-  container.innerHTML = `<iframe src="TO%20MARKET_IN%20MARKET/index.html" title="To-Market vs In-Market" style="width:100%;height:calc(100vh - 74px);border:0;display:block;background:#fff;"></iframe>`;
+
+  // FIXED 2026-07-31 (2nd pass): the iframe was rendering the embedded
+  // page's mobile/narrow layout even though its CSS box looked full-width
+  // on screen. Root cause was actually the accompanying nested-scroll
+  // setup -- #app-root.container carries 32px left/right padding and a
+  // fixed calc(100vh - 74px) iframe height (a guess at the topbar's real
+  // height); when that guess ran even a little short, .main-content-area
+  // grew taller than the viewport and the OUTER page started scrolling
+  // too, stacking a second scrollbar on top of the iframe's own and
+  // effectively re-triggering Tailwind's responsive breakpoints against a
+  // shrunk effective box in some zoom/DPI combinations. Fixed with a
+  // dedicated .tomarket-mode CSS block (css/dashboard.css) that zeroes
+  // #app-root's padding/max-width and stops .main-content-area from
+  // scrolling itself, plus a JS-measured (not guessed) iframe height kept
+  // in sync on resize -- see sizeTomarketIframe() below. index.html
+  // itself is untouched; only the platform's own chrome around it changed.
+  container.innerHTML = `<iframe id="tomarket-iframe" src="TO%20MARKET_IN%20MARKET/index.html" title="To-Market vs In-Market" style="display:block;border:0;width:100%;height:100%;background:#fff;"></iframe>`;
+  sizeTomarketIframe();
+  window.addEventListener("resize", sizeTomarketIframe);
+}
+
+/** Sets the tomarket iframe's height to EXACTLY the viewport space left
+ * below the topbar (measured live via getBoundingClientRect, not a
+ * hardcoded guess) so the iframe is the platform's only scrolling
+ * region here -- matching how the browser tab itself scrolls when
+ * index.html is opened directly. Re-run on window resize; removed on
+ * tab-away by restoreGlobalFilterBar() below. */
+function sizeTomarketIframe() {
+  const iframe = document.getElementById("tomarket-iframe");
+  const topbar = document.querySelector(".topbar");
+  if (!iframe || !topbar) return;
+  const h = window.innerHeight - topbar.getBoundingClientRect().height;
+  iframe.style.height = Math.max(200, h) + "px";
 }
 
 /** Restores the global filter bar + Export PDF button hidden by
- * renderTomarketTab() above -- called when navigating AWAY from the
- * tomarket tab, mirroring sfe.js's destroy(). Coverage is the only tab
- * that actually uses this bar; every other tab (sfe/sales/iqvia/
- * executive/tomarket) hides it via its own body-mode class. */
+ * renderTomarketTab() above, and stops resizing the (now-removed) tomarket
+ * iframe -- called when navigating AWAY from the tomarket tab, mirroring
+ * sfe.js's destroy(). Coverage is the only tab that actually uses this
+ * bar; every other tab (sfe/sales/iqvia/executive/tomarket) hides it via
+ * its own body-mode class. */
 function restoreGlobalFilterBar() {
   document.body.classList.remove("tomarket-mode");
+  window.removeEventListener("resize", sizeTomarketIframe);
 }
 
 /** Wire the topbar "Export Dashboard as PDF" button once at boot. */
