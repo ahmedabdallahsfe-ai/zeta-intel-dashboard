@@ -218,6 +218,8 @@ function startApp() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Market Intelligence";
     } else if (tab === "executive") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Executive Command Center";
+    } else if (tab === "tomarket") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - To-Market vs In-Market";
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -225,6 +227,18 @@ function startApp() {
 
   // Initialize title
   updateTopbarTitle(currentTab);
+
+  // To-Market vs In-Market sidebar entry (2026-07-31): brand/SKU-level
+  // trade data crosses every BU at once, so it's only shown to
+  // unrestricted users (Allowed BU = ALL and Allowed Lines = ALL) --
+  // js/tms-ims.js itself also refuses to render for anyone else, this
+  // just keeps the entry out of the sidebar entirely for scoped users
+  // instead of showing them a dead-end "Access restricted" click target.
+  const tomarketMenuItem = document.getElementById("menu-item-tomarket");
+  if (tomarketMenuItem) {
+    const scope = window.AUTH ? window.AUTH.getScope() : { unrestricted: false };
+    tomarketMenuItem.style.display = scope.unrestricted ? "" : "none";
+  }
 
   // Render the default landing workspace (Executive Command Center) at boot.
   // Mirrors the same on-demand init() pattern used for Sales/SFE/IQVIA in the
@@ -253,6 +267,9 @@ function startApp() {
       }
       if (currentTab === "executive" && window.ExecutiveDashboard) {
         window.ExecutiveDashboard.destroy();
+      }
+      if (currentTab === "tomarket" && window.TmsImsDashboard) {
+        window.TmsImsDashboard.destroy();
       }
       currentTab = tab;
       updateTopbarTitle(tab);
@@ -297,6 +314,13 @@ function startApp() {
         }
         if (window.ExecutiveDashboard) {
           window.ExecutiveDashboard.init("app-root");
+        }
+      } else if (tab === "tomarket") {
+        if (window.SFEDashboard) {
+          window.SFEDashboard.destroy();
+        }
+        if (window.TmsImsDashboard) {
+          window.TmsImsDashboard.init("app-root");
         }
       }
     });

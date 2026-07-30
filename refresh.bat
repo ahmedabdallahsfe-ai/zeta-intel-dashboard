@@ -97,6 +97,30 @@ if not "%IQVIA_EXIT%"=="0" (
     exit /b 1
 )
 
+REM --- run the To-Market vs In-Market (TMS/IMS) Aggregation ----------------
+REM Added 2026-07-31: reads "TO MARKET_IN MARKET\TMS VS IMS.xlsx". This is
+REM a small, fast source file (unlike Sales/Coverage/IQVIA) so it is safe
+REM to run unconditionally here even if that folder/file doesn't exist --
+REM the script exits cleanly with a message instead of failing the whole
+REM refresh if the file is missing.
+if exist "TO MARKET_IN MARKET\TMS VS IMS.xlsx" (
+    echo.
+    echo Reading To-Market vs In-Market workbook...
+    %PYTHON_CMD% etl\build_tms_ims_cache.py
+    set "TMSIMS_EXIT=%ERRORLEVEL%"
+    if not "%TMSIMS_EXIT%"=="0" (
+        echo ============================================================
+        echo   [ERROR] To-Market vs In-Market Refresh FAILED
+        echo ============================================================
+        echo.
+        pause
+        exit /b 1
+    )
+) else (
+    echo.
+    echo [SKIP] "TO MARKET_IN MARKET\TMS VS IMS.xlsx" not found -- skipping To-Market vs In-Market refresh.
+)
+
 echo.
 echo ============================================================
 echo   Refresh complete - pushing to GitHub...
@@ -132,6 +156,8 @@ if "%GIT_CMD%"=="" (
     "%GIT_CMD%" add -f cache/iqvia.data.js
     "%GIT_CMD%" add -f cache/customer_analytics.json
     "%GIT_CMD%" add -f cache/customer_analytics.data.js
+    "%GIT_CMD%" add -f cache/tms_ims.json
+    "%GIT_CMD%" add -f cache/tms_ims.data.js
     "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js
     "%GIT_CMD%" add css/*.css
