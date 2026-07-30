@@ -2256,7 +2256,10 @@ body {
 .sales-mode #topbar-export-pdf,
 .executive-mode #filter-bar-container,
 .executive-mode .filter-bar-wrap,
-.executive-mode #topbar-export-pdf {
+.executive-mode #topbar-export-pdf,
+.tomarket-mode #filter-bar-container,
+.tomarket-mode .filter-bar-wrap,
+.tomarket-mode #topbar-export-pdf {
   display: none !important;
 }
 

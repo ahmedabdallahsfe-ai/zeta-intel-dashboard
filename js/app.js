@@ -269,6 +269,9 @@ function startApp() {
       if (currentTab === "executive" && window.ExecutiveDashboard) {
         window.ExecutiveDashboard.destroy();
       }
+      if (currentTab === "tomarket") {
+        restoreGlobalFilterBar();
+      }
       currentTab = tab;
       updateTopbarTitle(tab);
 
@@ -342,6 +345,18 @@ function startApp() {
  */
 function renderTomarketTab(container) {
   if (!container) return;
+
+  // Hide Coverage's global filter bar (PERIOD/TEAM/BU/.../TITLE) AND the
+  // "Export PDF" button -- same body-class convention sfe.js/sales.js/
+  // executive.js already use (see .sfe-mode/.sales-mode/.executive-mode
+  // in css/dashboard.css). FIXED 2026-07-31: this was missing on the
+  // first pass, which left that whole filter grid stacked above the
+  // iframe, squeezing its usable height and making the embedded page
+  // look broken/cramped. Removed on tab-away (see restoreGlobalFilterBar()
+  // below, called from the "leaving tomarket" block in the sidebar click
+  // handler).
+  document.body.classList.add("tomarket-mode");
+
   const scope = window.AUTH ? window.AUTH.getScope() : { unrestricted: false };
   if (!scope.unrestricted) {
     container.innerHTML = window.DS
@@ -354,6 +369,15 @@ function renderTomarketTab(container) {
     return;
   }
   container.innerHTML = `<iframe src="TO%20MARKET_IN%20MARKET/index.html" title="To-Market vs In-Market" style="width:100%;height:calc(100vh - 74px);border:0;display:block;background:#fff;"></iframe>`;
+}
+
+/** Restores the global filter bar + Export PDF button hidden by
+ * renderTomarketTab() above -- called when navigating AWAY from the
+ * tomarket tab, mirroring sfe.js's destroy(). Coverage is the only tab
+ * that actually uses this bar; every other tab (sfe/sales/iqvia/
+ * executive/tomarket) hides it via its own body-mode class. */
+function restoreGlobalFilterBar() {
+  document.body.classList.remove("tomarket-mode");
 }
 
 /** Wire the topbar "Export Dashboard as PDF" button once at boot. */
