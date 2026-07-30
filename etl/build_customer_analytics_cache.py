@@ -35,7 +35,16 @@ tractable. Do not refactor this into "extract then aggregate" as two passes.
 import os, sys, time, json, gzip, base64, re
 from collections import defaultdict
 
-SOURCE_XLSX = '/sessions/happy-laughing-feynman/mnt/CoverageDashboard/TOTAL_SALES_2026.xlsx'
+# Path setup (2026-07-30 FIX): these were previously hardcoded to this
+# sandbox's own mount paths (/sessions/happy-laughing-feynman/mnt/...),
+# which do not exist on the business owner's actual Windows machine --
+# running this script there failed with "OSError: The system cannot find
+# the path specified." Every other refresh script in this project
+# (refresh.py, refresh_sales.py, refresh_iqvia.py) derives its paths from
+# its own file location instead; this script now does the same. This file
+# lives in CoverageDashboard/etl/, so ROOT_DIR is one level up from here.
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SOURCE_XLSX = os.path.join(ROOT_DIR, 'TOTAL_SALES_2026.xlsx')
 SOURCE_SHEET = 'Tota_SALES_2026'
 # June 2026 update (2026-07-30): TOTAL_SALES_2026.xlsx itself only goes
 # through May -- confirmed directly (996,720 rows, months 2026-01..2026-05
@@ -50,17 +59,17 @@ SOURCE_SHEET = 'Tota_SALES_2026'
 # its later SQLite-resumable rewrite -- this script is meant to be run
 # directly on the business owner's own machine (see the module docstring),
 # where there is no 45s sandbox cap forcing a chunked/resumable design.
-JUNE_XLSX = '/sessions/happy-laughing-feynman/mnt/ZETA SALES_2026/june.xlsx'
+JUNE_XLSX = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'june.xlsx')
 JUNE_SHEET = 'SalesPerDistributor'
-OUT_JSON = '/sessions/happy-laughing-feynman/mnt/CoverageDashboard/cache/customer_analytics.json'
-OUT_DATA_JS = '/sessions/happy-laughing-feynman/mnt/CoverageDashboard/cache/customer_analytics.data.js'
+OUT_JSON = os.path.join(ROOT_DIR, 'cache', 'customer_analytics.json')
+OUT_DATA_JS = os.path.join(ROOT_DIR, 'cache', 'customer_analytics.data.js')
 # Checkpoint (2026-07-28): the xlsx parse+aggregate step and the JSON+gzip
 # write step are split across a disk checkpoint because together they can
 # exceed the sandbox's 45s hard command timeout once skuPenetrationByBU
 # roughly quadruples the per-cluster SKU payload. If this file exists, main()
 # skips straight to serialization instead of re-parsing the ~1M-row source.
 # Delete it (or let a fresh run overwrite it) to force a full re-parse.
-CHECKPOINT_PKL = '/sessions/happy-laughing-feynman/mnt/CoverageDashboard/cache/.customer_analytics_checkpoint.pkl'
+CHECKPOINT_PKL = os.path.join(ROOT_DIR, 'cache', '.customer_analytics_checkpoint.pkl')
 
 # Mirrors js/sales.js's SUBTYPE_TO_CLUSTER exactly -- keep both in sync.
 SUBTYPE_TO_CLUSTER = {
