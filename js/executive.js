@@ -671,20 +671,21 @@
       rankUnit = "Lines within " + bu;
     }
 
-    const corpMI = safeCall("iqvia", "IQVIADashboard", "getCorporateMarketIntel");
-    const corpComparison = [
+    // NOTE 2026-07-31 (user: "remove vs corporate in market share and bu
+    // growth"): Corporate reference intentionally NOT shown on this card
+    // -- IQVIADashboard.getCorporateMarketIntel() still exists (built for
+    // this) but is no longer called here. Left in place in case it's
+    // wanted again later; see [[executive_corporate_reference]] memory.
+    const comparison = [
       { label: "vs DM1", value: fmtPct1(d1.sharePct) },
       { label: "vs DM2", value: fmtPct1(d2.sharePct) },
     ];
-    if (corpMI && corpMI.ok && corpMI.avgSharePct !== null) {
-      corpComparison.push({ label: "vs Corporate", value: fmtPct1(corpMI.avgSharePct) });
-    }
 
     return {
       kpiId: "marketShare", name: "Market Share",
       mainValue: fmtPct1(sharePct), mainValueSub: "YTD · SU basis · excl. Other Markets" + (line !== "All" ? " · " + line : ""),
       performance: { target: fmtPct1(targetPct), achievementPct: fmtPct1(achievementPct), variance: fmtSignedPts(gapPts) },
-      comparison: corpComparison,
+      comparison: comparison,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
       trend: evi !== null ? (evi >= 100 ? "up" : "down") : null,
@@ -749,20 +750,19 @@
       rankUnit = "Lines within " + bu;
     }
 
-    const corpMI = safeCall("iqvia", "IQVIADashboard", "getCorporateMarketIntel");
-    const corpComparison = [
+    // NOTE 2026-07-31 (user: "remove vs corporate in market share and bu
+    // growth"): Corporate reference intentionally NOT shown on this card
+    // -- see the matching note on buildMarketShareCard() above.
+    const comparison = [
       { label: "vs DM1", value: "SU " + fmtSignedPct(d1su.zetaGrowthPct) + " · Val " + fmtSignedPct(d1val.zetaGrowthPct) },
       { label: "vs DM2", value: "SU " + fmtSignedPct(d2su.zetaGrowthPct) + " · Val " + fmtSignedPct(d2val.zetaGrowthPct) },
     ];
-    if (corpMI && corpMI.ok && corpMI.avgZetaGrowthPct !== null) {
-      corpComparison.push({ label: "vs Corporate", value: fmtSignedPct(corpMI.avgZetaGrowthPct) });
-    }
 
     return {
       kpiId: "buGrowth", name: "Business Unit Growth",
       mainValue: fmtSignedPct(zetaGrowth), mainValueSub: "Zeta Growth · YTD SU (Value basis: " + fmtSignedPct(zetaGrowthVal) + ")" + (line !== "All" ? " · " + line : ""),
       performance: { target: "Market " + fmtSignedPct(marketGrowth), achievementPct: fmtPct1(evi), variance: fmtSignedPts(growthGap) + " gap" },
-      comparison: corpComparison,
+      comparison: comparison,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(evi),
       trend: evi !== null ? (evi >= 100 ? "up" : "down") : null,
