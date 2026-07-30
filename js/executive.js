@@ -786,21 +786,28 @@
   // "CHC_SALES"), which is expected.
   // ---------------------------------------------------------------------
   function buildLinePerformanceTable(bu, months) {
-    const covData = safeCall("coverage", "CoverageDashboard", "getLineAndTerritoryBreakdown", bu);
+    // FIXED 2026-07-30 ("make calculation and RF for each line as same as
+    // BU calculation active non probation"): this table's Coverage %/
+    // Right-Freq % previously came from getLineAndTerritoryBreakdown()'s
+    // pre-aggregated teamComparison rows -- an UNFILTERED population with
+    // no Title/Experience/Status cut. That silently diverged from the
+    // KPI 1/2 cards above (buildCoverageFamilyCard), which use
+    // getFilteredCoverageForLine(bu, line) scoped to exactly
+    // Title=Medical Representative, Experience=Non-Probation,
+    // Status=Active (+ CHC_SALES's own Sales-Representative/Pharmacy
+    // carve-out) -- so a line's Coverage/RF number in this table could
+    // disagree with what you'd get by selecting that same line in the
+    // filter bar above. Now calls getFilteredCoverageForLine() per line,
+    // same function/same population the cards and the per-line ranking
+    // already use, so the two always reconcile. Also switched the row
+    // list itself from covData.lines (unscoped) to getAllowedLinesForBU()
+    // -- the same role-scoped line list every other card on this page
+    // uses -- so a Line-restricted user (e.g. Amr Khalifa: CHC allowed,
+    // but not CHC_SALES) no longer sees a row for a line outside their
+    // Allowed Lines here even though they would everywhere else.
+    const covProbe = safeCall("coverage", "CoverageDashboard", "getLineAndTerritoryBreakdown", bu);
     const salesData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, months);
-    if (!covData || !covData.ok) return { ok: false, status: covData ? covData.status : "module_unavailable" };
-
-    // Group Coverage's raw per-team rows by canonical line (CHC and
-    // CHC_SALES stay separate -- see comment above).
-    const covByLine = new Map(); // canon -> { coveredWeighted, rfWeighted, headcount }
-    covData.lines.forEach(l => {
-      const canon = global.SEMANTIC.normalizeLine(l.name);
-      if (!covByLine.has(canon)) covByLine.set(canon, { coveredWeighted: 0, rfWeighted: 0, headcount: 0 });
-      const c = covByLine.get(canon);
-      c.coveredWeighted += l.coveragePct * l.headcount;
-      c.rfWeighted += l.rightFreqPct * l.headcount;
-      c.headcount += l.headcount;
-    });
+    if (!covProbe || !covProbe.ok) return { ok: false, status: covProbe ? covProbe.status : "module_unavailable" };
 
     const salesByLine = new Map();
     let totalSalesValue = 0;
@@ -808,26 +815,20 @@
       salesData.lines.forEach(l => { salesByLine.set(l.name, l); totalSalesValue += l.actualValue; });
     }
 
-    const rows = Array.from(covByLine.entries()).map(([name, c]) => {
+    const rows = getAllowedLinesForBU(bu).map(name => {
+      const cov = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, name);
+      const coveragePct = (cov && cov.ok) ? cov.coveragePct : null;
+      const rightFreqPct = (cov && cov.ok) ? cov.rightFreqPct : null;
+
       const s = salesByLine.get(name);
-      const coveragePct = c.headcount > 0 ? c.coveredWeighted / c.headcount : null;
-      const rightFreqPct = c.headcount > 0 ? c.rfWeighted / c.headcount : null;
-      // REVISED 2026-07-29 (2nd pass): "Positions" here now means Planned
-      // Headcount -- SFE's organogram total for this line (active +
-      // vacant budgeted slots), sourced from
-      // SFEDashboard.getFilteredHeadcountForLine(bu, line).headcountTotal.
-      // Deliberately NOT Sales' activePositions (deployed/transacting
-      // territory count, EXCLUDED_POSITIONS filtered) -- that's a
-      // materially different population (a vacant planned slot
-      // contributes to Planned Headcount but never to activePositions,
-      // since it has no transactions). Sales' activePositions is still
-      // the right denominator for the Sales tab's own SALES/POSITION
-      // card and the Sales Productivity KPI (unchanged) -- this is a
-      // Line Performance-table-only redefinition, scoped exactly like
-      // the Period filter above. Coverage's headcount (c.headcount,
-      // real ACTIVE rep count under a specific Title/Status scope) is
-      // still used above for the coverage%/right-freq% weighted
-      // averages -- a third, distinct population from both of these.
+      // "Positions" here means Planned Headcount -- SFE's organogram
+      // total for this line (active + vacant budgeted slots), sourced
+      // from SFEDashboard.getFilteredHeadcountForLine(bu, line)
+      // .headcountTotal. Deliberately NOT Sales' activePositions
+      // (deployed/transacting territory count) and NOT Coverage's own
+      // repCount above (Active/Non-Probation/MR-only field-force count)
+      // -- three distinct, intentionally different populations; see the
+      // Period-filter comment on the caller for the same convention.
       const sfeLine = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, name);
       const plannedHeadcount = (sfeLine && sfeLine.ok) ? sfeLine.headcountTotal : 0;
       return {

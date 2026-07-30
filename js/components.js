@@ -859,7 +859,11 @@
           return '"' + s.replace(/"/g, '""') + '"';
         }).join(","));
         const csv = [header].concat(csvRows).join("\n");
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        // UTF-8 BOM (2026-07-30): without this, Excel opens the CSV using
+        // the system's ANSI codepage instead of UTF-8, and any non-ASCII
+        // text -- Arabic customer/rep names being the common case here --
+        // renders as mojibake instead of the correct characters.
+        const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;

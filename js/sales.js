@@ -2496,7 +2496,11 @@
       csv += `"${m}","${l}","${b}","${p}","${rep}","${dm}",${r[QTY]},${r[VAL]},${r[TGT_QTY]},${r[TGT_VAL]}\n`;
     });
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    // UTF-8 BOM (2026-07-30): without this, Excel opens the CSV using the
+    // system's ANSI codepage instead of UTF-8, and any non-ASCII text --
+    // Arabic rep/DM names being the common case here -- renders as
+    // mojibake instead of the correct characters.
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.setAttribute("download", `zeta_sales_snapshot_${STATE.subTab}.csv`);
