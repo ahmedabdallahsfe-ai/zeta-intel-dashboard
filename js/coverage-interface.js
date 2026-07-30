@@ -694,6 +694,108 @@
     };
   }
 
+  /**
+   * getCorporateCoverageTotals() -- ADDED 2026-07-31 ("add corporate
+   * performance to each Executive KPI card as reference"). Company-wide
+   * (all 4 BUs, every allowed line) blended Coverage %/Right Frequency
+   * %, using the EXACT SAME row-level scope as getFilteredCoverageForLine()
+   * above (latest period, Non-Probation, Active, Medical Representative
+   * title + standard Contract/Doctor/Hospital types, with CHC's
+   * CHC_SALES carve-out to Sales Representative/Pharmacy) -- just summed
+   * across every BU instead of one, so it's the same methodology as the
+   * per-BU cards, not a different approximation.
+   *
+   * Deliberately UNGATED (no AUTH.isBuAllowed() check): it never returns
+   * a per-BU breakdown, only the single blended company total, so it
+   * can never be used to recover any one out-of-scope BU's individual
+   * number -- same reasoning as IQVIA's getCorporateMarketIntel() and
+   * the platform's existing getExecutionWorkloadSummary() (also loops
+   * every BU ungated for a platform-wide benchmark).
+   */
+  function getCorporateCoverageTotals() {
+    if (typeof CacheStore === "undefined" || !CacheStore.isReady()) {
+      if (typeof CacheStore !== "undefined" && !CacheStore.isReady()) {
+        CacheStore.init();
+      }
+    }
+    if (typeof CacheStore === "undefined" || !CacheStore.isReady()) {
+      return { ok: false, status: "cache_unavailable", asOfDate: null, source: "coverage" };
+    }
+    if (typeof window.SEMANTIC === "undefined") {
+      console.error("[Coverage] getCorporateCoverageTotals() requires js/semantic-model.js to be loaded first.");
+      return { ok: false, status: "semantic_model_missing", asOfDate: null, source: "coverage" };
+    }
+
+    const records = CacheStore.getRecords();
+    if (!records || !Array.isArray(records.rows) || records.rows.length === 0) {
+      return { ok: false, status: "records_unavailable", asOfDate: null, source: "coverage" };
+    }
+
+    const dash = CacheStore.getDashboard();
+    const dims = dash && dash.dimensions;
+    const latestPeriod = dash && dash.latestPeriod ? dash.latestPeriod : null;
+    if (!dims) {
+      return { ok: false, status: "cache_unavailable", asOfDate: null, source: "coverage" };
+    }
+
+    const F = {
+      period: 0, team: 1, businessUnit: 2, nsm: 3, areaManager: 4, manager: 5,
+      employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
+      coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
+      plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
+      lastVisitDate: 22, area: 23,
+    };
+
+    const latestPeriodIdx = (dims.periods || []).length - 1;
+    const titleIdx = (dims.titles || []).indexOf("Medical Representative");
+    const salesRepTitleIdx = (dims.titles || []).indexOf("Sales Representative");
+    const expIdx = (dims.experiences || []).indexOf("Non-Probation");
+    const statusIdx = (dims.statuses || []).indexOf("Active");
+    const wantTypes = ["Contract", "Doctor", "Hospital"];
+    const standardTypeIdxSet = new Set(wantTypes.map(t => (dims.types || []).indexOf(t)).filter(i => i >= 0));
+    const pharmacyTypes = ["Pharmacy"];
+    const pharmacyTypeIdxSet = new Set(pharmacyTypes.map(t => (dims.types || []).indexOf(t)).filter(i => i >= 0));
+
+    if (titleIdx < 0 || expIdx < 0 || statusIdx < 0 || standardTypeIdxSet.size === 0) {
+      return { ok: false, status: "dimension_mismatch", asOfDate: latestPeriod, source: "coverage" };
+    }
+
+    let coveredSum = 0, rightFreqSum = 0, rowCount = 0;
+
+    records.rows.forEach(row => {
+      if (row[F.period] !== latestPeriodIdx) return;
+      if (row[F.experience] !== expIdx) return;
+      if (row[F.status] !== statusIdx) return;
+
+      const teamName = (dims.teams || [])[row[F.team]];
+      const rowBU = window.SEMANTIC.lineToBU(teamName);
+      if (!rowBU) return; // Non-Promoted/Other Markets -- out of scope, same as every BU-level call
+
+      const canonLine = window.SEMANTIC.normalizeLine(teamName);
+      const isChcSalesTeam = (rowBU === "CHC" && canonLine === "CHC_SALES");
+      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
+      if (row[F.title] !== applicableTitleIdx) return;
+      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
+      if (!applicableTypeIdxSet.has(row[F.type])) return;
+
+      if (row[F.isActive]) {
+        coveredSum += row[F.coveredDoctor] || 0;
+        rightFreqSum += row[F.rightFreq] || 0;
+        rowCount += 1;
+      }
+    });
+
+    return {
+      ok: true,
+      status: "ready",
+      asOfDate: latestPeriod,
+      source: "coverage",
+      coveragePct: rowCount > 0 ? (coveredSum / rowCount) * 100 : null,
+      rightFreqPct: rowCount > 0 ? (rightFreqSum / rowCount) * 100 : null,
+      customerRowCount: rowCount,
+    };
+  }
+
   global.CoverageDashboard = global.CoverageDashboard || {};
   global.CoverageDashboard.getBusinessSummary = getBusinessSummary;
   global.CoverageDashboard.getFilteredCoverageSummary = getFilteredCoverageSummary;
@@ -701,4 +803,5 @@
   global.CoverageDashboard.getFilteredCoverageForLine = getFilteredCoverageForLine;
   global.CoverageDashboard.getExecutionWorkloadSummary = getExecutionWorkloadSummary;
   global.CoverageDashboard.getLineAndTerritoryBreakdown = getLineAndTerritoryBreakdown;
+  global.CoverageDashboard.getCorporateCoverageTotals = getCorporateCoverageTotals;
 })(window);

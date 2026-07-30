@@ -83,7 +83,14 @@
   // DS.executiveKpiCard({
   //   kpiId, name, mainValue, mainValueSub,
   //   performance: { target, achievementPct, variance, targetUnit } | null,
-  //   comparison: { dm1, dm2 } | null,   -- only Market Share/BU Growth use this
+  //   comparison: [{ label, value }, ...] | null,
+  //     -- GENERALIZED 2026-07-31 (was a fixed {dm1,dm2} shape used only
+  //     by Market Share/BU Growth) so EVERY card can carry a "vs
+  //     Corporate" reference row alongside/instead of the IQVIA-specific
+  //     entries. Each {label, value} pair renders as one metric in the
+  //     comparison row, in array order -- e.g.
+  //     [{label:"vs DM1", value:"12.3%"}, {label:"vs DM2", value:"9.8%"},
+  //      {label:"vs Corporate", value:"14.1%"}].
   //   rank, rankOf, rankUnit,            -- e.g. rank=2, rankOf=4, rankUnit="Business Units"
   //   status,                            -- "Excellent"|"On Track"|"At Risk"|"Critical"|null
   //   trend, trendLabel,                 -- trend: "up"|"down"|"flat"
@@ -117,12 +124,11 @@
         </div>`
       : "";
 
-    const cmp = opts.comparison;
-    const cmpHtml = cmp
-      ? `<div class="ds-exec-kpi-row ds-exec-kpi-row--compare">
-          <div class="ds-exec-kpi-metric"><span class="ds-exec-kpi-metric-label">vs DM1</span><span class="ds-exec-kpi-metric-value">${escapeHtml(cmp.dm1)}</span></div>
-          <div class="ds-exec-kpi-metric"><span class="ds-exec-kpi-metric-label">vs DM2</span><span class="ds-exec-kpi-metric-value">${escapeHtml(cmp.dm2)}</span></div>
-        </div>`
+    const cmp = Array.isArray(opts.comparison) ? opts.comparison.filter(c => c && c.value != null) : [];
+    const cmpHtml = cmp.length
+      ? `<div class="ds-exec-kpi-row ds-exec-kpi-row--compare">` +
+          cmp.map(c => `<div class="ds-exec-kpi-metric"><span class="ds-exec-kpi-metric-label">${escapeHtml(c.label)}</span><span class="ds-exec-kpi-metric-value">${escapeHtml(c.value)}</span></div>`).join("") +
+        `</div>`
       : "";
 
     const rankHtml = (opts.rank !== null && opts.rank !== undefined)

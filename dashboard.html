@@ -170,7 +170,7 @@
 
   <!-- Design System component library (Phase 3 foundation, self-contained, no cache
        dependency) -- loaded early so every module can consume window.DS. -->
-  <script src="js/components.js?v=20260730_csvbom"></script>
+  <script src="js/components.js?v=20260731_corpref"></script>
 
   <!-- Enterprise semantic layer (Phase 4-lite): Line -> Business Unit crosswalk.
        Self-contained (no cache dependency) -- shared by every getBusinessSummary(). -->
@@ -195,7 +195,7 @@
        instead of the standard Medical Representative/Contract-Doctor-
        Hospital scope (CHC has two real lines, not one -- see
        semantic-model.js). -->
-  <script src="js/coverage-interface.js?v=20260729_rolescope"></script>
+  <script src="js/coverage-interface.js?v=20260731_corpref"></script>
   <script src="js/sfe.js?v=20260729_rolescope"></script>
   <!-- v20260727_execkpi = getLineSalesSummary() and getItemAchievement() added for
        the Executive KPI cards (Line Performance, CHC Brand-to-Item drill).
@@ -203,7 +203,7 @@
        added for the Customer Channel Mix KPI card (cluster-then-sub_type
        drill -- see sales_subtypes.xlsx for the clustering source of truth). -->
   <script src="js/sales.js?v=20260730_itemsbybu"></script>
-  <script src="js/iqvia.js?v=20260729_dm1fix"></script>
+  <script src="js/iqvia.js?v=20260731_corpref"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
        Default landing page. Reads only through SEMANTIC, DS, and the four
@@ -213,7 +213,7 @@
        in the cache). KPI 6 (Customer Dynamics) is now served, at cluster
        (not individual-customer) granularity, by the Customer Channel Mix
        card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
-  <script src="js/executive.js?v=20260730_exportbtn"></script>
+  <script src="js/executive.js?v=20260731_corpref"></script>
 
   <script src="js/app.js?v=20260731_tomarket4"></script>
 

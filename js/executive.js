@@ -139,6 +139,88 @@
   function fmtInt(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : Math.round(v).toLocaleString(); }
   function escapeAttr(s) { return String(s === null || s === undefined ? "" : s).replace(/&/g, "&amp;").replace(/"/g, "&quot;"); }
 
+  // ---------------------------------------------------------------------
+  // CORPORATE REFERENCE HELPERS (added 2026-07-31, "add corporate
+  // performance to each Executive KPI card as reference"): a company-
+  // wide (all 4 BUs blended) figure for the SAME metric each card
+  // already shows, rendered as a "vs Corporate" entry in the card's
+  // comparison row (DS.executiveKpiCard's generalized `comparison`
+  // array -- see js/components.js). Shown to EVERY signed-in user,
+  // restricted or not (2026-07-31 decision): a blended company total
+  // never reveals any other single BU's individual number, only the
+  // combined figure, so it doesn't weaken the existing BU/Line access
+  // scoping (js/auth.js) -- see the module doc comments on
+  // CoverageDashboard.getCorporateCoverageTotals() and
+  // IQVIADashboard.getCorporateMarketIntel() for the same reasoning
+  // applied inside those two gated interfaces.
+  //
+  // Sales' own KPI functions (getSalesAchievementSummary,
+  // getBrandAchievement, getCustomerClusterMix, getBusinessSummary) were
+  // never BU-gated to begin with (only getLineSalesSummary is) --
+  // confirmed by reading sales.js before writing these -- so the Sales-
+  // sourced helpers below simply loop SEMANTIC.BU_LIST directly with no
+  // new module-level function needed.
+  // ---------------------------------------------------------------------
+  function corporateCoveragePct(metricKey) {
+    const r = safeCall("coverage", "CoverageDashboard", "getCorporateCoverageTotals");
+    return (r && r.ok) ? r[metricKey] : null;
+  }
+
+  function corporateSfeFillRate(summaries) {
+    if (!summaries.sfe || !summaries.sfe.ok) return null;
+    let total = 0, vacant = 0;
+    global.SEMANTIC.BU_LIST.forEach(b => {
+      const s = summaries.sfe.bu[b];
+      if (s) { total += s.headcountTotal || 0; vacant += s.headcountVacant || 0; }
+    });
+    return total > 0 ? 100 - (vacant / total) * 100 : null;
+  }
+
+  function corporateSalesAchievementPct() {
+    let actual = 0, target = 0, any = false;
+    global.SEMANTIC.BU_LIST.forEach(b => {
+      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, null);
+      if (s && s.ok) { actual += s.actualYTD; target += s.targetYTD; any = true; }
+    });
+    return (any && target > 0) ? (actual / target) * 100 : null;
+  }
+
+  function corporateSalesValueAchievementPct() {
+    let actual = 0, target = 0, any = false;
+    global.SEMANTIC.BU_LIST.forEach(b => {
+      const t = nonTenderTotals(b, "All");
+      if (t) { actual += t.actualValue; target += t.targetValue; any = true; }
+    });
+    return (any && target > 0) ? (actual / target) * 100 : null;
+  }
+
+  function corporateClusterConcentrationPct() {
+    const merged = new Map();
+    let any = false;
+    global.SEMANTIC.BU_LIST.forEach(b => {
+      const d = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null);
+      if (d && d.ok) {
+        any = true;
+        d.clusters.forEach(c => merged.set(c.name, (merged.get(c.name) || 0) + c.actualValue));
+      }
+    });
+    if (!any || merged.size === 0) return null;
+    const values = Array.from(merged.values());
+    const total = values.reduce((s, v) => s + v, 0);
+    if (total <= 0) return null;
+    return (Math.max.apply(null, values) / total) * 100;
+  }
+
+  function corporateSalesProductivity(summaries) {
+    if (!summaries.sales || !summaries.sales.ok) return null;
+    let actual = 0, positions = 0;
+    global.SEMANTIC.BU_LIST.forEach(b => {
+      const s = summaries.sales.bu[b];
+      if (s && s.activePositions > 0) { actual += s.actualYTD; positions += s.activePositions; }
+    });
+    return positions > 0 ? actual / positions : null;
+  }
+
   function unavailableCard(kpiId, name, reason) {
     return {
       kpiId: kpiId, name: name,
@@ -258,11 +340,13 @@
       rankUnit = "Lines within " + bu;
     }
 
+    const corpVal = corporateCoveragePct(metricKey);
+
     return {
       kpiId: kpiId, name: name,
       mainValue: fmtPct1(mainVal), mainValueSub: "Current YTD" + (line !== "All" ? " · " + line : ""),
       performance: { target: target + "%", achievementPct: fmtPct1(achievementPct), variance: fmtSignedPts(variance) },
-      comparison: null,
+      comparison: corpVal !== null ? [{ label: "vs Corporate", value: fmtPct1(corpVal) }] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
       trend: null, trendLabel: "Trend not yet available (single-period snapshot)",
@@ -284,7 +368,7 @@
   // already use, so ranking flips to "Lines within BU" when a line is
   // selected, exactly like every other Line-aware card on this page.
   // ---------------------------------------------------------------------
-  function buildSFECard(filters) {
+  function buildSFECard(filters, summaries) {
     const bu = filters.bu, line = filters.line;
     const scoped = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, line === "All" ? null : line);
     if (!scoped || !scoped.ok) return unavailableCard("sfe", "Sales Force Health", scoped ? scoped.status : "module_unavailable");
@@ -310,11 +394,13 @@
       rankUnit = "Lines within " + bu;
     }
 
+    const corpFillRate = corporateSfeFillRate(summaries);
+
     return {
       kpiId: "sfe", name: "Sales Force Health",
       mainValue: fmtInt(scoped.headcountTotal), mainValueSub: "Total Manpower · Active " + fmtInt(scoped.headcountActive) + " · Vacant " + fmtInt(scoped.headcountVacant) + (line !== "All" ? " · " + line : ""),
       performance: { target: "100% Filled", achievementPct: fmtPct1(fillRatePct), variance: fmtSignedPts(scoped.vacancyRatePct !== null ? -scoped.vacancyRatePct : null) + " vacancy" },
-      comparison: null,
+      comparison: corpFillRate !== null ? [{ label: "vs Corporate", value: fmtPct1(corpFillRate) }] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(fillRatePct),
       trend: null, trendLabel: "Point-in-time headcount snapshot (organogram.json is not period-stamped)",
@@ -363,11 +449,13 @@
       rankUnit = "Lines within " + bu;
     }
 
+    const corpAchievement = corporateSalesAchievementPct();
+
     return {
       kpiId: "salesAchievement", name: "Sales Achievement",
       mainValue: fmtPct1(scoped.achievementPct), mainValueSub: "Non-Tender · Current YTD" + (line !== "All" ? " · " + line : ""),
       performance: { target: fmtM(scoped.targetYTD), achievementPct: fmtPct1(scoped.achievementPct), variance: fmtSignedM(scoped.actualYTD - scoped.targetYTD) },
-      comparison: null,
+      comparison: corpAchievement !== null ? [{ label: "vs Corporate", value: fmtPct1(corpAchievement) }] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(scoped.achievementPct),
       trend: trendFromDelta(scoped.momGrowthPct, 1),
@@ -422,11 +510,13 @@
       rankUnit = "Lines within " + bu;
     }
 
+    const corpAchievement = corporateSalesValueAchievementPct();
+
     return {
       kpiId: "salesValue", name: "Sales Value",
       mainValue: fmtM(t.actualValue), mainValueSub: "Non-Tender · Current YTD" + (line !== "All" ? " · " + line : ""),
       performance: { target: fmtM(t.targetValue), achievementPct: fmtPct1(t.achievementPct), variance: fmtSignedM(t.actualValue - t.targetValue) },
-      comparison: null,
+      comparison: corpAchievement !== null ? [{ label: "vs Corporate", value: fmtPct1(corpAchievement) }] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(t.achievementPct),
       trend: null, trendLabel: null,
@@ -497,11 +587,13 @@
       rankUnit = "Lines within " + bu;
     }
 
+    const corpConcentration = corporateClusterConcentrationPct();
+
     return {
       kpiId: "customerClusterMix", name: "Customer Channel Mix",
       mainValue: fmtPct1(concentrationPct), mainValueSub: "Top Channel: " + top.name + " · Non-Tender YTD" + (line !== "All" ? " · " + line : ""),
       performance: null,
-      comparison: null,
+      comparison: corpConcentration !== null ? [{ label: "vs Corporate", value: fmtPct1(corpConcentration) }] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromConcentration(concentrationPct),
       trend: null, trendLabel: null,
@@ -562,11 +654,20 @@
       rankUnit = "Lines within " + bu;
     }
 
+    const corpMI = safeCall("iqvia", "IQVIADashboard", "getCorporateMarketIntel");
+    const corpComparison = [
+      { label: "vs DM1", value: fmtPct1(d1.sharePct) },
+      { label: "vs DM2", value: fmtPct1(d2.sharePct) },
+    ];
+    if (corpMI && corpMI.ok && corpMI.avgSharePct !== null) {
+      corpComparison.push({ label: "vs Corporate", value: fmtPct1(corpMI.avgSharePct) });
+    }
+
     return {
       kpiId: "marketShare", name: "Market Share",
       mainValue: fmtPct1(sharePct), mainValueSub: "YTD · SU basis · excl. Other Markets" + (line !== "All" ? " · " + line : ""),
       performance: { target: fmtPct1(targetPct), achievementPct: fmtPct1(achievementPct), variance: fmtSignedPts(gapPts) },
-      comparison: { dm1: fmtPct1(d1.sharePct), dm2: fmtPct1(d2.sharePct) },
+      comparison: corpComparison,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
       trend: evi !== null ? (evi >= 100 ? "up" : "down") : null,
@@ -631,11 +732,20 @@
       rankUnit = "Lines within " + bu;
     }
 
+    const corpMI = safeCall("iqvia", "IQVIADashboard", "getCorporateMarketIntel");
+    const corpComparison = [
+      { label: "vs DM1", value: "SU " + fmtSignedPct(d1su.zetaGrowthPct) + " · Val " + fmtSignedPct(d1val.zetaGrowthPct) },
+      { label: "vs DM2", value: "SU " + fmtSignedPct(d2su.zetaGrowthPct) + " · Val " + fmtSignedPct(d2val.zetaGrowthPct) },
+    ];
+    if (corpMI && corpMI.ok && corpMI.avgZetaGrowthPct !== null) {
+      corpComparison.push({ label: "vs Corporate", value: fmtSignedPct(corpMI.avgZetaGrowthPct) });
+    }
+
     return {
       kpiId: "buGrowth", name: "Business Unit Growth",
       mainValue: fmtSignedPct(zetaGrowth), mainValueSub: "Zeta Growth · YTD SU (Value basis: " + fmtSignedPct(zetaGrowthVal) + ")" + (line !== "All" ? " · " + line : ""),
       performance: { target: "Market " + fmtSignedPct(marketGrowth), achievementPct: fmtPct1(evi), variance: fmtSignedPts(growthGap) + " gap" },
-      comparison: { dm1: "SU " + fmtSignedPct(d1su.zetaGrowthPct) + " · Val " + fmtSignedPct(d1val.zetaGrowthPct), dm2: "SU " + fmtSignedPct(d2su.zetaGrowthPct) + " · Val " + fmtSignedPct(d2val.zetaGrowthPct) },
+      comparison: corpComparison,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(evi),
       trend: evi !== null ? (evi >= 100 ? "up" : "down") : null,
@@ -754,12 +864,13 @@
     }
 
     const achievementPct = (val !== null && platformAvg && !isWholeBuView) ? (val / platformAvg) * 100 : null;
+    const corpProductivity = corporateSalesProductivity(summaries);
 
     return {
       kpiId: "salesProductivity", name: "Sales Productivity",
       mainValue: fmtM(val), mainValueSub: "Sales per Deployed Position · Current YTD" + (line !== "All" ? " · " + line : ""),
       performance: { target: isWholeBuView ? "—" : (fmtM(platformAvg) + benchmarkLabel), achievementPct: isWholeBuView ? "—" : fmtPct1(achievementPct), variance: isWholeBuView ? "—" : fmtSignedM(val !== null && platformAvg !== null ? val - platformAvg : null) },
-      comparison: null,
+      comparison: corpProductivity !== null ? [{ label: "vs Corporate", value: fmtM(corpProductivity) }] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
       trend: null, trendLabel: basisNote,
@@ -1304,7 +1415,7 @@
     const cardsHtml = []
       .concat(renderCard(buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 90, filters)))
       .concat(renderCard(buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 70, filters)))
-      .concat(renderCard(buildSFECard(filters)))
+      .concat(renderCard(buildSFECard(filters, summaries)))
       .concat(renderCard(buildSalesAchievementCard(filters)))
       .concat(renderCard(buildSalesValueCard(filters)))
       .concat(renderCard(buildCustomerClusterMixCard(filters)))

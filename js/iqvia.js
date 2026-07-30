@@ -8356,6 +8356,220 @@ function fetchNotifications() {
 // injects the real DOM, and now mirrors doLogin()'s post-auth behavior
 // (checkSession() + startDashboard() + fetchNotifications()) instead of
 // silently leaving the dashboard content unloaded after a resumed session.
+/**
+ * computeDM1DM2Core(bu, line) -- PRIVATE, UNGATED core of
+ * getDM1DM2MarketIntel(bu, line) below.
+ * ------------------------------------------------------------------
+ * EXTRACTED 2026-07-31 ("add corporate performance as reference to
+ * each Executive KPI card"): this is the exact computation body that
+ * used to live directly inside getDM1DM2MarketIntel(), unchanged --
+ * only lifted out so a second, ungated caller (getCorporateMarketIntel()
+ * below) can run the SAME per-BU blended-share/growth methodology for
+ * ALL 4 BUs at once, to build a single company-wide "Corporate"
+ * reference figure. getDM1DM2MarketIntel() itself still does its own
+ * session + AUTH.isBuAllowed()/isLineAllowed() gating BEFORE calling
+ * this, exactly as before -- nothing about its access control changed.
+ * getCorporateMarketIntel() deliberately does NOT expose any single
+ * BU's individual number (only the blended company-wide average), so
+ * it is safe to leave ungated per-BU here: a caller can never recover
+ * one specific out-of-scope BU's figure through it, only the total.
+ */
+function computeDM1DM2Core(bu, line) {
+    if (typeof window.SEMANTIC === 'undefined') {
+      console.error('[IQVIA] computeDM1DM2Core() requires js/semantic-model.js to be loaded first.');
+      return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
+    }
+    if (!flat) {
+      try { loadData(); } catch (e) { /* loadData() already logs internally */ }
+    }
+    if (!flat) {
+      return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
+    }
+
+    const buTargets = TARGETS_2026.filter(t => t.bu === bu && (!line || t.line === line));
+    if (buTargets.length === 0) {
+      return { ok: true, status: 'ready', asOfDate: refPeriodLabel(), source: 'iqvia', bu: bu, line: line || null, segments: [] };
+    }
+
+    const zetaIdx = LOOKUPS.corps.findIndex(c => c && c.toUpperCase().includes('ZETA PHARM'));
+    const N = flat.length;
+
+    // One single-pass build per window, scoped to this BU only (see
+    // "Excluding Other Markets" note above). Returns the two market-
+    // total maps (denominator) and the two Zeta-per-product maps
+    // (numerator), keyed by DM1/DM2 index and product+DM index.
+    function buildWindow(pidxSet) {
+      const dm1Tot = new Map(), dm2Tot = new Map();
+      const zetaProdDm1 = new Map(), zetaProdDm2 = new Map();
+      for (let i = 0; i < N; i += 10) {
+        if (!pidxSet.has(flat[i + TI])) continue;
+        if (LOOKUPS.bus[flat[i + BUCI]] !== bu) continue;
+        const c = flat[i + CI], p = flat[i + PI], d1 = flat[i + D1I], d2 = flat[i + D2I];
+        const lcv = flat[i + LI], su = flat[i + SI];
+        if (!dm1Tot.has(d1)) dm1Tot.set(d1, { lcv: 0, su: 0 });
+        const t1 = dm1Tot.get(d1); t1.lcv += lcv; t1.su += su;
+        if (!dm2Tot.has(d2)) dm2Tot.set(d2, { lcv: 0, su: 0 });
+        const t2 = dm2Tot.get(d2); t2.lcv += lcv; t2.su += su;
+        if (c !== zetaIdx) continue;
+        const k1 = p + '_' + d1, k2 = p + '_' + d2;
+        if (!zetaProdDm1.has(k1)) zetaProdDm1.set(k1, { lcv: 0, su: 0 });
+        const z1 = zetaProdDm1.get(k1); z1.lcv += lcv; z1.su += su;
+        if (!zetaProdDm2.has(k2)) zetaProdDm2.set(k2, { lcv: 0, su: 0 });
+        const z2 = zetaProdDm2.get(k2); z2.lcv += lcv; z2.su += su;
+      }
+      return { dm1Tot, dm2Tot, zetaProdDm1, zetaProdDm2 };
+    }
+
+    const win = {
+      matCur:  buildWindow(getPeriodIndices('mat')),
+      matPrev: buildWindow(getPrevPeriodIndices('mat')),
+      ytdCur:  buildWindow(getPeriodIndices('ytd')),
+      ytdPrev: buildWindow(getPrevPeriodIndices('ytd')),
+    };
+
+    // Per [window x basis]: share now, share a year ago, delta (pts),
+    // EVI, and achievement-vs-target -- all from the same tot/zeta maps.
+    function basisOut(tCur, tPrev, zCur, zPrev, basis, tgtFrac) {
+      const tc = tCur[basis], tp = tPrev[basis], zc = zCur[basis], zp = zPrev[basis];
+      const shareCur = tc > 0 ? zc / tc : null;
+      const sharePrev = tp > 0 ? zp / tp : null;
+      const deltaPts = (shareCur != null && sharePrev != null) ? (shareCur - sharePrev) * 100 : null;
+      const zetaGrowth = zp > 0 ? (zc - zp) / zp : null;
+      const marketGrowth = tp > 0 ? (tc - tp) / tp : null;
+      const evi = (zetaGrowth != null && marketGrowth != null) ? Math.round(((1 + zetaGrowth) / (1 + marketGrowth)) * 100) : null;
+      const achievementPct = (tgtFrac != null && tgtFrac > 0 && shareCur != null) ? (shareCur / tgtFrac) * 100 : null;
+      const gapPts = (tgtFrac != null && shareCur != null) ? (shareCur - tgtFrac) * 100 : null;
+      return {
+        sharePct: shareCur != null ? shareCur * 100 : null,
+        priorYearSharePct: sharePrev != null ? sharePrev * 100 : null,
+        deltaPts: deltaPts,
+        evi: evi,
+        zetaGrowthPct: zetaGrowth != null ? zetaGrowth * 100 : null,
+        marketGrowthPct: marketGrowth != null ? marketGrowth * 100 : null,
+        achievementPct: achievementPct,
+        gapPts: gapPts,
+      };
+    }
+
+    function windowOut(pIdx, dIdx, dmKey, tgtFrac, marketActualFallback) {
+      const totCur  = (dmKey === 'dm1' ? win.matCur.dm1Tot  : win.matCur.dm2Tot).get(dIdx)  || { lcv: 0, su: 0 };
+      const totPrev = (dmKey === 'dm1' ? win.matPrev.dm1Tot : win.matPrev.dm2Tot).get(dIdx) || { lcv: 0, su: 0 };
+      const zCurMat  = (dmKey === 'dm1' ? win.matCur.zetaProdDm1  : win.matCur.zetaProdDm2).get(pIdx + '_' + dIdx)  || { lcv: 0, su: 0 };
+      const zPrevMat = (dmKey === 'dm1' ? win.matPrev.zetaProdDm1 : win.matPrev.zetaProdDm2).get(pIdx + '_' + dIdx) || { lcv: 0, su: 0 };
+      const totCurY  = (dmKey === 'dm1' ? win.ytdCur.dm1Tot  : win.ytdCur.dm2Tot).get(dIdx)  || { lcv: 0, su: 0 };
+      const totPrevY = (dmKey === 'dm1' ? win.ytdPrev.dm1Tot : win.ytdPrev.dm2Tot).get(dIdx) || { lcv: 0, su: 0 };
+      const zCurYtd  = (dmKey === 'dm1' ? win.ytdCur.zetaProdDm1  : win.ytdCur.zetaProdDm2).get(pIdx + '_' + dIdx)  || { lcv: 0, su: 0 };
+      const zPrevYtd = (dmKey === 'dm1' ? win.ytdPrev.zetaProdDm1 : win.ytdPrev.zetaProdDm2).get(pIdx + '_' + dIdx) || { lcv: 0, su: 0 };
+
+      if (dIdx < 0 || pIdx < 0) {
+        // Not resolvable against this period's flat data (product/DM
+        // renamed, retired, or newly added). Fall back to the same
+        // pre-computed MARKET_ACTUALS approximation the Target
+        // Achievement page uses, when available -- flagged as approx.
+        if (marketActualFallback != null) {
+          const approxPct = marketActualFallback * 100;
+          const approxAchieve = (tgtFrac != null && tgtFrac > 0) ? (marketActualFallback / tgtFrac) * 100 : null;
+          const approxGap = tgtFrac != null ? (marketActualFallback - tgtFrac) * 100 : null;
+          const approxBasis = { sharePct: approxPct, priorYearSharePct: null, deltaPts: null, evi: null, zetaGrowthPct: null, marketGrowthPct: null, achievementPct: approxAchieve, gapPts: approxGap, approx: true };
+          return { mat: { su: approxBasis, value: approxBasis }, ytd: { su: approxBasis, value: approxBasis }, resolved: false };
+        }
+        const empty = { sharePct: null, priorYearSharePct: null, deltaPts: null, evi: null, zetaGrowthPct: null, marketGrowthPct: null, achievementPct: null, gapPts: null };
+        return { mat: { su: empty, value: empty }, ytd: { su: empty, value: empty }, resolved: false };
+      }
+
+      return {
+        mat: { su: basisOut(totCur, totPrev, zCurMat, zPrevMat, 'su', tgtFrac), value: basisOut(totCur, totPrev, zCurMat, zPrevMat, 'lcv', tgtFrac) },
+        ytd: { su: basisOut(totCurY, totPrevY, zCurYtd, zPrevYtd, 'su', tgtFrac), value: basisOut(totCurY, totPrevY, zCurYtd, zPrevYtd, 'lcv', tgtFrac) },
+        resolved: true,
+      };
+    }
+
+    // Resolve every target row's lookup indices ONCE -- reused by both the
+    // per-product segments below AND the BU-level blended total.
+    const resolved = buTargets.map(t => ({
+      t: t,
+      pIdx: LOOKUPS.prods.findIndex(p => p && p.toUpperCase().trim() === t.prod.toUpperCase().trim()),
+      d1Idx: LOOKUPS.dm1s.findIndex(d => d && d.toUpperCase().trim() === t.dm1.toUpperCase().trim()),
+      d2Idx: LOOKUPS.dm2s.findIndex(d => d && d.toUpperCase().trim() === t.dm2.toUpperCase().trim()),
+    }));
+
+    const segments = resolved.map(r => {
+      const t = r.t;
+      const mkt1 = MARKET_ACTUALS[t.dm1.toUpperCase().trim()];
+      const mkt2 = MARKET_ACTUALS[t.dm2.toUpperCase().trim()];
+
+      return {
+        product: t.prod,
+        dm1Name: t.dm1,
+        dm2Name: t.dm2,
+        tgtDm1Pct: t.tgtDm1 != null ? t.tgtDm1 * 100 : null,
+        tgtDm2Pct: t.tgtDm2 != null ? t.tgtDm2 * 100 : null,
+        dm1: windowOut(r.pIdx, r.d1Idx, 'dm1', t.tgtDm1, mkt1 != null ? mkt1 : null),
+        dm2: windowOut(r.pIdx, r.d2Idx, 'dm2', t.tgtDm2, mkt2 != null ? mkt2 : null),
+      };
+    });
+
+    function blendAgg(tot, dmLevel) {
+      const totMap = dmLevel === 'dm1' ? tot.dm1Tot : tot.dm2Tot;
+      const zMap = dmLevel === 'dm1' ? tot.zetaProdDm1 : tot.zetaProdDm2;
+      const seenMarkets = new Set();
+      const marketTotal = { lcv: 0, su: 0 };
+      const zetaTotal = { lcv: 0, su: 0 };
+      const tgtWeighted = { lcv: 0, su: 0 };
+      const tgtMarket = { lcv: 0, su: 0 };
+      resolved.forEach(r => {
+        const dIdx = dmLevel === 'dm1' ? r.d1Idx : r.d2Idx;
+        const tgt = dmLevel === 'dm1' ? r.t.tgtDm1 : r.t.tgtDm2;
+        if (dIdx < 0 || r.pIdx < 0) return; // unresolved -- excluded from the blend
+        const z = zMap.get(r.pIdx + '_' + dIdx) || { lcv: 0, su: 0 };
+        zetaTotal.lcv += z.lcv; zetaTotal.su += z.su;
+        if (!seenMarkets.has(dIdx)) {
+          seenMarkets.add(dIdx);
+          const m = totMap.get(dIdx) || { lcv: 0, su: 0 };
+          marketTotal.lcv += m.lcv; marketTotal.su += m.su;
+          if (tgt != null) {
+            tgtWeighted.lcv += tgt * m.lcv; tgtWeighted.su += tgt * m.su;
+            tgtMarket.lcv += m.lcv; tgtMarket.su += m.su;
+          }
+        }
+      });
+      return { marketTotal: marketTotal, zetaTotal: zetaTotal, tgtWeighted: tgtWeighted, tgtMarket: tgtMarket };
+    }
+
+    function buildTotal(dmLevel) {
+      const includedCount = resolved.filter(r => (dmLevel === 'dm1' ? r.d1Idx : r.d2Idx) >= 0 && r.pIdx >= 0).length;
+      const matCurAgg = blendAgg(win.matCur, dmLevel), matPrevAgg = blendAgg(win.matPrev, dmLevel);
+      const ytdCurAgg = blendAgg(win.ytdCur, dmLevel), ytdPrevAgg = blendAgg(win.ytdPrev, dmLevel);
+
+      function basisWithTarget(curAgg, prevAgg, basis) {
+        const tgtFrac = curAgg.tgtMarket[basis] > 0 ? curAgg.tgtWeighted[basis] / curAgg.tgtMarket[basis] : null;
+        const out = basisOut(curAgg.marketTotal, prevAgg.marketTotal, curAgg.zetaTotal, prevAgg.zetaTotal, basis, tgtFrac);
+        out.blendedTargetPct = tgtFrac != null ? tgtFrac * 100 : null;
+        return out;
+      }
+
+      return {
+        productsIncluded: includedCount,
+        productsExcluded: resolved.length - includedCount,
+        mat: { su: basisWithTarget(matCurAgg, matPrevAgg, 'su'), value: basisWithTarget(matCurAgg, matPrevAgg, 'lcv') },
+        ytd: { su: basisWithTarget(ytdCurAgg, ytdPrevAgg, 'su'), value: basisWithTarget(ytdCurAgg, ytdPrevAgg, 'lcv') },
+      };
+    }
+
+    const total = { dm1: buildTotal('dm1'), dm2: buildTotal('dm2') };
+
+    return {
+      ok: true,
+      status: 'ready',
+      asOfDate: refPeriodLabel(),
+      source: 'iqvia',
+      bu: bu,
+      line: line || null,
+      segments: segments,
+      total: total,
+    };
+}
+
 window.IQVIADashboard = {
   init(containerId) {
     const container = document.getElementById(containerId);
@@ -8562,216 +8776,78 @@ window.IQVIADashboard = {
     if (window.AUTH && line && !window.AUTH.isLineAllowed(line)) {
       return { ok: false, status: 'access_denied', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
     }
+    // Core computation EXTRACTED 2026-07-31 into computeDM1DM2Core()
+    // (private, module-scope function above IQVIADashboard) so
+    // getCorporateMarketIntel() below can reuse the exact same
+    // methodology across all 4 BUs at once without re-triggering this
+    // gate for BUs outside the signed-in user's scope. Nothing about
+    // THIS method's own access control changed.
+    return computeDM1DM2Core(bu, line);
+  },
+
+  /**
+   * ENTERPRISE SEMANTIC INTERFACE -- getCorporateMarketIntel()
+   * ------------------------------------------------------------------
+   * ADDED 2026-07-31 ("add corporate performance to each Executive KPI
+   * card as reference"): a company-wide (all 4 BUs blended) reference
+   * figure for Market Share (KPI 8) and Business Unit Growth (KPI 9),
+   * built by running computeDM1DM2Core() -- the SAME per-BU blended-
+   * share/growth methodology getDM1DM2MarketIntel() uses -- once per
+   * BU in SEMANTIC.BU_LIST, then averaging the 4 results.
+   *
+   * "Corporate" here is a documented approximation, same spirit as
+   * this file's existing avg(dm1,dm2) blending: each BU tracks a
+   * DIFFERENT set of DM1/DM2 competitive markets (that's inherent to
+   * how Zeta's portfolio is organized), so there is no single unified
+   * market denominator to sum across BUs the way Sales/Coverage figures
+   * can be summed. A simple average of each BU's own already-blended
+   * share/growth number is the same-basis approximation the platform
+   * already uses for "vs DM1 / vs DM2" -- flagged here, not silently
+   * presented as more precise than it is.
+   *
+   * Deliberately UNGATED per-BU (unlike getDM1DM2MarketIntel): only
+   * the blended 4-BU average is returned, never a per-BU breakdown, so
+   * a caller can never recover one specific out-of-scope BU's number
+   * through this -- see the Visibility decision in the 2026-07-31
+   * "corporate reference" request (shown to every signed-in user,
+   * restricted or not, same as every other KPI card's Corporate row).
+   * Still requires a valid session (same baseline as every other IQVIA
+   * getter) -- just not a per-BU AUTH.isBuAllowed() check.
+   */
+  getCorporateMarketIntel() {
+    const user = getValidSessionUser();
+    if (!user) {
+      return { ok: false, status: 'auth_required', avgSharePct: null, avgZetaGrowthPct: null, avgMarketGrowthPct: null, avgGrowthGapPts: null, avgEvi: null };
+    }
     if (typeof window.SEMANTIC === 'undefined') {
-      console.error('[IQVIA] getDM1DM2MarketIntel() requires js/semantic-model.js to be loaded first.');
-      return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
+      console.error('[IQVIA] getCorporateMarketIntel() requires js/semantic-model.js to be loaded first.');
+      return { ok: false, status: 'semantic_model_missing', avgSharePct: null, avgZetaGrowthPct: null, avgMarketGrowthPct: null, avgGrowthGapPts: null, avgEvi: null };
     }
-    if (!flat) {
-      try { loadData(); } catch (e) { /* loadData() already logs internally */ }
-    }
-    if (!flat) {
-      return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
-    }
-
-    const buTargets = TARGETS_2026.filter(t => t.bu === bu && (!line || t.line === line));
-    if (buTargets.length === 0) {
-      return { ok: true, status: 'ready', asOfDate: refPeriodLabel(), source: 'iqvia', bu: bu, line: line || null, segments: [] };
-    }
-
-    const zetaIdx = LOOKUPS.corps.findIndex(c => c && c.toUpperCase().includes('ZETA PHARM'));
-    const N = flat.length;
-
-    // One single-pass build per window, scoped to this BU only (see
-    // "Excluding Other Markets" note above). Returns the two market-
-    // total maps (denominator) and the two Zeta-per-product maps
-    // (numerator), keyed by DM1/DM2 index and product+DM index.
-    function buildWindow(pidxSet) {
-      const dm1Tot = new Map(), dm2Tot = new Map();
-      const zetaProdDm1 = new Map(), zetaProdDm2 = new Map();
-      for (let i = 0; i < N; i += 10) {
-        if (!pidxSet.has(flat[i + TI])) continue;
-        if (LOOKUPS.bus[flat[i + BUCI]] !== bu) continue;
-        const c = flat[i + CI], p = flat[i + PI], d1 = flat[i + D1I], d2 = flat[i + D2I];
-        const lcv = flat[i + LI], su = flat[i + SI];
-        if (!dm1Tot.has(d1)) dm1Tot.set(d1, { lcv: 0, su: 0 });
-        const t1 = dm1Tot.get(d1); t1.lcv += lcv; t1.su += su;
-        if (!dm2Tot.has(d2)) dm2Tot.set(d2, { lcv: 0, su: 0 });
-        const t2 = dm2Tot.get(d2); t2.lcv += lcv; t2.su += su;
-        if (c !== zetaIdx) continue;
-        const k1 = p + '_' + d1, k2 = p + '_' + d2;
-        if (!zetaProdDm1.has(k1)) zetaProdDm1.set(k1, { lcv: 0, su: 0 });
-        const z1 = zetaProdDm1.get(k1); z1.lcv += lcv; z1.su += su;
-        if (!zetaProdDm2.has(k2)) zetaProdDm2.set(k2, { lcv: 0, su: 0 });
-        const z2 = zetaProdDm2.get(k2); z2.lcv += lcv; z2.su += su;
-      }
-      return { dm1Tot, dm2Tot, zetaProdDm1, zetaProdDm2 };
-    }
-
-    const win = {
-      matCur:  buildWindow(getPeriodIndices('mat')),
-      matPrev: buildWindow(getPrevPeriodIndices('mat')),
-      ytdCur:  buildWindow(getPeriodIndices('ytd')),
-      ytdPrev: buildWindow(getPrevPeriodIndices('ytd')),
-    };
-
-    // Per [window x basis]: share now, share a year ago, delta (pts),
-    // EVI, and achievement-vs-target -- all from the same tot/zeta maps.
-    function basisOut(tCur, tPrev, zCur, zPrev, basis, tgtFrac) {
-      const tc = tCur[basis], tp = tPrev[basis], zc = zCur[basis], zp = zPrev[basis];
-      const shareCur = tc > 0 ? zc / tc : null;
-      const sharePrev = tp > 0 ? zp / tp : null;
-      const deltaPts = (shareCur != null && sharePrev != null) ? (shareCur - sharePrev) * 100 : null;
-      const zetaGrowth = zp > 0 ? (zc - zp) / zp : null;
-      const marketGrowth = tp > 0 ? (tc - tp) / tp : null;
-      const evi = (zetaGrowth != null && marketGrowth != null) ? Math.round(((1 + zetaGrowth) / (1 + marketGrowth)) * 100) : null;
-      const achievementPct = (tgtFrac != null && tgtFrac > 0 && shareCur != null) ? (shareCur / tgtFrac) * 100 : null;
-      const gapPts = (tgtFrac != null && shareCur != null) ? (shareCur - tgtFrac) * 100 : null;
-      return {
-        sharePct: shareCur != null ? shareCur * 100 : null,
-        priorYearSharePct: sharePrev != null ? sharePrev * 100 : null,
-        deltaPts: deltaPts,
-        evi: evi,
-        zetaGrowthPct: zetaGrowth != null ? zetaGrowth * 100 : null,
-        marketGrowthPct: marketGrowth != null ? marketGrowth * 100 : null,
-        achievementPct: achievementPct,
-        gapPts: gapPts,
-      };
-    }
-
-    function windowOut(pIdx, dIdx, dmKey, tgtFrac, marketActualFallback) {
-      const totCur  = (dmKey === 'dm1' ? win.matCur.dm1Tot  : win.matCur.dm2Tot).get(dIdx)  || { lcv: 0, su: 0 };
-      const totPrev = (dmKey === 'dm1' ? win.matPrev.dm1Tot : win.matPrev.dm2Tot).get(dIdx) || { lcv: 0, su: 0 };
-      const zCurMat  = (dmKey === 'dm1' ? win.matCur.zetaProdDm1  : win.matCur.zetaProdDm2).get(pIdx + '_' + dIdx)  || { lcv: 0, su: 0 };
-      const zPrevMat = (dmKey === 'dm1' ? win.matPrev.zetaProdDm1 : win.matPrev.zetaProdDm2).get(pIdx + '_' + dIdx) || { lcv: 0, su: 0 };
-      const totCurY  = (dmKey === 'dm1' ? win.ytdCur.dm1Tot  : win.ytdCur.dm2Tot).get(dIdx)  || { lcv: 0, su: 0 };
-      const totPrevY = (dmKey === 'dm1' ? win.ytdPrev.dm1Tot : win.ytdPrev.dm2Tot).get(dIdx) || { lcv: 0, su: 0 };
-      const zCurYtd  = (dmKey === 'dm1' ? win.ytdCur.zetaProdDm1  : win.ytdCur.zetaProdDm2).get(pIdx + '_' + dIdx)  || { lcv: 0, su: 0 };
-      const zPrevYtd = (dmKey === 'dm1' ? win.ytdPrev.zetaProdDm1 : win.ytdPrev.zetaProdDm2).get(pIdx + '_' + dIdx) || { lcv: 0, su: 0 };
-
-      if (dIdx < 0 || pIdx < 0) {
-        // Not resolvable against this period's flat data (product/DM
-        // renamed, retired, or newly added). Fall back to the same
-        // pre-computed MARKET_ACTUALS approximation the Target
-        // Achievement page uses, when available -- flagged as approx.
-        if (marketActualFallback != null) {
-          const approxPct = marketActualFallback * 100;
-          const approxAchieve = (tgtFrac != null && tgtFrac > 0) ? (marketActualFallback / tgtFrac) * 100 : null;
-          const approxGap = tgtFrac != null ? (marketActualFallback - tgtFrac) * 100 : null;
-          const approxBasis = { sharePct: approxPct, priorYearSharePct: null, deltaPts: null, evi: null, zetaGrowthPct: null, marketGrowthPct: null, achievementPct: approxAchieve, gapPts: approxGap, approx: true };
-          return { mat: { su: approxBasis, value: approxBasis }, ytd: { su: approxBasis, value: approxBasis }, resolved: false };
-        }
-        const empty = { sharePct: null, priorYearSharePct: null, deltaPts: null, evi: null, zetaGrowthPct: null, marketGrowthPct: null, achievementPct: null, gapPts: null };
-        return { mat: { su: empty, value: empty }, ytd: { su: empty, value: empty }, resolved: false };
-      }
-
-      return {
-        mat: { su: basisOut(totCur, totPrev, zCurMat, zPrevMat, 'su', tgtFrac), value: basisOut(totCur, totPrev, zCurMat, zPrevMat, 'lcv', tgtFrac) },
-        ytd: { su: basisOut(totCurY, totPrevY, zCurYtd, zPrevYtd, 'su', tgtFrac), value: basisOut(totCurY, totPrevY, zCurYtd, zPrevYtd, 'lcv', tgtFrac) },
-        resolved: true,
-      };
-    }
-
-    // Resolve every target row's lookup indices ONCE -- reused by both the
-    // per-product segments below AND the BU-level blended total.
-    const resolved = buTargets.map(t => ({
-      t: t,
-      pIdx: LOOKUPS.prods.findIndex(p => p && p.toUpperCase().trim() === t.prod.toUpperCase().trim()),
-      d1Idx: LOOKUPS.dm1s.findIndex(d => d && d.toUpperCase().trim() === t.dm1.toUpperCase().trim()),
-      d2Idx: LOOKUPS.dm2s.findIndex(d => d && d.toUpperCase().trim() === t.dm2.toUpperCase().trim()),
-    }));
-
-    const segments = resolved.map(r => {
-      const t = r.t;
-      const mkt1 = MARKET_ACTUALS[t.dm1.toUpperCase().trim()];
-      const mkt2 = MARKET_ACTUALS[t.dm2.toUpperCase().trim()];
-
-      return {
-        product: t.prod,
-        dm1Name: t.dm1,
-        dm2Name: t.dm2,
-        tgtDm1Pct: t.tgtDm1 != null ? t.tgtDm1 * 100 : null,
-        tgtDm2Pct: t.tgtDm2 != null ? t.tgtDm2 * 100 : null,
-        dm1: windowOut(r.pIdx, r.d1Idx, 'dm1', t.tgtDm1, mkt1 != null ? mkt1 : null),
-        dm2: windowOut(r.pIdx, r.d2Idx, 'dm2', t.tgtDm2, mkt2 != null ? mkt2 : null),
-      };
+    const avg = (a, b) => (a != null && b != null) ? (a + b) / 2 : (a != null ? a : b);
+    const shares = [], zetaGrowths = [], marketGrowths = [], evis = [];
+    window.SEMANTIC.BU_LIST.forEach(bu => {
+      const r = computeDM1DM2Core(bu, null);
+      if (!r || !r.ok || !r.total) return;
+      const d1 = r.total.dm1.ytd.su, d2 = r.total.dm2.ytd.su;
+      const share = avg(d1.sharePct, d2.sharePct);
+      const zg = avg(d1.zetaGrowthPct, d2.zetaGrowthPct);
+      const mg = avg(d1.marketGrowthPct, d2.marketGrowthPct);
+      const evi = avg(d1.evi, d2.evi);
+      if (share != null) shares.push(share);
+      if (zg != null) zetaGrowths.push(zg);
+      if (mg != null) marketGrowths.push(mg);
+      if (evi != null) evis.push(evi);
     });
-
-    /**
-     * BU-level BLENDED TOTAL -- "Market Intelligence Detail for Total BU"
-     * (2026-07-26 request, rendered as cards in the Executive review).
-     * Same methodology already used elsewhere in this file for the BU/Line
-     * blended-share views (see the "Blended Share"/"Weighted Target"
-     * methodology notes a few thousand lines up): Blended Share = Σ Zeta
-     * [SU|Value] across this BU's unique DM1/DM2 markets ÷ Σ those markets'
-     * total size (each unique market counted once, so a market with two
-     * Zeta products in it isn't double-counted in the denominator).
-     * Weighted Target = Σ(target × market size) ÷ Σ market size -- weighted
-     * by the SAME basis being displayed, so the SU-weighted blended target
-     * can legitimately differ slightly from the Value-weighted one.
-     * Only segments that resolve to a real product+market in this period's
-     * data are included (the same MARKET_ACTUALS-fallback segments the
-     * per-product table flags "approx." are excluded here rather than
-     * silently blended in at a different confidence level) -- productsExcluded
-     * says exactly how many and the caller surfaces that count.
-     */
-    function blendAgg(tot, dmLevel) {
-      const totMap = dmLevel === 'dm1' ? tot.dm1Tot : tot.dm2Tot;
-      const zMap = dmLevel === 'dm1' ? tot.zetaProdDm1 : tot.zetaProdDm2;
-      const seenMarkets = new Set();
-      const marketTotal = { lcv: 0, su: 0 };
-      const zetaTotal = { lcv: 0, su: 0 };
-      const tgtWeighted = { lcv: 0, su: 0 };
-      const tgtMarket = { lcv: 0, su: 0 };
-      resolved.forEach(r => {
-        const dIdx = dmLevel === 'dm1' ? r.d1Idx : r.d2Idx;
-        const tgt = dmLevel === 'dm1' ? r.t.tgtDm1 : r.t.tgtDm2;
-        if (dIdx < 0 || r.pIdx < 0) return; // unresolved -- excluded from the blend
-        const z = zMap.get(r.pIdx + '_' + dIdx) || { lcv: 0, su: 0 };
-        zetaTotal.lcv += z.lcv; zetaTotal.su += z.su;
-        if (!seenMarkets.has(dIdx)) {
-          seenMarkets.add(dIdx);
-          const m = totMap.get(dIdx) || { lcv: 0, su: 0 };
-          marketTotal.lcv += m.lcv; marketTotal.su += m.su;
-          if (tgt != null) {
-            tgtWeighted.lcv += tgt * m.lcv; tgtWeighted.su += tgt * m.su;
-            tgtMarket.lcv += m.lcv; tgtMarket.su += m.su;
-          }
-        }
-      });
-      return { marketTotal: marketTotal, zetaTotal: zetaTotal, tgtWeighted: tgtWeighted, tgtMarket: tgtMarket };
-    }
-
-    function buildTotal(dmLevel) {
-      const includedCount = resolved.filter(r => (dmLevel === 'dm1' ? r.d1Idx : r.d2Idx) >= 0 && r.pIdx >= 0).length;
-      const matCurAgg = blendAgg(win.matCur, dmLevel), matPrevAgg = blendAgg(win.matPrev, dmLevel);
-      const ytdCurAgg = blendAgg(win.ytdCur, dmLevel), ytdPrevAgg = blendAgg(win.ytdPrev, dmLevel);
-
-      function basisWithTarget(curAgg, prevAgg, basis) {
-        const tgtFrac = curAgg.tgtMarket[basis] > 0 ? curAgg.tgtWeighted[basis] / curAgg.tgtMarket[basis] : null;
-        const out = basisOut(curAgg.marketTotal, prevAgg.marketTotal, curAgg.zetaTotal, prevAgg.zetaTotal, basis, tgtFrac);
-        out.blendedTargetPct = tgtFrac != null ? tgtFrac * 100 : null;
-        return out;
-      }
-
-      return {
-        productsIncluded: includedCount,
-        productsExcluded: resolved.length - includedCount,
-        mat: { su: basisWithTarget(matCurAgg, matPrevAgg, 'su'), value: basisWithTarget(matCurAgg, matPrevAgg, 'lcv') },
-        ytd: { su: basisWithTarget(ytdCurAgg, ytdPrevAgg, 'su'), value: basisWithTarget(ytdCurAgg, ytdPrevAgg, 'lcv') },
-      };
-    }
-
-    const total = { dm1: buildTotal('dm1'), dm2: buildTotal('dm2') };
-
+    const mean = arr => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+    const avgSharePct = mean(shares);
+    const avgZetaGrowthPct = mean(zetaGrowths);
+    const avgMarketGrowthPct = mean(marketGrowths);
+    const avgGrowthGapPts = (avgZetaGrowthPct != null && avgMarketGrowthPct != null) ? avgZetaGrowthPct - avgMarketGrowthPct : null;
     return {
-      ok: true,
-      status: 'ready',
-      asOfDate: refPeriodLabel(),
-      source: 'iqvia',
-      bu: bu,
-      line: line || null,
-      segments: segments,
-      total: total,
+      ok: true, status: 'ready',
+      avgSharePct: avgSharePct, avgZetaGrowthPct: avgZetaGrowthPct,
+      avgMarketGrowthPct: avgMarketGrowthPct, avgGrowthGapPts: avgGrowthGapPts,
+      avgEvi: mean(evis),
     };
   },
 
