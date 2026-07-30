@@ -37,6 +37,21 @@ from collections import defaultdict
 
 SOURCE_XLSX = '/sessions/happy-laughing-feynman/mnt/CoverageDashboard/TOTAL_SALES_2026.xlsx'
 SOURCE_SHEET = 'Tota_SALES_2026'
+# June 2026 update (2026-07-30): TOTAL_SALES_2026.xlsx itself only goes
+# through May -- confirmed directly (996,720 rows, months 2026-01..2026-05
+# only, no June rows at all) -- June arrived as a separate export, same as
+# refresh_sales.py's own JUNE_XLSX/JUNE_SHEET_NAME (see that script's
+# 2026-07-28 comment for the full history). refresh_sales.py's June merge
+# only ever updated cache/sales.data.js/.json in memory -- it never wrote a
+# combined workbook back to TOTAL_SALES_2026.xlsx on disk, so this script
+# (which reads that same file independently) needs its own June merge, not
+# just a re-run. Mirrors refresh_sales.py's simpler original approach (read
+# both sources, concatenate in memory, column lookup by name) rather than
+# its later SQLite-resumable rewrite -- this script is meant to be run
+# directly on the business owner's own machine (see the module docstring),
+# where there is no 45s sandbox cap forcing a chunked/resumable design.
+JUNE_XLSX = '/sessions/happy-laughing-feynman/mnt/ZETA SALES_2026/june.xlsx'
+JUNE_SHEET = 'SalesPerDistributor'
 OUT_JSON = '/sessions/happy-laughing-feynman/mnt/CoverageDashboard/cache/customer_analytics.json'
 OUT_DATA_JS = '/sessions/happy-laughing-feynman/mnt/CoverageDashboard/cache/customer_analytics.data.js'
 # Checkpoint (2026-07-28): the xlsx parse+aggregate step and the JSON+gzip
@@ -95,50 +110,28 @@ def clean(s):
     return re.sub(r'\s+', ' ', str(s).replace('\xa0', ' ')).strip()
 
 
-def main():
-    t0 = time.time()
-    import pickle
-
-    if os.path.exists(CHECKPOINT_PKL):
-        with open(CHECKPOINT_PKL, 'rb') as f:
-            output = pickle.load(f)
-        print(f'[{time.time()-t0:.1f}s] loaded checkpoint {CHECKPOINT_PKL}, skipping xlsx parse', file=sys.stderr, flush=True)
-        write_outputs(output, t0)
-        return
-
-    from python_calamine import CalamineWorkbook
-    wb = CalamineWorkbook.from_path(SOURCE_XLSX)
-    sheet = wb.get_sheet_by_name(SOURCE_SHEET)
-    print(f'[{time.time()-t0:.1f}s] sheet parsed', file=sys.stderr, flush=True)
-
+def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
+               item_value_by_bu, item_customers_by_bu, bu_customers):
+    """Scan one sheet's rows into the shared aggregation structures (all
+    passed in and mutated in place) -- factored out so main() can call this
+    once per physical source file (main workbook, then June's separate
+    export) instead of duplicating the loop. Column lookup is by NAME via
+    header.index(), so this tolerates the two sources having a different
+    column count/order (June's export is missing a couple of trailing
+    columns this script never reads anyway -- see JUNE_XLSX's comment)."""
     rows_iter = sheet.iter_rows()
     header = next(rows_iter)
     idx = {name: i for i, name in enumerate(header)}
+    required = ['Date', 'Line', 'SubType', 'CustomerID', 'CustomerName', 'Item', 'Quantity', 'Value', 'IsTender']
+    missing = [c for c in required if c not in idx]
+    if missing:
+        print(f'[{time.time()-t0:.1f}s] SKIPPING source "{source_label}" -- missing expected column(s) {missing}',
+              file=sys.stderr, flush=True)
+        return 0
     ci_date, ci_line, ci_st, ci_cid, ci_cname, ci_item, ci_qty, ci_val, ci_tender = (
         idx['Date'], idx['Line'], idx['SubType'], idx['CustomerID'], idx['CustomerName'],
         idx['Item'], idx['Quantity'], idx['Value'], idx['IsTender']
     )
-
-    # cluster -> custId -> {name, months:set, items:set, value, qty, txn, bus:set,
-    #                        itemValueByBU: {bu: {item: value}}}
-    # itemValueByBU (2026-07-30, "actual item/SKU related the BU chosen"):
-    # per customer, per BU, which items they actually bought and how much --
-    # lets the Customer Health full-list grid show real SKU names scoped to
-    # whichever BU the Executive filter/modal is narrowed to, instead of just
-    # a "Business Units" tag and a bare Distinct-SKUs count.
-    clusters = {c: {} for c in CLUSTERS_TO_BUILD}
-    # cluster -> item -> value / set(custIds) -- all-BU view (KPI 6/7 default)
-    item_value = {c: defaultdict(float) for c in CLUSTERS_TO_BUILD}
-    item_customers = {c: defaultdict(set) for c in CLUSTERS_TO_BUILD}
-    # cluster -> bu -> item -> value / set(custIds) -- BU-scoped view, added
-    # 2026-07-28 so "Top SKU Penetration" can be filtered to the selected BU
-    # instead of always showing the all-BU-combined list. bu_customers is the
-    # penetration denominator: distinct customers in this cluster who have
-    # ANY transaction under that BU (matches getClusterCustomerHealth()'s own
-    # BU-narrowing logic in js/sales.js -- same definition, just precomputed).
-    item_value_by_bu = {c: defaultdict(lambda: defaultdict(float)) for c in CLUSTERS_TO_BUILD}
-    item_customers_by_bu = {c: defaultdict(lambda: defaultdict(set)) for c in CLUSTERS_TO_BUILD}
-    bu_customers = {c: defaultdict(set) for c in CLUSTERS_TO_BUILD}
 
     scanned = 0
     for row in rows_iter:
@@ -177,7 +170,66 @@ def main():
         item_value[cluster][item] += row[ci_val] or 0
         item_customers[cluster][item].add(cid)
 
-    print(f'[{time.time()-t0:.1f}s] scanned {scanned} rows, clusters built: '
+    print(f'[{time.time()-t0:.1f}s] "{source_label}": scanned {scanned} rows, clusters so far: '
+          f'{[(c, len(cust)) for c, cust in clusters.items()]}', file=sys.stderr, flush=True)
+    return scanned
+
+
+def main():
+    t0 = time.time()
+    import pickle
+
+    if os.path.exists(CHECKPOINT_PKL):
+        with open(CHECKPOINT_PKL, 'rb') as f:
+            output = pickle.load(f)
+        print(f'[{time.time()-t0:.1f}s] loaded checkpoint {CHECKPOINT_PKL}, skipping xlsx parse', file=sys.stderr, flush=True)
+        write_outputs(output, t0)
+        return
+
+    from python_calamine import CalamineWorkbook
+
+    # cluster -> custId -> {name, months:set, items:set, value, qty, txn, bus:set,
+    #                        itemValueByBU: {bu: {item: value}}}
+    # itemValueByBU (2026-07-30, "actual item/SKU related the BU chosen"):
+    # per customer, per BU, which items they actually bought and how much --
+    # lets the Customer Health full-list grid show real SKU names scoped to
+    # whichever BU the Executive filter/modal is narrowed to, instead of just
+    # a "Business Units" tag and a bare Distinct-SKUs count.
+    clusters = {c: {} for c in CLUSTERS_TO_BUILD}
+    # cluster -> item -> value / set(custIds) -- all-BU view (KPI 6/7 default)
+    item_value = {c: defaultdict(float) for c in CLUSTERS_TO_BUILD}
+    item_customers = {c: defaultdict(set) for c in CLUSTERS_TO_BUILD}
+    # cluster -> bu -> item -> value / set(custIds) -- BU-scoped view, added
+    # 2026-07-28 so "Top SKU Penetration" can be filtered to the selected BU
+    # instead of always showing the all-BU-combined list. bu_customers is the
+    # penetration denominator: distinct customers in this cluster who have
+    # ANY transaction under that BU (matches getClusterCustomerHealth()'s own
+    # BU-narrowing logic in js/sales.js -- same definition, just precomputed).
+    item_value_by_bu = {c: defaultdict(lambda: defaultdict(float)) for c in CLUSTERS_TO_BUILD}
+    item_customers_by_bu = {c: defaultdict(lambda: defaultdict(set)) for c in CLUSTERS_TO_BUILD}
+    bu_customers = {c: defaultdict(set) for c in CLUSTERS_TO_BUILD}
+
+    scanned = 0
+
+    wb = CalamineWorkbook.from_path(SOURCE_XLSX)
+    sheet = wb.get_sheet_by_name(SOURCE_SHEET)
+    print(f'[{time.time()-t0:.1f}s] main sheet parsed', file=sys.stderr, flush=True)
+    scanned += scan_sheet(sheet, 'main (' + SOURCE_XLSX + ')', t0, clusters, item_value, item_customers,
+                          item_value_by_bu, item_customers_by_bu, bu_customers)
+    del wb, sheet
+
+    if os.path.exists(JUNE_XLSX):
+        june_wb = CalamineWorkbook.from_path(JUNE_XLSX)
+        june_sheet = june_wb.get_sheet_by_name(JUNE_SHEET)
+        print(f'[{time.time()-t0:.1f}s] June sheet parsed', file=sys.stderr, flush=True)
+        scanned += scan_sheet(june_sheet, 'june (' + JUNE_XLSX + ')', t0, clusters, item_value, item_customers,
+                              item_value_by_bu, item_customers_by_bu, bu_customers)
+        del june_wb, june_sheet
+    else:
+        print(f'[{time.time()-t0:.1f}s] WARNING: June source not found at {JUNE_XLSX} -- '
+              f'output will be missing June data.', file=sys.stderr, flush=True)
+
+    print(f'[{time.time()-t0:.1f}s] all sources scanned: {scanned} total rows, clusters built: '
           f'{[(c, len(cust)) for c, cust in clusters.items()]}', file=sys.stderr, flush=True)
 
     # ---- Compute derived KPIs per cluster ----

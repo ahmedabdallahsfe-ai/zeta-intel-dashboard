@@ -1153,6 +1153,42 @@
     });
   }
 
+  // Direct CSV export (2026-07-30, "need to export to excel"): the
+  // previous export path only existed inside the full customer-list grid
+  // view (mountClusterHealthGrid's own export button), one extra click
+  // away from the summary view this modal opens on by default -- easy to
+  // miss. Builds the CSV straight from health.customers, independent of
+  // the grid's search/sort state, so it works whether or not the user has
+  // ever switched to grid view. Same column set as the grid (items-by-BU
+  // when the modal is scoped to one BU, Business Units otherwise) and the
+  // same UTF-8-BOM fix as every other export in this app (2026-07-30,
+  // js/components.js/js/sales.js) so Arabic customer names open correctly
+  // in Excel instead of as mojibake.
+  function exportClusterCustomersCSV(clusterName, health) {
+    const isBuScoped = health.bu && health.bu !== "All";
+    const rows = health.customers || [];
+    const header = ["Customer Name", "Status", "Frequency", "Basket", "Months Active", "Distinct SKUs", "Value (EGP)",
+      isBuScoped ? "Items Purchased (" + health.bu + ")" : "Business Units"];
+    const csvRows = rows.map(c => {
+      const lastCell = isBuScoped
+        ? ((c.items && c.items.length) ? c.items.join("; ") : "")
+        : ((c.bus && c.bus.length) ? c.bus.join(", ") : "");
+      return [c.name, c.bridgeSegment, c.frequencySegment, c.basketSegment, c.monthsActive, c.distinctSkus, Math.round(c.value), lastCell]
+        .map(v => '"' + String(v === undefined || v === null ? "" : v).replace(/"/g, '""') + '"')
+        .join(",");
+    });
+    const csv = [header.join(",")].concat(csvRows).join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = clusterName.replace(/[^a-z0-9]+/gi, "_") + "_customers.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function openClusterHealthModal(bu, clusterName, health) {
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
 
@@ -1162,16 +1198,23 @@
       variant: "primary",
       attrs: 'id="exec-cluster-health-toggle"',
     });
+    const exportBtnHtml = global.DS.button({
+      label: "Export to Excel (CSV)",
+      variant: "secondary",
+      attrs: 'id="exec-cluster-health-export"',
+    });
 
     const overlay = global.DS.openModal({
       title: bu + " — " + clusterName + " — Customer Health",
       bodyHtml: buildClusterHealthSummaryHtml(clusterName, health),
-      footerHtml: toggleBtnHtml,
+      footerHtml: toggleBtnHtml + exportBtnHtml,
     });
 
     setTimeout(() => {
       const btn = overlay.querySelector("#exec-cluster-health-toggle");
+      const exportBtn = overlay.querySelector("#exec-cluster-health-export");
       const body = overlay.querySelector(".ds-modal-body");
+      if (exportBtn) exportBtn.addEventListener("click", () => exportClusterCustomersCSV(clusterName, health));
       if (!btn || !body) return;
       btn.addEventListener("click", () => {
         showingGrid = !showingGrid;
