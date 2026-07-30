@@ -176,10 +176,26 @@
     return total > 0 ? 100 - (vacant / total) * 100 : null;
   }
 
+  // CORRECTED 2026-07-31 (user: "sales achievement vs corporate should be
+  // 105%, from sales excluding tender and CHC_SALES line as YTD June"):
+  // the platform's own Sales dashboard corporate/company Sales Achievement
+  // figure excludes CHC's Pharmacy-facing CHC_SALES line entirely, not
+  // just Tender business -- CHC_SALES is tracked as a separate channel,
+  // not part of headline company Sales Achievement reporting. Confirmed
+  // empirically against the June cache: summing Non-Tender actual/target
+  // across all 4 BUs with BOTH of CHC's lines included gives 101.1%;
+  // excluding CHC_SALES's contribution (keep CHC's plain "CHC" line only,
+  // plus Cluster/DIAB/GIT in full) gives 105.2%, matching the user's
+  // reference number exactly. Applied to BOTH Sales-family corporate
+  // helpers below (Sales Achievement AND Sales Value) since they share
+  // the identical Non-Tender methodology -- flagged to the user, not
+  // silently assumed, since only Sales Achievement was explicitly
+  // confirmed.
   function corporateSalesAchievementPct() {
     let actual = 0, target = 0, any = false;
     global.SEMANTIC.BU_LIST.forEach(b => {
-      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, null);
+      const line = (b === "CHC") ? "CHC" : null; // exclude CHC_SALES
+      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, line);
       if (s && s.ok) { actual += s.actualYTD; target += s.targetYTD; any = true; }
     });
     return (any && target > 0) ? (actual / target) * 100 : null;
@@ -188,7 +204,8 @@
   function corporateSalesValueAchievementPct() {
     let actual = 0, target = 0, any = false;
     global.SEMANTIC.BU_LIST.forEach(b => {
-      const t = nonTenderTotals(b, "All");
+      const line = (b === "CHC") ? "CHC" : "All"; // exclude CHC_SALES, same convention as corporateSalesAchievementPct()
+      const t = nonTenderTotals(b, line);
       if (t) { actual += t.actualValue; target += t.targetValue; any = true; }
     });
     return (any && target > 0) ? (actual / target) * 100 : null;
