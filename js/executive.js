@@ -1118,6 +1118,23 @@
   }
 
   function mountClusterHealthGrid(clusterName, health) {
+    // Items-instead-of-BU column (2026-07-30, "actual item/SKU related the
+    // BU chosen"): once a specific BU is selected, "Business Units" is a
+    // near-constant single-value column (every row already belongs to that
+    // BU by construction -- see getClusterCustomerHealth's bu-narrowing) and
+    // tells you nothing new. Swap it for the actual SKU names this customer
+    // bought under that BU instead (health.customers[].items, per-BU top-20
+    // by value -- see js/sales.js's getClusterCustomerHealth and
+    // etl/build_customer_analytics_cache.py's itemsByBU). Stays on
+    // "Business Units" for the All-BU view, where comparing which BUs a
+    // customer touches is still the meaningful question. Caches built
+    // before itemsByBU existed simply show an empty Items cell rather than
+    // erroring.
+    const isBuScoped = health.bu && health.bu !== "All";
+    const lastColumn = isBuScoped
+      ? { key: "items", label: "Items Purchased (" + health.bu + ")", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" }
+      : { key: "bus", label: "Business Units", format: v => Array.isArray(v) ? v.join(", ") : v };
+
     global.DS.mountDataGrid("exec-cluster-health-grid", {
       columns: [
         { key: "name", label: "Customer Name" },
@@ -1127,7 +1144,7 @@
         { key: "monthsActive", label: "Months Active", align: "right" },
         { key: "distinctSkus", label: "Distinct SKUs", align: "right" },
         { key: "value", label: "Value (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
-        { key: "bus", label: "Business Units", format: v => Array.isArray(v) ? v.join(", ") : v },
+        lastColumn,
       ],
       rows: health.customers || [],
       pageSize: 25,

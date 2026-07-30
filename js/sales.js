@@ -3337,9 +3337,21 @@
       }
 
       const wantBU = bu && bu !== 'All' ? bu : null;
-      const customers = wantBU
+      const scopedCustomers = wantBU
         ? clusterData.customers.filter(c => c.bus && c.bus.indexOf(wantBU) >= 0)
         : clusterData.customers;
+      // Per-BU item list (2026-07-30, "actual item/SKU related the BU
+      // chosen"): when a specific BU is selected, attach that customer's own
+      // top-20-by-value SKU names bought under THAT BU (etl/
+      // build_customer_analytics_cache.py's itemsByBU, added same date) --
+      // lets the full customer-list grid show what a customer actually
+      // bought instead of just their Business Units tag. Falls back to an
+      // empty list (not an error) for caches from before this field existed,
+      // so this stays safe to ship ahead of the next customer-analytics
+      // ETL run.
+      const customers = wantBU
+        ? scopedCustomers.map(c => Object.assign({}, c, { items: (c.itemsByBU && c.itemsByBU[wantBU]) || [] }))
+        : scopedCustomers;
 
       // Recompute every aggregate from the (possibly BU-narrowed) customer
       // list rather than reusing the cache's pre-baked company-wide

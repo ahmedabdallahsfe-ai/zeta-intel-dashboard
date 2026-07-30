@@ -119,7 +119,13 @@ def main():
         idx['Item'], idx['Quantity'], idx['Value'], idx['IsTender']
     )
 
-    # cluster -> custId -> {name, months:set, items:set, value, qty, txn, bus:set}
+    # cluster -> custId -> {name, months:set, items:set, value, qty, txn, bus:set,
+    #                        itemValueByBU: {bu: {item: value}}}
+    # itemValueByBU (2026-07-30, "actual item/SKU related the BU chosen"):
+    # per customer, per BU, which items they actually bought and how much --
+    # lets the Customer Health full-list grid show real SKU names scoped to
+    # whichever BU the Executive filter/modal is narrowed to, instead of just
+    # a "Business Units" tag and a bare Distinct-SKUs count.
     clusters = {c: {} for c in CLUSTERS_TO_BUILD}
     # cluster -> item -> value / set(custIds) -- all-BU view (KPI 6/7 default)
     item_value = {c: defaultdict(float) for c in CLUSTERS_TO_BUILD}
@@ -150,7 +156,8 @@ def main():
         cust = clusters[cluster]
         if cid not in cust:
             cust[cid] = {'name': row[ci_cname], 'months': set(), 'items': set(),
-                         'value': 0.0, 'qty': 0.0, 'txn': 0, 'bus': set()}
+                         'value': 0.0, 'qty': 0.0, 'txn': 0, 'bus': set(),
+                         'itemValueByBU': defaultdict(lambda: defaultdict(float))}
         c = cust[cid]
         m = str(row[ci_date])[:7]
         c['months'].add(m)
@@ -165,6 +172,7 @@ def main():
             bu_customers[cluster][bu].add(cid)
             item_value_by_bu[cluster][bu][item] += row[ci_val] or 0
             item_customers_by_bu[cluster][bu][item].add(cid)
+            c['itemValueByBU'][bu][item] += row[ci_val] or 0
 
         item_value[cluster][item] += row[ci_val] or 0
         item_customers[cluster][item].add(cid)
@@ -252,12 +260,24 @@ def main():
             freqN = len(ms)
             freq_seg = 'Frequent' if freqN >= 4 else ('Occasional' if freqN >= 2 else 'One-time')
 
+            # Per-BU item list (2026-07-30): top 20 items by value this
+            # customer actually bought under each BU they touched -- names,
+            # not just a count, so the grid can show what a customer bought
+            # scoped to whichever BU is selected. Capped at 20 to keep the
+            # payload bounded (a handful of high-value retail/chain accounts
+            # can otherwise carry 100+ distinct SKUs each).
+            items_by_bu = {
+                bu_name: [name for name, _ in sorted(item_vals.items(), key=lambda kv: -kv[1])[:20]]
+                for bu_name, item_vals in c['itemValueByBU'].items()
+            }
+
             customer_rows.append({
                 'id': cid, 'name': clean(c['name']), 'monthsActive': freqN,
                 'bridgeSegment': bridge_seg, 'frequencySegment': freq_seg,
                 'basketSegment': seg.capitalize() if seg != 'none' else 'None of core',
                 'distinctSkus': len(c['items']), 'value': round(c['value'], 2),
                 'qty': round(c['qty'], 2), 'txn': c['txn'], 'bus': sorted(c['bus']),
+                'itemsByBU': items_by_bu,
             })
 
         sku_penetration = [
