@@ -3607,14 +3607,42 @@ function applyUserFilter(){
   var bu=CURRENT_USER.bu, ln=CURRENT_USER.lines, dm=CURRENT_USER.dm1s, pr=CURRENT_USER.prods;
   if(!bu&&!ln&&!dm&&!pr){ window.USER_VISIBLE=null; return; } // Admin — full access
 
-  // MARKET SCOPE: filter only by dm1s (the markets this user manages).
-  // bu and lines are Zeta-internal org fields — they are only populated on Zeta's own
-  // product rows, so using them as row filters would exclude ALL competitor data.
-  // dm1s is the correct scope boundary for BU Managers.
-  var aDM = dm ? new Set(dm.map(function(v){return LOOKUPS.dm1s.indexOf(v);}).filter(function(i){return i>=0;})) : null;
+  // MARKET SCOPE: filter only by dm1s/dm2s (the markets this user manages).
+  // If dm is explicitly defined in User Config, use it.
+  // Otherwise, if the user is restricted by Line or BU, dynamically extract their related markets from TARGETS_2026!
+  var aDM = null;
+  var aDM2 = null;
+  if (dm) {
+    aDM = new Set(dm.map(function(v){return LOOKUPS.dm1s.indexOf(v);}).filter(function(i){return i>=0;}));
+  } else if (ln || bu) {
+    var allowedDm1Names = new Set();
+    var allowedDm2Names = new Set();
+    TARGETS_2026.forEach(function(t) {
+      var isLineMatch = ln && ln.indexOf(t.line) >= 0;
+      var isBuMatch = bu && bu.indexOf(t.bu) >= 0;
+      if (ln ? isLineMatch : isBuMatch) {
+        if (t.dm1) allowedDm1Names.add(t.dm1.toUpperCase().trim());
+        if (t.dm2) allowedDm2Names.add(t.dm2.toUpperCase().trim());
+      }
+    });
+
+    aDM = new Set();
+    LOOKUPS.dm1s.forEach(function(name, idx) {
+      if (name && allowedDm1Names.has(name.toUpperCase().trim())) {
+        aDM.add(idx);
+      }
+    });
+
+    aDM2 = new Set();
+    LOOKUPS.dm2s.forEach(function(name, idx) {
+      if (name && allowedDm2Names.has(name.toUpperCase().trim())) {
+        aDM2.add(idx);
+      }
+    });
+  }
 
   // If no dm1s defined at all (edge case), fall back to bu-based scope
-  var aBU_fallback = (!dm && bu)
+  var aBU_fallback = (!dm && !ln && bu)
     ? new Set(bu.map(function(v){return LOOKUPS.bus.indexOf(v);}).filter(function(i){return i>=0;}))
     : null;
 
@@ -3624,6 +3652,7 @@ function applyUserFilter(){
   var visDm1=new Set(), visDm2=new Set(), visLine=new Set(), visBu=new Set();
   for(var i=0;i<flat.length;i+=10){
     if(aDM           && !aDM.has(flat[i+D1I]))           continue; // primary: market scope
+    if(aDM2          && !aDM2.has(flat[i+D2I]))          continue; // secondary: market scope (DM2)
     if(aBU_fallback  && !aBU_fallback.has(flat[i+BUCI])) continue; // fallback: bu only
     out.push(flat[i],flat[i+1],flat[i+2],flat[i+3],flat[i+4],flat[i+5],flat[i+6],flat[i+7],flat[i+8],flat[i+9]);
     visCorp.add(flat[i]);

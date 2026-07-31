@@ -1,0 +1,266 @@
+{
+  "users": {
+    "ahmed.abdelfatah@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "hash": "3ea0bce3761bbdbc3e03fdaf96179a1d195cd6876f170f113d82063bc0f097ee",
+      "lines": [
+        "Derma"
+      ],
+      "name": "Ahmed AbdelFatah Ahmed AbdelHamid",
+      "role": "Line Manager"
+    },
+    "ahmed.abdullah@zeta-pharma.com": {
+      "bu": null,
+      "hash": "4d62b565567687b1d92c0f44480cb4b5d10f408ca2c9de05b7a9b20f8b4af2fe",
+      "lines": null,
+      "name": "Ahmed Abdallah",
+      "role": "SFE Manager"
+    },
+    "ahmed.barakat@zeta-pharma.com": {
+      "bu": [
+        "CHC"
+      ],
+      "hash": "8360cc1b632eeb0e68ac87a2d51f10a47658c619c9ef44d7cf12f582015e1a03",
+      "lines": [
+        "CHC"
+      ],
+      "name": "Ahmed Mohamed Mohamed Ibrahim Barakat",
+      "role": "Line Manager"
+    },
+    "ahmed.farag@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "hash": "6b5d723245180b15d31a2bd34d1c8e575c2d5388c986c335498fa1515d825e16",
+      "lines": [
+        "GIT-I"
+      ],
+      "name": "Ahmed AbdelFatah Farag Maarouf",
+      "role": "Line Manager"
+    },
+    "ahmed.hakam@zeta-pharma.com": {
+      "bu": null,
+      "hash": "5f2da17303dd14be7da4972fc6ea95b2f470ab2715d50fc514b90459d77eb1d8",
+      "lines": null,
+      "name": "Ahmed Hakam",
+      "role": "Marketing Consultant"
+    },
+    "ahmed.hamid@zeta-pharma.com": {
+      "bu": null,
+      "hash": "39e5eeb230846d2677faca06cb418839211f35259f3c9729c92583d4ee2d9e89",
+      "lines": null,
+      "name": "Ahmed Hamid",
+      "role": "BEX"
+    },
+    "ahmed.haridy@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "hash": "4663823af8e8bb07437be1ad14333a017a04ffb79dfbd7227f123fceb50331a0",
+      "lines": [
+        "GIT-III"
+      ],
+      "name": "Ahmed Abdelmoneim Abdelhamid Haridy",
+      "role": "Line Manager"
+    },
+    "ahmed.shokry@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "hash": "b3e2f447040756d78c75043e7085f419da0accf4215fdff6877f9395a970f025",
+      "lines": [
+        "CVM-I",
+        "CVM-II",
+        "ORTHO-I",
+        "ORTHO-II",
+        "PEDIA"
+      ],
+      "name": "Ahmed Shoukry",
+      "role": "BU Manager"
+    },
+    "amr.aziz@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "hash": "fc08c527fe752f1ff9235c0101b7a39be3d0906237d4afdc4f01d149b3698644",
+      "lines": [
+        "ORTHO-I"
+      ],
+      "name": "Amr Abdelaziz Mostafa Abdullah Ibrahim",
+      "role": "Line Manager"
+    },
+    "amr.khalifa@zeta-pharma.com": {
+      "bu": [
+        "CHC"
+      ],
+      "hash": "a1b8c4b4a50d77700a4050784f0df4cf8f4bb74fca9b4153a07983e254a11da9",
+      "lines": [
+        "CHC"
+      ],
+      "name": "Amr Khalifa",
+      "role": "BU Manager"
+    },
+    "hossam.salem@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "hash": "8fad539432af3a0eb00876884aed05ed22887959e08b2e6f22c82beccc09abb1",
+      "lines": [
+        "GIT-I",
+        "GIT-II",
+        "GIT-III",
+        "Derma",
+        "CNS"
+      ],
+      "name": "Hossam Salem",
+      "role": "BU Manager"
+    },
+    "hussien.elbanna@zeta-pharma.com": {
+      "bu": null,
+      "hash": "60c64e0e94d4dc501cba7430a158c660ccc4d61c5cdf6e793c93e9dc7e267fdb",
+      "lines": null,
+      "name": "Hussien Elbana",
+      "role": "VP"
+    },
+    "ibrahim.ghareeb@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "hash": "c37d6d92c2b29c477a69b6659c280af5c977ad7373fca1d2018f86a61aea51d9",
+      "lines": [
+        "PEDIA"
+      ],
+      "name": "Ibrahim Gharib Gharib Aly",
+      "role": "Line Manager"
+    },
+    "kamal.allam@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "hash": "88c10880b2a4cde611746c0c8577f0087ceaa7ad0d074fee64c6e15af722dc81",
+      "lines": [
+        "DIAB-I",
+        "DIAB-II",
+        "DIAB-III",
+        "DIAB-IV"
+      ],
+      "name": "Kamal Allam",
+      "role": "BU Manager"
+    },
+    "mahmoud.abdelaziz@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "hash": "5a76e836c48c381d3d359fbd40adb50e6750f5fe0951f6226ec9d938182958ca",
+      "lines": [
+        "DIAB-III"
+      ],
+      "name": "Mahmoud Abdelaziz Elsayed Mohamed",
+      "role": "Line Manager"
+    },
+    "mahmoud.mokhtar@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "hash": "f08cce582b1bded7e6bdd455c97c1a5d883f984ba9e530914e4c108e385ffc6b",
+      "lines": [
+        "DIAB-IV"
+      ],
+      "name": "Mahmoud Mokhtar Elsayed Mohamed",
+      "role": "Line Manager"
+    },
+    "mina.magdy@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "hash": "15a30cb24c0344d37be3b18d8ce8fe9cd2b5a78b0fe2c4b446cd1fbf31835048",
+      "lines": [
+        "DIAB-II"
+      ],
+      "name": "Mina Magdy Zekry Metry",
+      "role": "Line Manager"
+    },
+    "mohamed.elkerdawy@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "hash": "79479bbce3170a57d32e1dac470d0ba16316880c148bb24bdac1b42db27025c0",
+      "lines": [
+        "CVM-I"
+      ],
+      "name": "Mohamed Abdullah Abdelmoula Abdelrahman Elkerdawy",
+      "role": "Line Manager"
+    },
+    "mohamed.fekry@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "hash": "803fe9ae89f65f3b6848f81f573fc62e171639cb1a31f6cf82e9102dc505be32",
+      "lines": [
+        "CNS"
+      ],
+      "name": "Mohamed Fekry Reyad Aly",
+      "role": "Line Manager"
+    },
+    "mohamed.shaban@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "hash": "fbfcba7db5464ed4351b324a678c2c9e294397222042513745358d38b798cf94",
+      "lines": [
+        "ORTHO-II"
+      ],
+      "name": "Mohamed Sayed Shaaban Mohamed Toma",
+      "role": "Line Manager"
+    },
+    "mohamed.taher@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "hash": "143223254af3079cd40d3cb44bca732b8356d6aad707e1f3905ab9634fd9fba8",
+      "lines": [
+        "CVM-II"
+      ],
+      "name": "Mohamed Taher Mohamed Lotfy Ahmed",
+      "role": "Line Manager"
+    },
+    "mohammed.bakr@zeta-pharma.com": {
+      "bu": null,
+      "hash": "a4d35b10a4aa23814f526d9b82a45814e781eb08fad855f3b4110b4e8f9c88ea",
+      "lines": null,
+      "name": "Mohamed Bakr",
+      "role": "CEO"
+    },
+    "mostafa.elkhateeb@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "hash": "17c12ba957f22fa55b793d6af6d10eb9de36fed8a64a8763012b22e480f5f7df",
+      "lines": [
+        "DIAB-I"
+      ],
+      "name": "Mostafa Mahmoud Mohamed Hassan",
+      "role": "Line Manager"
+    },
+    "nader.khaled@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "hash": "8308cf5820dc7140ae2fdcab18bcce0867ce2cc6fceaa7eaa078468d74b9c24c",
+      "lines": [
+        "GIT-II"
+      ],
+      "name": "Nader Ahmed Khaled Mohamed",
+      "role": "Line Manager"
+    },
+    "youssef.bakr@zeta-pharma.com": {
+      "bu": null,
+      "hash": "1ded3bcaca0e5d84e73f06e0eaf9d323c66c42473a523f0cff49017415c6f3d1",
+      "lines": null,
+      "name": "Youssef Baker",
+      "role": "Admin"
+    }
+  }
+}
