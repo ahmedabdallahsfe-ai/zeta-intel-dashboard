@@ -456,7 +456,8 @@
     const fillRatePct = scoped.vacancyRatePct !== null ? 100 - scoped.vacancyRatePct : null;
 
     let rankInfo, rankUnit;
-    if (line === "All" && !isBuRestricted()) {
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", b, null);
@@ -471,15 +472,17 @@
         const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, l);
         vals[l] = (r && r.ok && r.vacancyRatePct !== null) ? r.vacancyRatePct : null;
       });
-      rankInfo = rank(vals, "asc")[line];
+      const rankKey = activeLine || line;
+      rankInfo = rank(vals, "asc")[rankKey];
       rankUnit = "Lines within " + bu;
     }
 
     const refEntry = sfeReferenceEntry(bu, line, summaries);
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
 
     return {
       kpiId: "sfe", name: "Sales Force Health",
-      mainValue: fmtInt(scoped.headcountTotal), mainValueSub: "Total Manpower · Active " + fmtInt(scoped.headcountActive) + " · Vacant " + fmtInt(scoped.headcountVacant) + (line !== "All" ? " · " + line : ""),
+      mainValue: fmtInt(scoped.headcountTotal), mainValueSub: "Total Manpower · Active " + fmtInt(scoped.headcountActive) + " · Vacant " + fmtInt(scoped.headcountVacant) + (activeLineLabel ? " · " + activeLineLabel : ""),
       performance: { target: "100% Filled", achievementPct: fmtPct1(fillRatePct), variance: fmtSignedPts(scoped.vacancyRatePct !== null ? -scoped.vacancyRatePct : null) + " vacancy" },
       comparison: refEntry ? [refEntry] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,

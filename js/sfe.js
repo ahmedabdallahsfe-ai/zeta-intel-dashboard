@@ -182,6 +182,7 @@
 
       let total = 0, active = 0, vacant = 0;
       vacancyByLine.forEach(row => {
+        if (window.AUTH && !window.AUTH.isLineAllowed(row.line)) return;
         const rowCanon = window.SEMANTIC.normalizeLine(row.line);
         if (window.SEMANTIC.lineToBU(row.line) !== bu) return;
         if (line && rowCanon !== line) return;
