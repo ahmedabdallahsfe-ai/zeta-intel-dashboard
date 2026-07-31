@@ -119,6 +119,21 @@ def clean(s):
     return re.sub(r'\s+', ' ', str(s).replace('\xa0', ' ')).strip()
 
 
+# Mirrors js/semantic-model.js's LINE_SYNONYMS (2026-07-31, added for the
+# per-customer "Line" column) -- only NEUROSCIENCE needs remapping to match
+# the canonical spelling the dashboard displays everywhere else (IQVIA calls
+# it CNS). "Derma" already matches CANONICAL_LINE_TO_BU's casing at the
+# source, so no synonym entry is needed for it here.
+LINE_SYNONYMS = {'NEUROSCIENCE': 'CNS'}
+
+
+def canon_line(raw):
+    if raw is None:
+        return raw
+    s = clean(raw)
+    return LINE_SYNONYMS.get(s, s)
+
+
 def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
                item_value_by_bu, item_customers_by_bu, bu_customers):
     """Scan one sheet's rows into the shared aggregation structures (all
@@ -159,7 +174,8 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
         if cid not in cust:
             cust[cid] = {'name': row[ci_cname], 'months': set(), 'items': set(),
                          'value': 0.0, 'qty': 0.0, 'txn': 0, 'bus': set(),
-                         'itemValueByBU': defaultdict(lambda: defaultdict(float))}
+                         'itemValueByBU': defaultdict(lambda: defaultdict(float)),
+                         'monthsByBU': defaultdict(set), 'linesByBU': defaultdict(set)}
         c = cust[cid]
         m = str(row[ci_date])[:7]
         c['months'].add(m)
@@ -175,6 +191,13 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
             item_value_by_bu[cluster][bu][item] += row[ci_val] or 0
             item_customers_by_bu[cluster][bu][item].add(cid)
             c['itemValueByBU'][bu][item] += row[ci_val] or 0
+            # Per-BU months/lines (2026-07-31): lets the Customer Health
+            # grid show Status/Frequency/Basket/Distinct SKUs/Value scoped
+            # to ONLY the selected BU, not the customer's global activity
+            # across all 4 BUs -- see main()'s customer_rows loop below,
+            # which turns these into byBU[bu].{bridgeSegment,...}.
+            c['monthsByBU'][bu].add(m)
+            c['linesByBU'][bu].add(canon_line(row[ci_line]))
 
         item_value[cluster][item] += row[ci_val] or 0
         item_customers[cluster][item].add(cid)
@@ -290,6 +313,27 @@ def main():
                 break
         core_set = set(core_items)
 
+        # Per-BU core-SKU sets (2026-07-31): unlike skuPenetrationByBU's
+        # 'inCore' flag (which deliberately stays cluster-wide, see the
+        # 2026-07-28 comment below on sku_penetration_by_bu), the per-
+        # customer Basket segment on the grid needs a per-BU "top items
+        # covering 80% of BU value" definition -- Ahmed's explicit request
+        # ("basket... should be related to chosen bu") means a customer's
+        # Basket status when viewing DIAB must reflect DIAB's own core
+        # list, not the cluster's blended one.
+        core_set_by_bu = {}
+        for bu_name, bu_item_vals in item_value_by_bu[cluster_name].items():
+            bu_items_sorted_for_core = sorted(bu_item_vals.items(), key=lambda kv: -kv[1])
+            bu_total_val = sum(v for _, v in bu_items_sorted_for_core) or 1
+            bu_cum = 0.0
+            bu_core_items = []
+            for name, v in bu_items_sorted_for_core:
+                bu_cum += v
+                bu_core_items.append(name)
+                if bu_cum / bu_total_val >= 0.80:
+                    break
+            core_set_by_bu[bu_name] = set(bu_core_items)
+
         basket = {'full': 0, 'partial': 0, 'none': 0}
         customer_rows = []
         for cid, c in cust.items():
@@ -332,13 +376,64 @@ def main():
                 for bu_name, item_vals in c['itemValueByBU'].items()
             }
 
+            # Per-BU customer stats (2026-07-31, "distinct skus should refer
+            # to chosen bu and status/frequency/basket/value should be
+            # related to chosen bu"): mirrors the exact same New/Lost/
+            # Retained/Reactivated and Frequent/Occasional/One-time logic
+            # above, but scoped to ONLY the months/items this customer
+            # transacted under each individual BU (monthsByBU/itemValueByBU),
+            # instead of their combined activity across all 4 BUs. The grid
+            # (js/executive.js) and getClusterCustomerHealth() (js/sales.js)
+            # overlay these onto the row when a specific BU is selected;
+            # the fields above stay as the All-BU/global fallback.
+            by_bu = {}
+            for bu_name in c['bus']:
+                bu_months = c['monthsByBU'].get(bu_name, set())
+                bu_in_latest = latest_m in bu_months
+                bu_in_prev = prev_m in bu_months
+                bu_in_earlier = any(m in bu_months for m in earlier_months)
+                if bu_in_latest and not bu_in_prev and not bu_in_earlier:
+                    bu_bridge_seg = 'New'
+                elif bu_in_prev and not bu_in_latest:
+                    bu_bridge_seg = 'Lost'
+                elif bu_in_latest and bu_in_prev:
+                    bu_bridge_seg = 'Retained'
+                elif bu_in_latest and not bu_in_prev and bu_in_earlier:
+                    bu_bridge_seg = 'Reactivated'
+                else:
+                    bu_bridge_seg = 'Inactive'
+
+                bu_freq_n = len(bu_months)
+                bu_freq_seg = 'Frequent' if bu_freq_n >= 4 else ('Occasional' if bu_freq_n >= 2 else 'One-time')
+
+                bu_items_set = set(c['itemValueByBU'].get(bu_name, {}).keys())
+                bu_core = core_set_by_bu.get(bu_name, set())
+                bu_bought_core = bu_items_set & bu_core
+                bu_pct = len(bu_bought_core) / len(bu_core) if bu_core else 0
+                if bu_pct >= 0.80:
+                    bu_basket_seg = 'Full'
+                elif bu_pct > 0:
+                    bu_basket_seg = 'Partial'
+                else:
+                    bu_basket_seg = 'None of core'
+
+                by_bu[bu_name] = {
+                    'monthsActive': bu_freq_n,
+                    'distinctSkus': len(bu_items_set),
+                    'value': round(sum(c['itemValueByBU'].get(bu_name, {}).values()), 2),
+                    'bridgeSegment': bu_bridge_seg,
+                    'frequencySegment': bu_freq_seg,
+                    'basketSegment': bu_basket_seg,
+                    'lines': sorted(c['linesByBU'].get(bu_name, set())),
+                }
+
             customer_rows.append({
                 'id': cid, 'name': clean(c['name']), 'monthsActive': freqN,
                 'bridgeSegment': bridge_seg, 'frequencySegment': freq_seg,
                 'basketSegment': seg.capitalize() if seg != 'none' else 'None of core',
                 'distinctSkus': len(c['items']), 'value': round(c['value'], 2),
                 'qty': round(c['qty'], 2), 'txn': c['txn'], 'bus': sorted(c['bus']),
-                'itemsByBU': items_by_bu,
+                'itemsByBU': items_by_bu, 'byBU': by_bu,
             })
 
         sku_penetration = [
@@ -374,6 +469,8 @@ def main():
             'basketBuckets': basket,
             'coreSkuCount': len(core_items),
             'totalSkuCount': len(items_sorted),
+            'coreSkuCountByBU': {bu: len(s) for bu, s in core_set_by_bu.items()},
+            'totalSkuCountByBU': {bu: len(item_value_by_bu[cluster_name][bu]) for bu in item_value_by_bu[cluster_name]},
             'skuPenetration': sku_penetration,
             'skuPenetrationByBU': sku_penetration_by_bu,
             'customers': customer_rows,

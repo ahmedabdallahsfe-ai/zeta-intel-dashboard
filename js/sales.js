@@ -3319,6 +3319,16 @@
      * see the cache's per-customer `bus` field). Pass bu=null/"All" for
      * the company-wide, all-BU figure.
      *
+     * PER-CUSTOMER FIELDS ARE ALSO BU-SCOPED WHEN `bu` IS SET (2026-07-31):
+     * each returned customer row's monthsActive/distinctSkus/value/
+     * bridgeSegment/frequencySegment/basketSegment/lines/items reflect
+     * ONLY that BU's transactions -- not the customer's blended activity
+     * across all 4 BUs -- via the cache's per-customer `byBU` field (see
+     * etl/build_customer_analytics_cache.py). The summary bridge/
+     * frequencyBuckets/basketBuckets counts below are tallied from these
+     * same BU-scoped per-customer segments, so the summary bars and the
+     * grid rows are always consistent with each other.
+     *
      * SKU penetration is ALSO BU-scoped when `bu` is set (2026-07-28): the
      * returned `skuPenetration` list and its penetration %s reflect only
      * that BU's purchases and that BU's customer count as the denominator
@@ -3340,17 +3350,32 @@
       const scopedCustomers = wantBU
         ? clusterData.customers.filter(c => c.bus && c.bus.indexOf(wantBU) >= 0)
         : clusterData.customers;
-      // Per-BU item list (2026-07-30, "actual item/SKU related the BU
-      // chosen"): when a specific BU is selected, attach that customer's own
-      // top-20-by-value SKU names bought under THAT BU (etl/
-      // build_customer_analytics_cache.py's itemsByBU, added same date) --
-      // lets the full customer-list grid show what a customer actually
-      // bought instead of just their Business Units tag. Falls back to an
-      // empty list (not an error) for caches from before this field existed,
-      // so this stays safe to ship ahead of the next customer-analytics
-      // ETL run.
+      // Per-BU item list + per-BU customer stats (2026-07-30 / 2026-07-31,
+      // "distinct skus should refer to chosen bu and status/frequency/
+      // basket/value should be related to chosen bu"): when a specific BU
+      // is selected, overlay that customer's own SKU list, months-active,
+      // distinct-SKU count, value, Status/Frequency/Basket segments, and
+      // lines touched -- all scoped to ONLY that BU (etl/
+      // build_customer_analytics_cache.py's itemsByBU + byBU, added
+      // 2026-07-30/31) -- instead of the customer's blended activity across
+      // all 4 BUs. Falls back to the pre-existing global fields (and an
+      // empty items/lines list) for caches built before byBU existed, so
+      // this stays safe to ship ahead of the next customer-analytics ETL
+      // run -- no throw, just a less-scoped (but still correct) number.
       const customers = wantBU
-        ? scopedCustomers.map(c => Object.assign({}, c, { items: (c.itemsByBU && c.itemsByBU[wantBU]) || [] }))
+        ? scopedCustomers.map(c => {
+            const buStats = (c.byBU && c.byBU[wantBU]) || null;
+            return Object.assign({}, c, {
+              items: (c.itemsByBU && c.itemsByBU[wantBU]) || [],
+              lines: (buStats && buStats.lines) || [],
+              monthsActive: buStats ? buStats.monthsActive : c.monthsActive,
+              distinctSkus: buStats ? buStats.distinctSkus : c.distinctSkus,
+              value: buStats ? buStats.value : c.value,
+              bridgeSegment: buStats ? buStats.bridgeSegment : c.bridgeSegment,
+              frequencySegment: buStats ? buStats.frequencySegment : c.frequencySegment,
+              basketSegment: buStats ? buStats.basketSegment : c.basketSegment,
+            });
+          })
         : scopedCustomers;
 
       // Recompute every aggregate from the (possibly BU-narrowed) customer
@@ -3380,8 +3405,17 @@
         bridge: bridge,
         frequencyBuckets: frequencyBuckets,
         basketBuckets: basketBuckets,
-        coreSkuCount: clusterData.coreSkuCount,
-        totalSkuCount: clusterData.totalSkuCount,
+        // Core/total SKU counts (2026-07-31): prefer the BU-scoped counts
+        // (etl's coreSkuCountByBU/totalSkuCountByBU) so the "Basket Depth"
+        // header text stays consistent with the now-BU-scoped basketSegment
+        // values above -- falls back to the cluster-wide count for "All" or
+        // for caches built before these fields existed.
+        coreSkuCount: (wantBU && clusterData.coreSkuCountByBU && clusterData.coreSkuCountByBU[wantBU] != null)
+          ? clusterData.coreSkuCountByBU[wantBU]
+          : clusterData.coreSkuCount,
+        totalSkuCount: (wantBU && clusterData.totalSkuCountByBU && clusterData.totalSkuCountByBU[wantBU] != null)
+          ? clusterData.totalSkuCountByBU[wantBU]
+          : clusterData.totalSkuCount,
         // BU-scoped penetration (2026-07-28): use the selected BU's own SKU
         // list + denominator (customers active under that BU) when available;
         // fall back to the company-wide list for "All" or for any BU the ETL

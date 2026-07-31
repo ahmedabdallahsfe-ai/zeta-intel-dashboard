@@ -1321,33 +1321,41 @@
   }
 
   function mountClusterHealthGrid(clusterName, health) {
-    // Items-instead-of-BU column (2026-07-30, "actual item/SKU related the
-    // BU chosen"): once a specific BU is selected, "Business Units" is a
-    // near-constant single-value column (every row already belongs to that
-    // BU by construction -- see getClusterCustomerHealth's bu-narrowing) and
-    // tells you nothing new. Swap it for the actual SKU names this customer
-    // bought under that BU instead (health.customers[].items, per-BU top-20
-    // by value -- see js/sales.js's getClusterCustomerHealth and
-    // etl/build_customer_analytics_cache.py's itemsByBU). Stays on
-    // "Business Units" for the All-BU view, where comparing which BUs a
-    // customer touches is still the meaningful question. Caches built
-    // before itemsByBU existed simply show an empty Items cell rather than
-    // erroring.
+    // Line column + SKU column (2026-07-31, "distinct skus should refer to
+    // chosen bu and status/frequency/basket/value should be related to
+    // chosen bu, add column for line and column for sku"): every
+    // status/frequency/basket/distinct-SKU/value cell below now comes
+    // pre-scoped to the selected BU from getClusterCustomerHealth() (see
+    // js/sales.js and etl/build_customer_analytics_cache.py's byBU) -- no
+    // formatting change needed here for those, the values themselves are
+    // already correct. Two new/changed columns:
+    //  - "Line": which line(s) within the chosen BU this customer actually
+    //    bought under (health.customers[].lines, BU-scoped). Blank for the
+    //    All-BU view, where "line" isn't a single well-defined answer.
+    //  - "SKU": the former "Items Purchased (BU)" column, renamed and moved
+    //    next to Distinct SKUs so the count and the actual names sit
+    //    together. Still BU-scoped only (health.customers[].items, per-BU
+    //    top-20 by value) -- empty for the All-BU view, same as before.
+    // "Business Units" stays as its own always-visible column (even when
+    // BU-scoped) since it's still useful to see which OTHER BUs a customer
+    // also buys in, which "Line" alone doesn't show.
     const isBuScoped = health.bu && health.bu !== "All";
-    const lastColumn = isBuScoped
-      ? { key: "items", label: "Items Purchased (" + health.bu + ")", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" }
-      : { key: "bus", label: "Business Units", format: v => Array.isArray(v) ? v.join(", ") : v };
+    const lineColumn = { key: "lines", label: "Line", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
+    const skuColumn = { key: "items", label: isBuScoped ? "SKU (" + health.bu + ")" : "SKU", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
+    const businessUnitsColumn = { key: "bus", label: "Business Units", format: v => Array.isArray(v) ? v.join(", ") : v };
 
     global.DS.mountDataGrid("exec-cluster-health-grid", {
       columns: [
         { key: "name", label: "Customer Name" },
+        lineColumn,
         { key: "bridgeSegment", label: "Status" },
         { key: "frequencySegment", label: "Frequency" },
         { key: "basketSegment", label: "Basket" },
         { key: "monthsActive", label: "Months Active", align: "right" },
         { key: "distinctSkus", label: "Distinct SKUs", align: "right" },
+        skuColumn,
         { key: "value", label: "Value (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
-        lastColumn,
+        businessUnitsColumn,
       ],
       rows: health.customers || [],
       pageSize: 25,
@@ -1370,13 +1378,16 @@
   function exportClusterCustomersCSV(clusterName, health) {
     const isBuScoped = health.bu && health.bu !== "All";
     const rows = health.customers || [];
-    const header = ["Customer Name", "Status", "Frequency", "Basket", "Months Active", "Distinct SKUs", "Value (EGP)",
-      isBuScoped ? "Items Purchased (" + health.bu + ")" : "Business Units"];
+    // Column set mirrors mountClusterHealthGrid() (2026-07-31): Line added,
+    // SKU renamed/repositioned next to Distinct SKUs, Business Units always
+    // included. See that function's comment for why.
+    const header = ["Customer Name", "Line", "Status", "Frequency", "Basket", "Months Active", "Distinct SKUs",
+      isBuScoped ? "SKU (" + health.bu + ")" : "SKU", "Value (EGP)", "Business Units"];
     const csvRows = rows.map(c => {
-      const lastCell = isBuScoped
-        ? ((c.items && c.items.length) ? c.items.join("; ") : "")
-        : ((c.bus && c.bus.length) ? c.bus.join(", ") : "");
-      return [c.name, c.bridgeSegment, c.frequencySegment, c.basketSegment, c.monthsActive, c.distinctSkus, Math.round(c.value), lastCell]
+      const lineCell = (c.lines && c.lines.length) ? c.lines.join("; ") : "";
+      const skuCell = (c.items && c.items.length) ? c.items.join("; ") : "";
+      const busCell = (c.bus && c.bus.length) ? c.bus.join(", ") : "";
+      return [c.name, lineCell, c.bridgeSegment, c.frequencySegment, c.basketSegment, c.monthsActive, c.distinctSkus, skuCell, Math.round(c.value), busCell]
         .map(v => '"' + String(v === undefined || v === null ? "" : v).replace(/"/g, '""') + '"')
         .join(",");
     });
