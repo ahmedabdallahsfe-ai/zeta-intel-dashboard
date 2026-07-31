@@ -7596,6 +7596,9 @@ function renderTargetAchievement() {
 
 // Returns a Set of allowed lookup indices for the given dim, or null (= no restriction)
 function getUserAllowedIndices(dim) {
+  if (window.USER_VISIBLE && window.USER_VISIBLE[dim]) {
+    return window.USER_VISIBLE[dim];
+  }
   if(!CURRENT_USER) return null;
   if(dim === 'bu' && CURRENT_USER.bu && CURRENT_USER.bu.length) {
     var s = new Set();

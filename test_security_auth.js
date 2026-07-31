@@ -83,7 +83,8 @@ const filesInOrder = [
   'js/tables.js',
   'js/filters.js',
   'js/exporter.js',
-  'js/app.js'
+  'js/app.js',
+  'js/iqvia.js'
 ];
 
 // Load and evaluate files
@@ -144,11 +145,27 @@ async function runTests() {
   const gitLogin = await window.AUTH.login(credentials.git.email, credentials.git.password);
   assert(gitLogin.ok === true, "GIT Line Manager login");
   if (gitLogin.ok) {
+    window.CURRENT_USER = window.AUTH.getValidSessionUser();
+    window.loadData();
     const scope = window.AUTH.getScope();
     assert(window.AUTH.isBuAllowed('GIT') === true, "GIT manager can view GIT");
     assert(window.AUTH.isLineAllowed('GIT-II') === true, "GIT manager can view GIT II line");
     assert(window.AUTH.isBuAllowed('DIAB') === false, "GIT manager CANNOT view Diabetes BU");
     assert(window.AUTH.isLineAllowed('DIAB-IV') === false, "GIT manager CANNOT view Diabetes lines");
+
+    // Verify that the dropdown list filters are restricted
+    const dm1Allowed = window.getUserAllowedIndices('dm1');
+    assert(dm1Allowed !== null, "GIT manager has restricted DM1 dropdown list");
+    if (dm1Allowed) {
+      const diabIdx = window.LOOKUPS.dm1s.indexOf('A10P3 SGLT2 INH & BIGUAN COMBS');
+      if (diabIdx >= 0) {
+        assert(dm1Allowed.has(diabIdx) === false, "GIT manager filter list does NOT contain Diabetes market");
+      }
+      const gitIdx = window.LOOKUPS.dm1s.indexOf('P-CAB_MKT');
+      if (gitIdx >= 0) {
+        assert(dm1Allowed.has(gitIdx) === true, "GIT manager filter list contains his related GIT market");
+      }
+    }
   }
 
   // 5. Line Manager login (Cluster/CVM-I, e.g. Mohamed Elkerdawy)
