@@ -1320,23 +1320,35 @@
     `;
   }
 
+  // Shared date formatter for the Last Purchase column/CSV cell
+  // (2026-07-31): source dates arrive as ISO strings from the ETL
+  // (etl/build_customer_analytics_cache.py's fmt_date()); render as
+  // "15 Jun 2026" instead of a raw ISO string.
+  function formatLastPurchase(v) {
+    if (!v) return "—";
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
   function mountClusterHealthGrid(clusterName, health) {
-    // SKU column (2026-07-31, "distinct skus should count sku within bu
-    // only and total value for customer should refer to bu chosen only
-    // show skus in rows... remove column of line and bu"): every
-    // status/frequency/basket/distinct-SKU/value cell below is already
-    // scoped to the selected BU by getClusterCustomerHealth() (see
-    // js/sales.js and etl/build_customer_analytics_cache.py's byBU) -- no
-    // formatting change needed for those. Two things changed here:
-    //  - "Line" and "Business Units" columns REMOVED per explicit request
-    //    (both were added 2026-07-30/31 and are no longer wanted).
-    //  - "SKU" now lists each item on its own line inside the cell (a
-    //    numbered, stacked list via the grid's `wrap` flag -- see
-    //    js/components.js's mountDataGrid) instead of one comma/semicolon
-    //    run-on line. Still BU-scoped only (health.customers[].items,
-    //    per-BU top-20 by value) -- empty for the All-BU view, same as
-    //    before.
+    // Brick / Position / Last Purchase (2026-07-31, "give brick name
+    // position name only... add column of last time purchase"): sourced
+    // from the 'Brick'/'Position' columns confirmed present in the raw
+    // sales source, and from each customer's most recent transaction date
+    // -- both BU-scoped (health.customers[].bricks/positions/lastPurchase,
+    // see js/sales.js and the ETL's byBU). Blank for the All-BU view,
+    // where there's no single well-defined brick/position/last-purchase
+    // the way there's a combined value total.
+    //
+    // "Line"/"Business Units" columns stay REMOVED (2026-07-31 request).
+    // SKU still lists each item on its own line inside the cell (numbered,
+    // stacked, via the grid's `wrap` flag -- see js/components.js's
+    // mountDataGrid) -- BU-scoped only, empty for the All-BU view.
     const isBuScoped = health.bu && health.bu !== "All";
+    const brickColumn = { key: "bricks", label: "Brick", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
+    const positionColumn = { key: "positions", label: "Position", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
+    const lastPurchaseColumn = { key: "lastPurchase", label: "Last Purchase", format: formatLastPurchase };
     const skuColumn = {
       key: "items",
       label: isBuScoped ? "SKU (" + health.bu + ")" : "SKU",
@@ -1347,7 +1359,10 @@
     global.DS.mountDataGrid("exec-cluster-health-grid", {
       columns: [
         { key: "name", label: "Customer Name" },
+        brickColumn,
+        positionColumn,
         { key: "bridgeSegment", label: "Status" },
+        lastPurchaseColumn,
         { key: "frequencySegment", label: "Frequency" },
         { key: "basketSegment", label: "Basket" },
         { key: "monthsActive", label: "Months Active", align: "right" },
@@ -1378,11 +1393,16 @@
   function exportClusterCustomersCSV(clusterName, health) {
     const isBuScoped = health.bu && health.bu !== "All";
     const rows = health.customers || [];
-    const header = ["Customer Name", "Status", "Frequency", "Basket", "Months Active", "Distinct SKUs",
-      isBuScoped ? "SKU (" + health.bu + ")" : "SKU", "Value (EGP)"];
+    // Column set mirrors mountClusterHealthGrid() (2026-07-31): Brick,
+    // Position, Last Purchase added -- see that function's comment.
+    const header = ["Customer Name", "Brick", "Position", "Status", "Last Purchase", "Frequency", "Basket",
+      "Months Active", "Distinct SKUs", isBuScoped ? "SKU (" + health.bu + ")" : "SKU", "Value (EGP)"];
     const csvRows = rows.map(c => {
+      const brickCell = (c.bricks && c.bricks.length) ? c.bricks.join("; ") : "";
+      const positionCell = (c.positions && c.positions.length) ? c.positions.join("; ") : "";
       const skuCell = (c.items && c.items.length) ? c.items.map((name, i) => (i + 1) + ". " + name).join("\n") : "";
-      return [c.name, c.bridgeSegment, c.frequencySegment, c.basketSegment, c.monthsActive, c.distinctSkus, skuCell, Math.round(c.value)]
+      return [c.name, brickCell, positionCell, c.bridgeSegment, formatLastPurchase(c.lastPurchase), c.frequencySegment,
+        c.basketSegment, c.monthsActive, c.distinctSkus, skuCell, Math.round(c.value)]
         .map(v => '"' + String(v === undefined || v === null ? "" : v).replace(/"/g, '""') + '"')
         .join(",");
     });

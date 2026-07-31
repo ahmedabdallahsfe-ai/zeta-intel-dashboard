@@ -134,6 +134,16 @@ def canon_line(raw):
     return LINE_SYNONYMS.get(s, s)
 
 
+def fmt_date(d):
+    """ISO-format a date/datetime value for JSON output; None-safe. Source
+    dates come back from python_calamine as datetime.date/datetime objects
+    (see the 'sample row' inspection done 2026-07-31 to confirm the Brick/
+    Position columns), which aren't directly JSON-serializable."""
+    if d is None:
+        return None
+    return d.isoformat() if hasattr(d, 'isoformat') else str(d)
+
+
 def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
                item_value_by_bu, item_customers_by_bu, bu_customers):
     """Scan one sheet's rows into the shared aggregation structures (all
@@ -156,6 +166,15 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
         idx['Date'], idx['Line'], idx['SubType'], idx['CustomerID'], idx['CustomerName'],
         idx['Item'], idx['Quantity'], idx['Value'], idx['IsTender']
     )
+    # Brick/Position (2026-07-31, "give brick name position name only"):
+    # OPTIONAL, not required -- both TOTAL_SALES_2026.xlsx and june.xlsx
+    # were confirmed (2026-07-31) to carry 'Brick' and 'Position' columns,
+    # but treating them as optional here (rather than adding to `required`
+    # above) means a future source variant missing them degrades to an
+    # empty Brick/Position on the grid instead of the whole sheet being
+    # skipped.
+    ci_brick = idx.get('Brick')
+    ci_position = idx.get('Position')
 
     scanned = 0
     for row in rows_iter:
@@ -175,7 +194,9 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
             cust[cid] = {'name': row[ci_cname], 'months': set(), 'items': set(),
                          'value': 0.0, 'qty': 0.0, 'txn': 0, 'bus': set(),
                          'itemValueByBU': defaultdict(lambda: defaultdict(float)),
-                         'monthsByBU': defaultdict(set), 'linesByBU': defaultdict(set)}
+                         'monthsByBU': defaultdict(set), 'linesByBU': defaultdict(set),
+                         'bricksByBU': defaultdict(set), 'positionsByBU': defaultdict(set),
+                         'lastPurchase': None, 'lastPurchaseByBU': {}}
         c = cust[cid]
         m = str(row[ci_date])[:7]
         c['months'].add(m)
@@ -184,6 +205,13 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
         c['value'] += row[ci_val] or 0
         c['qty'] += row[ci_qty] or 0
         c['txn'] += 1
+        # Last purchase (2026-07-31, "add column of last time purchase"):
+        # tracked globally here (all-BU fallback) regardless of whether the
+        # row's line resolves to an in-scope BU -- the BU-scoped version is
+        # tracked separately below, inside the `if bu:` block.
+        raw_date = row[ci_date]
+        if raw_date is not None and (c['lastPurchase'] is None or raw_date > c['lastPurchase']):
+            c['lastPurchase'] = raw_date
         bu = LINE_TO_BU.get(row[ci_line])
         if bu:
             c['bus'].add(bu)
@@ -191,13 +219,21 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
             item_value_by_bu[cluster][bu][item] += row[ci_val] or 0
             item_customers_by_bu[cluster][bu][item].add(cid)
             c['itemValueByBU'][bu][item] += row[ci_val] or 0
-            # Per-BU months/lines (2026-07-31): lets the Customer Health
-            # grid show Status/Frequency/Basket/Distinct SKUs/Value scoped
-            # to ONLY the selected BU, not the customer's global activity
-            # across all 4 BUs -- see main()'s customer_rows loop below,
-            # which turns these into byBU[bu].{bridgeSegment,...}.
+            # Per-BU months/lines/bricks/positions/last-purchase
+            # (2026-07-31): lets the Customer Health grid show Status/
+            # Frequency/Basket/Distinct SKUs/Value/Last Purchase/Brick/
+            # Position scoped to ONLY the selected BU, not the customer's
+            # global activity across all 4 BUs -- see main()'s
+            # customer_rows loop below, which turns these into
+            # byBU[bu].{bridgeSegment,...}.
             c['monthsByBU'][bu].add(m)
             c['linesByBU'][bu].add(canon_line(row[ci_line]))
+            if ci_brick is not None and row[ci_brick]:
+                c['bricksByBU'][bu].add(clean(row[ci_brick]))
+            if ci_position is not None and row[ci_position]:
+                c['positionsByBU'][bu].add(clean(row[ci_position]))
+            if raw_date is not None and (bu not in c['lastPurchaseByBU'] or raw_date > c['lastPurchaseByBU'][bu]):
+                c['lastPurchaseByBU'][bu] = raw_date
 
         item_value[cluster][item] += row[ci_val] or 0
         item_customers[cluster][item].add(cid)
@@ -425,6 +461,18 @@ def main():
                     'frequencySegment': bu_freq_seg,
                     'basketSegment': bu_basket_seg,
                     'lines': sorted(c['linesByBU'].get(bu_name, set())),
+                    # Brick/Position (2026-07-31, "give brick name position
+                    # name only"): which brick(s)/position(s) this customer
+                    # was actually transacted under, within this BU only --
+                    # sourced directly from the 'Brick'/'Position' columns
+                    # confirmed present in both source files. A customer can
+                    # show more than one of each if territory/rep coverage
+                    # changed within the period.
+                    'bricks': sorted(c['bricksByBU'].get(bu_name, set())),
+                    'positions': sorted(c['positionsByBU'].get(bu_name, set())),
+                    # Last Purchase (2026-07-31, "add column of last time
+                    # purchase"): most recent transaction date under THIS BU.
+                    'lastPurchase': fmt_date(c['lastPurchaseByBU'].get(bu_name)),
                 }
 
             customer_rows.append({
@@ -434,6 +482,7 @@ def main():
                 'distinctSkus': len(c['items']), 'value': round(c['value'], 2),
                 'qty': round(c['qty'], 2), 'txn': c['txn'], 'bus': sorted(c['bus']),
                 'itemsByBU': items_by_bu, 'byBU': by_bu,
+                'lastPurchase': fmt_date(c['lastPurchase']),
             })
 
         sku_penetration = [

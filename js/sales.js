@@ -3374,6 +3374,13 @@
               bridgeSegment: buStats ? buStats.bridgeSegment : c.bridgeSegment,
               frequencySegment: buStats ? buStats.frequencySegment : c.frequencySegment,
               basketSegment: buStats ? buStats.basketSegment : c.basketSegment,
+              // Brick/Position/Last Purchase (2026-07-31): BU-scoped only --
+              // no global fallback for bricks/positions (there's no
+              // meaningful "all-BU brick" the way there's an all-BU value
+              // total), empty for caches built before byBU existed.
+              bricks: (buStats && buStats.bricks) || [],
+              positions: (buStats && buStats.positions) || [],
+              lastPurchase: buStats ? buStats.lastPurchase : c.lastPurchase,
             });
           })
         : scopedCustomers;
