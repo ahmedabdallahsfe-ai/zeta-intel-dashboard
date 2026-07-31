@@ -1321,33 +1321,32 @@
   }
 
   function mountClusterHealthGrid(clusterName, health) {
-    // Line column + SKU column (2026-07-31, "distinct skus should refer to
-    // chosen bu and status/frequency/basket/value should be related to
-    // chosen bu, add column for line and column for sku"): every
-    // status/frequency/basket/distinct-SKU/value cell below now comes
-    // pre-scoped to the selected BU from getClusterCustomerHealth() (see
+    // SKU column (2026-07-31, "distinct skus should count sku within bu
+    // only and total value for customer should refer to bu chosen only
+    // show skus in rows... remove column of line and bu"): every
+    // status/frequency/basket/distinct-SKU/value cell below is already
+    // scoped to the selected BU by getClusterCustomerHealth() (see
     // js/sales.js and etl/build_customer_analytics_cache.py's byBU) -- no
-    // formatting change needed here for those, the values themselves are
-    // already correct. Two new/changed columns:
-    //  - "Line": which line(s) within the chosen BU this customer actually
-    //    bought under (health.customers[].lines, BU-scoped). Blank for the
-    //    All-BU view, where "line" isn't a single well-defined answer.
-    //  - "SKU": the former "Items Purchased (BU)" column, renamed and moved
-    //    next to Distinct SKUs so the count and the actual names sit
-    //    together. Still BU-scoped only (health.customers[].items, per-BU
-    //    top-20 by value) -- empty for the All-BU view, same as before.
-    // "Business Units" stays as its own always-visible column (even when
-    // BU-scoped) since it's still useful to see which OTHER BUs a customer
-    // also buys in, which "Line" alone doesn't show.
+    // formatting change needed for those. Two things changed here:
+    //  - "Line" and "Business Units" columns REMOVED per explicit request
+    //    (both were added 2026-07-30/31 and are no longer wanted).
+    //  - "SKU" now lists each item on its own line inside the cell (a
+    //    numbered, stacked list via the grid's `wrap` flag -- see
+    //    js/components.js's mountDataGrid) instead of one comma/semicolon
+    //    run-on line. Still BU-scoped only (health.customers[].items,
+    //    per-BU top-20 by value) -- empty for the All-BU view, same as
+    //    before.
     const isBuScoped = health.bu && health.bu !== "All";
-    const lineColumn = { key: "lines", label: "Line", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
-    const skuColumn = { key: "items", label: isBuScoped ? "SKU (" + health.bu + ")" : "SKU", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
-    const businessUnitsColumn = { key: "bus", label: "Business Units", format: v => Array.isArray(v) ? v.join(", ") : v };
+    const skuColumn = {
+      key: "items",
+      label: isBuScoped ? "SKU (" + health.bu + ")" : "SKU",
+      wrap: true,
+      format: v => Array.isArray(v) && v.length ? v.map((name, i) => (i + 1) + ". " + name).join("\n") : "—",
+    };
 
     global.DS.mountDataGrid("exec-cluster-health-grid", {
       columns: [
         { key: "name", label: "Customer Name" },
-        lineColumn,
         { key: "bridgeSegment", label: "Status" },
         { key: "frequencySegment", label: "Frequency" },
         { key: "basketSegment", label: "Basket" },
@@ -1355,7 +1354,6 @@
         { key: "distinctSkus", label: "Distinct SKUs", align: "right" },
         skuColumn,
         { key: "value", label: "Value (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
-        businessUnitsColumn,
       ],
       rows: health.customers || [],
       pageSize: 25,
@@ -1370,24 +1368,21 @@
   // away from the summary view this modal opens on by default -- easy to
   // miss. Builds the CSV straight from health.customers, independent of
   // the grid's search/sort state, so it works whether or not the user has
-  // ever switched to grid view. Same column set as the grid (items-by-BU
-  // when the modal is scoped to one BU, Business Units otherwise) and the
-  // same UTF-8-BOM fix as every other export in this app (2026-07-30,
-  // js/components.js/js/sales.js) so Arabic customer names open correctly
-  // in Excel instead of as mojibake.
+  // ever switched to grid view. Same column set as the grid (2026-07-31:
+  // Line/Business Units removed, SKU listed one-per-line same as the grid
+  // -- a quoted CSV field may contain embedded newlines per RFC4180, Excel
+  // renders it as a taller wrapped cell) and the same UTF-8-BOM fix as
+  // every other export in this app (2026-07-30, js/components.js/
+  // js/sales.js) so Arabic customer names open correctly in Excel instead
+  // of as mojibake.
   function exportClusterCustomersCSV(clusterName, health) {
     const isBuScoped = health.bu && health.bu !== "All";
     const rows = health.customers || [];
-    // Column set mirrors mountClusterHealthGrid() (2026-07-31): Line added,
-    // SKU renamed/repositioned next to Distinct SKUs, Business Units always
-    // included. See that function's comment for why.
-    const header = ["Customer Name", "Line", "Status", "Frequency", "Basket", "Months Active", "Distinct SKUs",
-      isBuScoped ? "SKU (" + health.bu + ")" : "SKU", "Value (EGP)", "Business Units"];
+    const header = ["Customer Name", "Status", "Frequency", "Basket", "Months Active", "Distinct SKUs",
+      isBuScoped ? "SKU (" + health.bu + ")" : "SKU", "Value (EGP)"];
     const csvRows = rows.map(c => {
-      const lineCell = (c.lines && c.lines.length) ? c.lines.join("; ") : "";
-      const skuCell = (c.items && c.items.length) ? c.items.join("; ") : "";
-      const busCell = (c.bus && c.bus.length) ? c.bus.join(", ") : "";
-      return [c.name, lineCell, c.bridgeSegment, c.frequencySegment, c.basketSegment, c.monthsActive, c.distinctSkus, skuCell, Math.round(c.value), busCell]
+      const skuCell = (c.items && c.items.length) ? c.items.map((name, i) => (i + 1) + ". " + name).join("\n") : "";
+      return [c.name, c.bridgeSegment, c.frequencySegment, c.basketSegment, c.monthsActive, c.distinctSkus, skuCell, Math.round(c.value)]
         .map(v => '"' + String(v === undefined || v === null ? "" : v).replace(/"/g, '""') + '"')
         .join(",");
     });

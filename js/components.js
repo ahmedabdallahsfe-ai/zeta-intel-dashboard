@@ -813,9 +813,19 @@
       const tbodyHtml = pageRows.length
         ? pageRows.map(row => {
             const cells = columns.map(c => {
-              const alignStyle = c.align ? ` style="text-align:${c.align}"` : "";
+              // wrap (2026-07-31, Customer Health grid's SKU column):
+              // opt-in per-column flag so a formatter can return a
+              // "\n"-joined multi-line string (e.g. one SKU name per line)
+              // and have it actually render as stacked lines instead of a
+              // run-on sentence. Safe to add unconditionally -- newlines
+              // aren't HTML-special characters so escapeHtml() below still
+              // runs on the full string either way, this only changes CSS.
+              const styleParts = [];
+              if (c.align) styleParts.push(`text-align:${c.align}`);
+              if (c.wrap) styleParts.push("white-space:pre-line", "line-height:1.5");
+              const styleAttr = styleParts.length ? ` style="${styleParts.join(";")}"` : "";
               const raw = typeof c.format === "function" ? c.format(row[c.key], row) : row[c.key];
-              return `<td${alignStyle}>${raw === undefined || raw === null ? "" : escapeHtml(raw)}</td>`;
+              return `<td${styleAttr}>${raw === undefined || raw === null ? "" : escapeHtml(raw)}</td>`;
             }).join("");
             return `<tr>${cells}</tr>`;
           }).join("")
