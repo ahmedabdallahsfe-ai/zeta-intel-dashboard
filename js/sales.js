@@ -3347,9 +3347,23 @@
       }
 
       const wantBU = bu && bu !== 'All' ? bu : null;
-      const scopedCustomers = wantBU
+      let scopedCustomers = wantBU
         ? clusterData.customers.filter(c => c.bus && c.bus.indexOf(wantBU) >= 0)
         : clusterData.customers;
+
+      // LINE-LEVEL FILTERING FOR LINE MANAGERS (Added 2026-08-01):
+      if (window.AUTH && window.AUTH.getScope().lines !== null) {
+        const allowedLines = new Set(window.AUTH.getScope().lines);
+        scopedCustomers = scopedCustomers.filter(c => {
+          let cLines = [];
+          if (wantBU) {
+            cLines = (c.byBU && c.byBU[wantBU] && c.byBU[wantBU].lines) || [];
+          } else {
+            cLines = c.lines || [];
+          }
+          return cLines.some(l => allowedLines.has(l));
+        });
+      }
       // Per-BU item list + per-BU customer stats (2026-07-30 / 2026-07-31,
       // "distinct skus should refer to chosen bu and status/frequency/
       // basket/value should be related to chosen bu"): when a specific BU

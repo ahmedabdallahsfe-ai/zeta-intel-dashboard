@@ -72,6 +72,8 @@ const filesInOrder = [
   'assets/pako.min.js',
   'cache/metadata.data.js',
   'cache/iqvia.data.js', // sets window.IQVIA_CACHE.users
+  'cache/customer_analytics.data.js',
+  'cache/sales.data.js',
   'js/auth.js',          // sets window.AUTH
   'js/config.js',
   'js/utils.js',
@@ -84,6 +86,7 @@ const filesInOrder = [
   'js/filters.js',
   'js/exporter.js',
   'js/app.js',
+  'js/sales.js',
   'js/iqvia.js'
 ];
 
@@ -165,6 +168,17 @@ async function runTests() {
       if (gitIdx >= 0) {
         assert(dm1Allowed.has(gitIdx) === true, "GIT manager filter list contains his related GIT market");
       }
+    }
+
+    // Verify that the customer health list is restricted to their line (GIT-II) (Added 2026-08-01)
+    const gitHealth = window.SalesDashboard.getClusterCustomerHealth('GIT', 'Retail');
+    assert(gitHealth.ok === true, "GIT manager getClusterCustomerHealth resolves successfully");
+    if (gitHealth.ok) {
+      assert(gitHealth.totalCustomers > 0, "GIT manager has a non-empty customer list");
+      const outOfScopeCustomers = gitHealth.customers.filter(c => {
+        return !c.lines || c.lines.indexOf('GIT-II') < 0;
+      });
+      assert(outOfScopeCustomers.length === 0, "All returned customers are strictly scoped to GIT-II line");
     }
   }
 
