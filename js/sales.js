@@ -3494,6 +3494,41 @@
         basketBuckets[basketKey] += 1;
       });
 
+      let coreSkuCount = (wantBU && clusterData.coreSkuCountByBU && clusterData.coreSkuCountByBU[wantBU] != null)
+        ? clusterData.coreSkuCountByBU[wantBU]
+        : clusterData.coreSkuCount;
+      let totalSkuCount = (wantBU && clusterData.totalSkuCountByBU && clusterData.totalSkuCountByBU[wantBU] != null)
+        ? clusterData.totalSkuCountByBU[wantBU]
+        : clusterData.totalSkuCount;
+      let skuPenetration = (wantBU && clusterData.skuPenetrationByBU && clusterData.skuPenetrationByBU[wantBU])
+        ? clusterData.skuPenetrationByBU[wantBU]
+        : clusterData.skuPenetration;
+      let skuPenetrationScope = (wantBU && clusterData.skuPenetrationByBU && clusterData.skuPenetrationByBU[wantBU]) ? wantBU : 'All';
+
+      // Recalculate penetration stats dynamically for line managers (Added 2026-08-01):
+      if (window.AUTH && window.AUTH.getScope().lines !== null) {
+        const allowedLines = new Set(window.AUTH.getScope().lines);
+        const denom = customers.length || 1;
+        
+        skuPenetration = (skuPenetration || []).filter(s => isSkuAllowedForLines(s.sku, allowedLines));
+        skuPenetration = skuPenetration.map(s => {
+          const count = customers.filter(c => c.items && c.items.indexOf(s.sku) >= 0).length;
+          return {
+            sku: s.sku,
+            count: count,
+            penetrationPct: (count / denom) * 100,
+            inCore: s.inCore
+          };
+        });
+
+        // Sort descending by penetration
+        skuPenetration.sort((a, b) => b.penetrationPct - a.penetrationPct);
+
+        coreSkuCount = skuPenetration.filter(s => s.inCore).length;
+        totalSkuCount = skuPenetration.length;
+        skuPenetrationScope = window.AUTH.getScope().lines.join(", ");
+      }
+
       return {
         ok: true,
         status: 'ready',
@@ -3506,27 +3541,10 @@
         bridge: bridge,
         frequencyBuckets: frequencyBuckets,
         basketBuckets: basketBuckets,
-        // Core/total SKU counts (2026-07-31): prefer the BU-scoped counts
-        // (etl's coreSkuCountByBU/totalSkuCountByBU) so the "Basket Depth"
-        // header text stays consistent with the now-BU-scoped basketSegment
-        // values above -- falls back to the cluster-wide count for "All" or
-        // for caches built before these fields existed.
-        coreSkuCount: (wantBU && clusterData.coreSkuCountByBU && clusterData.coreSkuCountByBU[wantBU] != null)
-          ? clusterData.coreSkuCountByBU[wantBU]
-          : clusterData.coreSkuCount,
-        totalSkuCount: (wantBU && clusterData.totalSkuCountByBU && clusterData.totalSkuCountByBU[wantBU] != null)
-          ? clusterData.totalSkuCountByBU[wantBU]
-          : clusterData.totalSkuCount,
-        // BU-scoped penetration (2026-07-28): use the selected BU's own SKU
-        // list + denominator (customers active under that BU) when available;
-        // fall back to the company-wide list for "All" or for any BU the ETL
-        // didn't compute (shouldn't happen for Retail/Chain Pharmacy, but a
-        // cluster added later via CLUSTERS_TO_BUILD before a full re-run
-        // could still be missing skuPenetrationByBU).
-        skuPenetration: (wantBU && clusterData.skuPenetrationByBU && clusterData.skuPenetrationByBU[wantBU])
-          ? clusterData.skuPenetrationByBU[wantBU]
-          : clusterData.skuPenetration,
-        skuPenetrationScope: (wantBU && clusterData.skuPenetrationByBU && clusterData.skuPenetrationByBU[wantBU]) ? wantBU : 'All',
+        coreSkuCount: coreSkuCount,
+        totalSkuCount: totalSkuCount,
+        skuPenetration: skuPenetration,
+        skuPenetrationScope: skuPenetrationScope,
         customers: customers,
         generatedAt: customerAnalyticsCache.generatedAt,
       };
