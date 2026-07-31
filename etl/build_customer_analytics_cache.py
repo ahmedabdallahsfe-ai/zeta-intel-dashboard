@@ -404,11 +404,18 @@ def main():
             # Per-BU item list (2026-07-30): top 20 items by value this
             # customer actually bought under each BU they touched -- names,
             # not just a count, so the grid can show what a customer bought
-            # scoped to whichever BU is selected. Capped at 20 to keep the
-            # payload bounded (a handful of high-value retail/chain accounts
-            # can otherwise carry 100+ distinct SKUs each).
+            # scoped to whichever BU is selected. UNCAPPED (2026-07-31 fix,
+            # was top-20-by-value): Ahmed flagged a real mismatch this
+            # caused -- 'Distinct SKUs' shows len(bu_items_set) (the true,
+            # uncapped count) while the SKU list itself was silently
+            # truncated at 20, so a customer with 27 distinct SKUs showed
+            # "Distinct SKUs: 27" next to a list of only 20 names. Both now
+            # come from the exact same c['itemValueByBU'][bu] dict, so the
+            # list length and the Distinct SKUs count are IDENTICAL by
+            # construction -- no cap, no possible mismatch. Still sorted by
+            # value descending (highest-value SKU first).
             items_by_bu = {
-                bu_name: [name for name, _ in sorted(item_vals.items(), key=lambda kv: -kv[1])[:20]]
+                bu_name: [name for name, _ in sorted(item_vals.items(), key=lambda kv: -kv[1])]
                 for bu_name, item_vals in c['itemValueByBU'].items()
             }
 
