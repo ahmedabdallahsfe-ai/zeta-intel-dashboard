@@ -2773,7 +2773,9 @@
 
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
-        const bu = window.SEMANTIC.lineToBU(lines[r[LINE]]);
+        const rawLineName = lines[r[LINE]];
+        if (window.AUTH && !window.AUTH.isLineAllowed(rawLineName)) continue;
+        const bu = window.SEMANTIC.lineToBU(rawLineName);
         if (!bu) continue;
         const t = totals[bu];
         t.actualYTD += r[VAL];
@@ -2866,6 +2868,7 @@
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
         const rawLine = lines[r[LINE]];
+        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         const rBu = window.SEMANTIC.lineToBU(rawLine);
         if (rBu !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
@@ -2976,6 +2979,7 @@
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
         const rawLine = linesLk[r[LINE]];
+        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (monthFilter && !monthFilter.has(r[MONTH])) continue;
         const canon = window.SEMANTIC.normalizeLine(rawLine);

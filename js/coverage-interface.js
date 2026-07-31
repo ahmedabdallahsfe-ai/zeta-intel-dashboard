@@ -57,6 +57,7 @@
     });
 
     teamComparison.forEach(row => {
+      if (window.AUTH && !window.AUTH.isLineAllowed(row.team)) return;
       const bu = window.SEMANTIC.lineToBU(row.team);
       if (!bu) return; // Non-Promoted/Other Markets or unrecognized -- out of scope here
       const hc = row.headcount || 0;
@@ -188,6 +189,7 @@
       if (!typeIdxSet.has(row[F.type])) return;
 
       const teamName = (dims.teams || [])[row[F.team]];
+      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
       const bu = window.SEMANTIC.lineToBU(teamName);
       if (!bu) return; // Non-Promoted/Other Markets/unrecognized -- out of scope
 
@@ -300,6 +302,7 @@
       if (!typeName) return;
 
       const teamName = (dims.teams || [])[row[F.team]];
+      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
       if (window.SEMANTIC.lineToBU(teamName) !== bu) return;
 
       if (row[F.isActive]) {
@@ -444,6 +447,7 @@
       if (row[F.status] !== statusIdx) return;
 
       const teamName = (dims.teams || [])[row[F.team]];
+      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
       const rowBU = window.SEMANTIC.lineToBU(teamName);
       if (rowBU !== bu) return;
       const canonLine = window.SEMANTIC.normalizeLine(teamName);
@@ -554,6 +558,7 @@
       if (row[F.period] !== latestPeriodIdx) return;
       if (!row[F.isActive]) return; // same isActive scoping as every other Coverage KPI
       const teamName = (dims.teams || [])[row[F.team]];
+      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
       const bu = window.SEMANTIC.lineToBU(teamName);
       if (!bu) return;
 
@@ -638,6 +643,7 @@
 
     const lines = teamComparison
       .filter(row => window.SEMANTIC.lineToBU(row.team) === bu)
+      .filter(row => !window.AUTH || window.AUTH.isLineAllowed(row.team))
       .map(row => ({
         name: row.team,
         coveragePct: (row.coveragePct || 0) * 100,
@@ -664,6 +670,7 @@
           if (row[F.period] !== latestPeriodIdx) return;
           if (!row[F.isActive]) return;
           const teamName = (dims.teams || [])[row[F.team]];
+          if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
           if (window.SEMANTIC.lineToBU(teamName) !== bu) return;
           const areaIdx = row[F.area];
           if (areaIdx === undefined || areaIdx === null || areaIdx < 0) return;
@@ -768,6 +775,7 @@
       if (row[F.status] !== statusIdx) return;
 
       const teamName = (dims.teams || [])[row[F.team]];
+      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
       const rowBU = window.SEMANTIC.lineToBU(teamName);
       if (!rowBU) return; // Non-Promoted/Other Markets -- out of scope, same as every BU-level call
 

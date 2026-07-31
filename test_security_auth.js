@@ -74,6 +74,9 @@ const filesInOrder = [
   'cache/iqvia.data.js', // sets window.IQVIA_CACHE.users
   'cache/customer_analytics.data.js',
   'cache/sales.data.js',
+  'cache/records.data.js',
+  'cache/dashboard.data.js',
+  'cache/organogram.data.js',
   'js/auth.js',          // sets window.AUTH
   'js/config.js',
   'js/utils.js',
@@ -87,6 +90,8 @@ const filesInOrder = [
   'js/exporter.js',
   'js/app.js',
   'js/sales.js',
+  'js/semantic-model.js',
+  'js/coverage-interface.js',
   'js/iqvia.js'
 ];
 
@@ -196,6 +201,16 @@ async function runTests() {
         console.log("OUT OF SCOPE SKUS FOUND:", outOfScopeSkus.slice(0, 10));
       }
       assert(outOfScopeSkus.length === 0, "All customer SKU items are strictly scoped to GIT-II products");
+    }
+
+    // Verify that getFilteredCoverageByType is scoped strictly to GIT-II (Added 2026-08-01)
+    const typeBreakdown = window.CoverageDashboard.getFilteredCoverageByType('GIT');
+    assert(typeBreakdown.ok === true, "GIT manager getFilteredCoverageByType resolves successfully");
+    if (typeBreakdown.ok) {
+      const totalReps = typeBreakdown.types.reduce((acc, t) => acc + t.repCount, 0);
+      console.log("GIT MANAGER TOTAL REPS:", totalReps);
+      assert(totalReps > 0, "GIT manager sees a non-empty rep list");
+      assert(totalReps < 200, "GIT manager sees only his line's reps");
     }
   }
 
