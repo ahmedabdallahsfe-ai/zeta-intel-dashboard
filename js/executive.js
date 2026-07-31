@@ -514,7 +514,8 @@
     if (!scoped || !scoped.ok) return unavailableCard("salesAchievement", "Sales Achievement", scoped ? scoped.status : "module_unavailable");
 
     let rankInfo, rankUnit;
-    if (line === "All" && !isBuRestricted()) {
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, null);
@@ -529,15 +530,17 @@
         const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, l);
         vals[l] = (s && s.ok) ? s.achievementPct : null;
       });
-      rankInfo = rank(vals, "desc")[line];
+      const rankKey = activeLine || line;
+      rankInfo = rank(vals, "desc")[rankKey];
       rankUnit = "Lines within " + bu;
     }
 
     const refEntry = salesAchievementReferenceEntry(bu, line);
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
 
     return {
       kpiId: "salesAchievement", name: "Sales Achievement",
-      mainValue: fmtPct1(scoped.achievementPct), mainValueSub: "Non-Tender · Current YTD" + (line !== "All" ? " · " + line : ""),
+      mainValue: fmtPct1(scoped.achievementPct), mainValueSub: "Non-Tender · Current YTD" + (activeLineLabel ? " · " + activeLineLabel : ""),
       performance: { target: fmtM(scoped.targetYTD), achievementPct: fmtPct1(scoped.achievementPct), variance: fmtSignedM(scoped.actualYTD - scoped.targetYTD) },
       comparison: refEntry ? [refEntry] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
@@ -575,7 +578,8 @@
     if (!t) return unavailableCard("salesValue", "Sales Value", "module_unavailable");
 
     let rankInfo, rankUnit;
-    if (line === "All" && !isBuRestricted()) {
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const bt = nonTenderTotals(b, "All");
@@ -590,15 +594,17 @@
         const lt = nonTenderTotals(bu, l);
         vals[l] = lt ? lt.achievementPct : null;
       });
-      rankInfo = rank(vals, "desc")[line];
+      const rankKey = activeLine || line;
+      rankInfo = rank(vals, "desc")[rankKey];
       rankUnit = "Lines within " + bu;
     }
 
     const refEntry = salesValueReferenceEntry(bu, line);
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
 
     return {
       kpiId: "salesValue", name: "Sales Value",
-      mainValue: fmtM(t.actualValue), mainValueSub: "Non-Tender · Current YTD" + (line !== "All" ? " · " + line : ""),
+      mainValue: fmtM(t.actualValue), mainValueSub: "Non-Tender · Current YTD" + (activeLineLabel ? " · " + activeLineLabel : ""),
       performance: { target: fmtM(t.targetValue), achievementPct: fmtPct1(t.achievementPct), variance: fmtSignedM(t.actualValue - t.targetValue) },
       comparison: refEntry ? [refEntry] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
@@ -907,8 +913,9 @@
     }
 
     let val, platformAvg, rankInfo, rankUnit, benchmarkLabel, basisNote, isWholeBuView = false;
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
 
-    if (line === "All" && !isBuRestricted()) {
+    if (!activeLine && !isBuRestricted()) {
       const perBU = {};
       let platformActual = 0, platformPositions = 0;
       getAllowedBUList().forEach(b => {
@@ -933,39 +940,20 @@
       }
       const perLine = {};
       let buActual = 0, buPositions = 0;
-      // Role-based scope: a user can be restricted to a SUBSET of their
-      // own BU's lines (e.g. Amr Khalifa's Allowed Lines is "CHC" only,
-      // excluding CHC_SALES even though both belong to his allowed CHC
-      // BU) -- exclude disallowed lines from the benchmark/ranking pool
-      // entirely, not just from what's displayed.
       lineData.lines.filter(l => !global.AUTH || global.AUTH.isLineAllowed(l.name)).forEach(l => {
         perLine[l.name] = l.activePositions > 0 ? l.salesPerPosition : null;
         buActual += l.actualValue; buPositions += l.activePositions;
       });
       platformAvg = buPositions > 0 ? buActual / buPositions : null;
-      if (line === "All") {
-        // BU-restricted user viewing the whole-BU level (2026-07-30 fix,
-        // was showing N/A): this is a NEW case that didn't exist before
-        // role-based scoping -- a restricted user's default state is
-        // line="All" with no "other BUs" to rank against, so they land
-        // here instead of the BU_LIST branch above. perLine has no "All"
-        // key (it's keyed by real line names), so the old
-        // `perLine[line]` lookup always returned undefined -> null ->
-        // N/A. The correct whole-BU value is the same aggregate already
-        // computed as platformAvg (this BU's own actual/positions across
-        // every allowed line) -- no separate BU-vs-BU ranking is
-        // meaningful for a restricted user, so rank is intentionally
-        // left blank rather than fabricated. Benchmark/achievement% is
-        // ALSO suppressed below (not just left at a trivial 100%) --
-        // val and platformAvg are the identical number here by
-        // construction, so "achievement vs BU avg" would be a tautology.
+      if (!activeLine) {
         val = platformAvg;
         rankInfo = null;
         rankUnit = null;
         isWholeBuView = true;
       } else {
-        val = perLine[line] !== undefined ? perLine[line] : null;
-        rankInfo = rank(perLine, "desc")[line];
+        val = perLine[activeLine] !== undefined ? perLine[activeLine] : null;
+        const rankKey = activeLine || line;
+        rankInfo = rank(perLine, "desc")[rankKey];
         rankUnit = "Lines within " + bu;
       }
       benchmarkLabel = " (" + bu + " avg)";
@@ -975,22 +963,18 @@
     }
 
     const achievementPct = (val !== null && platformAvg && !isWholeBuView) ? (val / platformAvg) * 100 : null;
-    // 2026-07-31 ("vs Corporate when selecting line get data vs bu"): when
-    // a specific Line is selected, `platformAvg` above ALREADY equals this
-    // BU's own average across its lines (see the branch above) -- reuse it
-    // directly as "vs BU" rather than the true 4-BU Corporate figure, same
-    // reframing every other KPI card now applies. Only the line="All" case
-    // (whole-BU or multi-BU view) shows the true company-wide Corporate.
-    const refEntry = (line !== "All")
+    const refEntry = (activeLine || line !== "All")
       ? (platformAvg !== null ? { label: "vs BU", value: fmtM(platformAvg) } : null)
       : (function () {
           const v = corporateSalesProductivity(summaries);
           return v !== null ? { label: "vs Corporate", value: fmtM(v) } : null;
         })();
 
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
+
     return {
       kpiId: "salesProductivity", name: "Sales Productivity",
-      mainValue: fmtM(val), mainValueSub: "Sales per Deployed Position · Current YTD" + (line !== "All" ? " · " + line : ""),
+      mainValue: fmtM(val), mainValueSub: "Sales per Deployed Position · Current YTD" + (activeLineLabel ? " · " + activeLineLabel : ""),
       performance: { target: isWholeBuView ? "—" : (fmtM(platformAvg) + benchmarkLabel), achievementPct: isWholeBuView ? "—" : fmtPct1(achievementPct), variance: isWholeBuView ? "—" : fmtSignedM(val !== null && platformAvg !== null ? val - platformAvg : null) },
       comparison: refEntry ? [refEntry] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,

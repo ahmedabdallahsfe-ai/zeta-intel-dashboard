@@ -3090,6 +3090,7 @@
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
         const rawLine = linesLk[r[LINE]];
+        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
         const isTender = (r[MASK] & 2) > 0;
