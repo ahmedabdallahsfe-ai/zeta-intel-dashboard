@@ -716,7 +716,8 @@
     const evi = avg(d1.evi, d2.evi);
 
     let rankInfo, rankUnit;
-    if (line === "All" && !isBuRestricted()) {
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const bd1d2 = b === bu ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, null);
@@ -728,26 +729,37 @@
       const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
-        const ld1d2 = l === line ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
+        const ld1d2 = l === activeLine ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
         vals[l] = (ld1d2 && ld1d2.ok && ld1d2.total) ? avg(ld1d2.total.dm1.ytd.su.sharePct, ld1d2.total.dm2.ytd.su.sharePct) : null;
       });
-      rankInfo = rank(vals, "desc")[line];
+      const rankKey = activeLine || line;
+      rankInfo = rank(vals, "desc")[rankKey];
       rankUnit = "Lines within " + bu;
     }
 
-    // NOTE 2026-07-31 (user: "remove vs corporate in market share and bu
-    // growth"): Corporate reference intentionally NOT shown on this card
-    // -- IQVIADashboard.getCorporateMarketIntel() still exists (built for
-    // this) but is no longer called here. Left in place in case it's
-    // wanted again later; see [[executive_corporate_reference]] memory.
+    function formatDmLabel(name, fallback) {
+      if (!name) return fallback;
+      name = name.trim();
+      if (name.length > 22) {
+        return "vs " + name.substring(0, 19) + "...";
+      }
+      return "vs " + name;
+    }
+
+    const isSingleSegment = (dm1dm2.segments && dm1dm2.segments.length === 1);
+    const dm1Label = isSingleSegment ? formatDmLabel(dm1dm2.segments[0].dm1Name, "vs DM1") : "vs DM1";
+    const dm2Label = isSingleSegment ? formatDmLabel(dm1dm2.segments[0].dm2Name, "vs DM2") : "vs DM2";
+
     const comparison = [
-      { label: "vs DM1", value: fmtPct1(d1.sharePct) },
-      { label: "vs DM2", value: fmtPct1(d2.sharePct) },
+      { label: dm1Label, value: fmtPct1(d1.sharePct) },
+      { label: dm2Label, value: fmtPct1(d2.sharePct) },
     ];
+
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
 
     return {
       kpiId: "marketShare", name: "Market Share",
-      mainValue: fmtPct1(sharePct), mainValueSub: "YTD · SU basis · excl. Other Markets" + (line !== "All" ? " · " + line : ""),
+      mainValue: fmtPct1(sharePct), mainValueSub: "YTD · SU basis · excl. Other Markets" + (activeLineLabel ? " · " + activeLineLabel : ""),
       performance: { target: fmtPct1(targetPct), achievementPct: fmtPct1(achievementPct), variance: fmtSignedPts(gapPts) },
       comparison: comparison,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
@@ -795,7 +807,8 @@
     }
 
     let rankInfo, rankUnit;
-    if (line === "All" && !isBuRestricted()) {
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const bd1d2 = b === bu ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, null);
@@ -807,24 +820,38 @@
       const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
-        const ld1d2 = l === line ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
+        const ld1d2 = l === activeLine ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
         vals[l] = growthGapFor(ld1d2);
       });
-      rankInfo = rank(vals, "desc")[line];
+      const rankKey = activeLine || line;
+      rankInfo = rank(vals, "desc")[rankKey];
       rankUnit = "Lines within " + bu;
     }
 
-    // NOTE 2026-07-31 (user: "remove vs corporate in market share and bu
-    // growth"): Corporate reference intentionally NOT shown on this card
-    // -- see the matching note on buildMarketShareCard() above.
+    function formatDmLabel(name, fallback) {
+      if (!name) return fallback;
+      name = name.trim();
+      if (name.length > 22) {
+        return "vs " + name.substring(0, 19) + "...";
+      }
+      return "vs " + name;
+    }
+
+    const isSingleSegment = (dm1dm2.segments && dm1dm2.segments.length === 1);
+    const dm1Label = isSingleSegment ? formatDmLabel(dm1dm2.segments[0].dm1Name, "vs DM1") : "vs DM1";
+    const dm2Label = isSingleSegment ? formatDmLabel(dm1dm2.segments[0].dm2Name, "vs DM2") : "vs DM2";
+
     const comparison = [
-      { label: "vs DM1", value: "SU " + fmtSignedPct(d1su.zetaGrowthPct) + " · Val " + fmtSignedPct(d1val.zetaGrowthPct) },
-      { label: "vs DM2", value: "SU " + fmtSignedPct(d2su.zetaGrowthPct) + " · Val " + fmtSignedPct(d2val.zetaGrowthPct) },
+      { label: dm1Label, value: "SU " + fmtSignedPct(d1su.zetaGrowthPct) + " · Val " + fmtSignedPct(d1val.zetaGrowthPct) },
+      { label: dm2Label, value: "SU " + fmtSignedPct(d2su.zetaGrowthPct) + " · Val " + fmtSignedPct(d2val.zetaGrowthPct) },
     ];
 
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
+    const cardName = (global.AUTH && global.AUTH.getScope().lines) ? "Line Growth" : "Business Unit Growth";
+
     return {
-      kpiId: "buGrowth", name: "Business Unit Growth",
-      mainValue: fmtSignedPct(zetaGrowth), mainValueSub: "Zeta Growth · YTD SU (Value basis: " + fmtSignedPct(zetaGrowthVal) + ")" + (line !== "All" ? " · " + line : ""),
+      kpiId: "buGrowth", name: cardName,
+      mainValue: fmtSignedPct(zetaGrowth), mainValueSub: "Zeta Growth · YTD SU (Value basis: " + fmtSignedPct(zetaGrowthVal) + ")" + (activeLineLabel ? " · " + activeLineLabel : ""),
       performance: { target: "Market " + fmtSignedPct(marketGrowth), achievementPct: fmtPct1(evi), variance: fmtSignedPts(growthGap) + " gap" },
       comparison: comparison,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
@@ -1565,7 +1592,8 @@
     headerRow.style.cssText = "display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-2,8px);";
     const titleEl = document.createElement("div");
     titleEl.style.cssText = "font-weight:600;font-size:var(--fs-sm,13px);";
-    titleEl.textContent = "Line Performance within " + ctx.filters.bu;
+    const activeLineLabel = (global.AUTH && global.AUTH.getScope().lines) ? global.AUTH.getScope().lines.join(", ") : ctx.filters.bu;
+    titleEl.textContent = "Line Performance within " + activeLineLabel;
     headerRow.appendChild(titleEl);
 
     // Period filter, scoped to this section only -- Coverage %/Right-Freq %

@@ -8424,7 +8424,10 @@ function computeDM1DM2Core(bu, line) {
       return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'iqvia', bu: bu, line: line || null, segments: [] };
     }
 
-    const buTargets = TARGETS_2026.filter(t => t.bu === bu && (!line || t.line === line));
+    let buTargets = TARGETS_2026.filter(t => t.bu === bu && (!line || t.line === line));
+    if (window.AUTH && window.AUTH.getScope().lines !== null) {
+      buTargets = buTargets.filter(t => window.AUTH.isLineAllowed(t.line));
+    }
     if (buTargets.length === 0) {
       return { ok: true, status: 'ready', asOfDate: refPeriodLabel(), source: 'iqvia', bu: bu, line: line || null, segments: [] };
     }
