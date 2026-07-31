@@ -825,7 +825,8 @@
               if (c.wrap) styleParts.push("white-space:pre-line", "line-height:1.5");
               const styleAttr = styleParts.length ? ` style="${styleParts.join(";")}"` : "";
               const raw = typeof c.format === "function" ? c.format(row[c.key], row) : row[c.key];
-              return `<td${styleAttr}>${raw === undefined || raw === null ? "" : escapeHtml(raw)}</td>`;
+              const val = raw === undefined || raw === null ? "" : (c.isHtml ? raw : escapeHtml(raw));
+              return `<td${styleAttr}>${val}</td>`;
             }).join("");
             return `<tr>${cells}</tr>`;
           }).join("")

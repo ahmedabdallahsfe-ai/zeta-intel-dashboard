@@ -46,7 +46,13 @@ function loadData() {
     flat = JSON.parse(text);
     applyUserFilter();
     buildCascadeIndex();
-    initApp();
+    
+    // Only initialize the UI layer if the IQVIA dashboard wrapper exists in the DOM.
+    // This allows background data parsing (e.g. for the Executive Command Center metrics)
+    // without triggering UI errors on non-existent elements.
+    if (document.querySelector('.iqvia-dashboard-wrap')) {
+      initApp();
+    }
   } catch(e) {
     console.error('Load error:', e);
     const exec = document.getElementById('s-executive');

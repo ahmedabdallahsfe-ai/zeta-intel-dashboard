@@ -1224,7 +1224,7 @@ def _json_default(value: Any) -> Any:
     return str(value)
 
 
-def write_cache_pair(data: dict, json_path: Path, js_path: Path, js_var_name: str, logger: logging.Logger) -> None:
+def write_cache_pair(data: dict, json_path: Path, js_path: Path, js_var_name: str, logger: logging.Logger, compress: bool = False) -> None:
     """Write both a plain .json file (for tooling/portability) and a
     .data.js wrapper (window.<var> = {...};) that dashboard.html loads via
     a <script> tag. The .data.js form is what the dashboard actually reads:
@@ -1235,7 +1235,16 @@ def write_cache_pair(data: dict, json_path: Path, js_path: Path, js_var_name: st
     payload = json.dumps(data, default=_json_default, ensure_ascii=False)
 
     json_path.write_text(payload, encoding="utf-8")
-    js_path.write_text(f"window.{js_var_name} = {payload};\n", encoding="utf-8")
+    
+    if compress:
+        import gzip
+        import base64
+        compressed = gzip.compress(payload.encode("utf-8"), compresslevel=6)
+        b64_data = base64.b64encode(compressed).decode("ascii")
+        js_path.write_text(f"window.{js_var_name} = {{ b64Data: \"{b64_data}\" }};\n", encoding="utf-8")
+    else:
+        js_path.write_text(f"window.{js_var_name} = {payload};\n", encoding="utf-8")
+        
     logger.info("Wrote %s (%.1f KB) and %s", json_path.name, json_path.stat().st_size / 1024, js_path.name)
 
 
@@ -1627,8 +1636,8 @@ def main() -> int:
         dashboard_cache, records_cache, latest_period = run_aggregation_engine(df_transformed, validation, logger)
 
         logger.info("--- Cache generation ---")
-        write_cache_pair(dashboard_cache, DASHBOARD_JSON, DASHBOARD_JS, "DASHBOARD_CACHE", logger)
-        write_cache_pair(records_cache, RECORDS_JSON, RECORDS_JS, "DASHBOARD_RECORDS", logger)
+        write_cache_pair(dashboard_cache, DASHBOARD_JSON, DASHBOARD_JS, "DASHBOARD_CACHE", logger, compress=True)
+        write_cache_pair(records_cache, RECORDS_JSON, RECORDS_JS, "DASHBOARD_RECORDS", logger, compress=True)
 
         organogram_path = SCRIPT_DIR / "Zeta's Total Organogram 2026.xlsx"
         if organogram_path.exists():
@@ -1636,7 +1645,7 @@ def main() -> int:
             organogram_cache = run_organogram_aggregation(organogram_path, df_transformed, logger)
             ORGANOGRAM_JSON = CACHE_DIR / "organogram.json"
             ORGANOGRAM_JS = CACHE_DIR / "organogram.data.js"
-            write_cache_pair(organogram_cache, ORGANOGRAM_JSON, ORGANOGRAM_JS, "DASHBOARD_ORGANOGRAM", logger)
+            write_cache_pair(organogram_cache, ORGANOGRAM_JSON, ORGANOGRAM_JS, "DASHBOARD_ORGANOGRAM", logger, compress=True)
         else:
             logger.warning("Organogram file not found at %s -- SFE dashboard data will be empty.", organogram_path)
 

@@ -3379,6 +3379,7 @@
               // meaningful "all-BU brick" the way there's an all-BU value
               // total), empty for caches built before byBU existed.
               bricks: (buStats && buStats.bricks) || [],
+              regions: (buStats && buStats.regions) || [],
               positions: (buStats && buStats.positions) || [],
               lastPurchase: buStats ? buStats.lastPurchase : c.lastPurchase,
             });

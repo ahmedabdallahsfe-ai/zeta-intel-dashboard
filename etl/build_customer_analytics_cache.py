@@ -174,6 +174,7 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
     # empty Brick/Position on the grid instead of the whole sheet being
     # skipped.
     ci_brick = idx.get('Brick')
+    ci_region = idx.get('Region')
     ci_position = idx.get('Position')
 
     scanned = 0
@@ -195,7 +196,8 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
                          'value': 0.0, 'qty': 0.0, 'txn': 0, 'bus': set(),
                          'itemValueByBU': defaultdict(lambda: defaultdict(float)),
                          'monthsByBU': defaultdict(set), 'linesByBU': defaultdict(set),
-                         'bricksByBU': defaultdict(set), 'positionsByBU': defaultdict(set),
+                         'bricksByBU': defaultdict(set), 'regionsByBU': defaultdict(set),
+                         'positionsByBU': defaultdict(set),
                          'lastPurchase': None, 'lastPurchaseByBU': {}}
         c = cust[cid]
         m = str(row[ci_date])[:7]
@@ -230,6 +232,8 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
             c['linesByBU'][bu].add(canon_line(row[ci_line]))
             if ci_brick is not None and row[ci_brick]:
                 c['bricksByBU'][bu].add(clean(row[ci_brick]))
+            if ci_region is not None and row[ci_region]:
+                c['regionsByBU'][bu].add(clean(row[ci_region]))
             if ci_position is not None and row[ci_position]:
                 c['positionsByBU'][bu].add(clean(row[ci_position]))
             if raw_date is not None and (bu not in c['lastPurchaseByBU'] or raw_date > c['lastPurchaseByBU'][bu]):
@@ -476,6 +480,7 @@ def main():
                     # show more than one of each if territory/rep coverage
                     # changed within the period.
                     'bricks': sorted(c['bricksByBU'].get(bu_name, set())),
+                    'regions': sorted(c['regionsByBU'].get(bu_name, set())),
                     'positions': sorted(c['positionsByBU'].get(bu_name, set())),
                     # Last Purchase (2026-07-31, "add column of last time
                     # purchase"): most recent transaction date under THIS BU.

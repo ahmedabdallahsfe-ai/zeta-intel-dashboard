@@ -1347,20 +1347,24 @@
     // mountDataGrid) -- BU-scoped only, empty for the All-BU view.
     const isBuScoped = health.bu && health.bu !== "All";
     const brickColumn = { key: "bricks", label: "Brick", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
-    const positionColumn = { key: "positions", label: "Position", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
+    const regionColumn = { key: "regions", label: "Region", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
     const lastPurchaseColumn = { key: "lastPurchase", label: "Last Purchase", format: formatLastPurchase };
     const skuColumn = {
       key: "items",
       label: isBuScoped ? "SKU (" + health.bu + ")" : "SKU",
-      wrap: true,
-      format: v => Array.isArray(v) && v.length ? v.map((name, i) => (i + 1) + ". " + name).join("\n") : "—",
+      isHtml: true,
+      format: v => {
+        if (!Array.isArray(v) || !v.length) return "—";
+        const text = v.map((name, i) => (i + 1) + ". " + name).join("<br>");
+        return `<div class="sku-cell-scrollable" style="max-height: 70px; overflow-y: auto; line-height: 1.3; font-size: 11px; padding: 2px 0; text-align: left; white-space: nowrap;">${text}</div>`;
+      }
     };
 
     global.DS.mountDataGrid("exec-cluster-health-grid", {
       columns: [
         { key: "name", label: "Customer Name" },
         brickColumn,
-        positionColumn,
+        regionColumn,
         { key: "bridgeSegment", label: "Status" },
         lastPurchaseColumn,
         { key: "frequencySegment", label: "Frequency" },
@@ -1394,14 +1398,14 @@
     const isBuScoped = health.bu && health.bu !== "All";
     const rows = health.customers || [];
     // Column set mirrors mountClusterHealthGrid() (2026-07-31): Brick,
-    // Position, Last Purchase added -- see that function's comment.
-    const header = ["Customer Name", "Brick", "Position", "Status", "Last Purchase", "Frequency", "Basket",
+    // Region, Last Purchase added.
+    const header = ["Customer Name", "Brick", "Region", "Status", "Last Purchase", "Frequency", "Basket",
       "Months Active", "Distinct SKUs", isBuScoped ? "SKU (" + health.bu + ")" : "SKU", "Value (EGP)"];
     const csvRows = rows.map(c => {
       const brickCell = (c.bricks && c.bricks.length) ? c.bricks.join("; ") : "";
-      const positionCell = (c.positions && c.positions.length) ? c.positions.join("; ") : "";
-      const skuCell = (c.items && c.items.length) ? c.items.map((name, i) => (i + 1) + ". " + name).join("\n") : "";
-      return [c.name, brickCell, positionCell, c.bridgeSegment, formatLastPurchase(c.lastPurchase), c.frequencySegment,
+      const regionCell = (c.regions && c.regions.length) ? c.regions.join("; ") : "";
+      const skuCell = (c.items && c.items.length) ? c.items.map((name, i) => (i + 1) + ". " + name).join("; ") : "";
+      return [c.name, brickCell, regionCell, c.bridgeSegment, formatLastPurchase(c.lastPurchase), c.frequencySegment,
         c.basketSegment, c.monthsActive, c.distinctSkus, skuCell, Math.round(c.value)]
         .map(v => '"' + String(v === undefined || v === null ? "" : v).replace(/"/g, '""') + '"')
         .join(",");

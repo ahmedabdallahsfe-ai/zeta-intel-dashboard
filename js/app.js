@@ -25,7 +25,7 @@ let sections = {}; // id -> section-body element, populated once by buildLayout(
 let filenameSuffix = "AllData"; // active-filter suffix, refreshed every render, read by every export button's exportFileName
 let _lastFilterState = null; // stored so the Not-Seen modal can call getNotSeenCustomers with current filters
 let _lastResult = null; // stored so the At-Risk tiers modal can find tier lists
-let currentTab = "executive"; // Executive Command Center is the platform's default landing page
+let currentTab = window.__currentTab || "executive"; // Executive Command Center is the platform's default landing page
 
 document.addEventListener("DOMContentLoaded", () => {
   wireLoginGate();
@@ -800,8 +800,8 @@ function renderExecutiveSummary(result, filterState) {
   const achPct = kpis.visitAchievementPct;
   const atRiskPct = rf.totalCustomers > 0 ? (rf.atRiskCount / rf.totalCustomers) : 0;
   
-  const rfDeltaStr = fmtDelta(deltas.rightFreqPctDelta);
-  const rfDirection = (deltas.rightFreqPctDelta || 0) > 0.005 ? "improving" : (deltas.rightFreqPctDelta || 0) < -0.005 ? "declining" : "stable";
+  const rfDeltaStr = deltas ? fmtDelta(deltas.rightFreqPctDelta) : "flat";
+  const rfDirection = deltas ? ((deltas.rightFreqPctDelta || 0) > 0.005 ? "improving" : (deltas.rightFreqPctDelta || 0) < -0.005 ? "declining" : "stable") : "stable";
 
   // --- 3. Identify Strengths & Opportunities (Drivers) ---
   let topSegmentDesc = "";
