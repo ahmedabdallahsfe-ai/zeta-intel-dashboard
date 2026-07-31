@@ -179,6 +179,23 @@ async function runTests() {
         return !c.lines || c.lines.indexOf('GIT-II') < 0;
       });
       assert(outOfScopeCustomers.length === 0, "All returned customers are strictly scoped to GIT-II line");
+
+      // Verify that all SKUs in items belong to GIT-II (VONSECA, ULCEBISMO, or BUTAZORELLA) (Added 2026-08-01)
+      let outOfScopeSkus = [];
+      gitHealth.customers.forEach(c => {
+        if (c.items) {
+          c.items.forEach(item => {
+            const up = item.toUpperCase();
+            if (up.indexOf('VONSECA') < 0 && up.indexOf('ULCEBISMO') < 0 && up.indexOf('BUTAZORELLA') < 0) {
+              outOfScopeSkus.push(item);
+            }
+          });
+        }
+      });
+      if (outOfScopeSkus.length > 0) {
+        console.log("OUT OF SCOPE SKUS FOUND:", outOfScopeSkus.slice(0, 10));
+      }
+      assert(outOfScopeSkus.length === 0, "All customer SKU items are strictly scoped to GIT-II products");
     }
   }
 

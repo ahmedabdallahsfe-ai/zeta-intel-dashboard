@@ -3376,29 +3376,107 @@
       // empty items/lines list) for caches built before byBU existed, so
       // this stays safe to ship ahead of the next customer-analytics ETL
       // run -- no throw, just a less-scoped (but still correct) number.
-      const customers = wantBU
-        ? scopedCustomers.map(c => {
-            const buStats = (c.byBU && c.byBU[wantBU]) || null;
-            return Object.assign({}, c, {
-              items: (c.itemsByBU && c.itemsByBU[wantBU]) || [],
-              lines: (buStats && buStats.lines) || [],
-              monthsActive: buStats ? buStats.monthsActive : c.monthsActive,
-              distinctSkus: buStats ? buStats.distinctSkus : c.distinctSkus,
-              value: buStats ? buStats.value : c.value,
-              bridgeSegment: buStats ? buStats.bridgeSegment : c.bridgeSegment,
-              frequencySegment: buStats ? buStats.frequencySegment : c.frequencySegment,
-              basketSegment: buStats ? buStats.basketSegment : c.basketSegment,
-              // Brick/Position/Last Purchase (2026-07-31): BU-scoped only --
-              // no global fallback for bricks/positions (there's no
-              // meaningful "all-BU brick" the way there's an all-BU value
-              // total), empty for caches built before byBU existed.
-              bricks: (buStats && buStats.bricks) || [],
-              regions: (buStats && buStats.regions) || [],
-              positions: (buStats && buStats.positions) || [],
-              lastPurchase: buStats ? buStats.lastPurchase : c.lastPurchase,
-            });
-          })
-        : scopedCustomers;
+  const LINE_PRODUCTS = {
+    'GIT-I': ['BILASTIGEC', 'MEDIHYALO', 'NEXICURE', 'PRUCANETIC'],
+    'GIT-II': ['BUTAZORELLA', 'ULCEBISMO', 'VONSECA'],
+    'GIT-III': ['NEXICURE PLUS CAP', 'NEXICURE PLUS SACHETS', 'NEXICURE PLUS'],
+    'CNS': ['DUXNORZET', 'EPILOSAMIDE', 'EPILOSMIDE', 'VORTAXMODE', 'ZETAZOLEX'],
+    'NEUROSCIENCE': ['DUXNORZET', 'EPILOSAMIDE', 'EPILOSMIDE', 'VORTAXMODE', 'ZETAZOLEX'],
+    'Derma': ['BILASTIGEC', 'MEDIHYALO'],
+    'DERMA': ['BILASTIGEC', 'MEDIHYALO'],
+    'CVM-I': ['NEXIROZOVA', 'ZETACOLEST', 'ZETACOLEST PLUS'],
+    'CVM-II': ['ELIMBOSIS', 'ZETAKARDOVAL HCT', 'ZETAKARDOVAL'],
+    'ORTHO-I': ['COXORIZET', 'DOZOVA FLEXETA'],
+    'ORTHO-II': ['DUXNORZET', 'ELIMBOSIS'],
+    'PEDIA': ['BILASTIGEC', 'DOZOVA', 'DOZOVA ALPHA AMYLASE', 'NEXIBRONCH', 'NEXICURE'],
+    'DIAB-I': ['EMPACOZA'],
+    'DIAB-II': ['EMPACOMBOMET'],
+    'DIAB-III': ['EMPACOZA TRIO'],
+    'DIAB-IV': ['EMPACOZA PLUS'],
+    'CHC': ['DOZOVA'],
+    'CHC_SALES': ['DOZOVA']
+  };
+
+  function isSkuAllowedForLines(skuName, allowedLines) {
+    if (!allowedLines || allowedLines.size === 0) return true;
+    var skuUp = skuName.toUpperCase().trim();
+    
+    // Normalize allowed lines to include synonyms
+    var normAllowed = new Set();
+    allowedLines.forEach(function(l) {
+      normAllowed.add(l.toUpperCase());
+      if (l.toUpperCase() === 'CNS') normAllowed.add('NEUROSCIENCE');
+      if (l.toUpperCase() === 'NEUROSCIENCE') normAllowed.add('CNS');
+      if (l.toUpperCase() === 'DERMA') normAllowed.add('DERMA');
+      if (l.toUpperCase() === 'CHC') normAllowed.add('CHC_SALES');
+      if (l.toUpperCase() === 'CHC_SALES') normAllowed.add('CHC');
+    });
+
+    var allProducts = [];
+    var prodToLine = {};
+    Object.keys(LINE_PRODUCTS).forEach(function(l) {
+      var prods = LINE_PRODUCTS[l] || [];
+      prods.forEach(function(p) {
+        var pUp = p.toUpperCase().trim();
+        allProducts.push(pUp);
+        if (!prodToLine[pUp]) prodToLine[pUp] = [];
+        prodToLine[pUp].push(l.toUpperCase());
+      });
+    });
+    
+    allProducts.sort(function(a, b) { return b.length - a.length; });
+    
+    var matchedProd = null;
+    for (var i = 0; i < allProducts.length; i++) {
+      var p = allProducts[i];
+      if (skuUp.indexOf(p) >= 0) {
+        matchedProd = p;
+        break;
+      }
+    }
+    
+    if (matchedProd) {
+      var linesOfProd = prodToLine[matchedProd];
+      return linesOfProd.some(function(l) { return normAllowed.has(l); });
+    }
+    
+    return true; // Keep it if no matching product (fallback)
+  }
+
+    // Refactored customers mapping with line-level SKU items filter:
+    const customers = scopedCustomers.map(c => {
+      const buStats = wantBU ? ((c.byBU && c.byBU[wantBU]) || null) : null;
+      let items = wantBU
+        ? ((c.itemsByBU && c.itemsByBU[wantBU]) || [])
+        : (c.items || []);
+      
+      if (window.AUTH && window.AUTH.getScope().lines !== null) {
+        const allowedLines = new Set(window.AUTH.getScope().lines);
+        items = items.filter(itemName => isSkuAllowedForLines(itemName, allowedLines));
+      }
+
+      if (wantBU) {
+        return Object.assign({}, c, {
+          items: items,
+          lines: (buStats && buStats.lines) || [],
+          monthsActive: buStats ? buStats.monthsActive : c.monthsActive,
+          distinctSkus: items.length,
+          value: buStats ? buStats.value : c.value,
+          bridgeSegment: buStats ? buStats.bridgeSegment : c.bridgeSegment,
+          frequencySegment: buStats ? buStats.frequencySegment : c.frequencySegment,
+          basketSegment: buStats ? buStats.basketSegment : c.basketSegment,
+          bricks: (buStats && buStats.bricks) || [],
+          regions: (buStats && buStats.regions) || [],
+          positions: (buStats && buStats.positions) || [],
+          lastPurchase: buStats ? buStats.lastPurchase : c.lastPurchase,
+        });
+      } else {
+        return Object.assign({}, c, {
+          items: items,
+          distinctSkus: items.length,
+        });
+      }
+    });
 
       // Recompute every aggregate from the (possibly BU-narrowed) customer
       // list rather than reusing the cache's pre-baked company-wide
@@ -3421,6 +3499,7 @@
         status: 'ready',
         source: 'customerAnalytics',
         bu: bu || 'All',
+        lines: (window.AUTH && window.AUTH.getScope().lines) || null,
         cluster: cluster,
         months: clusterData.months,
         totalCustomers: customers.length,

@@ -1228,8 +1228,9 @@
     const data = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line && line !== "All" ? line : null);
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     const cluster = data && data.ok ? data.clusters.find(c => c.name === clusterName) : null;
+    const labelBuLine = (line && line !== "All") ? line : bu;
     if (!cluster || !cluster.customers.length) {
-      global.DS.openModal({ title: bu + " — " + clusterName + " — Customers", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No sub-type-level data available.</div>" });
+      global.DS.openModal({ title: labelBuLine + " — " + clusterName + " — Customers", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No sub-type-level data available.</div>" });
       return;
     }
     const table = global.DS.table({
@@ -1242,7 +1243,7 @@
       rows: cluster.customers,
     });
     global.DS.openModal({
-      title: bu + " — " + clusterName + " — Customers",
+      title: labelBuLine + " — " + clusterName + " — Customers",
       bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. "Customer" = the Sales sub_type value -- a named account for Chain/Independent Pharmacy clusters, a generic channel label for institutional/retail clusters (no finer identity exists in this cache).</div>` + table,
     });
   }
@@ -1351,7 +1352,7 @@
     const lastPurchaseColumn = { key: "lastPurchase", label: "Last Purchase", format: formatLastPurchase };
     const skuColumn = {
       key: "items",
-      label: isBuScoped ? "SKU (" + health.bu + ")" : "SKU",
+      label: health.lines && health.lines.length ? "SKU (" + health.lines.join(", ") + ")" : (isBuScoped ? "SKU (" + health.bu + ")" : "SKU"),
       isHtml: true,
       format: v => {
         if (!Array.isArray(v) || !v.length) return "—";
@@ -1438,7 +1439,7 @@
     });
 
     const overlay = global.DS.openModal({
-      title: bu + " — " + clusterName + " — Customer Health",
+      title: (health.lines && health.lines.length ? health.lines.join(", ") : bu) + " — " + clusterName + " — Customer Health",
       bodyHtml: buildClusterHealthSummaryHtml(clusterName, health),
       footerHtml: toggleBtnHtml + exportBtnHtml,
     });
