@@ -804,11 +804,83 @@
     };
   }
 
+  function getFilteredCoverageForDm(bu, line, dmName) {
+    if (typeof CacheStore === "undefined" || !CacheStore.isReady()) {
+      CacheStore.init();
+    }
+    const records = CacheStore.getRecords();
+    if (!records || !Array.isArray(records.rows)) return null;
+    const dash = CacheStore.getDashboard();
+    const dims = dash && dash.dimensions;
+    if (!dims) return null;
+
+    const F = {
+      period: 0, team: 1, businessUnit: 2, nsm: 3, areaManager: 4, manager: 5,
+      employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
+      coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
+      plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
+      lastVisitDate: 22, area: 23,
+    };
+
+    const latestPeriodIdx = (dims.periods || []).length - 1;
+    const titleIdx = (dims.titles || []).indexOf("Medical Representative");
+    const expIdx = (dims.experiences || []).indexOf("Non-Probation");
+    const statusIdx = (dims.statuses || []).indexOf("Active");
+    const salesRepTitleIdx = (dims.titles || []).indexOf("Sales Representative");
+
+    const wantTypes = ["Contract", "Doctor", "Hospital"];
+    const standardTypeIdxSet = new Set(wantTypes.map(t => (dims.types || []).indexOf(t)).filter(i => i >= 0));
+    const pharmacyTypes = ["Pharmacy"];
+    const pharmacyTypeIdxSet = new Set(pharmacyTypes.map(t => (dims.types || []).indexOf(t)).filter(i => i >= 0));
+
+    const dmIdx = (dims.managers || []).indexOf(dmName);
+    if (dmIdx < 0) return null;
+
+    let coveredSum = 0, rightFreqSum = 0, rowCount = 0;
+    const repSet = new Set();
+
+    records.rows.forEach(row => {
+      if (row[F.period] !== latestPeriodIdx) return;
+      if (row[F.experience] !== expIdx) return;
+      if (row[F.status] !== statusIdx) return;
+      if (row[F.manager] !== dmIdx) return;
+
+      const teamName = (dims.teams || [])[row[F.team]];
+      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
+      const rowBU = window.SEMANTIC.lineToBU(teamName);
+      if (rowBU !== bu) return;
+      const canonLine = window.SEMANTIC.normalizeLine(teamName);
+      if (line && line !== "All" && canonLine !== line) return;
+
+      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
+      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
+      if (row[F.title] !== applicableTitleIdx) return;
+      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
+      if (!applicableTypeIdxSet.has(row[F.type])) return;
+
+      if (row[F.isActive]) {
+        coveredSum += row[F.coveredDoctor] || 0;
+        rightFreqSum += row[F.rightFreq] || 0;
+        rowCount += 1;
+        repSet.add(row[F.employee]);
+      }
+    });
+
+    return {
+      ok: true,
+      coveragePct: rowCount > 0 ? (coveredSum / rowCount) * 100 : null,
+      rightFreqPct: rowCount > 0 ? (rightFreqSum / rowCount) * 100 : null,
+      repCount: repSet.size,
+      customerRowCount: rowCount,
+    };
+  }
+
   global.CoverageDashboard = global.CoverageDashboard || {};
   global.CoverageDashboard.getBusinessSummary = getBusinessSummary;
   global.CoverageDashboard.getFilteredCoverageSummary = getFilteredCoverageSummary;
   global.CoverageDashboard.getFilteredCoverageByType = getFilteredCoverageByType;
   global.CoverageDashboard.getFilteredCoverageForLine = getFilteredCoverageForLine;
+  global.CoverageDashboard.getFilteredCoverageForDm = getFilteredCoverageForDm;
   global.CoverageDashboard.getExecutionWorkloadSummary = getExecutionWorkloadSummary;
   global.CoverageDashboard.getLineAndTerritoryBreakdown = getLineAndTerritoryBreakdown;
   global.CoverageDashboard.getCorporateCoverageTotals = getCorporateCoverageTotals;

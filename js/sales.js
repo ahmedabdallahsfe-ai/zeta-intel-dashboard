@@ -3555,6 +3555,77 @@
       };
     },
 
+    getDmSalesSummary(bu, line, months) {
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, dms: [] };
+      }
+      if (typeof window.SEMANTIC === 'undefined') {
+        console.error('[Sales] getDmSalesSummary() requires js/semantic-model.js to be loaded first.');
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, dms: [] };
+      }
+      if (window.AUTH && !window.AUTH.isBuAllowed(bu)) {
+        return { ok: false, status: 'access_denied', asOfDate: null, source: 'sales', bu: bu, dms: [] };
+      }
+      const linesLk = cache.lookups.lines;
+      const dmsLk = cache.lookups.dms;
+      const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
+
+      const acc = new Map(); // dmName -> { val, tgtVal }
+      const posByDm = new Map(); // dmName -> Set of deployed position codes
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const rawLine = linesLk[r[LINE]];
+        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
+        if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        const canonLine = window.SEMANTIC.normalizeLine(rawLine);
+        if (line && line !== "All" && canonLine !== line) continue;
+        if (monthFilter && !monthFilter.has(r[MONTH])) continue;
+
+        const dmName = dmsLk[r[DM]];
+        if (!dmName || dmName === "(none)") continue;
+
+        const rowPos = cache.lookups.rep_positions[r[REP]];
+        if (rowPos && !EXCLUDED_POSITIONS.has(rowPos)) {
+          if (!posByDm.has(dmName)) posByDm.set(dmName, new Set());
+          posByDm.get(dmName).add(rowPos);
+        }
+        const isTender = (r[MASK] & 2) > 0;
+        if (isTender) continue; // Non-Tender only -- see header comment
+        if (!acc.has(dmName)) acc.set(dmName, { val: 0, tgtVal: 0 });
+        const a = acc.get(dmName);
+        a.val += r[VAL];
+        a.tgtVal += r[TGT_VAL];
+      }
+
+      const dms = Array.from(acc.entries())
+        .map(([name, a]) => {
+          const activePositions = posByDm.has(name) ? posByDm.get(name).size : 0;
+          return {
+            name: name,
+            actualValue: a.val,
+            targetValue: a.tgtVal,
+            achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
+            activePositions: activePositions,
+            salesPerPosition: activePositions > 0 ? a.val / activePositions : null,
+          };
+        });
+
+      const monthsLk = cache.lookups.months;
+      const lastIdx = monthsLk.length - 1;
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: monthsLk[lastIdx] || null,
+        source: 'sales',
+        bu: bu,
+        line: line || 'All',
+        scope: 'Non-Tender transactions only, Value basis',
+        dms: dms,
+      };
+    },
+
     destroy() {
       document.body.classList.remove('sales-mode');
       destroyCharts();

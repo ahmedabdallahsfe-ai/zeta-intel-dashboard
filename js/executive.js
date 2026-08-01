@@ -1002,66 +1002,81 @@
   // transactions plain "CHC" -- it tags all of CHC's sales
   // "CHC_SALES"), which is expected.
   // ---------------------------------------------------------------------
-  function buildLinePerformanceTable(bu, months) {
-    // FIXED 2026-07-30 ("make calculation and RF for each line as same as
-    // BU calculation active non probation"): this table's Coverage %/
-    // Right-Freq % previously came from getLineAndTerritoryBreakdown()'s
-    // pre-aggregated teamComparison rows -- an UNFILTERED population with
-    // no Title/Experience/Status cut. That silently diverged from the
-    // KPI 1/2 cards above (buildCoverageFamilyCard), which use
-    // getFilteredCoverageForLine(bu, line) scoped to exactly
-    // Title=Medical Representative, Experience=Non-Probation,
-    // Status=Active (+ CHC_SALES's own Sales-Representative/Pharmacy
-    // carve-out) -- so a line's Coverage/RF number in this table could
-    // disagree with what you'd get by selecting that same line in the
-    // filter bar above. Now calls getFilteredCoverageForLine() per line,
-    // same function/same population the cards and the per-line ranking
-    // already use, so the two always reconcile. Also switched the row
-    // list itself from covData.lines (unscoped) to getAllowedLinesForBU()
-    // -- the same role-scoped line list every other card on this page
-    // uses -- so a Line-restricted user (e.g. Amr Khalifa: CHC allowed,
-    // but not CHC_SALES) no longer sees a row for a line outside their
-    // Allowed Lines here even though they would everywhere else.
-    const covProbe = safeCall("coverage", "CoverageDashboard", "getLineAndTerritoryBreakdown", bu);
-    const salesData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, months);
-    if (!covProbe || !covProbe.ok) return { ok: false, status: covProbe ? covProbe.status : "module_unavailable" };
+  function buildLinePerformanceTable(bu, line, months) {
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
 
-    const salesByLine = new Map();
-    let totalSalesValue = 0;
-    if (salesData && salesData.ok) {
-      salesData.lines.forEach(l => { salesByLine.set(l.name, l); totalSalesValue += l.actualValue; });
+    if (activeLine) {
+      const hierarchy = safeCall("sfe", "SFEDashboard", "getHierarchyList") || [];
+      const sfeDms = hierarchy
+        .filter(h => window.SEMANTIC.normalizeLine(h.line) === activeLine)
+        .map(h => h.dm.trim())
+        .filter(dm => dm && dm !== "(none)" && dm.toUpperCase() !== "VACANT");
+
+      const allDms = [...new Set(sfeDms)];
+
+      const salesData = safeCall("sales", "SalesDashboard", "getDmSalesSummary", bu, activeLine, months);
+      const salesByDm = new Map();
+      let totalSalesValue = 0;
+      if (salesData && salesData.ok) {
+        salesData.dms.forEach(d => { salesByDm.set(d.name, d); totalSalesValue += d.actualValue; });
+      }
+
+      const rows = allDms.map(name => {
+        const cov = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForDm", bu, activeLine, name);
+        const coveragePct = (cov && cov.ok) ? cov.coveragePct : null;
+        const rightFreqPct = (cov && cov.ok) ? cov.rightFreqPct : null;
+
+        const s = salesByDm.get(name);
+        const plannedHeadcount = sfeDms.filter(d => d === name).length;
+
+        return {
+          name: name,
+          coveragePct: coveragePct,
+          rightFreqPct: rightFreqPct,
+          salesAchievementPct: s ? s.achievementPct : null,
+          salesValue: s ? s.actualValue : null,
+          targetValue: s ? s.targetValue : null,
+          contributionPct: (s && totalSalesValue > 0) ? (s.actualValue / totalSalesValue) * 100 : null,
+          salesPerPosition: (s && plannedHeadcount > 0) ? s.actualValue / plannedHeadcount : null,
+          activePositions: plannedHeadcount,
+        };
+      }).sort((a, b) => (b.salesAchievementPct === null ? -Infinity : b.salesAchievementPct) - (a.salesAchievementPct === null ? -Infinity : a.salesAchievementPct));
+
+      return { ok: true, bu: bu, scope: (salesData && salesData.ok) ? salesData.scope : null, rows: rows };
+    } else {
+      const covProbe = safeCall("coverage", "CoverageDashboard", "getLineAndTerritoryBreakdown", bu);
+      const salesData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, months);
+      if (!covProbe || !covProbe.ok) return { ok: false, status: covProbe ? covProbe.status : "module_unavailable" };
+
+      const salesByLine = new Map();
+      let totalSalesValue = 0;
+      if (salesData && salesData.ok) {
+        salesData.lines.forEach(l => { salesByLine.set(l.name, l); totalSalesValue += l.actualValue; });
+      }
+
+      const rows = getAllowedLinesForBU(bu).map(name => {
+        const cov = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, name);
+        const coveragePct = (cov && cov.ok) ? cov.coveragePct : null;
+        const rightFreqPct = (cov && cov.ok) ? cov.rightFreqPct : null;
+
+        const s = salesByLine.get(name);
+        const sfeLine = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, name);
+        const plannedHeadcount = (sfeLine && sfeLine.ok) ? sfeLine.headcountTotal : 0;
+        return {
+          name: name,
+          coveragePct: coveragePct,
+          rightFreqPct: rightFreqPct,
+          salesAchievementPct: s ? s.achievementPct : null,
+          salesValue: s ? s.actualValue : null,
+          targetValue: s ? s.targetValue : null,
+          contributionPct: (s && totalSalesValue > 0) ? (s.actualValue / totalSalesValue) * 100 : null,
+          salesPerPosition: (s && plannedHeadcount > 0) ? s.actualValue / plannedHeadcount : null,
+          activePositions: plannedHeadcount,
+        };
+      }).sort((a, b) => (b.salesAchievementPct === null ? -Infinity : b.salesAchievementPct) - (a.salesAchievementPct === null ? -Infinity : a.salesAchievementPct));
+
+      return { ok: true, bu: bu, scope: (salesData && salesData.ok) ? salesData.scope : null, rows: rows };
     }
-
-    const rows = getAllowedLinesForBU(bu).map(name => {
-      const cov = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, name);
-      const coveragePct = (cov && cov.ok) ? cov.coveragePct : null;
-      const rightFreqPct = (cov && cov.ok) ? cov.rightFreqPct : null;
-
-      const s = salesByLine.get(name);
-      // "Positions" here means Planned Headcount -- SFE's organogram
-      // total for this line (active + vacant budgeted slots), sourced
-      // from SFEDashboard.getFilteredHeadcountForLine(bu, line)
-      // .headcountTotal. Deliberately NOT Sales' activePositions
-      // (deployed/transacting territory count) and NOT Coverage's own
-      // repCount above (Active/Non-Probation/MR-only field-force count)
-      // -- three distinct, intentionally different populations; see the
-      // Period-filter comment on the caller for the same convention.
-      const sfeLine = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, name);
-      const plannedHeadcount = (sfeLine && sfeLine.ok) ? sfeLine.headcountTotal : 0;
-      return {
-        name: name,
-        coveragePct: coveragePct,
-        rightFreqPct: rightFreqPct,
-        salesAchievementPct: s ? s.achievementPct : null,
-        salesValue: s ? s.actualValue : null,
-        targetValue: s ? s.targetValue : null,
-        contributionPct: (s && totalSalesValue > 0) ? (s.actualValue / totalSalesValue) * 100 : null,
-        salesPerPosition: (s && plannedHeadcount > 0) ? s.actualValue / plannedHeadcount : null,
-        activePositions: plannedHeadcount,
-      };
-    }).sort((a, b) => (b.salesAchievementPct === null ? -Infinity : b.salesAchievementPct) - (a.salesAchievementPct === null ? -Infinity : a.salesAchievementPct));
-
-    return { ok: true, bu: bu, scope: (salesData && salesData.ok) ? salesData.scope : null, rows: rows };
   }
 
   // ---------------------------------------------------------------------
@@ -1567,10 +1582,9 @@
   }
 
   function renderLinePerformanceSection(ctx) {
-    if (ctx.filters.line !== "All") return null; // redundant once a single line is already selected
     const monthsInfo = safeCall("sales", "SalesDashboard", "getAvailableMonths");
     const monthsParam = _linePerfMonths === "all" ? null : _linePerfMonths;
-    const data = buildLinePerformanceTable(ctx.filters.bu, monthsParam);
+    const data = buildLinePerformanceTable(ctx.filters.bu, ctx.filters.line, monthsParam);
 
     const wrap = document.createElement("div");
     wrap.className = "ds-mt-4";
@@ -1579,8 +1593,11 @@
     headerRow.style.cssText = "display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-2,8px);";
     const titleEl = document.createElement("div");
     titleEl.style.cssText = "font-weight:600;font-size:var(--fs-sm,13px);";
-    const activeLineLabel = (global.AUTH && global.AUTH.getScope().lines) ? global.AUTH.getScope().lines.join(", ") : ctx.filters.bu;
-    titleEl.textContent = "Line Performance within " + activeLineLabel;
+
+    const activeLine = (ctx.filters.line !== "All") ? ctx.filters.line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : ctx.filters.bu);
+
+    titleEl.textContent = activeLine ? "DSM Performance within " + activeLineLabel : "Line Performance within " + activeLineLabel;
     headerRow.appendChild(titleEl);
 
     // Period filter, scoped to this section only -- Coverage %/Right-Freq %
@@ -1605,14 +1622,14 @@
     if (!data.ok) {
       const msg = document.createElement("div");
       msg.style.cssText = "font-size:var(--fs-xs,12px);color:var(--color-text-tertiary,#94A3B8);";
-      msg.textContent = "Line Performance unavailable (" + data.status + ").";
+      msg.textContent = (activeLine ? "DSM" : "Line") + " Performance unavailable (" + data.status + ").";
       wrap.appendChild(msg);
       return wrap;
     }
 
     const table = global.DS.table({
       columns: [
-        { key: "name", label: "Line" },
+        { key: "name", label: activeLine ? "District Manager" : "Line" },
         { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
         { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
         { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
