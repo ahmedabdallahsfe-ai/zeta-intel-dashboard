@@ -220,8 +220,7 @@ function startApp() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Executive Command Center";
     } else if (tab === "tomarket") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - To-Market vs In-Market";
-    } else if (tab === "storyteller") {
-      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Performance Storyteller";
+
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -243,13 +242,7 @@ function startApp() {
     tomarketMenuItem.style.display = scope.unrestricted ? "" : "none";
   }
 
-  const storytellerMenuItem = document.getElementById("menu-item-storyteller");
-  if (storytellerMenuItem) {
-    const userObj = window.AUTH ? window.AUTH.getValidSessionUser() : null;
-    const roleUpper = userObj && userObj.role ? userObj.role.toUpperCase() : "";
-    const canSeeStory = ["SFE MANAGER", "BEX", "ADMIN", "CEO", "VP"].includes(roleUpper);
-    storytellerMenuItem.style.display = canSeeStory ? "" : "none";
-  }
+
 
   // Render the default landing workspace (Executive Command Center) at boot.
   // Mirrors the same on-demand init() pattern used for Sales/SFE/IQVIA in the
@@ -331,13 +324,7 @@ function startApp() {
           window.SFEDashboard.destroy();
         }
         renderTomarketTab(document.getElementById("app-root"));
-      } else if (tab === "storyteller") {
-        if (window.SFEDashboard) {
-          window.SFEDashboard.destroy();
-        }
-        if (window.StorytellingDashboard) {
-          window.StorytellingDashboard.init("app-root");
-        }
+
       }
     });
   });
@@ -761,10 +748,7 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
 /** Re-render every section from a fresh Analytics.run() result. Called on
  * initial load and on every filter change. */
 function renderAll(result, dims, filterState) {
-  if (currentTab === "storyteller" && window.StorytellingDashboard) {
-    window.StorytellingDashboard.render(document.getElementById("app-root"));
-    return;
-  }
+
   if (currentTab !== "coverage") return;
   _lastResult = result;
   renderExecutiveSummary(result, filterState);
