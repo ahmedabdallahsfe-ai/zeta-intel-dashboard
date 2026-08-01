@@ -256,7 +256,7 @@
     if (line && line !== "All") {
       const r = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, null);
       const v = (r && r.ok) ? r[metricKey] : null;
-      return v !== null && v !== undefined ? { label: "vs BU", value: fmtPct1(v) } : null;
+      return v !== null && v !== undefined ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
     const v = corporateCoveragePct(metricKey);
     return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
@@ -266,7 +266,7 @@
     if (line && line !== "All") {
       const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, null);
       const v = (r && r.ok && r.vacancyRatePct !== null) ? 100 - r.vacancyRatePct : null;
-      return v !== null ? { label: "vs BU", value: fmtPct1(v) } : null;
+      return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
     const v = corporateSfeFillRate(summaries);
     return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
@@ -276,7 +276,7 @@
     if (line && line !== "All") {
       const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, null);
       const v = (s && s.ok) ? s.achievementPct : null;
-      return v !== null ? { label: "vs BU", value: fmtPct1(v) } : null;
+      return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
     const v = corporateSalesAchievementPct();
     return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
@@ -286,7 +286,7 @@
     if (line && line !== "All") {
       const t = nonTenderTotals(bu, "All");
       const v = t ? t.achievementPct : null;
-      return v !== null ? { label: "vs BU", value: fmtPct1(v) } : null;
+      return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
     const v = corporateSalesValueAchievementPct();
     return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
@@ -296,7 +296,7 @@
     if (line && line !== "All") {
       const d = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, null);
       const v = (d && d.ok && d.clusters.length) ? d.clusters[0].contributionPct : null;
-      return v !== null ? { label: "vs BU", value: fmtPct1(v) } : null;
+      return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
     const v = corporateClusterConcentrationPct();
     return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
@@ -964,7 +964,7 @@
 
     const achievementPct = (val !== null && platformAvg && !isWholeBuView) ? (val / platformAvg) * 100 : null;
     const refEntry = (activeLine || line !== "All")
-      ? (platformAvg !== null ? { label: "vs BU", value: fmtM(platformAvg) } : null)
+      ? (platformAvg !== null ? { label: "vs " + bu, value: fmtM(platformAvg) } : null)
       : (function () {
           const v = corporateSalesProductivity(summaries);
           return v !== null ? { label: "vs Corporate", value: fmtM(v) } : null;
