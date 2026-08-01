@@ -417,23 +417,8 @@
     },
 
     runStatisticalAnalysis: function (bu, line, filters) {
-      const hierarchy = window.SFEDashboard ? window.SFEDashboard.getHierarchyList() : [];
-      
-      // Filter hierarchy list by current BU and line
       const activeLine = (line !== "All") ? line : (window.AUTH && window.AUTH.getScope().lines && window.AUTH.getScope().lines.length === 1 ? window.AUTH.getScope().lines[0] : null);
       
-      const sfeDms = hierarchy
-        .filter(h => {
-          const rowBu = window.SEMANTIC.lineToBU(h.line);
-          const rowLine = window.SEMANTIC.normalizeLine(h.line);
-          if (rowBu !== bu) return false;
-          if (activeLine && rowLine !== activeLine) return false;
-          return true;
-        })
-        .map(h => h.dm.trim())
-        .filter(dm => dm && dm !== "(none)" && dm.toUpperCase() !== "VACANT");
-      const dmsInScope = [...new Set(sfeDms)];
-
       // Pull data vectors per DM in scope
       const xCov = [], yAch = [], xCalls = [], yCallsAch = [], xVac = [], yProd = [];
 
@@ -446,26 +431,64 @@
         });
       }
 
-      dmsInScope.forEach(dmName => {
-        const covData = window.CoverageDashboard ? window.CoverageDashboard.getFilteredCoverageForDm(bu, activeLine, dmName) : null;
-        const sales = salesByDm.get(dmName.toUpperCase().trim());
-
-        if (covData && covData.ok) {
-          const coverageVal = covData.coveragePct;
-          const visitAchVal = covData.visitAchievementPct;
-          const salesAchVal = sales ? sales.achievementPct : null;
-
-          if (coverageVal !== null && salesAchVal !== null) {
-            xCov.push(coverageVal);
-            yAch.push(salesAchVal);
+      // Group records by DM (manager index) dynamically
+      const records = window.CacheStore ? window.CacheStore.getRecords() : null;
+      const dash = window.CacheStore ? window.CacheStore.getDashboard() : null;
+      const dims = dash && dash.dimensions;
+      
+      const dmVisits = new Map(); // dmName -> { visits: 0, targetFreq: 0, covered: 0, totalCount: 0 }
+      
+      if (records && records.rows && dims) {
+        const F = {
+          period: 0, team: 1, manager: 5, status: 9, experience: 10,
+          coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, frequency: 21
+        };
+        const latestPeriodIdx = (dims.periods || []).length - 1;
+        const expIdx = (dims.experiences || []).indexOf("Non-Probation");
+        const statusIdx = (dims.statuses || []).indexOf("Active");
+        
+        records.rows.forEach(row => {
+          if (row[F.period] !== latestPeriodIdx) return;
+          if (row[F.experience] !== expIdx) return;
+          if (row[F.status] !== statusIdx) return;
+          if (!row[F.isActive]) return;
+          
+          const teamName = (dims.teams || [])[row[F.team]];
+          if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
+          const rowBU = window.SEMANTIC.lineToBU(teamName);
+          if (rowBU !== bu) return;
+          const canonLine = window.SEMANTIC.normalizeLine(teamName);
+          if (activeLine && canonLine !== activeLine) return;
+          
+          const dmName = (dims.managers || [])[row[F.manager]];
+          if (!dmName || dmName === "(none)" || dmName.toUpperCase() === "VACANT") return;
+          
+          const dmKey = dmName.toUpperCase().trim();
+          if (!dmVisits.has(dmKey)) {
+            dmVisits.set(dmKey, { name: dmName, visits: 0, targetFreq: 0, covered: 0, totalCount: 0 });
           }
+          const item = dmVisits.get(dmKey);
+          item.visits += row[F.visits] || 0;
+          item.targetFreq += row[F.frequency] || 0;
+          item.covered += row[F.coveredDoctor] || 0;
+          item.totalCount += 1;
+        });
 
-          if (visitAchVal !== null && salesAchVal !== null) {
-            xCalls.push(visitAchVal);
-            yCallsAch.push(salesAchVal);
+        // Correlate gathered DM coverage & visit metrics with sales achievement
+        dmVisits.forEach((item, dmKey) => {
+          const sales = salesByDm.get(dmKey);
+          if (sales && sales.achievementPct !== null) {
+            const covPct = item.totalCount > 0 ? (item.covered / item.totalCount) : 0;
+            const visitAch = item.targetFreq > 0 ? (item.visits / item.targetFreq) : 0;
+
+            xCov.push(covPct);
+            yAch.push(sales.achievementPct / 100);
+
+            xCalls.push(visitAch);
+            yCallsAch.push(sales.achievementPct / 100);
           }
-        }
-      });
+        });
+      }
 
       // Vacancy vs Productivity per Line
       const sfeLines = window.SEMANTIC ? window.SEMANTIC.BU_TO_LINES[bu] || [] : [];
@@ -503,9 +526,9 @@
           if (iqRow && saRow) {
             // MAT segment growth rate
             const mktGrowth = iqRow.marketGrowthPct / 100;
-            // Internal non-tender sales growth rate
-            const intGrowth = saRow.growthPct / 100;
-            if (mktGrowth !== null && intGrowth !== null) {
+            // Internal non-tender sales growth rate (using correct momGrowthPct key)
+            const intGrowth = saRow.momGrowthPct / 100;
+            if (mktGrowth !== null && intGrowth !== null && !isNaN(mktGrowth) && !isNaN(intGrowth)) {
               xMarketGrow.push(mktGrowth);
               yInternalGrow.push(intGrowth);
             }

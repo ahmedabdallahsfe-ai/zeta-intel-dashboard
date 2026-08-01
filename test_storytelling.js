@@ -41,6 +41,32 @@ window.SEMANTIC = {
   BU_TO_LINES: { CHC: ["CHC", "CHC_SALES"] }
 };
 
+window.CacheStore = {
+  getRecords: () => ({
+    rows: [
+      // F.period=0, F.team=1, F.manager=5, F.status=9, F.experience=10, F.coveredDoctor=12, F.rightFreq=13, F.visits=14, F.isActive=15, F.frequency=21
+      // DM_Alpha (index 0) - 2 rows (coverage 100%, visit ach 100%)
+      [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 1, 0, 0, 0, 0, 0, 4 ],
+      [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 1, 0, 0, 0, 0, 0, 4 ],
+      // DM_Beta (index 1) - 2 rows (coverage 50%, visit ach 75%)
+      [ 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 1, 0, 0, 0, 0, 0, 4 ],
+      [ 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3, 1, 0, 0, 0, 0, 0, 4 ],
+      // DM_Gamma (index 2) - 2 rows (coverage 0%, visit ach 50%)
+      [ 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 4 ],
+      [ 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 4 ]
+    ]
+  }),
+  getDashboard: () => ({
+    dimensions: {
+      periods: ["Latest (Jun)"],
+      teams: ["CHC"],
+      managers: ["DM_Alpha", "DM_Beta", "DM_Gamma"],
+      experiences: ["Non-Probation"],
+      statuses: ["Active"]
+    }
+  })
+};
+
 // Load storytelling.js logic into window context by executing it
 const storytellingCode = fs.readFileSync(path.join(__dirname, 'js/storytelling.js'), 'utf8');
 const evalInWindow = new Function('window', 'document', storytellingCode);
@@ -51,17 +77,6 @@ const storyteller = window.StorytellingDashboard;
 // 1. UNIT TEST: Statistical Engine
 console.log("\n[1] UNIT TESTS: Statistical Correlation Engine");
 
-// Extract calculatePearson helper from the window context
-// We can temporarily attach a dummy object or get it from StorytellingDashboard
-// Let's re-run or get the statistical calculations from StorytellingDashboard.runStatisticalAnalysis
-// Wait! Let's test calculatePearson by simulating the data vectors.
-// To test it directly, let's extract the calculatePearson function from storytellingCode
-// Or we can query StorytellingDashboard's methods if we expose them.
-// Let's verify that StorytellingDashboard handles correlations correctly.
-// To make it easy to test, let's see if we can instantiate it and check the returned values.
-
-// Let's verify perfect positive correlation [1, 2, 3] vs [2, 4, 6]
-// Let's execute the logic by creating mock datasets
 window.SFEDashboard = {
   getHierarchyList: () => [
     { line: "CHC", dm: "DM_Alpha", employee: "Rep_A" },
@@ -101,10 +116,10 @@ window.SalesDashboard = {
   getBusinessSummary: () => ({
     ok: true,
     bu: {
-      CHC: { growthPct: 15 },
-      Cluster: { growthPct: 10 },
-      DIAB: { growthPct: 5 },
-      GIT: { growthPct: 8 }
+      CHC: { momGrowthPct: 15 },
+      Cluster: { momGrowthPct: 10 },
+      DIAB: { momGrowthPct: 5 },
+      GIT: { momGrowthPct: 8 }
     }
   })
 };
@@ -137,7 +152,7 @@ if (Math.abs(analysis.coverageVsAchievement.r - 1.0) < 0.001) {
 console.log("\n[2] UNIT TESTS: Error and Boundary Conditions");
 
 // Empty hierarchy (should yield 0 sample size and "No Evidence")
-window.SFEDashboard.getHierarchyList = () => [];
+window.CacheStore.getRecords = () => ({ rows: [] });
 const emptyAnalysis = storyteller.runStatisticalAnalysis("CHC", null, {});
 if (emptyAnalysis.coverageVsAchievement.n === 0 && emptyAnalysis.coverageVsAchievement.confidence === "No Evidence") {
   console.log("  PASS: Gracefully handles empty dataset.");
