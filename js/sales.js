@@ -3033,7 +3033,7 @@
         // Role-based scope: exclude any line the signed-in user isn't
         // allowed (e.g. Amr Khalifa's Allowed Lines is "CHC" only, not
         // "CHC,CHC_SALES", even though bu="CHC" itself is allowed).
-        .filter(l => !window.AUTH || window.AUTH.isLineAllowed(l.name))
+        .filter(l => ignoreLineAuth || !window.AUTH || window.AUTH.isLineAllowed(l.name))
         .sort((x, y) => y.actualValue - x.actualValue);
 
       return {
