@@ -995,6 +995,178 @@
   }
 
   // ---------------------------------------------------------------------
+  // TMS vs IMS Helper & KPI Card Builders
+  // ---------------------------------------------------------------------
+  function getTmsImsMetrics(bu, line) {
+    if (!window.TMS_IMS_CACHE) {
+      return { ok: false, status: "cache_unavailable" };
+    }
+    const cache = window.TMS_IMS_CACHE;
+    const buMap = { "CHC": "CHC", "Cluster": "Cluster", "DIAB": "Diabetes", "GIT": "GIT" };
+    const targetBuName = buMap[bu] || bu;
+    const buIdx = cache.BUS.indexOf(targetBuName);
+    if (buIdx < 0) return { ok: false, status: "bu_not_found" };
+
+    const privateIdx = cache.STYPES.indexOf("Private");
+    if (privateIdx < 0) return { ok: false, status: "type_not_found" };
+
+    // Determine target lines in scope
+    let lineIndices = null;
+    if (line && line !== "All") {
+      const normLine = window.SEMANTIC.normalizeLine(line).toUpperCase();
+      lineIndices = [];
+      cache.LINES.forEach((l, idx) => {
+        const canonL = window.SEMANTIC.normalizeLine(l).toUpperCase();
+        if (canonL === normLine || l.toUpperCase() === normLine) {
+          lineIndices.push(idx);
+        }
+      });
+    }
+
+    const latestMonthIdx = cache.MONTHS.length - 1;
+    let tmsLatestUnits = 0;
+    let imsLatestUnits = 0;
+    let totalTmsUnits = 0;
+    let totalImsUnits = 0;
+
+    const velocityMonthIndices = [latestMonthIdx, latestMonthIdx - 1, latestMonthIdx - 2].filter(m => m >= 0);
+    let imsVelocityUnits = 0;
+
+    cache.ROWS.forEach(r => {
+      if (r[1] !== buIdx) return;
+      if (r[5] !== privateIdx) return;
+      if (lineIndices && !lineIndices.includes(r[2])) return;
+
+      const mIdx = r[0];
+      const isIms = (r[6] === 1);
+      const isTms = (r[6] === 0);
+      const qty = r[7] || 0;
+
+      if (isTms) totalTmsUnits += qty;
+      if (isIms) totalImsUnits += qty;
+
+      if (mIdx === latestMonthIdx) {
+        if (isTms) tmsLatestUnits += qty;
+        if (isIms) imsLatestUnits += qty;
+      }
+
+      if (isIms && velocityMonthIndices.includes(mIdx)) {
+        imsVelocityUnits += qty;
+      }
+    });
+
+    const pullThroughRate = tmsLatestUnits > 0 ? (imsLatestUnits / tmsLatestUnits) * 100 : null;
+    const activeMonthsCount = velocityMonthIndices.length;
+    const dailyVelocity = (activeMonthsCount > 0) ? (imsVelocityUnits / (activeMonthsCount * 30)) : 0;
+    const currentInventory = Math.max(0, totalTmsUnits - totalImsUnits);
+    const stockDays = dailyVelocity > 0 ? (currentInventory / dailyVelocity) : 0;
+
+    return {
+      ok: true,
+      pullThroughRate,
+      stockDays,
+      currentInventory,
+      latestMonthLabel: cache.MONTHS[latestMonthIdx]
+    };
+  }
+
+  function statusFromStockDays(val) {
+    if (val === null || val === undefined || isNaN(val)) return "Critical";
+    if (val >= 30 && val <= 45) return "Excellent";
+    if ((val >= 20 && val < 30) || (val > 45 && val <= 60)) return "On Track";
+    if ((val >= 15 && val < 20) || (val > 60 && val <= 90)) return "At Risk";
+    return "Critical";
+  }
+
+  function buildPullThroughCard(filters) {
+    const bu = filters.bu, line = filters.line;
+    const scoped = getTmsImsMetrics(bu, line);
+    if (!scoped || !scoped.ok) {
+      return unavailableCard("pullThroughRate", "Pull-Through Rate", scoped ? scoped.status : "cache_unavailable");
+    }
+
+    let rankInfo, rankUnit;
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    if (!activeLine && !isBuRestricted()) {
+      const vals = {};
+      getAllowedBUList().forEach(b => {
+        const s = getTmsImsMetrics(b, null);
+        vals[b] = (s && s.ok) ? s.pullThroughRate : null;
+      });
+      rankInfo = rank(vals, "desc")[bu];
+      rankUnit = "Business Units";
+    } else {
+      const lines = getAllowedLinesForBU(bu);
+      const vals = {};
+      lines.forEach(l => {
+        const s = getTmsImsMetrics(bu, l);
+        vals[l] = (s && s.ok) ? s.pullThroughRate : null;
+      });
+      const rankKey = activeLine || line;
+      rankInfo = rank(vals, "desc")[rankKey];
+      rankUnit = "Lines within " + bu;
+    }
+
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
+
+    return {
+      kpiId: "pullThroughRate", name: "Pull-Through Rate",
+      mainValue: scoped.pullThroughRate !== null ? fmtPct1(scoped.pullThroughRate) : "0.0%",
+      mainValueSub: "Private Units · " + scoped.latestMonthLabel + (activeLineLabel ? " · " + activeLineLabel : ""),
+      performance: { target: "100.0%", achievementPct: scoped.pullThroughRate !== null ? fmtPct1(scoped.pullThroughRate) : "0.0%", variance: scoped.pullThroughRate !== null ? fmtPct1(scoped.pullThroughRate - 100) : "-100.0%" },
+      comparison: null,
+      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
+      status: statusFromAchievement(scoped.pullThroughRate),
+      trend: null, trendLabel: "Target pull-through velocity threshold: 100% of sell-in units.",
+      clickable: true, dblClickable: true,
+    };
+  }
+
+  function buildStockDaysCard(filters) {
+    const bu = filters.bu, line = filters.line;
+    const scoped = getTmsImsMetrics(bu, line);
+    if (!scoped || !scoped.ok) {
+      return unavailableCard("stockDays", "Distributor Stock Days", scoped ? scoped.status : "cache_unavailable");
+    }
+
+    let rankInfo, rankUnit;
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    if (!activeLine && !isBuRestricted()) {
+      const vals = {};
+      getAllowedBUList().forEach(b => {
+        const s = getTmsImsMetrics(b, null);
+        vals[b] = (s && s.ok) ? s.stockDays : null;
+      });
+      rankInfo = rank(vals, "asc")[bu]; // lower stock days is faster rotation
+      rankUnit = "Business Units";
+    } else {
+      const lines = getAllowedLinesForBU(bu);
+      const vals = {};
+      lines.forEach(l => {
+        const s = getTmsImsMetrics(bu, l);
+        vals[l] = (s && s.ok) ? s.stockDays : null;
+      });
+      const rankKey = activeLine || line;
+      rankInfo = rank(vals, "asc")[rankKey];
+      rankUnit = "Lines within " + bu;
+    }
+
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
+
+    return {
+      kpiId: "stockDays", name: "Distributor Stock Days",
+      mainValue: scoped.stockDays !== null ? Math.round(scoped.stockDays) + " Days" : "0 Days",
+      mainValueSub: "Private Channel · " + scoped.latestMonthLabel + (activeLineLabel ? " · " + activeLineLabel : ""),
+      performance: { target: "30-45 Days", achievementPct: Math.round(scoped.stockDays) + " Days", variance: Math.round(scoped.currentInventory).toLocaleString() + " Units" },
+      comparison: null,
+      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
+      status: statusFromStockDays(scoped.stockDays),
+      trend: null, trendLabel: "Target inventory cover: 30 to 45 stock days. Current: " + Math.round(scoped.currentInventory).toLocaleString() + " Units.",
+      clickable: true, dblClickable: true,
+    };
+  }
+
+  // ---------------------------------------------------------------------
   // KPI 11 -- Line Performance (within selected BU only; hidden when a
   // specific Line is already selected, since a breakdown-by-line doesn't
   // apply once you've drilled to one line).
@@ -1633,7 +1805,9 @@
       .concat(renderCard(buildCustomerClusterMixCard(filters)))
       .concat(renderCard(buildMarketShareCard(filters)))
       .concat(renderCard(buildBUGrowthCard(filters)))
-      .concat(renderCard(buildSalesProductivityCard(summaries, filters)));
+      .concat(renderCard(buildSalesProductivityCard(summaries, filters)))
+      .concat(renderCard(buildPullThroughCard(filters)))
+      .concat(renderCard(buildStockDaysCard(filters)));
 
     const grid = document.createElement("div");
     grid.className = "ds-grid-kpi";
@@ -1728,12 +1902,13 @@
         else if (kpiId === "customerClusterMix") openCustomerClusterMixModal(bu, ctx.filters.line);
         else if (kpiId === "marketShare") openMarketShareProductModal(bu);
         else if (kpiId === "sfe") switchToTab("sfe");
+        else if (kpiId === "pullThroughRate" || kpiId === "stockDays") switchToTab("tomarket");
       });
     });
     container.querySelectorAll("[data-exec-kpi-dbl]").forEach(el => {
       el.addEventListener("dblclick", () => {
         const kpiId = el.getAttribute("data-exec-kpi-dbl");
-        const tabByKpi = { coverage: "coverage", rightFrequency: "coverage", sfe: "sfe", salesAchievement: "sales", salesValue: "sales", marketShare: "iqvia", buGrowth: "iqvia", salesProductivity: "sales" };
+        const tabByKpi = { coverage: "coverage", rightFrequency: "coverage", sfe: "sfe", salesAchievement: "sales", salesValue: "sales", marketShare: "iqvia", buGrowth: "iqvia", salesProductivity: "sales", pullThroughRate: "tomarket", stockDays: "tomarket" };
         if (tabByKpi[kpiId]) switchToTab(tabByKpi[kpiId]);
       });
     });

@@ -138,6 +138,28 @@ def rebuild_html(datajs):
     with open(HTML_FILE, 'w', encoding='utf-8') as f:
         f.write(new_s)
 
+    # Rebuild Main Dashboard Cache
+    main_cache_dir = os.path.join(SCRIPT_DIR, '..', 'cache')
+    if os.path.exists(main_cache_dir):
+        lines = datajs.strip().split('\n')
+        wrapped_lines = []
+        for line in lines:
+            if line.startswith('const '):
+                wrapped_lines.append(line.replace('const ', 'var ', 1))
+            else:
+                wrapped_lines.append(line)
+        wrapped_code = (
+            "(function(global) {\n"
+            "  \"use strict\";\n"
+            "  " + "\n  ".join(wrapped_lines) + "\n"
+            "  global.TMS_IMS_CACHE = { MONTHS, BUS, LINES, BRANDS, STYPES, PRODUCTS, ROWS };\n"
+            "})(window);\n"
+        )
+        cache_path = os.path.join(main_cache_dir, 'tms_ims.data.js')
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            f.write(wrapped_code)
+        print(f"      Rebuilt main dashboard cache: {os.path.basename(cache_path)}")
+
     print(f"      Updated! Old: {b-a:,} bytes -> New: {len(datajs):,} bytes")
     print(f"      File size: {len(new_s):,} bytes")
 
