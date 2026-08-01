@@ -41,7 +41,12 @@ const STATE = {
 // ===================== DATA LOADER =====================
 function loadData() {
   try {
-    const binary = pako.inflate(Uint8Array.from(atob(B64_DATA), c => c.charCodeAt(0)));
+    const strData = atob(B64_DATA);
+    const bytes = new Uint8Array(strData.length);
+    for (let i = 0; i < strData.length; i++) {
+      bytes[i] = strData.charCodeAt(i);
+    }
+    const binary = pako.inflate(bytes);
     const text = new TextDecoder().decode(binary);
     flat = JSON.parse(text);
     applyUserFilter();

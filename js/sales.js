@@ -201,8 +201,10 @@
       const t0 = performance.now();
       const b64 = window.SALES_CACHE.b64Data;
       const strData = atob(b64);
-      const charData = strData.split('').map(x => x.charCodeAt(0));
-      const bytes = new Uint8Array(charData);
+      const bytes = new Uint8Array(strData.length);
+      for (let i = 0; i < strData.length; i++) {
+        bytes[i] = strData.charCodeAt(i);
+      }
       const decompressed = pako.ungzip(bytes, { to: 'string' });
       cache = JSON.parse(decompressed);
       decodedRows = cache.rows;
