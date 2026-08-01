@@ -2012,18 +2012,29 @@
 
   function renderKPIGrid(ctx) {
     const summaries = ctx.summaries, filters = ctx.filters;
-    const cardsHtml = []
-      .concat(renderCard(buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 90, filters)))
-      .concat(renderCard(buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 70, filters)))
-      .concat(renderCard(buildSFECard(filters, summaries)))
-      .concat(renderCard(buildSalesAchievementCard(filters)))
-      .concat(renderCard(buildSalesValueCard(filters)))
-      .concat(renderCard(buildCustomerClusterMixCard(filters)))
-      .concat(renderCard(buildMarketShareCard(filters)))
-      .concat(renderCard(buildBUGrowthCard(filters)))
-      .concat(renderCard(buildSalesProductivityCard(summaries, filters)))
-      .concat(renderCard(buildPullThroughCard(filters)))
-      .concat(renderCard(buildStockDaysCard(filters)));
+    
+    // Role-based restriction (2026-08-01): BU and Line Managers (restricted scopes)
+    // do not have access to supply chain/inventory KPIs.
+    const isManager = global.AUTH && (global.AUTH.getScope().bus !== null || global.AUTH.getScope().lines !== null);
+
+    const cards = [
+      buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 90, filters),
+      buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 70, filters),
+      buildSFECard(filters, summaries),
+      buildSalesAchievementCard(filters),
+      buildSalesValueCard(filters),
+      buildCustomerClusterMixCard(filters),
+      buildMarketShareCard(filters),
+      buildBUGrowthCard(filters),
+      buildSalesProductivityCard(summaries, filters)
+    ];
+
+    if (!isManager) {
+      cards.push(buildPullThroughCard(filters));
+      cards.push(buildStockDaysCard(filters));
+    }
+
+    const cardsHtml = cards.map(c => renderCard(c));
 
     const grid = document.createElement("div");
     grid.className = "ds-grid-kpi";
