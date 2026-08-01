@@ -3701,6 +3701,40 @@
     destroy() {
       document.body.classList.remove('sales-mode');
       destroyCharts();
+      _memoCache = {}; // free memoized cache memory
     }
   };
+
+  // Memoization wrapper to solve boot performance issues (2026-08-01)
+  let _memoCache = {};
+  const heavyFns = [
+    "getBusinessSummary",
+    "getSalesAchievementSummary",
+    "getLineSalesSummary",
+    "getCustomerClusterMix",
+    "getBrandAchievement",
+    "getItemAchievement",
+    "getDmSalesSummary",
+    "getRepPositionsMap",
+    "getDmRepsSalesSummary"
+  ];
+  heavyFns.forEach(fnName => {
+    const orig = window.SalesDashboard[fnName];
+    if (typeof orig === "function") {
+      window.SalesDashboard[fnName] = function(...args) {
+        const userEmail = (window.AUTH && window.AUTH.getValidSessionUser()) ? window.AUTH.getValidSessionUser().email : "guest";
+        const cleanArgs = args.map(arg => {
+          if (arg instanceof Set) return Array.from(arg).sort();
+          return arg;
+        });
+        const key = userEmail + "_" + fnName + "_" + JSON.stringify(cleanArgs);
+        if (_memoCache.hasOwnProperty(key)) {
+          return _memoCache[key];
+        }
+        const result = orig.apply(this, args);
+        _memoCache[key] = result;
+        return result;
+      };
+    }
+  });
 })();
