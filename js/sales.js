@@ -3626,6 +3626,20 @@
       };
     },
 
+    getRepPositionsMap() {
+      decompressCache();
+      if (!cache || !cache.lookups) return {};
+      const reps = cache.lookups.reps || [];
+      const positions = cache.lookups.rep_positions || [];
+      const map = {};
+      reps.forEach((name, i) => {
+        if (name && positions[i]) {
+          map[name.toUpperCase().trim()] = positions[i];
+        }
+      });
+      return map;
+    },
+
     destroy() {
       document.body.classList.remove('sales-mode');
       destroyCharts();

@@ -1235,6 +1235,47 @@
     }, 0);
   }
 
+  function openDmDetailsModal(bu, line, dmName) {
+    if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
+    const reps = safeCall("coverage", "CoverageDashboard", "getDmRepsList", bu, line, dmName) || [];
+    const posMap = safeCall("sales", "SalesDashboard", "getRepPositionsMap") || {};
+
+    if (!reps.length) {
+      global.DS.openModal({
+        title: dmName + " — Representative List",
+        bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No active, non-probation representative data found.</div>"
+      });
+      return;
+    }
+
+    // Enrich with position data
+    const rows = reps.map(r => {
+      const pos = posMap[r.name.toUpperCase().trim()] || "N/A";
+      return {
+        name: r.name,
+        code: r.code,
+        position: pos,
+        coveragePct: r.coveragePct,
+        rightFreqPct: r.rightFreqPct
+      };
+    });
+
+    const table = global.DS.table({
+      columns: [
+        { key: "name", label: "Representative" },
+        { key: "position", label: "Position" },
+        { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+        { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" }
+      ],
+      rows: rows,
+    });
+
+    global.DS.openModal({
+      title: dmName + " — Representatives & Positions",
+      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Active, Non-Probation Medical Representatives (or Sales Representatives for CHC) under ${dmName}.</div>` + table,
+    });
+  }
+
   // Cluster Customer Health drill (2026-07-28): when the customer-analytics
   // ETL cache (etl/build_customer_analytics_cache.py -> getClusterCustomerHealth())
   // has rich per-customer data for this cluster -- currently Retail and
@@ -1644,6 +1685,14 @@
     const scopeNote = data.scope ? `<div style="font-size:var(--fs-xs,12px);color:var(--color-text-tertiary,#94A3B8);margin-bottom:var(--space-2,8px);">Sales figures: ${escapeAttr(data.scope)}. Contribution % = share of ${escapeAttr(ctx.filters.bu)}'s total Sales Value.</div>` : "";
     const bodyWrap = document.createElement("div");
     bodyWrap.innerHTML = scopeNote + table;
+    if (activeLine) {
+      bodyWrap.querySelectorAll("tbody tr").forEach((tr, i) => {
+        tr.style.cursor = "pointer";
+        tr.addEventListener("click", () => {
+          openDmDetailsModal(ctx.filters.bu, activeLine, data.rows[i].name);
+        });
+      });
+    }
     wrap.appendChild(bodyWrap);
     return wrap;
   }
