@@ -515,7 +515,9 @@
   // ---------------------------------------------------------------------
   function buildSalesAchievementCard(filters) {
     const bu = filters.bu, line = filters.line;
-    const scoped = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, line === "All" ? null : line);
+    // CHC Exception: use "CHC" line when BU is CHC and line is "All" or null or "CHC_SALES"
+    const targetLine = (bu === "CHC" && (line === "All" || !line || line === "CHC_SALES")) ? "CHC" : (line === "All" ? null : line);
+    const scoped = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLine);
     if (!scoped || !scoped.ok) return unavailableCard("salesAchievement", "Sales Achievement", scoped ? scoped.status : "module_unavailable");
 
     let rankInfo, rankUnit;
@@ -523,7 +525,8 @@
     if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
-        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, null);
+        const targetBLine = (b === "CHC") ? "CHC" : null;
+        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, targetBLine);
         vals[b] = (s && s.ok) ? s.achievementPct : null;
       });
       rankInfo = rank(vals, "desc")[bu];
@@ -532,7 +535,8 @@
       const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
-        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, l);
+        const targetLLine = (l === "CHC_SALES") ? "CHC" : l;
+        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLLine);
         vals[l] = (s && s.ok) ? s.achievementPct : null;
       });
       const rankKey = activeLine || line;
@@ -570,7 +574,8 @@
   // calculation to maintain or drift out of sync.
   // ---------------------------------------------------------------------
   function nonTenderTotals(bu, line, ignoreLineAuth) {
-    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, line && line !== "All" ? line : null, ignoreLineAuth);
+    const targetLine = (bu === "CHC" && (line === "All" || !line || line === "CHC_SALES")) ? "CHC" : (line === "All" ? null : line);
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, targetLine, ignoreLineAuth);
     if (!data || !data.ok) return null;
     let actualValue = 0, targetValue = 0;
     data.brands.forEach(b => { actualValue += b.actualValue; targetValue += b.targetValue; });
@@ -587,7 +592,7 @@
     if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
-        const bt = nonTenderTotals(b, "All");
+        const bt = nonTenderTotals(b, b === "CHC" ? "CHC" : "All");
         vals[b] = bt ? bt.achievementPct : null;
       });
       rankInfo = rank(vals, "desc")[bu];
@@ -713,7 +718,7 @@
   // ---------------------------------------------------------------------
   function buildMarketShareCard(filters) {
     const bu = filters.bu, line = filters.line;
-    const lineArg = line === "All" ? null : line;
+    const lineArg = line === "All" ? null : (line === "CHC_SALES" ? "CHC" : line);
     const dm1dm2 = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, lineArg);
     if (!dm1dm2 || !dm1dm2.ok || !dm1dm2.total) {
       const reason = dm1dm2 ? dm1dm2.status : "module_unavailable";
@@ -743,7 +748,8 @@
       const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
-        const ld1d2 = l === activeLine ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
+        const queryLine = l === "CHC_SALES" ? "CHC" : l;
+        const ld1d2 = l === activeLine ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, queryLine);
         vals[l] = (ld1d2 && ld1d2.ok && ld1d2.total) ? avg(ld1d2.total.dm1.ytd.su.sharePct, ld1d2.total.dm2.ytd.su.sharePct) : null;
       });
       const rankKey = activeLine || line;
@@ -796,7 +802,7 @@
   // ---------------------------------------------------------------------
   function buildBUGrowthCard(filters) {
     const bu = filters.bu, line = filters.line;
-    const lineArg = line === "All" ? null : line;
+    const lineArg = line === "All" ? null : (line === "CHC_SALES" ? "CHC" : line);
     const dm1dm2 = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, lineArg);
     if (!dm1dm2 || !dm1dm2.ok || !dm1dm2.total) {
       const reason = dm1dm2 ? dm1dm2.status : "module_unavailable";
@@ -834,7 +840,8 @@
       const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
-        const ld1d2 = l === activeLine ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, l);
+        const queryLine = l === "CHC_SALES" ? "CHC" : l;
+        const ld1d2 = l === activeLine ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, queryLine);
         vals[l] = growthGapFor(ld1d2);
       });
       const rankKey = activeLine || line;
@@ -998,6 +1005,9 @@
   // TMS vs IMS Helper & KPI Card Builders
   // ---------------------------------------------------------------------
   function getTmsImsMetrics(bu, line) {
+    if (line === "CHC_SALES") {
+      line = "CHC";
+    }
     if (!window.TMS_IMS_CACHE) {
       return { ok: false, status: "cache_unavailable" };
     }
@@ -1077,6 +1087,9 @@
   }
 
   function getTmsImsDetailedBreakdown(bu, line) {
+    if (line === "CHC_SALES") {
+      line = "CHC";
+    }
     if (!window.TMS_IMS_CACHE) return null;
     const cache = window.TMS_IMS_CACHE;
     const buMap = { "CHC": "CHC", "Cluster": "Cluster", "DIAB": "Diabetes", "GIT": "GIT" };
