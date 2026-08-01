@@ -253,8 +253,9 @@
   // benchmark label ("platform avg" -> "<BU> avg").
   // ---------------------------------------------------------------------
   function coverageReferenceEntry(metricKey, bu, line) {
-    if (line && line !== "All") {
-      const r = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, null);
+    const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
+    if (isLineMgr || (line && line !== "All")) {
+      const r = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, null, true);
       const v = (r && r.ok) ? r[metricKey] : null;
       return v !== null && v !== undefined ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
@@ -263,8 +264,9 @@
   }
 
   function sfeReferenceEntry(bu, line, summaries) {
-    if (line && line !== "All") {
-      const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, null);
+    const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
+    if (isLineMgr || (line && line !== "All")) {
+      const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, null, true);
       const v = (r && r.ok && r.vacancyRatePct !== null) ? 100 - r.vacancyRatePct : null;
       return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
@@ -273,8 +275,9 @@
   }
 
   function salesAchievementReferenceEntry(bu, line) {
-    if (line && line !== "All") {
-      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, null);
+    const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
+    if (isLineMgr || (line && line !== "All")) {
+      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, null, true);
       const v = (s && s.ok) ? s.achievementPct : null;
       return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
@@ -283,8 +286,9 @@
   }
 
   function salesValueReferenceEntry(bu, line) {
-    if (line && line !== "All") {
-      const t = nonTenderTotals(bu, "All");
+    const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
+    if (isLineMgr || (line && line !== "All")) {
+      const t = nonTenderTotals(bu, "All", true);
       const v = t ? t.achievementPct : null;
       return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
@@ -293,8 +297,9 @@
   }
 
   function clusterMixReferenceEntry(bu, line) {
-    if (line && line !== "All") {
-      const d = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, null);
+    const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
+    if (isLineMgr || (line && line !== "All")) {
+      const d = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, null, true);
       const v = (d && d.ok && d.clusters.length) ? d.clusters[0].contributionPct : null;
       return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
@@ -564,8 +569,8 @@
   // gives the exact BU-level Non-Tender total with no separate
   // calculation to maintain or drift out of sync.
   // ---------------------------------------------------------------------
-  function nonTenderTotals(bu, line) {
-    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, line && line !== "All" ? line : null);
+  function nonTenderTotals(bu, line, ignoreLineAuth) {
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, line && line !== "All" ? line : null, ignoreLineAuth);
     if (!data || !data.ok) return null;
     let actualValue = 0, targetValue = 0;
     data.brands.forEach(b => { actualValue += b.actualValue; targetValue += b.targetValue; });
@@ -934,14 +939,18 @@
       benchmarkLabel = " (platform avg)";
       basisNote = "Benchmark = platform-wide average, not an official SFE target. All-transaction basis.";
     } else {
-      const lineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu);
+      const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
+      const lineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, null, isLineMgr || activeLine || line !== "All");
       if (!lineData || !lineData.ok) {
         return unavailableCard("salesProductivity", "Sales Productivity", lineData ? lineData.status : "module_unavailable");
       }
       const perLine = {};
       let buActual = 0, buPositions = 0;
-      lineData.lines.filter(l => !global.AUTH || global.AUTH.isLineAllowed(l.name)).forEach(l => {
-        perLine[l.name] = l.activePositions > 0 ? l.salesPerPosition : null;
+      const allowedLines = new Set(getAllowedLinesForBU(bu));
+      lineData.lines.forEach(l => {
+        if (allowedLines.has(l.name)) {
+          perLine[l.name] = l.activePositions > 0 ? l.salesPerPosition : null;
+        }
         buActual += l.actualValue; buPositions += l.activePositions;
       });
       platformAvg = buPositions > 0 ? buActual / buPositions : null;
@@ -963,7 +972,8 @@
     }
 
     const achievementPct = (val !== null && platformAvg && !isWholeBuView) ? (val / platformAvg) * 100 : null;
-    const refEntry = (activeLine || line !== "All")
+    const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
+    const refEntry = (isLineMgr || activeLine || line !== "All")
       ? (platformAvg !== null ? { label: "vs " + bu, value: fmtM(platformAvg) } : null)
       : (function () {
           const v = corporateSalesProductivity(summaries);

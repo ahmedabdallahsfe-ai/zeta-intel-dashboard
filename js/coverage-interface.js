@@ -369,7 +369,7 @@
    * an intentional, real change to CHC's headline Coverage/RF (it
    * previously excluded the Pharmacy-facing team's rows entirely).
    */
-  function getFilteredCoverageForLine(bu, line) {
+  function getFilteredCoverageForLine(bu, line, ignoreLineAuth) {
     if (typeof CacheStore === "undefined" || !CacheStore.isReady()) {
       if (typeof CacheStore !== "undefined" && !CacheStore.isReady()) {
         CacheStore.init();
@@ -407,7 +407,7 @@
     if (window.AUTH && !window.AUTH.isBuAllowed(bu)) {
       return { ok: false, status: "access_denied", asOfDate: latestPeriod, source: "coverage", bu: bu, line: line || null };
     }
-    if (window.AUTH && line && !window.AUTH.isLineAllowed(line)) {
+    if (!ignoreLineAuth && window.AUTH && line && !window.AUTH.isLineAllowed(line)) {
       return { ok: false, status: "access_denied", asOfDate: latestPeriod, source: "coverage", bu: bu, line: line || null };
     }
 
@@ -447,7 +447,7 @@
       if (row[F.status] !== statusIdx) return;
 
       const teamName = (dims.teams || [])[row[F.team]];
-      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
+      if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
       const rowBU = window.SEMANTIC.lineToBU(teamName);
       if (rowBU !== bu) return;
       const canonLine = window.SEMANTIC.normalizeLine(teamName);

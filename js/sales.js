@@ -2868,7 +2868,7 @@
      * additionally scopes to one line within the BU -- omit/pass null for
      * the whole-BU figure (identical to the pre-2026-07-27 behavior).
      */
-    getBrandAchievement(bu, line) {
+    getBrandAchievement(bu, line, ignoreLineAuth) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, brands: [] };
@@ -2886,7 +2886,7 @@
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
         const rawLine = lines[r[LINE]];
-        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
+        if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         const rBu = window.SEMANTIC.lineToBU(rawLine);
         if (rBu !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
@@ -2974,7 +2974,7 @@
      * convention, so the Period control's summary text and the actual
      * data never disagree.
      */
-    getLineSalesSummary(bu, months) {
+    getLineSalesSummary(bu, months, ignoreLineAuth) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, lines: [] };
@@ -2997,7 +2997,7 @@
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
         const rawLine = linesLk[r[LINE]];
-        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
+        if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (monthFilter && !monthFilter.has(r[MONTH])) continue;
         const canon = window.SEMANTIC.normalizeLine(rawLine);
@@ -3089,7 +3089,7 @@
      * momGrowthPct) so the trend indicator is on the same basis as the
      * headline, not silently mixing bases.
      */
-    getSalesAchievementSummary(bu, line) {
+    getSalesAchievementSummary(bu, line, ignoreLineAuth) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, line: line || 'All' };
@@ -3108,7 +3108,7 @@
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
         const rawLine = linesLk[r[LINE]];
-        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
+        if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
         const isTender = (r[MASK] & 2) > 0;
@@ -3250,7 +3250,7 @@
      * line name) to scope to one line within the BU; omit/pass null for
      * the whole-BU figure.
      */
-    getCustomerClusterMix(bu, line) {
+    getCustomerClusterMix(bu, line, ignoreLineAuth) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, line: line || 'All', clusters: [] };
@@ -3270,6 +3270,7 @@
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
         const rawLine = linesLk[r[LINE]];
+        if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
         const isTender = (r[MASK] & 2) > 0;

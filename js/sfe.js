@@ -158,7 +158,7 @@
      * normalizes internally) -- this function just needed the same
      * treatment for the line-level compare, not only the BU-level one.
      */
-    getFilteredHeadcountForLine(bu, line) {
+    getFilteredHeadcountForLine(bu, line, ignoreLineAuth) {
       if (typeof window.SEMANTIC === 'undefined') {
         console.error('[SFE] getFilteredHeadcountForLine() requires js/semantic-model.js to be loaded first.');
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sfe', bu: bu, line: line || null };
@@ -170,7 +170,7 @@
       if (window.AUTH && !window.AUTH.isBuAllowed(bu)) {
         return { ok: false, status: 'access_denied', asOfDate: null, source: 'sfe', bu: bu, line: line || null };
       }
-      if (window.AUTH && line && !window.AUTH.isLineAllowed(line)) {
+      if (!ignoreLineAuth && window.AUTH && line && !window.AUTH.isLineAllowed(line)) {
         return { ok: false, status: 'access_denied', asOfDate: null, source: 'sfe', bu: bu, line: line || null };
       }
 
@@ -182,7 +182,7 @@
 
       let total = 0, active = 0, vacant = 0;
       vacancyByLine.forEach(row => {
-        if (window.AUTH && !window.AUTH.isLineAllowed(row.line)) return;
+        if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(row.line)) return;
         const rowCanon = window.SEMANTIC.normalizeLine(row.line);
         if (window.SEMANTIC.lineToBU(row.line) !== bu) return;
         if (line && rowCanon !== line) return;
