@@ -111,6 +111,26 @@ function startApp() {
   Loader.init();
   Loader.show("Loading dashboard...");
 
+  // Perf fix (2026-08-01, "dashboard is loading very slow"): calling
+  // Loader.show() and then immediately running several seconds of
+  // synchronous cache decompression + first render in the SAME tick means
+  // the browser never actually paints the loading overlay -- style/layout/
+  // paint are deferred until the current script yields, so the page just
+  // looks frozen for the whole boot instead of showing the "Loading
+  // dashboard..." spinner. A double requestAnimationFrame forces one real
+  // paint to happen first (the first rAF fires just before the next paint;
+  // by the time its callback's own rAF fires, that paint has completed),
+  // so the overlay is genuinely on screen before the heavy work blocks the
+  // main thread. No logic below this point changed -- startAppBody() is
+  // the exact same code that used to run directly inside startApp().
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      startAppBody();
+    });
+  });
+}
+
+function startAppBody() {
   const cacheOk = CacheStore.init();
   if (!cacheOk) {
     renderMissingCacheNotice();
@@ -278,54 +298,70 @@ function startApp() {
       currentTab = tab;
       updateTopbarTitle(tab);
 
-      if (tab === "coverage") {
-        if (window.SFEDashboard) {
-          window.SFEDashboard.destroy();
-        }
-        // Fix rendering bug: destroy old Chart.js instances and clear registry
-        Charts.destroyAll();
-        buildLayout();
-        if (hasRecords) {
-          const result = Analytics.run(_lastFilterState || {});
-          renderAll(result, dashboard.dimensions, _lastFilterState || {});
-        } else {
-          renderAll(dashboard, dashboard.dimensions, {});
-        }
-      } else if (tab === "sfe") {
-        if (window.SFEDashboard) {
-          window.SFEDashboard.destroy();
-        }
-        if (window.SFEDashboard) {
-          window.SFEDashboard.init("app-root");
-        }
-      } else if (tab === "sales") {
-        if (window.SFEDashboard) {
-          window.SFEDashboard.destroy();
-        }
-        if (window.SalesDashboard) {
-          window.SalesDashboard.init("app-root");
-        }
-      } else if (tab === "iqvia") {
-        if (window.SFEDashboard) {
-          window.SFEDashboard.destroy();
-        }
-        if (window.IQVIADashboard) {
-          window.IQVIADashboard.init("app-root");
-        }
-      } else if (tab === "executive") {
-        if (window.SFEDashboard) {
-          window.SFEDashboard.destroy();
-        }
-        if (window.ExecutiveDashboard) {
-          window.ExecutiveDashboard.init("app-root");
-        }
-      } else if (tab === "tomarket") {
-        if (window.SFEDashboard) {
-          window.SFEDashboard.destroy();
-        }
-        renderTomarketTab(document.getElementById("app-root"));
-
-      }
+      // Perf fix (2026-08-01, "navigation between pages are slow"): tab
+      // switching used to run straight into the target workspace's
+      // .init()/renderAll() -- which can take a perceptible moment on
+      // first visit to a tab (decompressing that workspace's cache,
+      // rebuilding a large KPI/table/chart tree) -- with ZERO loading
+      // feedback, so a click looked like it did nothing until the new tab
+      // suddenly appeared. Same double-requestAnimationFrame pattern as
+      // startApp()'s boot sequence (see that function's comment for why a
+      // plain Loader.show() right before heavy synchronous work never
+      // actually gets painted): show the loader, let the browser paint it,
+      // THEN do the render work. No logic below changed, only wrapped.
+      Loader.show("Loading...");
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (tab === "coverage") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            // Fix rendering bug: destroy old Chart.js instances and clear registry
+            Charts.destroyAll();
+            buildLayout();
+            if (hasRecords) {
+              const result = Analytics.run(_lastFilterState || {});
+              renderAll(result, dashboard.dimensions, _lastFilterState || {});
+            } else {
+              renderAll(dashboard, dashboard.dimensions, {});
+            }
+          } else if (tab === "sfe") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            if (window.SFEDashboard) {
+              window.SFEDashboard.init("app-root");
+            }
+          } else if (tab === "sales") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            if (window.SalesDashboard) {
+              window.SalesDashboard.init("app-root");
+            }
+          } else if (tab === "iqvia") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            if (window.IQVIADashboard) {
+              window.IQVIADashboard.init("app-root");
+            }
+          } else if (tab === "executive") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            if (window.ExecutiveDashboard) {
+              window.ExecutiveDashboard.init("app-root");
+            }
+          } else if (tab === "tomarket") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderTomarketTab(document.getElementById("app-root"));
+          }
+          Loader.hide();
+        });
+      });
     });
   });
 
