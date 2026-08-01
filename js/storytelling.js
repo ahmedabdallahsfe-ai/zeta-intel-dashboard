@@ -491,7 +491,15 @@
       }
 
       // Vacancy vs Productivity per Line
-      const sfeLines = window.SEMANTIC ? window.SEMANTIC.BU_TO_LINES[bu] || [] : [];
+      const uniqueLines = [];
+      if (dims && dims.teams) {
+        dims.teams.forEach(tName => {
+          if (window.SEMANTIC && window.SEMANTIC.lineToBU(tName) === bu) {
+            uniqueLines.push(window.SEMANTIC.normalizeLine(tName));
+          }
+        });
+      }
+      const sfeLines = [...new Set(uniqueLines)];
       sfeLines.forEach(lName => {
         const headcount = window.SFEDashboard ? window.SFEDashboard.getFilteredHeadcountForLine(bu, lName, true) : null;
         
