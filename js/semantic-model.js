@@ -124,7 +124,22 @@
     // correction). Do not re-add it here; that would collapse the two
     // lines back into one.
     "NEUROSCIENCE": "CNS",    // Sales/SFE call it NEUROSCIENCE, IQVIA calls it CNS
-    "DERMA": "Derma"          // casing difference only (Coverage uppercases it)
+    "DERMA": "Derma",          // casing difference only (Coverage uppercases it)
+    "GIT I": "GIT-I",
+    "GIT II": "GIT-II",
+    "GIT III": "GIT-III",
+    "ORTHO I": "ORTHO-I",
+    "ORTHO II": "ORTHO-II",
+    "CVM I": "CVM-I",
+    "CVM II": "CVM-II",
+    "DIABETES I": "DIAB-I",
+    "DIABETES II": "DIAB-II",
+    "DIABETES III": "DIAB-III",
+    "DIABETES IV": "DIAB-IV",
+    "DIAB I": "DIAB-I",
+    "DIAB II": "DIAB-II",
+    "DIAB III": "DIAB-III",
+    "DIAB IV": "DIAB-IV"
   };
 
   /**
