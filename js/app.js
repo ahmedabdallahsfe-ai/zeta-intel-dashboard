@@ -220,6 +220,8 @@ function startApp() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Executive Command Center";
     } else if (tab === "tomarket") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - To-Market vs In-Market";
+    } else if (tab === "storyteller") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Performance Storyteller";
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -239,6 +241,14 @@ function startApp() {
   if (tomarketMenuItem) {
     const scope = window.AUTH ? window.AUTH.getScope() : { unrestricted: false };
     tomarketMenuItem.style.display = scope.unrestricted ? "" : "none";
+  }
+
+  const storytellerMenuItem = document.getElementById("menu-item-storyteller");
+  if (storytellerMenuItem) {
+    const userObj = window.AUTH ? window.AUTH.getValidSessionUser() : null;
+    const roleUpper = userObj && userObj.role ? userObj.role.toUpperCase() : "";
+    const canSeeStory = ["SFE MANAGER", "BEX", "ADMIN", "CEO", "VP"].includes(roleUpper);
+    storytellerMenuItem.style.display = canSeeStory ? "" : "none";
   }
 
   // Render the default landing workspace (Executive Command Center) at boot.
@@ -321,6 +331,13 @@ function startApp() {
           window.SFEDashboard.destroy();
         }
         renderTomarketTab(document.getElementById("app-root"));
+      } else if (tab === "storyteller") {
+        if (window.SFEDashboard) {
+          window.SFEDashboard.destroy();
+        }
+        if (window.StorytellingDashboard) {
+          window.StorytellingDashboard.init("app-root");
+        }
       }
     });
   });
@@ -744,11 +761,10 @@ function applyViewOnlyFilters(dashboard, dims, filterState) {
 /** Re-render every section from a fresh Analytics.run() result. Called on
  * initial load and on every filter change. */
 function renderAll(result, dims, filterState) {
-  // Coverage's section-tree only exists in #app-root while Coverage is the
-  // active tab (see the buildLayout() guards in the boot sequence and the
-  // sidebar tab-switch handler) -- every other tab (sfe/sales/iqvia/executive)
-  // owns #app-root itself and must never have Coverage's renderers write into
-  // stale/detached `sections` references.
+  if (currentTab === "storyteller" && window.StorytellingDashboard) {
+    window.StorytellingDashboard.render(document.getElementById("app-root"));
+    return;
+  }
   if (currentTab !== "coverage") return;
   _lastResult = result;
   renderExecutiveSummary(result, filterState);
