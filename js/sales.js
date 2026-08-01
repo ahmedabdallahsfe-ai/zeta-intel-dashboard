@@ -3640,6 +3640,43 @@
       return map;
     },
 
+    getDmRepsSalesSummary(bu, line, dmName, months) {
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) return {};
+      const dmsLk = cache.lookups.dms;
+      const linesLk = cache.lookups.lines;
+      const repsLk = cache.lookups.reps;
+      const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
+
+      const map = {}; // repName (uppercase) -> { val, tgtVal }
+
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const rawLine = linesLk[r[LINE]];
+        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
+        if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        const canonLine = window.SEMANTIC.normalizeLine(rawLine);
+        if (line && line !== "All" && canonLine !== line) continue;
+        if (monthFilter && !monthFilter.has(r[MONTH])) continue;
+
+        const rowDmName = dmsLk[r[DM]];
+        if (rowDmName !== dmName) continue;
+
+        const isTender = (r[MASK] & 2) > 0;
+        if (isTender) continue;
+
+        const repName = repsLk[r[REP]];
+        if (!repName) continue;
+        const key = repName.toUpperCase().trim();
+        if (!map[key]) {
+          map[key] = { val: 0, tgtVal: 0 };
+        }
+        map[key].val += r[VAL] || 0;
+        map[key].tgtVal += r[TGT_VAL] || 0;
+      }
+      return map;
+    },
+
     destroy() {
       document.body.classList.remove('sales-mode');
       destroyCharts();

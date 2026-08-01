@@ -1239,6 +1239,8 @@
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     const reps = safeCall("coverage", "CoverageDashboard", "getDmRepsList", bu, line, dmName) || [];
     const posMap = safeCall("sales", "SalesDashboard", "getRepPositionsMap") || {};
+    const monthsParam = _linePerfMonths === "all" ? null : _linePerfMonths;
+    const salesMap = safeCall("sales", "SalesDashboard", "getDmRepsSalesSummary", bu, line, dmName, monthsParam) || {};
 
     if (!reps.length) {
       global.DS.openModal({
@@ -1248,15 +1250,19 @@
       return;
     }
 
-    // Enrich with position data
+    // Enrich with position and sales data
     const rows = reps.map(r => {
       const pos = posMap[r.name.toUpperCase().trim()] || "N/A";
+      const s = salesMap[r.name.toUpperCase().trim()] || { val: 0, tgtVal: 0 };
       return {
         name: r.name,
         code: r.code,
         position: pos,
         coveragePct: r.coveragePct,
-        rightFreqPct: r.rightFreqPct
+        rightFreqPct: r.rightFreqPct,
+        salesValue: s.val,
+        targetValue: s.tgtVal,
+        salesAchievementPct: s.tgtVal > 0 ? (s.val / s.tgtVal) * 100 : null
       };
     });
 
@@ -1265,14 +1271,17 @@
         { key: "name", label: "Representative" },
         { key: "position", label: "Position" },
         { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" }
+        { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+        { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
+        { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
+        { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" }
       ],
       rows: rows,
     });
 
     global.DS.openModal({
       title: dmName + " — Representatives & Positions",
-      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Active, Non-Probation Medical Representatives (or Sales Representatives for CHC) under ${dmName}.</div>` + table,
+      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Active, Non-Probation Medical Representatives (or Sales Representatives for CHC) under ${dmName}. Period: ${_linePerfMonths === "all" ? "All Months" : _linePerfMonths.map(String).join(", ")}.</div>` + table,
     });
   }
 
