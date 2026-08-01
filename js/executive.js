@@ -1018,7 +1018,7 @@
       const salesByDm = new Map();
       let totalSalesValue = 0;
       if (salesData && salesData.ok) {
-        salesData.dms.forEach(d => { salesByDm.set(d.name, d); totalSalesValue += d.actualValue; });
+        salesData.dms.forEach(d => { salesByDm.set(d.name.toUpperCase().trim(), d); totalSalesValue += d.actualValue; });
       }
 
       const rows = allDms.map(name => {
@@ -1026,7 +1026,7 @@
         const coveragePct = (cov && cov.ok) ? cov.coveragePct : null;
         const rightFreqPct = (cov && cov.ok) ? cov.rightFreqPct : null;
 
-        const s = salesByDm.get(name);
+        const s = salesByDm.get(name.toUpperCase().trim());
         const plannedHeadcount = sfeDms.filter(d => d === name).length;
 
         return {
