@@ -515,8 +515,8 @@
   // ---------------------------------------------------------------------
   function buildSalesAchievementCard(filters) {
     const bu = filters.bu, line = filters.line;
-    // CHC Exception: use "CHC" line when BU is CHC and line is "All" or null or "CHC_SALES"
-    const targetLine = (bu === "CHC" && (line === "All" || !line || line === "CHC_SALES")) ? "CHC" : (line === "All" ? null : line);
+    // CHC Exception: use "CHC" line when BU is CHC and line is "All" or null
+    const targetLine = (bu === "CHC" && (line === "All" || !line)) ? "CHC" : (line === "All" ? null : line);
     const scoped = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLine);
     if (!scoped || !scoped.ok) return unavailableCard("salesAchievement", "Sales Achievement", scoped ? scoped.status : "module_unavailable");
 
@@ -535,8 +535,7 @@
       const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
-        const targetLLine = (l === "CHC_SALES") ? "CHC" : l;
-        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLLine);
+        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, l);
         vals[l] = (s && s.ok) ? s.achievementPct : null;
       });
       const rankKey = activeLine || line;
@@ -574,7 +573,7 @@
   // calculation to maintain or drift out of sync.
   // ---------------------------------------------------------------------
   function nonTenderTotals(bu, line, ignoreLineAuth) {
-    const targetLine = (bu === "CHC" && (line === "All" || !line || line === "CHC_SALES")) ? "CHC" : (line === "All" ? null : line);
+    const targetLine = (bu === "CHC" && (line === "All" || !line)) ? "CHC" : (line === "All" ? null : line);
     const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, targetLine, ignoreLineAuth);
     if (!data || !data.ok) return null;
     let actualValue = 0, targetValue = 0;
