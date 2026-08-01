@@ -1024,8 +1024,10 @@
     }
 
     const latestMonthIdx = cache.MONTHS.length - 1;
+    const prevMonthIdx = latestMonthIdx - 1;
     let tmsLatestUnits = 0;
     let imsLatestUnits = 0;
+    let tmsPreviousUnits = 0;
     let totalTmsUnits = 0;
     let totalImsUnits = 0;
 
@@ -1050,12 +1052,16 @@
         if (isIms) imsLatestUnits += qty;
       }
 
+      if (mIdx === prevMonthIdx) {
+        if (isTms) tmsPreviousUnits += qty;
+      }
+
       if (isIms && velocityMonthIndices.includes(mIdx)) {
         imsVelocityUnits += qty;
       }
     });
 
-    const pullThroughRate = tmsLatestUnits > 0 ? (imsLatestUnits / tmsLatestUnits) * 100 : null;
+    const pullThroughRate = tmsPreviousUnits > 0 ? (imsLatestUnits / tmsPreviousUnits) * 100 : null;
     const activeMonthsCount = velocityMonthIndices.length;
     const dailyVelocity = (activeMonthsCount > 0) ? (imsVelocityUnits / (activeMonthsCount * 30)) : 0;
     const currentInventory = Math.max(0, totalTmsUnits - totalImsUnits);
@@ -1068,6 +1074,216 @@
       currentInventory,
       latestMonthLabel: cache.MONTHS[latestMonthIdx]
     };
+  }
+
+  function getTmsImsDetailedBreakdown(bu, line) {
+    if (!window.TMS_IMS_CACHE) return null;
+    const cache = window.TMS_IMS_CACHE;
+    const buMap = { "CHC": "CHC", "Cluster": "Cluster", "DIAB": "Diabetes", "GIT": "GIT" };
+    const targetBuName = buMap[bu] || bu;
+    const buIdx = cache.BUS.indexOf(targetBuName);
+    if (buIdx < 0) return null;
+
+    const privateIdx = cache.STYPES.indexOf("Private");
+    if (privateIdx < 0) return null;
+
+    // Determine target lines in scope
+    let lineIndices = null;
+    if (line && line !== "All") {
+      const normLine = window.SEMANTIC.normalizeLine(line).toUpperCase();
+      lineIndices = [];
+      cache.LINES.forEach((l, idx) => {
+        const canonL = window.SEMANTIC.normalizeLine(l).toUpperCase();
+        if (canonL === normLine || l.toUpperCase() === normLine) {
+          lineIndices.push(idx);
+        }
+      });
+    }
+
+    const latestMonthIdx = cache.MONTHS.length - 1;
+    const prevMonthIdx = latestMonthIdx - 1;
+    const velocityMonthIndices = [latestMonthIdx, latestMonthIdx - 1, latestMonthIdx - 2].filter(m => m >= 0);
+
+    const brandData = {};
+    const productData = {};
+
+    cache.ROWS.forEach(r => {
+      if (r[1] !== buIdx) return;
+      if (r[5] !== privateIdx) return;
+      if (lineIndices && !lineIndices.includes(r[2])) return;
+
+      const mIdx = r[0];
+      const brIdx = r[3];
+      const prodIdx = r[4];
+      const isIms = (r[6] === 1);
+      const isTms = (r[6] === 0);
+      const qty = r[7] || 0;
+
+      if (!brandData[brIdx]) {
+        brandData[brIdx] = { tmsLatest: 0, imsLatest: 0, tmsPrevious: 0, totalTms: 0, totalIms: 0, velocityIms: 0 };
+      }
+      if (!productData[prodIdx]) {
+        productData[prodIdx] = { brandIdx: brIdx, tmsLatest: 0, imsLatest: 0, tmsPrevious: 0, totalTms: 0, totalIms: 0, velocityIms: 0 };
+      }
+
+      const br = brandData[brIdx];
+      const prod = productData[prodIdx];
+
+      if (isTms) {
+        br.totalTms += qty;
+        prod.totalTms += qty;
+      }
+      if (isIms) {
+        br.totalIms += qty;
+        prod.totalIms += qty;
+      }
+
+      if (mIdx === latestMonthIdx) {
+        if (isTms) {
+          br.tmsLatest += qty;
+          prod.tmsLatest += qty;
+        }
+        if (isIms) {
+          br.imsLatest += qty;
+          prod.imsLatest += qty;
+        }
+      }
+
+      if (mIdx === prevMonthIdx) {
+        if (isTms) {
+          br.tmsPrevious += qty;
+          prod.tmsPrevious += qty;
+        }
+      }
+
+      if (isIms && velocityMonthIndices.includes(mIdx)) {
+        br.velocityIms += qty;
+        prod.velocityIms += qty;
+      }
+    });
+
+    const activeMonthsCount = velocityMonthIndices.length;
+
+    const brandsList = Object.keys(brandData).map(k => {
+      const brIdx = parseInt(k, 10);
+      const data = brandData[brIdx];
+      const pullThrough = data.tmsPrevious > 0 ? (data.imsLatest / data.tmsPrevious) * 100 : null;
+      const dailyVelocity = (activeMonthsCount > 0) ? (data.velocityIms / (activeMonthsCount * 30)) : 0;
+      const inventory = Math.max(0, data.totalTms - data.totalIms);
+      const stockDays = dailyVelocity > 0 ? (inventory / dailyVelocity) : 0;
+
+      return {
+        name: cache.BRANDS[brIdx],
+        pullThrough,
+        stockDays,
+        inventory
+      };
+    });
+
+    const productsList = Object.keys(productData).map(k => {
+      const prodIdx = parseInt(k, 10);
+      const data = productData[prodIdx];
+      const pullThrough = data.tmsPrevious > 0 ? (data.imsLatest / data.tmsPrevious) * 100 : null;
+      const dailyVelocity = (activeMonthsCount > 0) ? (data.velocityIms / (activeMonthsCount * 30)) : 0;
+      const inventory = Math.max(0, data.totalTms - data.totalIms);
+      const stockDays = dailyVelocity > 0 ? (inventory / dailyVelocity) : 0;
+
+      const rawProdName = cache.PRODUCTS[prodIdx];
+      const prodName = rawProdName.includes("|") ? rawProdName.split("|")[1] : rawProdName;
+
+      return {
+        name: prodName,
+        brandName: cache.BRANDS[data.brandIdx],
+        pullThrough,
+        stockDays,
+        inventory
+      };
+    });
+
+    return { brands: brandsList, products: productsList };
+  }
+
+  function getFlagSpan(val, type) {
+    if (val === null || val === undefined || isNaN(val)) {
+      return `<span class="ds-exec-status-badge ds-exec-status--critical">N/A</span>`;
+    }
+    if (type === "pullThrough") {
+      const status = statusFromAchievement(val);
+      const statusClass = "ds-exec-status--" + status.toLowerCase().replace(/\s+/g, "-");
+      return `<span class="ds-exec-status-badge ${statusClass}">${status}</span>`;
+    } else {
+      const status = statusFromStockDays(val);
+      const statusClass = "ds-exec-status--" + status.toLowerCase().replace(/\s+/g, "-");
+      return `<span class="ds-exec-status-badge ${statusClass}">${status}</span>`;
+    }
+  }
+
+  function openTmsImsModal(bu, line, metricType) {
+    if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
+    const data = getTmsImsDetailedBreakdown(bu, line);
+    if (!data) {
+      global.DS.openModal({ title: bu + " — Supply Chain Details", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No data available.</div>" });
+      return;
+    }
+
+    const isPt = (metricType === "pullThrough");
+    const labelBuLine = (line && line !== "All") ? line : bu;
+
+    const brandRows = data.brands.map(b => {
+      const val = isPt ? b.pullThrough : b.stockDays;
+      const formattedVal = isPt ? (val !== null ? val.toFixed(1) + "%" : "—") : (val !== null ? Math.round(val) + " Days" : "—");
+      return {
+        name: b.name,
+        value: formattedVal,
+        flag: getFlagSpan(val, metricType),
+        inventory: Math.round(b.inventory).toLocaleString()
+      };
+    });
+
+    const brandTable = global.DS.table({
+      columns: [
+        { key: "name", label: "Brand Name" },
+        { key: "inventory", label: "Current Inventory (Units)", align: "right" },
+        { key: "value", label: isPt ? "Pull-Through Rate" : "Stock Days", align: "right" },
+        { key: "flag", label: "Flag", align: "center" }
+      ],
+      rows: brandRows
+    });
+
+    let bodyHtml = `<div style="font-size:14px;font-weight:600;margin-bottom:8px;">Brand Summary (${labelBuLine})</div>` + brandTable;
+
+    if (bu === "CHC") {
+      const productRows = data.products.map(p => {
+        const val = isPt ? p.pullThrough : p.stockDays;
+        const formattedVal = isPt ? (val !== null ? val.toFixed(1) + "%" : "—") : (val !== null ? Math.round(val) + " Days" : "—");
+        return {
+          name: p.name,
+          brandName: p.brandName,
+          value: formattedVal,
+          flag: getFlagSpan(val, metricType),
+          inventory: Math.round(p.inventory).toLocaleString()
+        };
+      });
+
+      const productTable = global.DS.table({
+        columns: [
+          { key: "name", label: "Product / SKU" },
+          { key: "brandName", label: "Brand" },
+          { key: "inventory", label: "Current Inventory (Units)", align: "right" },
+          { key: "value", label: isPt ? "Pull-Through Rate" : "Stock Days", align: "right" },
+          { key: "flag", label: "Flag", align: "center" }
+        ],
+        rows: productRows
+      });
+
+      bodyHtml += `<div style="font-size:14px;font-weight:600;margin-top:20px;margin-bottom:8px;">SKU / Product Details (CHC)</div> scoped to Private segment. Pull-Through Rate uses formula: IMS(M) ÷ TMS(M-1) × 100.<br/><br/>` + productTable;
+    }
+
+    const title = isPt ? `${labelBuLine} — Pull-Through Rate Details` : `${labelBuLine} — Distributor Stock Days Details`;
+    global.DS.openModal({
+      title: title,
+      bodyHtml: `<div style="max-height:600px;overflow-y:auto;padding-right:4px;">${bodyHtml}</div>`
+    });
   }
 
   function statusFromStockDays(val) {
@@ -1902,7 +2118,8 @@
         else if (kpiId === "customerClusterMix") openCustomerClusterMixModal(bu, ctx.filters.line);
         else if (kpiId === "marketShare") openMarketShareProductModal(bu);
         else if (kpiId === "sfe") switchToTab("sfe");
-        else if (kpiId === "pullThroughRate" || kpiId === "stockDays") switchToTab("tomarket");
+        else if (kpiId === "pullThroughRate") openTmsImsModal(bu, ctx.filters.line, "pullThrough");
+        else if (kpiId === "stockDays") openTmsImsModal(bu, ctx.filters.line, "stockDays");
       });
     });
     container.querySelectorAll("[data-exec-kpi-dbl]").forEach(el => {
