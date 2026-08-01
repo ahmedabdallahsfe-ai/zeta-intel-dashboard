@@ -143,10 +143,12 @@
       ? `<span class="ds-kpi-delta ${trendClass}" style="display:inline-flex;">${trendArrow} ${escapeHtml(opts.trendLabel || "")}</span>`
       : "";
 
+    const statusCardClass = opts.status ? " ds-exec-status-card--" + opts.status.toLowerCase().replace(/\s+/g, "-") : "";
+
     const clickAttrs = [
       opts.clickable ? `data-exec-kpi="${escapeAttrLocal(opts.kpiId)}"` : "",
       opts.dblClickable ? `data-exec-kpi-dbl="${escapeAttrLocal(opts.kpiId)}"` : "",
-      (opts.clickable || opts.dblClickable) ? `class="ds-exec-kpi-card ds-clickable" data-tooltip="${opts.clickable ? "Click" : "Double-click"} for detail"` : `class="ds-exec-kpi-card"`,
+      (opts.clickable || opts.dblClickable) ? `class="ds-exec-kpi-card ds-clickable${statusCardClass}" data-tooltip="${opts.clickable ? "Click" : "Double-click"} for detail"` : `class="ds-exec-kpi-card${statusCardClass}"`,
     ].filter(Boolean).join(" ");
 
     return (
