@@ -260,7 +260,8 @@
               .map((c) => {
                 const alignStyle = c.align ? ` style="text-align:${c.align}"` : "";
                 const raw = typeof c.format === "function" ? c.format(row[c.key], row) : row[c.key];
-                return `<td${alignStyle}>${raw === undefined || raw === null ? "" : escapeHtml(raw)}</td>`;
+                const content = c.isHtml ? (raw === undefined || raw === null ? "" : raw) : (raw === undefined || raw === null ? "" : escapeHtml(raw));
+                return `<td${alignStyle}>${content}</td>`;
               })
               .join("");
             return `<tr>${cells}</tr>`;

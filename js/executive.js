@@ -1245,7 +1245,7 @@
         { key: "name", label: "Brand Name" },
         { key: "inventory", label: "Current Inventory (Units)", align: "right" },
         { key: "value", label: isPt ? "Pull-Through Rate" : "Stock Days", align: "right" },
-        { key: "flag", label: "Flag", align: "center" }
+        { key: "flag", label: "Flag", align: "center", isHtml: true }
       ],
       rows: brandRows
     });
@@ -1271,7 +1271,7 @@
           { key: "brandName", label: "Brand" },
           { key: "inventory", label: "Current Inventory (Units)", align: "right" },
           { key: "value", label: isPt ? "Pull-Through Rate" : "Stock Days", align: "right" },
-          { key: "flag", label: "Flag", align: "center" }
+          { key: "flag", label: "Flag", align: "center", isHtml: true }
         ],
         rows: productRows
       });
