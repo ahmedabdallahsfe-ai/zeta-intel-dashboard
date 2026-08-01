@@ -434,6 +434,8 @@
     const pharmacyTypes = ["Pharmacy"];
     const pharmacyTypeIdxSet = new Set(pharmacyTypes.map(t => (dims.types || []).indexOf(t)).filter(i => i >= 0));
 
+    const normLineArg = line && line !== "All" ? window.SEMANTIC.normalizeLine(line) : null;
+
     if (titleIdx < 0 || expIdx < 0 || statusIdx < 0 || standardTypeIdxSet.size === 0) {
       return { ok: false, status: "dimension_mismatch", asOfDate: latestPeriod, source: "coverage", bu: bu, line: line || null };
     }
@@ -451,7 +453,7 @@
       const rowBU = window.SEMANTIC.lineToBU(teamName);
       if (rowBU !== bu) return;
       const canonLine = window.SEMANTIC.normalizeLine(teamName);
-      if (line && line !== "All" && canonLine !== line) return;
+      if (normLineArg && canonLine !== normLineArg) return;
 
       const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
       const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
@@ -833,7 +835,11 @@
     const pharmacyTypes = ["Pharmacy"];
     const pharmacyTypeIdxSet = new Set(pharmacyTypes.map(t => (dims.types || []).indexOf(t)).filter(i => i >= 0));
 
-    const dmIdx = (dims.managers || []).indexOf(dmName);
+    const normLineArg = line && line !== "All" ? window.SEMANTIC.normalizeLine(line) : null;
+
+    // CASE-INSENSITIVE SEARCH
+    const cleanDm = dmName.toUpperCase().trim();
+    const dmIdx = (dims.managers || []).findIndex(m => m && m.toUpperCase().trim() === cleanDm);
     if (dmIdx < 0) return null;
 
     let coveredSum = 0, rightFreqSum = 0, rowCount = 0;
@@ -850,7 +856,7 @@
       const rowBU = window.SEMANTIC.lineToBU(teamName);
       if (rowBU !== bu) return;
       const canonLine = window.SEMANTIC.normalizeLine(teamName);
-      if (line && line !== "All" && canonLine !== line) return;
+      if (normLineArg && canonLine !== normLineArg) return;
 
       const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
       const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
@@ -904,7 +910,11 @@
     const pharmacyTypes = ["Pharmacy"];
     const pharmacyTypeIdxSet = new Set(pharmacyTypes.map(t => (dims.types || []).indexOf(t)).filter(i => i >= 0));
 
-    const dmIdx = (dims.managers || []).indexOf(dmName);
+    const normLineArg = line && line !== "All" ? window.SEMANTIC.normalizeLine(line) : null;
+
+    // CASE-INSENSITIVE SEARCH
+    const cleanDm = dmName.toUpperCase().trim();
+    const dmIdx = (dims.managers || []).findIndex(m => m && m.toUpperCase().trim() === cleanDm);
     if (dmIdx < 0) return [];
 
     const repMap = new Map(); // employeeIdx -> { coveredSum, rightFreqSum, rowCount }
@@ -920,7 +930,7 @@
       const rowBU = window.SEMANTIC.lineToBU(teamName);
       if (rowBU !== bu) return;
       const canonLine = window.SEMANTIC.normalizeLine(teamName);
-      if (line && line !== "All" && canonLine !== line) return;
+      if (normLineArg && canonLine !== normLineArg) return;
 
       const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
       const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
