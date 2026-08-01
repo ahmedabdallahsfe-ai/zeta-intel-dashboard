@@ -206,6 +206,24 @@
       const decompressed = pako.ungzip(bytes, { to: 'string' });
       cache = JSON.parse(decompressed);
       decodedRows = cache.rows;
+
+      // Fix data anomaly for Mahmoud Mohamed Gharib Farghaly:
+      // His raw transactions in sales cache are mistakenly marked under 'DIAB-II' (line index),
+      // but his true organizational line is 'ORTHO-II'.
+      if (cache && cache.lookups && Array.isArray(decodedRows)) {
+        const dms = cache.lookups.dms || [];
+        const lines = cache.lookups.lines || [];
+        const targetDmIdx = dms.indexOf("MAHMOUD MOHAMED GHARIB FARGHALY");
+        const ortho2Idx = lines.indexOf("ORTHO-II");
+        if (targetDmIdx >= 0 && ortho2Idx >= 0) {
+          decodedRows.forEach(r => {
+            if (r[DM] === targetDmIdx) {
+              r[LINE] = ortho2Idx;
+            }
+          });
+        }
+      }
+
       console.log(`[Sales] Cache loaded & decompressed in ${(performance.now() - t0).toFixed(1)}ms. Rows: ${decodedRows.length}`);
     } catch (e) {
       console.error("[Sales] Failed to decompress sales cache", e);
