@@ -2074,8 +2074,8 @@
     const isManager = global.AUTH && (global.AUTH.getScope().bus !== null || global.AUTH.getScope().lines !== null);
 
     const cards = [
-      buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 90, filters),
-      buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 70, filters),
+      buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 100, filters),
+      buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 90, filters),
       buildSFECard(filters, summaries),
       buildSalesAchievementCard(filters),
       buildSalesValueCard(filters),
