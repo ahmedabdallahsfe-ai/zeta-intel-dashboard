@@ -1528,13 +1528,30 @@
       return;
     }
     const metricKey = kind === "coverage" ? "coveragePct" : "rightFreqPct";
+    const topKey = kind === "coverage" ? "topClassCov" : "topClassRf";
+    const bottomKey = kind === "coverage" ? "bottomClassCov" : "bottomClassRf";
+
+    const rows = data.types.map(t => {
+      const topClass = t[topKey];
+      const bottomClass = t[bottomKey];
+      return {
+        name: t.name,
+        value: t[metricKey],
+        repCount: t.repCount,
+        topClass: topClass ? `${topClass.name} (${topClass.pct.toFixed(1)}%)` : "—",
+        bottomClass: bottomClass ? `${bottomClass.name} (${bottomClass.pct.toFixed(1)}%)` : "—"
+      };
+    });
+
     const table = global.DS.table({
       columns: [
         { key: "name", label: "Type" },
         { key: "value", label: kind === "coverage" ? "Coverage %" : "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+        { key: "topClass", label: "Top-Performing Class" },
+        { key: "bottomClass", label: "Bottom-Performing Class" },
         { key: "repCount", label: "Reps", align: "right" },
       ],
-      rows: data.types.map(t => ({ name: t.name, value: t[metricKey], repCount: t.repCount })),
+      rows: rows,
     });
     global.DS.openModal({ title: bu + " — " + (kind === "coverage" ? "Operational Coverage" : "Right Frequency") + " by Type", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Title=Medical Representative, Experience=Non-Probation, Status=Active, as of ${escapeAttr(data.asOfDate)}.</div>` + table });
   }

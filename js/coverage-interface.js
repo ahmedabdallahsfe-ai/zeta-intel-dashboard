@@ -291,7 +291,7 @@
     }
 
     const acc = {};
-    wantTypes.forEach(t => { acc[t] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, repSet: new Set() }; });
+    wantTypes.forEach(t => { acc[t] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, repSet: new Set(), classes: {} }; });
 
     records.rows.forEach(row => {
       if (row[F.period] !== latestPeriodIdx) return;
@@ -311,17 +311,65 @@
         a.rightFreqSum += row[F.rightFreq] || 0;
         a.rowCount += 1;
         a.repSet.add(row[F.employee]);
+
+        // Class-level aggregation
+        const classIdx = row[F.klass];
+        if (classIdx !== null && classIdx !== undefined && classIdx >= 0) {
+          if (!a.classes[classIdx]) {
+            a.classes[classIdx] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0 };
+          }
+          const c = a.classes[classIdx];
+          c.coveredSum += row[F.coveredDoctor] || 0;
+          c.rightFreqSum += row[F.rightFreq] || 0;
+          c.rowCount += 1;
+        }
       }
     });
 
     const types = wantTypes.map(t => {
       const a = acc[t];
+      
+      const classRates = [];
+      Object.keys(a.classes).forEach(cIdxKey => {
+        const cIdx = parseInt(cIdxKey, 10);
+        const className = (dims.classes || [])[cIdx] || "Unknown";
+        const c = a.classes[cIdx];
+        if (c.rowCount > 0) {
+          classRates.push({
+            name: className,
+            coveragePct: (c.coveredSum / c.rowCount) * 100,
+            rightFreqPct: (c.rightFreqSum / c.rowCount) * 100
+          });
+        }
+      });
+
+      let topClassCov = null;
+      let bottomClassCov = null;
+      let topClassRf = null;
+      let bottomClassRf = null;
+
+      if (classRates.length > 0) {
+        // Sort for Coverage
+        const sortedCov = [...classRates].sort((x, y) => x.coveragePct - y.coveragePct);
+        bottomClassCov = sortedCov[0];
+        topClassCov = sortedCov[sortedCov.length - 1];
+
+        // Sort for RF
+        const sortedRf = [...classRates].sort((x, y) => x.rightFreqPct - y.rightFreqPct);
+        bottomClassRf = sortedRf[0];
+        topClassRf = sortedRf[sortedRf.length - 1];
+      }
+
       return {
         name: t,
         coveragePct: a.rowCount > 0 ? (a.coveredSum / a.rowCount) * 100 : null,
         rightFreqPct: a.rowCount > 0 ? (a.rightFreqSum / a.rowCount) * 100 : null,
         repCount: a.repSet.size,
         customerRowCount: a.rowCount,
+        topClassCov: topClassCov ? { name: topClassCov.name, pct: topClassCov.coveragePct } : null,
+        bottomClassCov: bottomClassCov ? { name: bottomClassCov.name, pct: bottomClassCov.coveragePct } : null,
+        topClassRf: topClassRf ? { name: topClassRf.name, pct: topClassRf.rightFreqPct } : null,
+        bottomClassRf: bottomClassRf ? { name: bottomClassRf.name, pct: bottomClassRf.rightFreqPct } : null,
       };
     });
 
