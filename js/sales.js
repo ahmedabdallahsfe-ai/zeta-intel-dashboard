@@ -3669,6 +3669,7 @@
       const repsLk = cache.lookups.reps;
       const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
 
+      const targetDmUpper = dmName ? dmName.toUpperCase().trim() : "";
       const map = {}; // repName (uppercase) -> { val, tgtVal }
 
       for (let i = 0; i < decodedRows.length; i++) {
@@ -3681,7 +3682,7 @@
         if (monthFilter && !monthFilter.has(r[MONTH])) continue;
 
         const rowDmName = dmsLk[r[DM]];
-        if (rowDmName !== dmName) continue;
+        if (!rowDmName || rowDmName.toUpperCase().trim() !== targetDmUpper) continue;
 
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue;
