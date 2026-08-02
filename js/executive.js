@@ -1040,6 +1040,9 @@
     let totalTmsUnits = 0;
     let totalImsUnits = 0;
 
+    const monthlyTms = {};
+    const monthlyIms = {};
+
     const velocityMonthIndices = [latestMonthIdx, latestMonthIdx - 1, latestMonthIdx - 2].filter(m => m >= 0);
     let imsVelocityUnits = 0;
 
@@ -1053,8 +1056,14 @@
       const isTms = (r[6] === 0);
       const qty = r[7] || 0;
 
-      if (isTms) totalTmsUnits += qty;
-      if (isIms) totalImsUnits += qty;
+      if (isTms) {
+        totalTmsUnits += qty;
+        monthlyTms[mIdx] = (monthlyTms[mIdx] || 0) + qty;
+      }
+      if (isIms) {
+        totalImsUnits += qty;
+        monthlyIms[mIdx] = (monthlyIms[mIdx] || 0) + qty;
+      }
 
       if (mIdx === latestMonthIdx) {
         if (isTms) tmsLatestUnits += qty;
@@ -1070,7 +1079,17 @@
       }
     });
 
-    const pullThroughRate = tmsPreviousUnits > 0 ? (imsLatestUnits / tmsPreviousUnits) * 100 : null;
+    let sumRates = 0;
+    let countRates = 0;
+    for (let m = 1; m < cache.MONTHS.length; m++) {
+      const tmsPrev = monthlyTms[m - 1] || 0;
+      const imsCurr = monthlyIms[m] || 0;
+      if (tmsPrev > 0) {
+        sumRates += (imsCurr / tmsPrev) * 100;
+        countRates++;
+      }
+    }
+    const pullThroughRate = countRates > 0 ? (sumRates / countRates) : null;
     const activeMonthsCount = velocityMonthIndices.length;
     const dailyVelocity = (activeMonthsCount > 0) ? (imsVelocityUnits / (activeMonthsCount * 30)) : 0;
     const currentInventory = Math.max(0, totalTmsUnits - totalImsUnits);
@@ -1132,10 +1151,10 @@
       const qty = r[7] || 0;
 
       if (!brandData[brIdx]) {
-        brandData[brIdx] = { tmsLatest: 0, imsLatest: 0, tmsPrevious: 0, totalTms: 0, totalIms: 0, velocityIms: 0 };
+        brandData[brIdx] = { totalTms: 0, totalIms: 0, velocityIms: 0, monthlyTms: {}, monthlyIms: {} };
       }
       if (!productData[prodIdx]) {
-        productData[prodIdx] = { brandIdx: brIdx, tmsLatest: 0, imsLatest: 0, tmsPrevious: 0, totalTms: 0, totalIms: 0, velocityIms: 0 };
+        productData[prodIdx] = { brandIdx: brIdx, totalTms: 0, totalIms: 0, velocityIms: 0, monthlyTms: {}, monthlyIms: {} };
       }
 
       const br = brandData[brIdx];
@@ -1144,28 +1163,14 @@
       if (isTms) {
         br.totalTms += qty;
         prod.totalTms += qty;
+        br.monthlyTms[mIdx] = (br.monthlyTms[mIdx] || 0) + qty;
+        prod.monthlyTms[mIdx] = (prod.monthlyTms[mIdx] || 0) + qty;
       }
       if (isIms) {
         br.totalIms += qty;
         prod.totalIms += qty;
-      }
-
-      if (mIdx === latestMonthIdx) {
-        if (isTms) {
-          br.tmsLatest += qty;
-          prod.tmsLatest += qty;
-        }
-        if (isIms) {
-          br.imsLatest += qty;
-          prod.imsLatest += qty;
-        }
-      }
-
-      if (mIdx === prevMonthIdx) {
-        if (isTms) {
-          br.tmsPrevious += qty;
-          prod.tmsPrevious += qty;
-        }
+        br.monthlyIms[mIdx] = (br.monthlyIms[mIdx] || 0) + qty;
+        prod.monthlyIms[mIdx] = (prod.monthlyIms[mIdx] || 0) + qty;
       }
 
       if (isIms && velocityMonthIndices.includes(mIdx)) {
@@ -1179,7 +1184,18 @@
     const brandsList = Object.keys(brandData).map(k => {
       const brIdx = parseInt(k, 10);
       const data = brandData[brIdx];
-      const pullThrough = data.tmsPrevious > 0 ? (data.imsLatest / data.tmsPrevious) * 100 : null;
+      
+      let sumRates = 0;
+      let countRates = 0;
+      for (let m = 1; m < cache.MONTHS.length; m++) {
+        const tmsPrev = data.monthlyTms[m - 1] || 0;
+        const imsCurr = data.monthlyIms[m] || 0;
+        if (tmsPrev > 0) {
+          sumRates += (imsCurr / tmsPrev) * 100;
+          countRates++;
+        }
+      }
+      const pullThrough = countRates > 0 ? (sumRates / countRates) : null;
       const dailyVelocity = (activeMonthsCount > 0) ? (data.velocityIms / (activeMonthsCount * 30)) : 0;
       const inventory = Math.max(0, data.totalTms - data.totalIms);
       const stockDays = dailyVelocity > 0 ? (inventory / dailyVelocity) : 0;
@@ -1195,7 +1211,18 @@
     const productsList = Object.keys(productData).map(k => {
       const prodIdx = parseInt(k, 10);
       const data = productData[prodIdx];
-      const pullThrough = data.tmsPrevious > 0 ? (data.imsLatest / data.tmsPrevious) * 100 : null;
+
+      let sumRates = 0;
+      let countRates = 0;
+      for (let m = 1; m < cache.MONTHS.length; m++) {
+        const tmsPrev = data.monthlyTms[m - 1] || 0;
+        const imsCurr = data.monthlyIms[m] || 0;
+        if (tmsPrev > 0) {
+          sumRates += (imsCurr / tmsPrev) * 100;
+          countRates++;
+        }
+      }
+      const pullThrough = countRates > 0 ? (sumRates / countRates) : null;
       const dailyVelocity = (activeMonthsCount > 0) ? (data.velocityIms / (activeMonthsCount * 30)) : 0;
       const inventory = Math.max(0, data.totalTms - data.totalIms);
       const stockDays = dailyVelocity > 0 ? (inventory / dailyVelocity) : 0;
