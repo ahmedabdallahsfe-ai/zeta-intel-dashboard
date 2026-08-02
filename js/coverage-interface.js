@@ -182,7 +182,6 @@
     });
 
     records.rows.forEach(row => {
-      if (row[F.period] !== latestPeriodIdx) return;
       if (row[F.title] !== titleIdx) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
@@ -294,7 +293,6 @@
     wantTypes.forEach(t => { acc[t] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, repSet: new Set(), classes: {} }; });
 
     records.rows.forEach(row => {
-      if (row[F.period] !== latestPeriodIdx) return;
       if (row[F.title] !== titleIdx) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
@@ -492,7 +490,6 @@
     const repSet = new Set();
 
     records.rows.forEach(row => {
-      if (row[F.period] !== latestPeriodIdx) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
 
@@ -605,7 +602,6 @@
     });
 
     records.rows.forEach(row => {
-      if (row[F.period] !== latestPeriodIdx) return;
       if (!row[F.isActive]) return; // same isActive scoping as every other Coverage KPI
       const teamName = (dims.teams || [])[row[F.team]];
       if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
@@ -717,7 +713,6 @@
         const latestPeriodIdx = (dims.periods || []).length - 1;
         const acc = new Map(); // areaIdx -> { coveredSum, rowCount }
         records.rows.forEach(row => {
-          if (row[F.period] !== latestPeriodIdx) return;
           if (!row[F.isActive]) return;
           const teamName = (dims.teams || [])[row[F.team]];
           if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
@@ -820,7 +815,6 @@
     let coveredSum = 0, rightFreqSum = 0, rowCount = 0;
 
     records.rows.forEach(row => {
-      if (row[F.period] !== latestPeriodIdx) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
 
@@ -894,7 +888,6 @@
     const repSet = new Set();
 
     records.rows.forEach(row => {
-      if (row[F.period] !== latestPeriodIdx) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
       if (row[F.manager] !== dmIdx) return;
@@ -968,7 +961,6 @@
     const repMap = new Map(); // employeeIdx -> { coveredSum, rightFreqSum, rowCount }
 
     records.rows.forEach(row => {
-      if (row[F.period] !== latestPeriodIdx) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
       if (row[F.manager] !== dmIdx) return;
