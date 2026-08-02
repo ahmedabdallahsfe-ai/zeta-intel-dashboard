@@ -117,8 +117,8 @@ const Analytics = (() => {
    */
   function resolvePeriodSet(values) {
     if (!Array.isArray(values) || values.length === 0) {
-      // Default: show only the latest period
-      return new Set([latestPeriodIdx]);
+      // Default: show all periods (YTD)
+      return null;
     }
     const s = new Set();
     values.forEach((v) => {
@@ -128,7 +128,7 @@ const Analytics = (() => {
     // If every known period is selected, treat as null (no restriction) --
     // this is both more efficient and semantically equivalent to "all".
     if (s.size >= dims.periods.length) return null;
-    return s.size > 0 ? s : new Set([latestPeriodIdx]);
+    return s.size > 0 ? s : null;
   }
 
   /** Resolve a multi-select filter value ([] = all, ["A","B"] = specific set)

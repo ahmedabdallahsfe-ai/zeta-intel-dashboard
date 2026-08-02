@@ -180,8 +180,7 @@ const Filters = (() => {
     const fieldId = typeof f === "string" ? f : f.id;
     if (!arr || arr.length === 0) {
       if (fieldId === "period") {
-        const latest = dims.periods[dims.periods.length - 1];
-        return `${UI.escapeHtml(label)}: Latest (${UI.escapeHtml(latest)}) `;
+        return `${UI.escapeHtml(label)}: YTD `;
       }
       return `${UI.escapeHtml(label)} `;
     }
