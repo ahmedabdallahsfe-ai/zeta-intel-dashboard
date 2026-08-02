@@ -108,7 +108,13 @@
 
 .ds-exec-kpi-card:hover {
   box-shadow: var(--shadow-hover);
-  transform: translateY(-1px);
+  transform: translateY(-1.5px);
+}
+
+.ds-exec-kpi-card:hover .ds-exec-kpi-drill-icon {
+  opacity: 1 !important;
+  color: var(--color-primary, #4F46E5);
+  transform: translate(1px, -1px);
 }
 
 .ds-exec-kpi-header {

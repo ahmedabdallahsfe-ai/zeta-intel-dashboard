@@ -151,9 +151,17 @@
       (opts.clickable || opts.dblClickable) ? `class="ds-exec-kpi-card ds-clickable${statusCardClass}" data-tooltip="${opts.clickable ? "Click" : "Double-click"} for detail"` : `class="ds-exec-kpi-card${statusCardClass}"`,
     ].filter(Boolean).join(" ");
 
+    const hasDrillIcon = opts.clickable || opts.dblClickable;
+    const headerHtml = hasDrillIcon
+      ? `<div class="ds-exec-kpi-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>${escapeHtml(opts.name)}</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="ds-exec-kpi-drill-icon" style="opacity:0.35; transition:opacity var(--transition-base), transform var(--transition-base), color var(--transition-base); margin-left:var(--space-2); flex-shrink:0;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+         </div>`
+      : `<div class="ds-exec-kpi-header">${escapeHtml(opts.name)}</div>`;
+
     return (
       `<div ${clickAttrs}>` +
-        `<div class="ds-exec-kpi-header">${escapeHtml(opts.name)}</div>` +
+        headerHtml +
         `<div class="ds-exec-kpi-main">` +
           `<div class="ds-exec-kpi-main-value">${escapeHtml(opts.mainValue)}</div>` +
           (opts.mainValueSub ? `<div class="ds-exec-kpi-main-sub">${escapeHtml(opts.mainValueSub)}</div>` : "") +
