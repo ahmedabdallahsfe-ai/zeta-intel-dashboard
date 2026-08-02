@@ -3,6 +3,9 @@ cache/
 logs/
 *.xlsx
 *.xls
+.github_token
+test_credentials.json
+Sync_Report.txt
 
 # Python
 __pycache__/
