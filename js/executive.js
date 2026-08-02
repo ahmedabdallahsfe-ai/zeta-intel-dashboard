@@ -1092,8 +1092,9 @@
     const pullThroughRate = countRates > 0 ? (sumRates / countRates) : null;
     const activeMonthsCount = velocityMonthIndices.length;
     const dailyVelocity = (activeMonthsCount > 0) ? (imsVelocityUnits / (activeMonthsCount * 30)) : 0;
-    const currentInventory = Math.max(0, totalTmsUnits - totalImsUnits);
-    const stockDays = dailyVelocity > 0 ? (currentInventory / dailyVelocity) : 0;
+    const calculatedInventory = totalTmsUnits - totalImsUnits;
+    const currentInventory = calculatedInventory > 0 ? calculatedInventory : null;
+    const stockDays = (currentInventory !== null && dailyVelocity > 0) ? (currentInventory / dailyVelocity) : null;
 
     return {
       ok: true,
@@ -1197,8 +1198,9 @@
       }
       const pullThrough = countRates > 0 ? (sumRates / countRates) : null;
       const dailyVelocity = (activeMonthsCount > 0) ? (data.velocityIms / (activeMonthsCount * 30)) : 0;
-      const inventory = Math.max(0, data.totalTms - data.totalIms);
-      const stockDays = dailyVelocity > 0 ? (inventory / dailyVelocity) : 0;
+      const calculatedInventory = data.totalTms - data.totalIms;
+      const inventory = calculatedInventory > 0 ? calculatedInventory : null;
+      const stockDays = (inventory !== null && dailyVelocity > 0) ? (inventory / dailyVelocity) : null;
 
       return {
         name: cache.BRANDS[brIdx],
@@ -1224,8 +1226,9 @@
       }
       const pullThrough = countRates > 0 ? (sumRates / countRates) : null;
       const dailyVelocity = (activeMonthsCount > 0) ? (data.velocityIms / (activeMonthsCount * 30)) : 0;
-      const inventory = Math.max(0, data.totalTms - data.totalIms);
-      const stockDays = dailyVelocity > 0 ? (inventory / dailyVelocity) : 0;
+      const calculatedInventory = data.totalTms - data.totalIms;
+      const inventory = calculatedInventory > 0 ? calculatedInventory : null;
+      const stockDays = (inventory !== null && dailyVelocity > 0) ? (inventory / dailyVelocity) : null;
 
       const rawProdName = cache.PRODUCTS[prodIdx];
       const prodName = rawProdName.includes("|") ? rawProdName.split("|")[1] : rawProdName;
@@ -1408,15 +1411,25 @@
 
     const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
 
+    const hasStock = scoped.stockDays !== null && scoped.stockDays !== undefined;
+    const hasInventory = scoped.currentInventory !== null && scoped.currentInventory !== undefined;
+
     return {
       kpiId: "stockDays", name: "Distributor Stock Days",
-      mainValue: scoped.stockDays !== null ? Math.round(scoped.stockDays) + " Days" : "0 Days",
+      mainValue: hasStock ? Math.round(scoped.stockDays) + " Days" : "—",
       mainValueSub: "Private Channel · " + scoped.latestMonthLabel + (activeLineLabel ? " · " + activeLineLabel : ""),
-      performance: { target: "30-45 Days", achievementPct: Math.round(scoped.stockDays) + " Days", variance: Math.round(scoped.currentInventory).toLocaleString() + " Units" },
+      performance: { 
+        target: "30-45 Days", 
+        achievementPct: hasStock ? Math.round(scoped.stockDays) + " Days" : "—", 
+        variance: hasInventory ? Math.round(scoped.currentInventory).toLocaleString() + " Units" : "— (Excludes Opening Stock)" 
+      },
       comparison: null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromStockDays(scoped.stockDays),
-      trend: null, trendLabel: "Target inventory cover: 30 to 45 stock days. Current: " + Math.round(scoped.currentInventory).toLocaleString() + " Units.",
+      trend: null, 
+      trendLabel: hasInventory 
+        ? "Target inventory cover: 30 to 45 stock days. Current: " + Math.round(scoped.currentInventory).toLocaleString() + " Units." 
+        : "Target inventory cover: 30 to 45 stock days. Current stock calculation excludes opening stock.",
       clickable: true, dblClickable: true,
     };
   }
