@@ -1247,7 +1247,7 @@
 
   function getFlagSpan(val, type) {
     if (val === null || val === undefined || isNaN(val)) {
-      return `<span class="ds-exec-status-badge ds-exec-status--critical">N/A</span>`;
+      return `<span class="ds-exec-status-badge ds-exec-status--no-baseline">No Baseline</span>`;
     }
     if (type === "pullThrough") {
       const status = statusFromAchievement(val);
@@ -1329,7 +1329,7 @@
   }
 
   function statusFromStockDays(val) {
-    if (val === null || val === undefined || isNaN(val)) return "Critical";
+    if (val === null || val === undefined || isNaN(val)) return "No Baseline";
     if (val >= 30 && val <= 45) return "Excellent";
     if ((val >= 20 && val < 30) || (val > 45 && val <= 60)) return "On Track";
     if ((val >= 15 && val < 20) || (val > 60 && val <= 90)) return "At Risk";

@@ -241,6 +241,12 @@
   background: var(--color-danger-light);
 }
 
+.ds-exec-status--no-baseline {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border-strong);
+}
+
 /* Colorification Best Practices for Executive KPI Cards (2026-08-01) */
 .ds-exec-kpi-card.ds-exec-status-card--excellent {
   border-left: 4px solid var(--color-success) !important;
@@ -272,6 +278,14 @@
 }
 .ds-exec-kpi-card.ds-exec-status-card--critical:hover {
   background: linear-gradient(to right, rgba(239, 68, 68, 0.1), var(--color-surface-alt) 30%);
+}
+
+.ds-exec-kpi-card.ds-exec-status-card--no-baseline {
+  border-left: 4px solid var(--color-border-strong) !important;
+  background: linear-gradient(to right, rgba(148, 163, 184, 0.05), var(--color-surface-alt) 20%);
+}
+.ds-exec-kpi-card.ds-exec-status-card--no-baseline:hover {
+  background: linear-gradient(to right, rgba(148, 163, 184, 0.1), var(--color-surface-alt) 30%);
 }
 
 /* Executive Command Center global filter bar + single-select control
