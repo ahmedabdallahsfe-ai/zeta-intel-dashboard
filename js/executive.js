@@ -1895,6 +1895,12 @@
     const isBuScoped = health.bu && health.bu !== "All";
     const brickColumn = { key: "bricks", label: "Brick", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
     const regionColumn = { key: "regions", label: "Region", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
+    // Position (2026-08-02, "add column of position"): the underlying data
+    // was already there -- health.customers[].positions has been flowing
+    // through getClusterCustomerHealth()'s byBU overlay since 2026-07-31,
+    // it just wasn't rendered as its own grid column. Same BU-scoped,
+    // comma-joined pattern as Brick/Region.
+    const positionColumn = { key: "positions", label: "Position", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
     const lastPurchaseColumn = { key: "lastPurchase", label: "Last Purchase", format: formatLastPurchase };
     const skuColumn = {
       key: "items",
@@ -1912,6 +1918,7 @@
         { key: "name", label: "Customer Name" },
         brickColumn,
         regionColumn,
+        positionColumn,
         { key: "bridgeSegment", label: "Status" },
         lastPurchaseColumn,
         { key: "frequencySegment", label: "Frequency" },
@@ -1944,15 +1951,16 @@
   function exportClusterCustomersCSV(clusterName, health) {
     const isBuScoped = health.bu && health.bu !== "All";
     const rows = health.customers || [];
-    // Column set mirrors mountClusterHealthGrid() (2026-07-31): Brick,
-    // Region, Last Purchase added.
-    const header = ["Customer Name", "Brick", "Region", "Status", "Last Purchase", "Frequency", "Basket",
+    // Column set mirrors mountClusterHealthGrid() (2026-08-02): Brick,
+    // Region, Position, Last Purchase.
+    const header = ["Customer Name", "Brick", "Region", "Position", "Status", "Last Purchase", "Frequency", "Basket",
       "Months Active", "Distinct SKUs", isBuScoped ? "SKU (" + health.bu + ")" : "SKU", "Value (EGP)"];
     const csvRows = rows.map(c => {
       const brickCell = (c.bricks && c.bricks.length) ? c.bricks.join("; ") : "";
       const regionCell = (c.regions && c.regions.length) ? c.regions.join("; ") : "";
+      const positionCell = (c.positions && c.positions.length) ? c.positions.join("; ") : "";
       const skuCell = (c.items && c.items.length) ? c.items.map((name, i) => (i + 1) + ". " + name).join("; ") : "";
-      return [c.name, brickCell, regionCell, c.bridgeSegment, formatLastPurchase(c.lastPurchase), c.frequencySegment,
+      return [c.name, brickCell, regionCell, positionCell, c.bridgeSegment, formatLastPurchase(c.lastPurchase), c.frequencySegment,
         c.basketSegment, c.monthsActive, c.distinctSkus, skuCell, Math.round(c.value)]
         .map(v => '"' + String(v === undefined || v === null ? "" : v).replace(/"/g, '""') + '"')
         .join(",");
