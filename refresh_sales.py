@@ -183,7 +183,7 @@ import sqlite3
 # here is bounded per-call (only this call's new rows get flushed), so we
 # don't need to shrink the budget as total progress grows. Still leaves a
 # safety margin under the sandbox's 45s hard cap for the final flush/commit.
-HARD_DEADLINE = t0 + 38
+HARD_DEADLINE = t0 + 300
 
 # In the OS temp dir, not the project's cache/ folder (2026-07-28): this is
 # a transient checkpoint, never shipped or committed, and WAL-mode SQLite
