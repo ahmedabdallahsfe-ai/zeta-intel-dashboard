@@ -145,7 +145,7 @@ def fmt_date(d):
 
 
 def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
-               item_value_by_bu, item_customers_by_bu, bu_customers):
+               item_value_by_bu, item_customers_by_bu, bu_customers, item_value_by_bu_line):
     """Scan one sheet's rows into the shared aggregation structures (all
     passed in and mutated in place) -- factored out so main() can call this
     once per physical source file (main workbook, then June's separate
@@ -198,7 +198,21 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
                          'monthsByBU': defaultdict(set), 'linesByBU': defaultdict(set),
                          'bricksByBU': defaultdict(set), 'regionsByBU': defaultdict(set),
                          'positionsByBU': defaultdict(set),
-                         'lastPurchase': None, 'lastPurchaseByBU': {}}
+                         'lastPurchase': None, 'lastPurchaseByBU': {},
+                         # Per-BU-per-Line breakdown (2026-08-03, "position of
+                         # chosen line"): mirrors every *ByBU accumulator one
+                         # dimension deeper so the Customer Health grid can
+                         # scope Status/Frequency/Basket/Distinct SKUs/Value/
+                         # Position/Brick/Region/Last Purchase to the SPECIFIC
+                         # Line selected in the Executive filter bar, not just
+                         # the BU it belongs to -- see by_bu[bu]['byLine'] in
+                         # main() below.
+                         'itemValueByBULine': defaultdict(lambda: defaultdict(lambda: defaultdict(float))),
+                         'monthsByBULine': defaultdict(lambda: defaultdict(set)),
+                         'bricksByBULine': defaultdict(lambda: defaultdict(set)),
+                         'regionsByBULine': defaultdict(lambda: defaultdict(set)),
+                         'positionsByBULine': defaultdict(lambda: defaultdict(set)),
+                         'lastPurchaseByBULine': defaultdict(dict)}
         c = cust[cid]
         m = str(row[ci_date])[:7]
         c['months'].add(m)
@@ -229,7 +243,8 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
             # customer_rows loop below, which turns these into
             # byBU[bu].{bridgeSegment,...}.
             c['monthsByBU'][bu].add(m)
-            c['linesByBU'][bu].add(canon_line(row[ci_line]))
+            line_name = canon_line(row[ci_line])
+            c['linesByBU'][bu].add(line_name)
             if ci_brick is not None and row[ci_brick]:
                 c['bricksByBU'][bu].add(clean(row[ci_brick]))
             if ci_region is not None and row[ci_region]:
@@ -238,6 +253,18 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
                 c['positionsByBU'][bu].add(clean(row[ci_position]))
             if raw_date is not None and (bu not in c['lastPurchaseByBU'] or raw_date > c['lastPurchaseByBU'][bu]):
                 c['lastPurchaseByBU'][bu] = raw_date
+            # Per-BU-per-Line mirror of the above (2026-08-03).
+            c['itemValueByBULine'][bu][line_name][item] += row[ci_val] or 0
+            c['monthsByBULine'][bu][line_name].add(m)
+            if ci_brick is not None and row[ci_brick]:
+                c['bricksByBULine'][bu][line_name].add(clean(row[ci_brick]))
+            if ci_region is not None and row[ci_region]:
+                c['regionsByBULine'][bu][line_name].add(clean(row[ci_region]))
+            if ci_position is not None and row[ci_position]:
+                c['positionsByBULine'][bu][line_name].add(clean(row[ci_position]))
+            if raw_date is not None and (line_name not in c['lastPurchaseByBULine'][bu] or raw_date > c['lastPurchaseByBULine'][bu][line_name]):
+                c['lastPurchaseByBULine'][bu][line_name] = raw_date
+            item_value_by_bu_line[cluster][bu][line_name][item] += row[ci_val] or 0
 
         item_value[cluster][item] += row[ci_val] or 0
         item_customers[cluster][item].add(cid)
@@ -280,6 +307,11 @@ def main():
     item_value_by_bu = {c: defaultdict(lambda: defaultdict(float)) for c in CLUSTERS_TO_BUILD}
     item_customers_by_bu = {c: defaultdict(lambda: defaultdict(set)) for c in CLUSTERS_TO_BUILD}
     bu_customers = {c: defaultdict(set) for c in CLUSTERS_TO_BUILD}
+    # cluster -> bu -> line -> item -> value (2026-08-03, "position of chosen
+    # line"): mirrors item_value_by_bu one dimension deeper -- used only to
+    # compute core_set_by_bu_line below (the per-BU-per-Line "top items
+    # covering 80% of value" definition for the Basket segment).
+    item_value_by_bu_line = {c: defaultdict(lambda: defaultdict(lambda: defaultdict(float))) for c in CLUSTERS_TO_BUILD}
 
     scanned = 0
 
@@ -287,7 +319,7 @@ def main():
     sheet = wb.get_sheet_by_name(SOURCE_SHEET)
     print(f'[{time.time()-t0:.1f}s] main sheet parsed', file=sys.stderr, flush=True)
     scanned += scan_sheet(sheet, 'main (' + SOURCE_XLSX + ')', t0, clusters, item_value, item_customers,
-                          item_value_by_bu, item_customers_by_bu, bu_customers)
+                          item_value_by_bu, item_customers_by_bu, bu_customers, item_value_by_bu_line)
     del wb, sheet
 
     if os.path.exists(JUNE_XLSX):
@@ -295,7 +327,7 @@ def main():
         june_sheet = june_wb.get_sheet_by_name(JUNE_SHEET)
         print(f'[{time.time()-t0:.1f}s] June sheet parsed', file=sys.stderr, flush=True)
         scanned += scan_sheet(june_sheet, 'june (' + JUNE_XLSX + ')', t0, clusters, item_value, item_customers,
-                              item_value_by_bu, item_customers_by_bu, bu_customers)
+                              item_value_by_bu, item_customers_by_bu, bu_customers, item_value_by_bu_line)
         del june_wb, june_sheet
     else:
         print(f'[{time.time()-t0:.1f}s] WARNING: June source not found at {JUNE_XLSX} -- '
@@ -374,6 +406,69 @@ def main():
                     break
             core_set_by_bu[bu_name] = set(bu_core_items)
 
+        # Per-BU-per-Line core-SKU sets (2026-08-03, "position of chosen
+        # line"): same 80%-of-value definition as core_set_by_bu above, one
+        # dimension deeper, so the Basket segment can be scoped to the
+        # specific Line selected within a BU (e.g. CVM-II's own core list),
+        # not just the BU's blended one.
+        core_set_by_bu_line = {}
+        for bu_name, lines_dict in item_value_by_bu_line[cluster_name].items():
+            core_set_by_bu_line[bu_name] = {}
+            for line_name, line_item_vals in lines_dict.items():
+                line_items_sorted_for_core = sorted(line_item_vals.items(), key=lambda kv: -kv[1])
+                line_total_val = sum(v for _, v in line_items_sorted_for_core) or 1
+                line_cum = 0.0
+                line_core_items = []
+                for name, v in line_items_sorted_for_core:
+                    line_cum += v
+                    line_core_items.append(name)
+                    if line_cum / line_total_val >= 0.80:
+                        break
+                core_set_by_bu_line[bu_name][line_name] = set(line_core_items)
+
+        def compute_line_stats(c, bu_name, ln):
+            """Same New/Lost/Retained/Reactivated + Frequent/Occasional/
+            One-time + core-SKU Basket logic used for the BU-level by_bu[bu]
+            block above, scoped to one customer's activity under a single
+            Line within that BU. Named function instead of an inline
+            lambda purely for readability -- see the 2026-08-03 'position
+            of chosen line' comment on by_bu[bu_name]['byLine'] below for
+            why this exists."""
+            lm = c['monthsByBULine'].get(bu_name, {}).get(ln, set())
+            in_latest, in_prev = latest_m in lm, prev_m in lm
+            in_earlier = any(m in lm for m in earlier_months)
+            if in_latest and not in_prev and not in_earlier:
+                bridge_seg = 'New'
+            elif in_prev and not in_latest:
+                bridge_seg = 'Lost'
+            elif in_latest and in_prev:
+                bridge_seg = 'Retained'
+            elif in_latest and not in_prev and in_earlier:
+                bridge_seg = 'Reactivated'
+            else:
+                bridge_seg = 'Inactive'
+
+            n = len(lm)
+            freq_seg = 'Frequent' if n >= 4 else ('Occasional' if n >= 2 else 'One-time')
+
+            items = set(c['itemValueByBULine'].get(bu_name, {}).get(ln, {}).keys())
+            core = core_set_by_bu_line.get(bu_name, {}).get(ln, set())
+            pct = len(items & core) / len(core) if core else 0
+            basket_seg = 'Full' if pct >= 0.80 else ('Partial' if pct > 0 else 'None of core')
+
+            return {
+                'monthsActive': n,
+                'distinctSkus': len(items),
+                'value': round(sum(c['itemValueByBULine'].get(bu_name, {}).get(ln, {}).values()), 2),
+                'bridgeSegment': bridge_seg,
+                'frequencySegment': freq_seg,
+                'basketSegment': basket_seg,
+                'bricks': sorted(c['bricksByBULine'].get(bu_name, {}).get(ln, set())),
+                'regions': sorted(c['regionsByBULine'].get(bu_name, {}).get(ln, set())),
+                'positions': sorted(c['positionsByBULine'].get(bu_name, {}).get(ln, set())),
+                'lastPurchase': fmt_date(c['lastPurchaseByBULine'].get(bu_name, {}).get(ln)),
+            }
+
         basket = {'full': 0, 'partial': 0, 'none': 0}
         customer_rows = []
         for cid, c in cust.items():
@@ -421,6 +516,18 @@ def main():
             items_by_bu = {
                 bu_name: [name for name, _ in sorted(item_vals.items(), key=lambda kv: -kv[1])]
                 for bu_name, item_vals in c['itemValueByBU'].items()
+            }
+            # Per-BU-per-Line mirror (2026-08-03, "position of chosen line"):
+            # same uncapped, sorted-by-value item name list, one dimension
+            # deeper, so distinctSkus/the SKU column stay self-consistent
+            # (identical by construction, same guarantee as items_by_bu
+            # above) when the grid is scoped to a specific Line, not just a BU.
+            items_by_bu_line = {
+                bu_name: {
+                    line_name: [name for name, _ in sorted(line_item_vals.items(), key=lambda kv: -kv[1])]
+                    for line_name, line_item_vals in lines_dict.items()
+                }
+                for bu_name, lines_dict in c['itemValueByBULine'].items()
             }
 
             # Per-BU customer stats (2026-07-31, "distinct skus should refer
@@ -485,6 +592,23 @@ def main():
                     # Last Purchase (2026-07-31, "add column of last time
                     # purchase"): most recent transaction date under THIS BU.
                     'lastPurchase': fmt_date(c['lastPurchaseByBU'].get(bu_name)),
+                    # Per-Line breakdown within this BU (2026-08-03, "position
+                    # of chosen line"): same New/Lost/Retained/Reactivated,
+                    # Frequent/Occasional/One-time, and core-SKU-based Basket
+                    # logic as above, but scoped to ONLY this customer's
+                    # transactions under one specific Line inside this BU --
+                    # lets the Customer Health grid show Position (and every
+                    # other BU-scoped field) for the exact Line selected in
+                    # the Executive filter bar, not the BU's blended view
+                    # across all its Lines. getClusterCustomerHealth() (js/
+                    # sales.js) overlays byLine[line] on top of the BU-level
+                    # fields above when a Line filter is active; falls back
+                    # to the BU-level fields for caches built before this
+                    # existed.
+                    'byLine': {
+                        line_name: compute_line_stats(c, bu_name, line_name)
+                        for line_name in c['linesByBU'].get(bu_name, set())
+                    },
                 }
 
             customer_rows.append({
@@ -493,7 +617,7 @@ def main():
                 'basketSegment': seg.capitalize() if seg != 'none' else 'None of core',
                 'distinctSkus': len(c['items']), 'value': round(c['value'], 2),
                 'qty': round(c['qty'], 2), 'txn': c['txn'], 'bus': sorted(c['bus']),
-                'itemsByBU': items_by_bu, 'byBU': by_bu,
+                'itemsByBU': items_by_bu, 'itemsByBULine': items_by_bu_line, 'byBU': by_bu,
                 'lastPurchase': fmt_date(c['lastPurchase']),
             })
 

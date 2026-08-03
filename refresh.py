@@ -695,9 +695,26 @@ def build_specialty_class_coverage(df: pd.DataFrame, group_col: str, latest_peri
 
 def build_leaderboards(roster: pd.DataFrame, latest_period: str, logger: logging.Logger) -> dict:
     """Top/Bottom employees by Coverage % in the latest period, excluding
-    reps with too few customers to rank meaningfully."""
+    reps with too few customers to rank meaningfully.
+
+    Field-rep-only scope (2026-08-03, "still bottom employee... show non
+    medical rep name"): roster's Title column carries 6 distinct values --
+    'Medical Representative'/'Sales Representative' (the two field-rep
+    titles; CHC/CHC_SALES uses "Sales Representative") plus 'District
+    Manager'/'Area Manager'/'Brand Manager'/'National Sales Manager'.
+    Those last four sometimes carry their own coverage rows (incidental
+    doctor visits) and were sneaking into this ranking -- a manager next
+    to full-time reps in a rep-performance leaderboard is never meaningful.
+    Mirrors the identical FIELD_REP_TITLES fix in js/analytics.js so the
+    baked default (this function, used before any filter is touched) and
+    the live client-side recompute (analytics.js, used after filtering)
+    always agree."""
+    FIELD_REP_TITLES = {"Medical Representative", "Sales Representative"}
     latest_active = roster[(roster["Period"] == latest_period) & (roster["IsActive"])]
-    qualified = latest_active[latest_active["CustomerCount"] >= MIN_CUSTOMERS_FOR_LEADERBOARD]
+    qualified = latest_active[
+        (latest_active["CustomerCount"] >= MIN_CUSTOMERS_FOR_LEADERBOARD)
+        & (latest_active["Title"].isin(FIELD_REP_TITLES))
+    ]
 
     def to_rows(sub: pd.DataFrame) -> list[dict]:
         return [
@@ -976,13 +993,20 @@ def build_rf_insights(df: pd.DataFrame, latest_period: str,
             "rowCount": int(row["rowCount"]),
         })
 
-    # rfTop5 / rfBottom5: per-employee RF% for latest period, ≥5 customers
+    # rfTop5 / rfBottom5: per-employee RF% for latest period, >= MIN_LEADERBOARD
+    # customers. Field-rep-only scope (2026-08-03, same fix + same reasoning
+    # as build_leaderboards() above): exclude District/Area/Brand/National
+    # Sales Manager rows so this ranking never mixes managers in with reps.
+    FIELD_REP_TITLES = {"Medical Representative", "Sales Representative"}
     emp_rf = active_rows.groupby("Employee", dropna=True).agg(
         rightFreqSum=("Right Freq", "sum"),
         customerCount=("Right Freq", "count"),
         team=("Team", "first"),
+        title=("Title", "first"),
     ).reset_index()
-    emp_rf = emp_rf[emp_rf["customerCount"] >= MIN_LEADERBOARD].copy()
+    emp_rf = emp_rf[
+        (emp_rf["customerCount"] >= MIN_LEADERBOARD) & (emp_rf["title"].isin(FIELD_REP_TITLES))
+    ].copy()
     emp_rf["rfPct"] = emp_rf.apply(
         lambda r: safe_round(r["rightFreqSum"] / r["customerCount"]) if r["customerCount"] else None, axis=1
     )

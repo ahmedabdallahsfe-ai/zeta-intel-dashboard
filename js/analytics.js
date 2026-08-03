@@ -48,6 +48,23 @@ const Analytics = (() => {
   const TOP_N_SPECIALTY_CLASS = 15;
   const VACANT_PREFIX = "VACANT";
 
+  // Field-rep leaderboard scope (2026-08-03, "still bottom employee...
+  // show non medical rep name"): dims.titles carries 6 distinct values --
+  // 'Medical Representative', 'Sales Representative' (the two field-rep
+  // titles; CHC/CHC_SALES uses "Sales Representative"), plus 'District
+  // Manager', 'Area Manager', 'Brand Manager', 'National Sales Manager'.
+  // Those last four sometimes carry their own coverage rows (incidental
+  // doctor visits) and were sneaking into the Top/Bottom 10 by RF% and the
+  // Coverage % leaderboard whenever the user hadn't ALSO manually applied
+  // the Title filter -- a manager showing up next to full-time reps in a
+  // rep-performance ranking is never meaningful, filter-bar state aside.
+  // Baked in here as the leaderboards' permanent scope (same standard
+  // Title=Medical/Sales Rep convention already hardcoded for the
+  // Executive Command Center's KPI cards) -- the Title filter dropdown
+  // still narrows further on TOP of this (e.g. Medical Rep only, no Sales
+  // Rep), it just can no longer WIDEN back out to include managers.
+  const FIELD_REP_TITLES = new Set(["Medical Representative", "Sales Representative"]);
+
   let rows = null;          // records.rows (array of arrays)
   let dims = null;          // dashboard.dimensions
   let vacantManagerSet = null;
@@ -326,7 +343,7 @@ const Analytics = (() => {
       if (!empGroup) {
         empGroup = {
           employeeIdx: row[F.employee], periodIdx, teamIdx: row[F.team], managerIdx: row[F.manager],
-          profileIdx: row[F.profile],
+          profileIdx: row[F.profile], titleIdx: row[F.title],
           coveredSum: 0, rightFreqSum: 0, customerCount: 0, visitsSum: 0,
           actualPlanSum: 0, isActive: !!row[F.isActive],
         };
@@ -712,6 +729,7 @@ const Analytics = (() => {
 
     const qualified = Array.from(byEmployeePeriod.values()).filter(
       (g) => g.isActive && g.periodIdx === kpiPeriodIdx && g.customerCount >= MIN_CUSTOMERS_FOR_LEADERBOARD
+        && FIELD_REP_TITLES.has(dims.titles[g.titleIdx])
     );
     const toLeaderboardRow = (g) => ({
       employee: dims.employeeNames[g.employeeIdx],
@@ -781,8 +799,12 @@ const Analytics = (() => {
     });
 
     // RF top-5 / bottom-5 employees by RF% (latest KPI period, ≥5 customers)
+    // Field-rep-only scope (2026-08-03, see FIELD_REP_TITLES above) -- same
+    // reasoning as the Coverage % leaderboard's `qualified` filter just
+    // above: managers must never appear in a rep-performance ranking.
     const rfEmpRows = [...byEmployeePeriod.values()]
-      .filter(g => g.isActive && g.periodIdx === kpiPeriodIdx && g.customerCount >= MIN_CUSTOMERS_FOR_LEADERBOARD)
+      .filter(g => g.isActive && g.periodIdx === kpiPeriodIdx && g.customerCount >= MIN_CUSTOMERS_FOR_LEADERBOARD
+        && FIELD_REP_TITLES.has(dims.titles[g.titleIdx]))
       .map(g => ({
         name:          dims.employeeNames[g.employeeIdx] || "",
         team:          dims.teams[g.teamIdx] || "",
@@ -961,8 +983,31 @@ const Analytics = (() => {
       return s;
     });
 
-    const result = [];
     const n = rows.length;
+
+    // Visited-months lookup (2026-08-03): "Not Seen" is scoped to the
+    // selected period only (defaults to the latest month) -- for context,
+    // show every OTHER period this same customer+employee combo WAS
+    // actually covered, across the FULL dataset regardless of period
+    // filter. Built once via a single extra pass, keyed by
+    // customerNameIdx+"|"+employeeIdx (name alone can collide across two
+    // different real people under different reps).
+    const visitedMonthsMap = new Map();
+    for (let i = 0; i < n; i++) {
+      const row = rows[i];
+      if (row[F.coveredDoctor] !== 1) continue;
+      const key = row[F.customerName] + "|" + row[F.employee];
+      let set = visitedMonthsMap.get(key);
+      if (!set) { set = new Set(); visitedMonthsMap.set(key, set); }
+      set.add(row[F.period]);
+    }
+    function visitedMonthsLabel(customerNameIdx, employeeIdx) {
+      const set = visitedMonthsMap.get(customerNameIdx + "|" + employeeIdx);
+      if (!set || !set.size) return "Never";
+      return Array.from(set).sort((a, b) => a - b).map((idx) => dims.periods[idx]).join(", ");
+    }
+
+    const result = [];
     for (let i = 0; i < n; i++) {
       const row = rows[i];
       // Period filter
@@ -988,6 +1033,7 @@ const Analytics = (() => {
         manager      : dims.managers[row[F.manager]] || "",
         frequency    : row[F.frequency],
         lastVisitDate: dims.lastVisitDates ? (dims.lastVisitDates[row[F.lastVisitDate]] || "Never") : "Never",
+        visitedMonths: visitedMonthsLabel(row[F.customerName], row[F.employee]),
         area         : dims.areas ? (dims.areas[row[F.area]] || "") : "",
       });
     }

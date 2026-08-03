@@ -97,6 +97,31 @@ if not "%IQVIA_EXIT%"=="0" (
     exit /b 1
 )
 
+REM --- run the Customer Analytics Aggregation ------------------------------
+REM Added 2026-08-03: this script's output (cache/customer_analytics.json /
+REM .data.js) was already being staged and committed below, but the script
+REM that GENERATES those files was never actually called here -- every
+REM refresh.bat run since 2026-07-28 silently kept committing a stale
+REM Customer Health cache. This is why Line-scoping (Position/SKU columns
+REM in the Retail/Chain Pharmacy Customer Health drill) doesn't show up yet
+REM even after other refreshes: the cache simply never got rebuilt. Reads
+REM TOTAL_SALES_2026.xlsx directly (same source as refresh_sales.py) --
+REM see etl\build_customer_analytics_cache.py's own header for why it's a
+REM separate script instead of folded into refresh_sales.py.
+echo.
+echo Reading Customer Analytics workbook...
+%PYTHON_CMD% etl\build_customer_analytics_cache.py
+set "CUSTANALYTICS_EXIT=%ERRORLEVEL%"
+
+if not "%CUSTANALYTICS_EXIT%"=="0" (
+    echo ============================================================
+    echo   [ERROR] Customer Analytics Refresh FAILED
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
 REM --- run the To-Market vs In-Market (TMS/IMS) Aggregation ----------------
 REM Revised 2026-07-31: this workspace is embedded as-is via iframe (see
 REM js/app.js's renderTomarketTab()) rather than rebuilt into this app's
@@ -111,8 +136,21 @@ if exist "TO MARKET_IN MARKET\TMS VS IMS.xlsx" (
     echo.
     echo Reading To-Market vs In-Market workbook...
     %PYTHON_CMD% "TO MARKET_IN MARKET\refresh_dashboard.py"
+    REM BUG FIX (2026-08-03, found via Ahmed's screenshot: script printed
+    REM "Done!" -- fully succeeded -- yet refresh.bat still reported
+    REM "[ERROR] ... FAILED" and stopped BEFORE ever reaching the git
+    REM commit/push section below. Root cause: this whole block is one
+    REM parenthesized `if exist (...)` unit, so %TMSIMS_EXIT% here was
+    REM being expanded at PARSE time (before the `set` on the line above
+    REM ever ran), not at execution time -- it read as empty, and
+    REM `if not ""=="0"` is always true. So this step failed on EVERY
+    REM run, silently blocking every push refresh.bat ever attempted,
+    REM regardless of whether the Python script itself succeeded. Fixed
+    REM by using delayed expansion (!TMSIMS_EXIT!) instead of %...% --
+    REM setlocal enabledelayedexpansion is already active at the top of
+    REM this file, this block just wasn't using it.
     set "TMSIMS_EXIT=%ERRORLEVEL%"
-    if not "%TMSIMS_EXIT%"=="0" (
+    if not "!TMSIMS_EXIT!"=="0" (
         echo ============================================================
         echo   [ERROR] To-Market vs In-Market Refresh FAILED
         echo ============================================================
@@ -165,6 +203,16 @@ if "%GIT_CMD%"=="" (
     "%GIT_CMD%" add js/*.js
     "%GIT_CMD%" add css/*.css
     "%GIT_CMD%" add dashboard.html
+    REM Added 2026-08-03 ("1 refresh bat to push everything"): the explicit
+    REM adds above only ever covered specific cache/js/css/html files -- any
+    REM change to refresh.py, refresh_sales.py, refresh_iqvia.py, this batch
+    REM file itself, or the etl/ scripts silently never reached GitHub even
+    REM though this step ran git commit + push regardless. `git add -A`
+    REM picks up everything else (respecting .gitignore, so cache/*.json,
+    REM logs/, *.xlsx, and the credential files added to .gitignore this
+    REM same day -- .github_token, test_credentials.json, Sync_Report.txt --
+    REM all stay excluded exactly as before).
+    "%GIT_CMD%" add -A
     "%GIT_CMD%" commit -m "Auto-refresh dashboard data"
     echo Pushing to GitHub repository...
     "%GIT_CMD%" push origin main

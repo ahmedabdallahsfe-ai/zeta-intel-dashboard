@@ -3362,7 +3362,7 @@
      * `skuPenetrationScope` on the result tells the caller which list it
      * actually got ('All' or the BU name) in case of a fallback.
      */
-    getClusterCustomerHealth(bu, cluster) {
+    getClusterCustomerHealth(bu, cluster, line) {
       decompressCustomerAnalyticsCache();
       if (!customerAnalyticsCache) {
         return { ok: false, status: 'cache_unavailable', source: 'customerAnalytics', bu: bu || 'All', cluster: cluster };
@@ -3373,9 +3373,29 @@
       }
 
       const wantBU = bu && bu !== 'All' ? bu : null;
+      const wantLine = line && line !== 'All' ? line : null;
+      // Line-scoping (2026-08-03, "position of chosen line"): the ETL's
+      // byBU[bu].byLine[line] breakdown only exists in caches built after
+      // this date -- feature-detect it so an older cache degrades to the
+      // pre-existing BU-only scoping (Line filter simply has no effect)
+      // instead of the customer list silently coming back empty.
+      const lineDataAvailable = !!(wantBU && wantLine && clusterData.customers.some(c =>
+        c.byBU && c.byBU[wantBU] && c.byBU[wantBU].byLine && Object.keys(c.byBU[wantBU].byLine).length > 0
+      ));
+      const effectiveLine = lineDataAvailable ? wantLine : null;
+
       let scopedCustomers = wantBU
         ? clusterData.customers.filter(c => c.bus && c.bus.indexOf(wantBU) >= 0)
         : clusterData.customers;
+
+      // Narrow further to customers actually active under the chosen Line
+      // within this BU -- a customer with zero byLine[effectiveLine] entry
+      // never transacted under that Line at all.
+      if (effectiveLine) {
+        scopedCustomers = scopedCustomers.filter(c =>
+          c.byBU && c.byBU[wantBU] && c.byBU[wantBU].byLine && c.byBU[wantBU].byLine[effectiveLine]
+        );
+      }
 
       // LINE-LEVEL FILTERING FOR LINE MANAGERS (Added 2026-08-01):
       if (window.AUTH && window.AUTH.getScope().lines !== null) {
@@ -3472,10 +3492,18 @@
     // Refactored customers mapping with line-level SKU items filter:
     const customers = scopedCustomers.map(c => {
       const buStats = wantBU ? ((c.byBU && c.byBU[wantBU]) || null) : null;
+      // Line-scoped stats (2026-08-03, "position of chosen line") -- overlay
+      // ON TOP of buStats when the ETL's byLine breakdown exists for this
+      // customer's exact BU+Line combo; falls back to buStats (the BU-
+      // blended view) otherwise, same "no throw, less-scoped but correct"
+      // convention as every other byBU field.
+      const lineStats = (effectiveLine && buStats && buStats.byLine) ? (buStats.byLine[effectiveLine] || null) : null;
       let items = wantBU
-        ? ((c.itemsByBU && c.itemsByBU[wantBU]) || [])
+        ? (effectiveLine && c.itemsByBULine && c.itemsByBULine[wantBU] && c.itemsByBULine[wantBU][effectiveLine]
+            ? c.itemsByBULine[wantBU][effectiveLine]
+            : ((c.itemsByBU && c.itemsByBU[wantBU]) || []))
         : (c.items || []);
-      
+
       if (window.AUTH && window.AUTH.getScope().lines !== null) {
         const allowedLines = new Set(window.AUTH.getScope().lines);
         items = items.filter(itemName => isSkuAllowedForLines(itemName, allowedLines));
@@ -3485,16 +3513,16 @@
         return Object.assign({}, c, {
           items: items,
           lines: (buStats && buStats.lines) || [],
-          monthsActive: buStats ? buStats.monthsActive : c.monthsActive,
+          monthsActive: lineStats ? lineStats.monthsActive : (buStats ? buStats.monthsActive : c.monthsActive),
           distinctSkus: items.length,
-          value: buStats ? buStats.value : c.value,
-          bridgeSegment: buStats ? buStats.bridgeSegment : c.bridgeSegment,
-          frequencySegment: buStats ? buStats.frequencySegment : c.frequencySegment,
-          basketSegment: buStats ? buStats.basketSegment : c.basketSegment,
-          bricks: (buStats && buStats.bricks) || [],
-          regions: (buStats && buStats.regions) || [],
-          positions: (buStats && buStats.positions) || [],
-          lastPurchase: buStats ? buStats.lastPurchase : c.lastPurchase,
+          value: lineStats ? lineStats.value : (buStats ? buStats.value : c.value),
+          bridgeSegment: lineStats ? lineStats.bridgeSegment : (buStats ? buStats.bridgeSegment : c.bridgeSegment),
+          frequencySegment: lineStats ? lineStats.frequencySegment : (buStats ? buStats.frequencySegment : c.frequencySegment),
+          basketSegment: lineStats ? lineStats.basketSegment : (buStats ? buStats.basketSegment : c.basketSegment),
+          bricks: (lineStats && lineStats.bricks) || (buStats && buStats.bricks) || [],
+          regions: (lineStats && lineStats.regions) || (buStats && buStats.regions) || [],
+          positions: (lineStats && lineStats.positions) || (buStats && buStats.positions) || [],
+          lastPurchase: lineStats ? lineStats.lastPurchase : (buStats ? buStats.lastPurchase : c.lastPurchase),
         });
       } else {
         return Object.assign({}, c, {
@@ -3531,28 +3559,50 @@
         : clusterData.skuPenetration;
       let skuPenetrationScope = (wantBU && clusterData.skuPenetrationByBU && clusterData.skuPenetrationByBU[wantBU]) ? wantBU : 'All';
 
-      // Recalculate penetration stats dynamically for line managers (Added 2026-08-01):
-      if (window.AUTH && window.AUTH.getScope().lines !== null) {
-        const allowedLines = new Set(window.AUTH.getScope().lines);
+      // Recalculate penetration stats dynamically whenever the customer
+      // list has been narrowed BEYOND plain BU-scoping -- either an AUTH
+      // line-restriction (Line Manager, added 2026-08-01) or a chosen Line
+      // filter in the Executive filter bar (added 2026-08-03, "to be
+      // dynamic when choosing cluster and line": the Top SKU Penetration
+      // panel was still showing the BU-wide ranked list even when a Line
+      // was picked -- Position/SKU in the customer grid already scoped to
+      // the chosen Line via itemsByBULine, this panel hadn't caught up).
+      //
+      // Both cases can now share ONE code path: `customers[].items` is
+      // ALREADY the fully-correct, fully-scoped item list at this point --
+      // itemsByBULine handled the chosen-Line narrowing above (line ~3501),
+      // and isSkuAllowedForLines has ALREADY been applied per-customer
+      // above (line ~3507) for AUTH-restricted users regardless of Line
+      // selection. So tallying straight from customers[].items is correct
+      // for every combination, instead of re-filtering a separate list.
+      //
+      // KNOWN APPROXIMATION: `inCore` here is carried over from the BU-
+      // level 80%-of-value core-SKU definition (etl's core_set_by_bu), not
+      // re-derived per Line -- the ETL's core_set_by_bu_line exists
+      // (2026-08-03) but isn't exposed to this cache yet. Good enough to
+      // keep the "(core)" tag meaningful; a true Line-level core-SKU cut
+      // would need that field piped through customer_analytics.json.
+      const lineOrAuthNarrowed = !!effectiveLine || (window.AUTH && window.AUTH.getScope().lines !== null);
+      if (lineOrAuthNarrowed) {
         const denom = customers.length || 1;
-        
-        skuPenetration = (skuPenetration || []).filter(s => isSkuAllowedForLines(s.sku, allowedLines));
-        skuPenetration = skuPenetration.map(s => {
-          const count = customers.filter(c => c.items && c.items.indexOf(s.sku) >= 0).length;
-          return {
-            sku: s.sku,
-            count: count,
-            penetrationPct: (count / denom) * 100,
-            inCore: s.inCore
-          };
+        const priorInCore = new Map((skuPenetration || []).map(s => [s.sku, !!s.inCore]));
+        const skuTally = new Map();
+        customers.forEach(c => {
+          const seen = new Set(c.items || []); // de-dupe in case an item ever appears twice for one customer
+          seen.forEach(sku => skuTally.set(sku, (skuTally.get(sku) || 0) + 1));
         });
 
-        // Sort descending by penetration
-        skuPenetration.sort((a, b) => b.penetrationPct - a.penetrationPct);
+        skuPenetration = Array.from(skuTally.entries()).map(([sku, count]) => ({
+          sku: sku,
+          count: count,
+          penetrationPct: (count / denom) * 100,
+          inCore: priorInCore.get(sku) || false,
+        })).sort((a, b) => b.penetrationPct - a.penetrationPct);
 
         coreSkuCount = skuPenetration.filter(s => s.inCore).length;
         totalSkuCount = skuPenetration.length;
-        skuPenetrationScope = window.AUTH.getScope().lines.join(", ");
+        skuPenetrationScope = effectiveLine
+          || (window.AUTH && window.AUTH.getScope().lines ? window.AUTH.getScope().lines.join(", ") : skuPenetrationScope);
       }
 
       return {
@@ -3561,6 +3611,12 @@
         source: 'customerAnalytics',
         bu: bu || 'All',
         lines: (window.AUTH && window.AUTH.getScope().lines) || null,
+        // Chosen-Line scoping (2026-08-03, "position of chosen line") --
+        // distinct from `lines` above, which is the signed-in user's AUTH
+        // restriction, not the Executive filter-bar selection.
+        requestedLine: wantLine,
+        effectiveLine: effectiveLine,
+        lineDataAvailable: lineDataAvailable,
         cluster: cluster,
         months: clusterData.months,
         totalCustomers: customers.length,

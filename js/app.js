@@ -1526,16 +1526,17 @@ function wireNotSeenModal() {
   let _page = 1;
 
   const COLS = [
-    { key: "customerName", label: "Customer Name", width: "18%" },
-    { key: "specialty",    label: "Specialty",     width: "10%" },
-    { key: "klass",        label: "Class",         width: "6%"  },
-    { key: "type",         label: "Type",          width: "6%"  },
-    { key: "employee",     label: "Employee",       width: "14%" },
-    { key: "team",         label: "Team",           width: "10%" },
-    { key: "manager",      label: "Manager",        width: "12%" },
+    { key: "customerName", label: "Customer Name", width: "16%" },
+    { key: "specialty",    label: "Specialty",     width: "9%"  },
+    { key: "klass",        label: "Class",         width: "5%"  },
+    { key: "type",         label: "Type",          width: "5%"  },
+    { key: "employee",     label: "Employee",       width: "12%" },
+    { key: "team",         label: "Team",           width: "8%" },
+    { key: "manager",      label: "Manager",        width: "10%" },
     { key: "frequency",    label: "Freq",           width: "5%", align: "right" },
-    { key: "area",         label: "Area",           width: "10%" },
-    { key: "lastVisitDate",label: "Last Visit",     width: "9%"  },
+    { key: "area",         label: "Area",           width: "8%" },
+    { key: "lastVisitDate",label: "Last Visit",     width: "8%"  },
+    { key: "visitedMonths",label: "Visited Months", width: "14%" },
   ];
 
   function esc(s) { return UI.escapeHtml(String(s ?? "")); }

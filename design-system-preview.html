@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zeta Design System — Foundation Preview</title>
+
+<!--
+  STANDALONE VALIDATION PAGE — Phase 3 (Design System foundation).
+  Loads ONLY the 5 new platform CSS files + components.js. Nothing here
+  touches dashboard.html or any existing workspace. Purpose: let the
+  foundation be reviewed and approved on its own, per the explicit
+  instruction "do not migrate existing modules until the Design System
+  foundation has been completed and validated independently."
+-->
+<link rel="stylesheet" href="css/design-system.css" />
+<link rel="stylesheet" href="css/animations.css" />
+<link rel="stylesheet" href="css/layout.css" />
+<link rel="stylesheet" href="css/components.css" />
+<link rel="stylesheet" href="css/utilities.css" />
+
+<style>
+  /* Preview-page-only chrome — NOT part of the design system itself */
+  body { margin: 0; background: var(--color-background); font-family: var(--font-family-base); color: var(--color-text-primary); }
+  .preview-header {
+    background: var(--color-surface); border-bottom: 1px solid var(--color-border);
+    padding: var(--space-6); position: sticky; top: 0; z-index: var(--z-sticky);
+  }
+  .preview-header h1 { margin: 0 0 4px 0; font-size: var(--fs-2xl); font-weight: var(--fw-black); }
+  .preview-header p { margin: 0; color: var(--color-text-secondary); font-size: var(--fs-sm); }
+  .preview-nav { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-4); }
+  .preview-nav a {
+    font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--color-text-secondary);
+    text-decoration: none; padding: 6px 12px; border-radius: var(--radius-full); border: 1px solid var(--color-border);
+  }
+  .preview-nav a:hover { color: var(--color-primary); border-color: var(--color-primary); }
+  .preview-swatch-row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+  .preview-swatch { width: 120px; }
+  .preview-swatch-color { height: 56px; border-radius: var(--radius-md); border: 1px solid var(--color-border); margin-bottom: 6px; }
+  .preview-swatch-label { font-size: var(--fs-xs); color: var(--color-text-secondary); }
+  .preview-swatch-value { font-size: var(--fs-xs); font-family: var(--font-family-mono); color: var(--color-text-tertiary); }
+  .preview-type-row { display: flex; align-items: baseline; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: 1px dashed var(--color-border); }
+  .preview-type-tag { width: 90px; flex-shrink: 0; font-size: var(--fs-xs); color: var(--color-text-tertiary); font-family: var(--font-family-mono); }
+  #toast-demo-trigger, #modal-demo-trigger {}
+</style>
+</head>
+<body>
+
+<div class="preview-header">
+  <h1>Zeta Enterprise Design System</h1>
+  <p>Phase 3 foundation preview — tokens, layout primitives, and every reusable component. Nothing on this page is wired into a live workspace.</p>
+  <div class="preview-nav">
+    <a href="#tokens">Tokens</a>
+    <a href="#kpi">KPI Cards</a>
+    <a href="#insight">Insight Cards</a>
+    <a href="#table">Tables</a>
+    <a href="#chart">Chart Containers</a>
+    <a href="#filters">Filters</a>
+    <a href="#buttons">Buttons</a>
+    <a href="#nav">Navigation</a>
+    <a href="#states">Empty / Loading</a>
+    <a href="#export">Export</a>
+    <a href="#overlay">Modal / Toast</a>
+    <a href="#tooltip">Tooltips</a>
+  </div>
+</div>
+
+<div class="ds-page">
+
+  <!-- ================= TOKENS ================= -->
+  <section class="ds-section" id="tokens">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">1. Design Tokens</h2></div>
+
+    <div class="ds-chart-container">
+      <div class="ds-chart-title" style="margin-bottom:var(--space-3);">Brand &amp; semantic colors</div>
+      <div class="preview-swatch-row" id="color-swatches"></div>
+    </div>
+
+    <div class="ds-chart-container">
+      <div class="ds-chart-title" style="margin-bottom:var(--space-3);">Categorical chart palette (10 slots)</div>
+      <div class="preview-swatch-row" id="chart-swatches"></div>
+    </div>
+
+    <div class="ds-chart-container">
+      <div class="ds-chart-title" style="margin-bottom:var(--space-3);">Type scale</div>
+      <div id="type-scale"></div>
+    </div>
+
+    <div class="ds-chart-container">
+      <div class="ds-chart-title" style="margin-bottom:var(--space-3);">Spacing scale (4px rhythm)</div>
+      <div class="ds-flex ds-items-end ds-gap-2" id="space-scale"></div>
+    </div>
+  </section>
+
+  <!-- ================= KPI CARDS ================= -->
+  <section class="ds-section" id="kpi">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">2. KPI Cards</h2></div>
+    <div class="ds-grid-kpi" id="kpi-demo"></div>
+  </section>
+
+  <!-- ================= INSIGHT CARDS ================= -->
+  <section class="ds-section" id="insight">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">3. Executive Insight Cards</h2></div>
+    <div class="ds-grid-3" id="insight-demo"></div>
+  </section>
+
+  <!-- ================= TABLE ================= -->
+  <section class="ds-section" id="table">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">4. Tables</h2></div>
+    <div id="table-demo"></div>
+    <div style="margin-top:var(--space-4);" id="table-empty-demo"></div>
+  </section>
+
+  <!-- ================= CHART CONTAINER ================= -->
+  <section class="ds-section" id="chart">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">5. Chart Containers</h2></div>
+    <div class="ds-grid-2" id="chart-demo"></div>
+  </section>
+
+  <!-- ================= FILTERS ================= -->
+  <section class="ds-section" id="filters">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">6. Filter Controls</h2></div>
+    <div class="ds-flex ds-gap-4" id="filter-demo" style="position:relative;"></div>
+    <div class="ds-mt-4" id="filter-output" style="font-size:var(--fs-sm);color:var(--color-text-secondary);"></div>
+  </section>
+
+  <!-- ================= BUTTONS ================= -->
+  <section class="ds-section" id="buttons">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">7. Buttons</h2></div>
+    <div class="ds-flex ds-flex-wrap ds-gap-3" id="button-demo"></div>
+  </section>
+
+  <!-- ================= NAVIGATION ================= -->
+  <section class="ds-section" id="nav">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">8. Navigation (sub-tabs)</h2></div>
+    <div id="tabs-demo"></div>
+  </section>
+
+  <!-- ================= EMPTY / LOADING ================= -->
+  <section class="ds-section" id="states">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">9. Empty &amp; Loading States</h2></div>
+    <div class="ds-grid-3">
+      <div class="ds-chart-container" id="empty-demo"></div>
+      <div class="ds-chart-container" id="loading-demo"></div>
+      <div class="ds-chart-container">
+        <div class="ds-chart-title" style="margin-bottom:var(--space-3);">Skeleton</div>
+        <div class="ds-flex-col ds-gap-2" id="skeleton-demo"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= EXPORT ================= -->
+  <section class="ds-section" id="export">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">10. Export Controls</h2></div>
+    <div id="export-demo"></div>
+  </section>
+
+  <!-- ================= MODAL / TOAST ================= -->
+  <section class="ds-section" id="overlay">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">11 &amp; 12. Modals &amp; Notifications</h2></div>
+    <div class="ds-flex ds-gap-3" id="overlay-demo"></div>
+  </section>
+
+  <!-- ================= TOOLTIP ================= -->
+  <section class="ds-section" id="tooltip" style="padding-bottom:var(--space-12);">
+    <div class="ds-section-header"><h2 style="margin:0;font-size:var(--fs-xl);">13. Tooltips</h2></div>
+    <div class="ds-flex ds-gap-4 ds-items-center">
+      <span data-tooltip="Regional Manager" style="border-bottom:1px dotted var(--color-text-tertiary);">RM</span>
+      <span data-tooltip="National Sales Manager" style="border-bottom:1px dotted var(--color-text-tertiary);">NSM</span>
+      <span data-tooltip="District Manager" style="border-bottom:1px dotted var(--color-text-tertiary);">DM</span>
+      <span data-tooltip="Business Unit Head" style="border-bottom:1px dotted var(--color-text-tertiary);">BU Head</span>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/components.js"></script>
+<script>
+(function () {
+  // ---- Tokens ----
+  var colorTokens = [
+    ["--color-primary", "Primary"], ["--color-success", "Success"], ["--color-warning", "Warning"],
+    ["--color-danger", "Danger"], ["--color-info", "Info"], ["--color-surface-alt", "Surface Alt"],
+    ["--color-border", "Border"], ["--color-text-secondary", "Text Secondary"]
+  ];
+  var cs = getComputedStyle(document.documentElement);
+  document.getElementById("color-swatches").innerHTML = colorTokens.map(function (t) {
+    var val = cs.getPropertyValue(t[0]).trim();
+    return '<div class="preview-swatch"><div class="preview-swatch-color" style="background:var(' + t[0] + ')"></div>' +
+      '<div class="preview-swatch-label">' + t[1] + '</div><div class="preview-swatch-value">' + t[0] + '</div></div>';
+  }).join("");
+
+  var chartTokens = [1,2,3,4,5,6,7,8,9,10].map(function(n){ return "--chart-" + n; });
+  document.getElementById("chart-swatches").innerHTML = chartTokens.map(function (t) {
+    return '<div class="preview-swatch" style="width:80px;"><div class="preview-swatch-color" style="height:40px;background:var(' + t + ')"></div>' +
+      '<div class="preview-swatch-value">' + t + '</div></div>';
+  }).join("");
+
+  var typeScale = ["--fs-xs","--fs-sm","--fs-base","--fs-md","--fs-lg","--fs-xl","--fs-2xl","--fs-3xl","--fs-kpi-value"];
+  document.getElementById("type-scale").innerHTML = typeScale.map(function (t) {
+    return '<div class="preview-type-row"><span class="preview-type-tag">' + t + '</span><span style="font-size:var(' + t + ')">Sales grew 4.2% MoM</span></div>';
+  }).join("");
+
+  var spaceScale = [1,2,3,4,5,6,7,8,10,12];
+  document.getElementById("space-scale").innerHTML = spaceScale.map(function (n) {
+    return '<div style="text-align:center;"><div style="width:var(--space-' + n + ');height:var(--space-' + n + ');background:var(--color-primary);border-radius:2px;"></div>' +
+      '<div class="preview-swatch-value" style="margin-top:4px;">' + n + '</div></div>';
+  }).join("");
+
+  // ---- KPI Cards ----
+  document.getElementById("kpi-demo").innerHTML =
+    DS.kpiCard({ label: "Actual Sales", value: "EGP 237.6M", delta: "4.2% vs prior period", direction: "up" }) +
+    DS.kpiCard({ label: "Target Achievement", value: "94.8%", delta: "1.1 pts vs prior period", direction: "down" }) +
+    DS.kpiCard({ label: "Doctor Coverage", value: "88.3%", delta: "0.0 pts vs prior period", direction: "flat" }) +
+    DS.kpiCard({ label: "Active Reps", value: "512", delta: "12 new this quarter", direction: "up" });
+
+  // ---- Insight Cards ----
+  document.getElementById("insight-demo").innerHTML =
+    DS.insightCard({ title: "Opportunities", variant: "opportunity", icon: "🟢", items: [
+      "Region East is 8pts ahead of target with headroom in 3 bricks",
+      "Product line Cardio outperforming market growth by 6%"
+    ]}) +
+    DS.insightCard({ title: "Risk Signals", variant: "risk", icon: "🔴", items: [
+      "12 reps below 80% call-rate for 2 consecutive months",
+      "Top distributor concentration at 71% of regional volume"
+    ]}) +
+    DS.insightCard({ title: "Recommended Actions", variant: "action", icon: "🔵", items: [
+      "Reallocate 2 territories in District 4 ahead of Q3",
+      "Escalate distributor diversification plan to BU Head"
+    ]});
+
+  // ---- Table ----
+  document.getElementById("table-demo").innerHTML = DS.table({
+    columns: [
+      { key: "rep", label: "Rep" },
+      { key: "region", label: "Region" },
+      { key: "sales", label: "Sales (EGP)", align: "right", format: function(v){ return Number(v).toLocaleString(); } },
+      { key: "ach", label: "Achievement", align: "right", format: function(v){ return v + "%"; } }
+    ],
+    rows: [
+      { rep: "A. Hassan", region: "Cairo", sales: 1284500, ach: 104 },
+      { rep: "M. Farouk", region: "Delta", sales: 962300, ach: 88 },
+      { rep: "S. Aziz", region: "Upper Egypt", sales: 754100, ach: 76 }
+    ]
+  });
+  document.getElementById("table-empty-demo").innerHTML = DS.table({ columns: [{key:"a",label:"A"},{key:"b",label:"B"}], rows: [] });
+
+  // ---- Chart containers ----
+  document.getElementById("chart-demo").innerHTML =
+    DS.chartContainer({ title: "Monthly Performance Trend", subtitle: "Actual vs Target, Jan–Dec", canvasId: "demo-canvas-1" }) +
+    DS.chartContainer({ title: "Market Share by Region", subtitle: "IQVIA MAT data", canvasId: "demo-canvas-2" });
+
+  // ---- Filters ----
+  var filterRoot = DS.filterDropdown({
+    label: "Region",
+    options: [{value:"cairo",label:"Cairo"},{value:"delta",label:"Delta"},{value:"upper",label:"Upper Egypt"},{value:"alex",label:"Alexandria"}],
+    selected: ["cairo"],
+    onChange: function (vals) { document.getElementById("filter-output").textContent = "Selected: " + JSON.stringify(vals); }
+  });
+  document.getElementById("filter-demo").appendChild(filterRoot);
+  document.getElementById("filter-output").textContent = "Selected: [\"cairo\"]";
+
+  // ---- Buttons ----
+  document.getElementById("button-demo").innerHTML =
+    DS.button({ label: "Primary Action", variant: "primary" }) +
+    DS.button({ label: "Secondary", variant: "secondary" }) +
+    DS.button({ label: "Ghost", variant: "ghost" }) +
+    DS.button({ label: "Delete", variant: "danger" }) +
+    DS.button({ label: "Small", variant: "primary", size: "sm" });
+
+  // ---- Nav tabs ----
+  document.getElementById("tabs-demo").innerHTML = DS.tabs({
+    tabs: [{key:"exec",label:"Executive"},{key:"perf",label:"Performance"},{key:"target",label:"Target"},{key:"advanced",label:"Advanced"}],
+    activeKey: "exec"
+  });
+  document.getElementById("tabs-demo").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-ds-tab]");
+    if (!btn) return;
+    document.querySelectorAll("#tabs-demo .ds-tab").forEach(function(b){ b.classList.remove("ds-tab--active"); });
+    btn.classList.add("ds-tab--active");
+  });
+
+  // ---- Empty / Loading / Skeleton ----
+  document.getElementById("empty-demo").innerHTML = DS.emptyState({ title: "No data for current filters", hint: "Try widening your date range or clearing a filter.", icon: "📭" });
+  document.getElementById("loading-demo").innerHTML = DS.loadingSpinner({ message: "Loading Sales cache…" });
+  document.getElementById("skeleton-demo").innerHTML = DS.skeleton({height:"14px",width:"60%"}) + DS.skeleton({height:"14px",width:"90%"}) + DS.skeleton({height:"14px",width:"40%"});
+
+  // ---- Export ----
+  var exportRoot = DS.exportButton({ onExport: function (fmt) { DS.toast({ message: "Exporting as " + fmt.toUpperCase() + "…", variant: "info" }); } });
+  document.getElementById("export-demo").appendChild(exportRoot);
+
+  // ---- Modal + Toast ----
+  document.getElementById("overlay-demo").innerHTML =
+    DS.button({ label: "Open Modal", variant: "primary", attrs: 'id="modal-demo-trigger"' }) +
+    DS.button({ label: "Show Success Toast", variant: "secondary", attrs: 'id="toast-success-trigger"' }) +
+    DS.button({ label: "Show Warning Toast", variant: "secondary", attrs: 'id="toast-warning-trigger"' });
+
+  document.getElementById("modal-demo-trigger").addEventListener("click", function () {
+    DS.openModal({
+      title: "Confirm Cache Refresh",
+      bodyHtml: "<p>This will reload the Sales cache from the latest regenerated file. Continue?</p>",
+      footerHtml: DS.button({label:"Cancel",variant:"ghost",attrs:'onclick="DS.closeModal(this.closest(\'.ds-modal-overlay\'))"'}) +
+                  DS.button({label:"Confirm",variant:"primary",attrs:'onclick="DS.closeModal(this.closest(\'.ds-modal-overlay\'))"'})
+    });
+  });
+  document.getElementById("toast-success-trigger").addEventListener("click", function () {
+    DS.toast({ message: "Export complete", variant: "success" });
+  });
+  document.getElementById("toast-warning-trigger").addEventListener("click", function () {
+    DS.toast({ message: "3 reps missing coverage data this month", variant: "warning" });
+  });
+})();
+</script>
+</body>
+</html>

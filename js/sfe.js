@@ -236,16 +236,35 @@
         });
       });
 
-      // ROLE-BASED ACCESS SCOPE (2026-07-29): single choke point -- every
-      // consumer of this list (populateDropdowns(), getFilteredList(),
-      // isDmInFilter(), render()'s own KPI/chart computations) derives
-      // from this one array, so filtering here scopes the whole SFE
-      // workspace (dropdown options AND data) in one place. row.line is
-      // organogram's raw spelling (NEUROSCIENCE/DERMA), so this goes
-      // through window.AUTH.isLineAllowed() which normalizes first --
-      // same fix as getFilteredHeadcountForLine()'s CNS/Derma bug above.
-      if (window.AUTH && window.AUTH.getScope().lines !== null) {
-        return list.filter(row => window.AUTH.isLineAllowed(row.line));
+      // ROLE-BASED ACCESS SCOPE (2026-07-29, extended 2026-08-04): single
+      // choke point -- every consumer of this list (populateDropdowns(),
+      // getFilteredList(), isDmInFilter(), render()'s own KPI/chart
+      // computations) derives from this one array, so filtering here
+      // scopes the whole SFE workspace (dropdown options AND data) in one
+      // place. row.line is organogram's raw spelling (NEUROSCIENCE/DERMA),
+      // so this goes through window.AUTH.isLineAllowed() which normalizes
+      // first -- same fix as getFilteredHeadcountForLine()'s CNS/Derma bug.
+      //
+      // BUG FIX (2026-08-04, Ahmed: "when signed in with user bu or line
+      // manager only in filter who is related to not all bu"): this only
+      // ever checked isLineAllowed() -- a pure BU-restricted user (AUTH
+      // scope has `bus` set but `lines` is null, e.g. a BU Manager with no
+      // line restriction) fell through this `if` entirely and saw every
+      // line/BU in both the Line and Business Unit filter dropdowns, not
+      // just their own BU. Note row.bum is the BU MANAGER's NAME (a
+      // person), not a BU code -- do not confuse with AUTH's `bus` (BU
+      // codes like "DIAB"); the actual BU dimension has to be derived from
+      // row.line via SEMANTIC.lineToBU(), same as getBusinessSummary()
+      // elsewhere in this app. Both isLineAllowed/isBuAllowed are safe
+      // no-ops (always true) when that half of the user's scope is
+      // unrestricted, so this single filter correctly covers all four
+      // cases: unrestricted, Line-only-restricted, BU-only-restricted, and
+      // (in principle) both-restricted.
+      if (window.AUTH) {
+        return list.filter(row =>
+          window.AUTH.isLineAllowed(row.line) &&
+          window.AUTH.isBuAllowed(window.SEMANTIC.lineToBU(row.line))
+        );
       }
 
       return list;
@@ -266,6 +285,31 @@
     render() {
       const data = this.getData();
       const masterList = this.getHierarchyList();
+
+      // Auto-lock the Line filter for a single-line-restricted user
+      // (2026-08-04, Ahmed: "...then choose the bu or line"): there is no
+      // separate Business Unit selector in this workspace (only Line/BUM/
+      // NSM/ASM/DM -- "bum" is the BU MANAGER's name, not a BU code), so
+      // Line is the only dropdown that determines BU scope here. Without
+      // this, a restricted user would land on a Line dropdown reading
+      // "ALL LINES" even though getHierarchyList() has already hidden
+      // every other line -- correct underlying data, but a confusing
+      // default label. Uses masterList[0].line (the RAW organogram
+      // spelling already present in the AUTH-filtered list) rather than
+      // AUTH.getScope().lines[0] (the CANONICAL spelling) -- getFilteredList()
+      // does an exact-string match against row.line, and canonical vs raw
+      // spelling differ for CNS ("NEUROSCIENCE" in this data) and Derma,
+      // so using the canonical form directly would silently filter every
+      // row out for exactly those two lines. Safe to re-run on every
+      // render(): masterList is already narrowed to allowed rows only, so
+      // this never overrides a choice the user couldn't otherwise make.
+      if (window.AUTH && this.filters.line === 'ALL') {
+        const scope = window.AUTH.getScope();
+        if (scope.lines !== null && scope.lines.length === 1 && masterList.length > 0) {
+          this.filters.line = masterList[0].line;
+        }
+      }
+
       const filteredList = this.getFilteredList(masterList);
 
       // Compute filtered KPI metrics
@@ -588,7 +632,15 @@
         })).sort((a, b) => b.vacancyRate - a.vacancyRate).slice(0, 15);
 
         // Filter vacant positions list
+        // ROLE-BASED ACCESS SCOPE (2026-08-04, Ahmed: BU/Line-restricted
+        // users seeing out-of-scope data): this read data.vacantPositions
+        // DIRECTLY from the raw cache, bypassing getHierarchyList()'s AUTH
+        // choke point entirely -- a restricted user would see every BU/
+        // Line's vacant positions here regardless of their own scope. Same
+        // isLineAllowed + isBuAllowed(lineToBU(...)) check as
+        // getHierarchyList() now uses.
         const filteredVacantPositions = (data.vacantPositions || []).filter(p => {
+          if (window.AUTH && !(window.AUTH.isLineAllowed(p.line) && window.AUTH.isBuAllowed(window.SEMANTIC.lineToBU(p.line)))) return false;
           if (this.filters.line !== 'ALL' && p.line !== this.filters.line) return false;
           if (this.filters.bum !== 'ALL' && p.bum !== this.filters.bum) return false;
           if (this.filters.nsm !== 'ALL' && p.nsm !== this.filters.nsm) return false;
@@ -724,7 +776,11 @@
         const overstretchedAsms = filteredAsmSpan.filter(asm => asm.overloaded).length;
 
         // Filter active reps workload list dynamically
+        // ROLE-BASED ACCESS SCOPE (2026-08-04): same fix as
+        // filteredVacantPositions above -- this read data.brickWorkload.reps
+        // directly from the raw cache, bypassing AUTH scoping entirely.
         const filteredWorkloadReps = (data.brickWorkload.reps || []).filter(r => {
+          if (window.AUTH && !(window.AUTH.isLineAllowed(r.line) && window.AUTH.isBuAllowed(window.SEMANTIC.lineToBU(r.line)))) return false;
           if (this.filters.line !== 'ALL' && r.line !== this.filters.line) return false;
           if (this.filters.bum !== 'ALL' && r.bum !== this.filters.bum) return false;
           if (this.filters.nsm !== 'ALL' && r.nsm !== this.filters.nsm) return false;

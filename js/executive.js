@@ -1015,7 +1015,7 @@
       return unavailableCard("salesProductivity", "Sales Productivity", "module_unavailable");
     }
 
-    let val, platformAvg, rankInfo, rankUnit, benchmarkLabel, basisNote, isWholeBuView = false;
+    let val, platformAvg, targetPerPosition, rankInfo, rankUnit, basisNote, isWholeBuView = false;
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
 
     if (!activeLine && !isBuRestricted()) {
@@ -1031,11 +1031,58 @@
         }
       });
       platformAvg = platformPositions > 0 ? platformActual / platformPositions : null;
+
+      // Target per Position (2026-08-04, "Target is target per position"):
+      // this BU's own assigned sales target (summaries.sales.bu[bu].targetYTD,
+      // already computed by getSalesOverview from cache TGT_VAL) divided by
+      // its deployed positions -- a real SFE target, not a peer-average
+      // benchmark. The old behavior showed platformAvg (other BUs' actual
+      // performance) relabeled as "Target", which conflated "what similar
+      // teams achieved" with "what this team was assigned to hit" -- two
+      // different things. Peer comparison is NOT removed, just no longer
+      // masquerading as the target -- it still shows below as "vs Corporate".
+      let thisBuTargetYTD = (summaries.sales.bu[bu] || {}).targetYTD || null;
+      let thisBuPositions = (summaries.sales.bu[bu] || {}).activePositions || null;
+
+      // CHC mirror-image special case (2026-08-04, Ahmed: "chc and chc
+      // sales is mirror image to each other... productivity of bu = [CHC
+      // line's own] actual/49 and target/49" -- 49 = SFE's PLANNED
+      // headcount for CHC (31) + CHC_SALES (18), confirmed against
+      // cache/organogram.data.js's vacancyByLine; this differs from the
+      // Sales-cache activePositions count (31+19=50) used elsewhere on
+      // this card, which counts distinct position CODES seen in actual
+      // transactions rather than planned/budgeted headcount.
+      //
+      // Unlike every OTHER multi-line BU (DIAB's 4 lines are genuinely
+      // independent products, not mirrors of one another -- this rule does
+      // NOT generalize past CHC), CHC's "CHC" and "CHC_SALES" lines are
+      // explicitly confirmed as a mirrored pair. So the BU-wide
+      // productivity figure uses CHC line's OWN actual/target as the
+      // numerator (NOT summed with CHC_SALES -- that 46.4M/98.6M is still
+      // tracked as its own separate line everywhere else: Sales Value/
+      // Achievement KPIs, Line Performance table, and this same card's own
+      // per-Line view when CHC_SALES is selected directly -- none of that
+      // changes), but the FULL combined planned headcount of BOTH lines as
+      // the denominator, since both lines' reps are deployed CHC BU
+      // workforce regardless of which line's revenue is being measured.
+      if (bu === "CHC") {
+        const chcLineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", "CHC", null, true);
+        const chcHeadcount = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", "CHC", null, true);
+        const chcLineOnly = (chcLineData && chcLineData.ok) ? chcLineData.lines.find(l => l.name === "CHC") : null;
+        const combinedPositions = (chcHeadcount && chcHeadcount.ok) ? chcHeadcount.headcountTotal : null;
+        if (chcLineOnly && combinedPositions > 0) {
+          perBU["CHC"] = chcLineOnly.actualValue / combinedPositions;
+          thisBuTargetYTD = chcLineOnly.targetValue;
+          thisBuPositions = combinedPositions;
+        }
+      }
+
       val = perBU[bu];
       rankInfo = rank(perBU, "desc")[bu];
       rankUnit = "Business Units";
-      benchmarkLabel = " (platform avg)";
-      basisNote = "Benchmark = platform-wide average, not an official SFE target. All-transaction basis.";
+      targetPerPosition = (thisBuPositions && thisBuPositions > 0) ? thisBuTargetYTD / thisBuPositions : null;
+      basisNote = "Target = " + bu + "'s assigned sales target ÷ deployed positions. All-transaction basis."
+        + (bu === "CHC" ? " CHC figure uses CHC line's own actual/target ÷ CHC+CHC_SALES combined planned positions (49) -- the two lines mirror each other, see 2026-08-04 note." : "");
     } else {
       const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
       const lineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, null, isLineMgr || activeLine || line !== "All");
@@ -1043,33 +1090,58 @@
         return unavailableCard("salesProductivity", "Sales Productivity", lineData ? lineData.status : "module_unavailable");
       }
       const perLine = {};
-      let buActual = 0, buPositions = 0;
+      let buActual = 0, buTarget = 0, buPositions = 0;
       const allowedLines = new Set(getAllowedLinesForBU(bu));
       lineData.lines.forEach(l => {
         if (allowedLines.has(l.name)) {
           perLine[l.name] = l.activePositions > 0 ? l.salesPerPosition : null;
         }
-        buActual += l.actualValue; buPositions += l.activePositions;
+        buActual += l.actualValue; buTarget += l.targetValue; buPositions += l.activePositions;
       });
       platformAvg = buPositions > 0 ? buActual / buPositions : null;
+      // Target per Position, Line-aware (2026-08-04, "when filter line the
+      // target per position within line as well"): a specific Line's own
+      // targetValue/activePositions when one is selected (getLineSalesSummary
+      // already carries both per line); the whole-BU blended target/position
+      // across every visible line otherwise. This is now a genuine,
+      // independent figure (target isn't necessarily proportional to
+      // headcount the way actuals roughly are), so -- unlike the old
+      // platformAvg-as-target, which was circular here since val WAS
+      // platformAvg -- achievement is meaningful in the whole-BU view too,
+      // not just the single-Line view.
       if (!activeLine) {
         val = platformAvg;
+        targetPerPosition = buPositions > 0 ? buTarget / buPositions : null;
+        // CHC mirror-image special case (2026-08-04) -- same rule as the
+        // cross-BU branch above, for a BU-restricted CHC user (or CHC_SALES
+        // Line Manager) viewing the whole-BU figure with no Line filter:
+        // CHC line's own actual/target, divided by BOTH lines' combined
+        // SFE planned headcount (31+18=49), not the blended
+        // actual/target-across-both-lines this branch normally computes.
+        if (bu === "CHC") {
+          const chcLineOnly = lineData.lines.find(l => l.name === "CHC");
+          const chcHeadcount = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", "CHC", null, true);
+          const combinedPositions = (chcHeadcount && chcHeadcount.ok) ? chcHeadcount.headcountTotal : null;
+          if (chcLineOnly && combinedPositions > 0) {
+            val = chcLineOnly.actualValue / combinedPositions;
+            targetPerPosition = chcLineOnly.targetValue / combinedPositions;
+          }
+        }
         rankInfo = null;
         rankUnit = null;
         isWholeBuView = true;
       } else {
         val = perLine[activeLine] !== undefined ? perLine[activeLine] : null;
+        const lineEntry = lineData.lines.find(l => l.name === activeLine);
+        targetPerPosition = (lineEntry && lineEntry.activePositions > 0) ? lineEntry.targetValue / lineEntry.activePositions : null;
         const rankKey = activeLine || line;
         rankInfo = rank(perLine, "desc")[rankKey];
         rankUnit = "Lines within " + bu;
       }
-      benchmarkLabel = " (" + bu + " avg)";
-      basisNote = isWholeBuView
-        ? "Whole-" + bu + " aggregate across every line you can see. Select a specific line to compare it against this " + bu + " average."
-        : "Benchmark = " + bu + "'s own average across lines. Non-Tender basis (differs from the platform-wide 'All' view, which is all-transaction).";
+      basisNote = (isWholeBuView ? "Target = " + bu + "'s" : "Target = " + activeLine + "'s") + " assigned sales target ÷ deployed positions. Non-Tender basis (differs from the platform-wide 'All' view, which is all-transaction).";
     }
 
-    const achievementPct = (val !== null && platformAvg && !isWholeBuView) ? (val / platformAvg) * 100 : null;
+    const achievementPct = (val !== null && targetPerPosition) ? (val / targetPerPosition) * 100 : null;
     const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
     const refEntry = (isLineMgr || activeLine || line !== "All")
       ? (platformAvg !== null ? { label: "vs " + bu, value: fmtM(platformAvg) } : null)
@@ -1083,7 +1155,7 @@
     return {
       kpiId: "salesProductivity", name: "Sales Productivity",
       mainValue: fmtM(val), mainValueSub: "Sales per Deployed Position · Current YTD" + (activeLineLabel ? " · " + activeLineLabel : ""),
-      performance: { target: isWholeBuView ? "—" : (fmtM(platformAvg) + benchmarkLabel), achievementPct: isWholeBuView ? "—" : fmtPct1(achievementPct), variance: isWholeBuView ? "—" : fmtSignedM(val !== null && platformAvg !== null ? val - platformAvg : null) },
+      performance: { target: targetPerPosition !== null ? fmtM(targetPerPosition) : "—", achievementPct: fmtPct1(achievementPct), variance: fmtSignedM(val !== null && targetPerPosition !== null ? val - targetPerPosition : null) },
       comparison: refEntry ? [refEntry] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
@@ -1578,6 +1650,13 @@
           salesAchievementPct: s ? s.achievementPct : null,
           salesValue: s ? s.actualValue : null,
           targetValue: s ? s.targetValue : null,
+          // Target per Position (2026-08-04, "add column in this Line
+          // Performance"): same targetValue this row already carries,
+          // divided by the SAME plannedHeadcount denominator salesPerPosition
+          // uses -- this row is already scoped to one DM WITHIN the chosen
+          // Line (activeLine branch), so this is naturally Line-scoped too,
+          // no extra plumbing needed.
+          targetPerPosition: (s && plannedHeadcount > 0) ? s.targetValue / plannedHeadcount : null,
           contributionPct: (s && totalSalesValue > 0) ? (s.actualValue / totalSalesValue) * 100 : null,
           salesPerPosition: (s && plannedHeadcount > 0) ? s.actualValue / plannedHeadcount : null,
           activePositions: plannedHeadcount,
@@ -1611,6 +1690,14 @@
           salesAchievementPct: s ? s.achievementPct : null,
           salesValue: s ? s.actualValue : null,
           targetValue: s ? s.targetValue : null,
+          // Target per Position (2026-08-04, "add column in this Line
+          // Performance and dynamically added within line filter"): each
+          // row here IS one Line already, so targetValue/plannedHeadcount
+          // is naturally per-Line -- switching the Line filter re-runs this
+          // whole function (buildLinePerformanceTable is called fresh on
+          // every filter change via renderLinePerformanceSection), so this
+          // column is dynamic by construction, no separate wiring needed.
+          targetPerPosition: (s && plannedHeadcount > 0) ? s.targetValue / plannedHeadcount : null,
           contributionPct: (s && totalSalesValue > 0) ? (s.actualValue / totalSalesValue) * 100 : null,
           salesPerPosition: (s && plannedHeadcount > 0) ? s.actualValue / plannedHeadcount : null,
           activePositions: plannedHeadcount,
@@ -1876,23 +1963,27 @@
       };
     });
 
-    const table = global.DS.table({
-      columns: [
-        { key: "name", label: "Representative" },
-        { key: "position", label: "Position" },
-        { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
-        { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
-        { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" }
-      ],
-      rows: rows,
-    });
+    const dmColumns = [
+      { key: "name", label: "Representative" },
+      { key: "position", label: "Position" },
+      { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
+      { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
+      { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" }
+    ];
+    const table = global.DS.table({ columns: dmColumns, rows: rows });
+    const exportBtnHtml = global.DS.button({ label: "Export to Excel (CSV)", variant: "secondary", attrs: 'id="exec-dm-details-export"' });
 
-    global.DS.openModal({
+    const overlay = global.DS.openModal({
       title: dmName + " — Representatives & Positions",
       bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Active, Non-Probation Medical Representatives (or Sales Representatives for CHC) under ${dmName}. Period: ${_linePerfMonths === "all" ? "All Months" : _linePerfMonths.map(String).join(", ")}.</div>` + table,
+      footerHtml: exportBtnHtml,
     });
+    setTimeout(() => {
+      const exportBtn = overlay.querySelector("#exec-dm-details-export");
+      if (exportBtn) exportBtn.addEventListener("click", () => exportTableRowsCSV(dmName + "_Representatives", dmColumns, rows));
+    }, 0);
   }
 
   // Cluster Customer Health drill (2026-07-28): when the customer-analytics
@@ -1905,7 +1996,11 @@
   // (openClusterFlatModal, unchanged from the first Customer Channel Mix
   // build) since no customer-grain data exists for it yet.
   function openClusterCustomersModal(bu, line, clusterName) {
-    const health = safeCall("sales", "SalesDashboard", "getClusterCustomerHealth", bu, clusterName);
+    // Line-scoped (2026-08-03, "position of chosen line"): forward the
+    // Executive filter bar's Line selection through to Customer Health so
+    // Status/Frequency/Basket/Distinct SKUs/Value/Position/Brick/Region/
+    // Last Purchase all reflect that specific Line, not just the BU.
+    const health = safeCall("sales", "SalesDashboard", "getClusterCustomerHealth", bu, clusterName, line);
     if (health && health.ok) {
       openClusterHealthModal(bu, clusterName, health);
       return;
@@ -2001,8 +2096,30 @@
     `;
   }
 
-  function buildClusterHealthGridShellHtml(clusterName) {
+  // Shared scope helpers (2026-08-03): a single definition of "what Line/BU
+  // tag should this modal show" and "should the ETL-staleness warning show",
+  // used by BOTH the summary view (openClusterHealthModal's bodyHtml) and
+  // the grid view (buildClusterHealthGridShellHtml) plus the CSV export --
+  // previously each place recomputed its own version and only the summary
+  // view got the warning, so switching to "View Full Customer List" silently
+  // dropped the one piece of context explaining why Position/SKU weren't
+  // Line-scoped yet (Ahmed's 2026-08-03 report: chose PEDIA, still saw a
+  // blended, all-lines Position list and non-PEDIA SKUs in the GRID view
+  // specifically, with no warning visible there).
+  function computeHealthScopeTag(health) {
+    const isBuScoped = health.bu && health.bu !== "All";
+    return health.effectiveLine || (health.lines && health.lines.length ? health.lines.join(", ") : (isBuScoped ? health.bu : null));
+  }
+
+  function buildLineUnavailableNote(health) {
+    return (health.requestedLine && !health.lineDataAvailable)
+      ? `<div style="font-size:12px;color:var(--color-warning,#B45309);margin-bottom:10px;">"${escapeAttr(health.requestedLine)}" selected, but this cache predates Line-level data -- showing ${escapeAttr(health.bu || "All")}'s BU-wide figures instead. Re-run the customer-analytics ETL to enable Line scoping here.</div>`
+      : "";
+  }
+
+  function buildClusterHealthGridShellHtml(clusterName, health) {
     return `
+      ${buildLineUnavailableNote(health)}
       <div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">
         ${escapeAttr(clusterName)} — full customer list. Search by name or ID, click a column header to sort, export the current filtered view as CSV.
       </div>
@@ -2035,7 +2152,14 @@
     // SKU still lists each item on its own line inside the cell (numbered,
     // stacked, via the grid's `wrap` flag -- see js/components.js's
     // mountDataGrid) -- BU-scoped only, empty for the All-BU view.
-    const isBuScoped = health.bu && health.bu !== "All";
+    // Column-label scope tag (2026-08-03): prefer the CHOSEN filter Line
+    // (health.effectiveLine) over health.lines (a Line Manager's fixed AUTH
+    // restriction) -- these are different things, and effectiveLine is the
+    // one that tells Ahmed at a glance whether Position/SKU/etc. actually
+    // narrowed to his Line selection or fell back to the BU-wide view
+    // (falls back automatically when the cache predates byLine -- see
+    // buildLineUnavailableNote, now shown in this grid view too).
+    const scopeTag = computeHealthScopeTag(health);
     const brickColumn = { key: "bricks", label: "Brick", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
     const regionColumn = { key: "regions", label: "Region", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
     // Position (2026-08-02, "add column of position"): the underlying data
@@ -2043,11 +2167,11 @@
     // through getClusterCustomerHealth()'s byBU overlay since 2026-07-31,
     // it just wasn't rendered as its own grid column. Same BU-scoped,
     // comma-joined pattern as Brick/Region.
-    const positionColumn = { key: "positions", label: "Position", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
+    const positionColumn = { key: "positions", label: scopeTag ? "Position (" + scopeTag + ")" : "Position", format: v => Array.isArray(v) && v.length ? v.join(", ") : "—" };
     const lastPurchaseColumn = { key: "lastPurchase", label: "Last Purchase", format: formatLastPurchase };
     const skuColumn = {
       key: "items",
-      label: health.lines && health.lines.length ? "SKU (" + health.lines.join(", ") + ")" : (isBuScoped ? "SKU (" + health.bu + ")" : "SKU"),
+      label: scopeTag ? "SKU (" + scopeTag + ")" : "SKU",
       isHtml: true,
       format: v => {
         if (!Array.isArray(v) || !v.length) return "—";
@@ -2091,13 +2215,42 @@
   // every other export in this app (2026-07-30, js/components.js/
   // js/sales.js) so Arabic customer names open correctly in Excel instead
   // of as mojibake.
+  // Generic CSV-from-DS.table-columns exporter (2026-08-03): reused by the
+  // Line/DSM Performance section and the DM Details (Representatives)
+  // popup. Takes the same {key,label,format} column shape already passed
+  // to global.DS.table() so no export-specific column list needs to be
+  // maintained separately -- and applies the same UTF-8 BOM fix used
+  // everywhere else in this app (2026-07-30) so Arabic names don't render
+  // as mojibake in Excel.
+  function exportTableRowsCSV(filename, columns, rows) {
+    const header = columns.map(c => c.label).join(",");
+    const csvRows = rows.map(row => columns.map(c => {
+      const raw = typeof c.format === "function" ? c.format(row[c.key], row) : row[c.key];
+      const s = raw === undefined || raw === null ? "" : String(raw);
+      return '"' + s.replace(/"/g, '""') + '"';
+    }).join(","));
+    const csv = [header].concat(csvRows).join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename.replace(/[^a-z0-9]+/gi, "_") + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function exportClusterCustomersCSV(clusterName, health) {
-    const isBuScoped = health.bu && health.bu !== "All";
-    const rows = health.customers || [];
     // Column set mirrors mountClusterHealthGrid() (2026-08-02): Brick,
-    // Region, Position, Last Purchase.
-    const header = ["Customer Name", "Brick", "Region", "Position", "Status", "Last Purchase", "Frequency", "Basket",
-      "Months Active", "Distinct SKUs", isBuScoped ? "SKU (" + health.bu + ")" : "SKU", "Value (EGP)"];
+    // Region, Position, Last Purchase. Position/SKU header scope tag
+    // (2026-08-03) uses the same computeHealthScopeTag() as the on-screen
+    // grid, so the exported CSV never disagrees with what's shown on
+    // screen about which Line/BU the figures are scoped to.
+    const scopeTag = computeHealthScopeTag(health);
+    const rows = health.customers || [];
+    const header = ["Customer Name", "Brick", "Region", scopeTag ? "Position (" + scopeTag + ")" : "Position", "Status", "Last Purchase", "Frequency", "Basket",
+      "Months Active", "Distinct SKUs", scopeTag ? "SKU (" + scopeTag + ")" : "SKU", "Value (EGP)"];
     const csvRows = rows.map(c => {
       const brickCell = (c.bricks && c.bricks.length) ? c.bricks.join("; ") : "";
       const regionCell = (c.regions && c.regions.length) ? c.regions.join("; ") : "";
@@ -2135,9 +2288,15 @@
       attrs: 'id="exec-cluster-health-export"',
     });
 
+    // Title prefers the CHOSEN filter Line (health.effectiveLine, 2026-08-03)
+    // over the AUTH-restricted health.lines -- those are two different
+    // things: effectiveLine is what the user picked in the filter bar,
+    // health.lines is a Line Manager's fixed access restriction.
+    const titleScope = health.effectiveLine || (health.lines && health.lines.length ? health.lines.join(", ") : bu);
+    const lineUnavailableNote = buildLineUnavailableNote(health);
     const overlay = global.DS.openModal({
-      title: (health.lines && health.lines.length ? health.lines.join(", ") : bu) + " — " + clusterName + " — Customer Health",
-      bodyHtml: buildClusterHealthSummaryHtml(clusterName, health),
+      title: titleScope + " — " + clusterName + " — Customer Health",
+      bodyHtml: lineUnavailableNote + buildClusterHealthSummaryHtml(clusterName, health),
       footerHtml: toggleBtnHtml + exportBtnHtml,
     });
 
@@ -2150,7 +2309,7 @@
       btn.addEventListener("click", () => {
         showingGrid = !showingGrid;
         if (showingGrid) {
-          body.innerHTML = buildClusterHealthGridShellHtml(clusterName);
+          body.innerHTML = buildClusterHealthGridShellHtml(clusterName, health);
           mountClusterHealthGrid(clusterName, health);
           btn.querySelector("span").textContent = "Back to Summary";
         } else {
@@ -2161,27 +2320,46 @@
     }, 0);
   }
 
-  function openMarketShareProductModal(bu) {
-    const data = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu);
+  function openMarketShareProductModal(bu, line) {
+    // Line-scoped (2026-08-03): every other KPI popup on this page already
+    // forwards ctx.filters.line -- this one didn't, so picking a Line in
+    // the filter bar had no effect here and the Line/Market columns always
+    // showed every Line's target rows blended together. getDM1DM2MarketIntel
+    // already accepts an optional line and filters TARGETS_2026 by it, so
+    // this is purely a wiring fix, no data-layer change needed.
+    const scopedLine = line && line !== "All" ? line : null;
+    const data = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, scopedLine);
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     if (!data || !data.ok || !data.segments.length) {
       global.DS.openModal({ title: bu + " — Market Share by Product", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No product-level data available.</div>" });
       return;
     }
+    // A product can carry more than one target row (e.g. sold under two
+    // Lines against two different IQVIA market definitions -- ELIMBOSIS is
+    // tracked separately for ORTHO-II vs CVM-II with distinct DM1/DM2
+    // baskets). Each target row is its own segment, so the same product
+    // name can legitimately appear more than once here; show the Line and
+    // the actual DM1/DM2 market names on every row so no row's context is
+    // ambiguous, whether or not its product happens to repeat.
     const rows = data.segments.map(s => ({
       product: s.product,
+      line: s.line || "—",
+      dm1Name: s.dm1Name || "—",
+      dm2Name: s.dm2Name || "—",
       dm1SharePct: s.dm1 && s.dm1.ytd && s.dm1.ytd.su ? s.dm1.ytd.su.sharePct : null,
       dm2SharePct: s.dm2 && s.dm2.ytd && s.dm2.ytd.su ? s.dm2.ytd.su.sharePct : null,
     }));
-    const table = global.DS.table({
-      columns: [
-        { key: "product", label: "Product" },
-        { key: "dm1SharePct", label: "DM1 Share % (YTD SU)", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "dm2SharePct", label: "DM2 Share % (YTD SU)", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-      ],
-      rows: rows,
-    });
-    global.DS.openModal({ title: bu + " — Market Share by Product", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Excludes Other Markets. As of ${escapeAttr(data.asOfDate)}.</div>` + table });
+    const columns = [
+      { key: "product", label: "Product" },
+      { key: "line", label: "Line" },
+      { key: "dm1Name", label: "DM1 Market" },
+      { key: "dm1SharePct", label: "DM1 Share % (YTD SU)", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "dm2Name", label: "DM2 Market" },
+      { key: "dm2SharePct", label: "DM2 Share % (YTD SU)", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+    ];
+    const table = global.DS.table({ columns: columns, rows: rows });
+    const scopeNote = scopedLine ? ` Scope: ${escapeAttr(scopedLine)} only.` : "";
+    global.DS.openModal({ title: bu + " — Market Share by Product", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Excludes Other Markets. As of ${escapeAttr(data.asOfDate)}.${scopeNote}</div>` + table });
   }
 
   function switchToTab(tabName) {
@@ -2282,6 +2460,28 @@
     titleEl.textContent = activeLine ? "DSM Performance within " + activeLineLabel : "Line Performance within " + activeLineLabel;
     headerRow.appendChild(titleEl);
 
+    // Shared between the DS.table() render below and the Export-to-Excel
+    // button so the exported CSV always matches what's on screen.
+    const lpColumns = [
+      { key: "name", label: activeLine ? "District Manager" : "Line" },
+      { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
+      { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
+      { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "contributionPct", label: "Contribution %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "salesPerPosition", label: "Sales per Position", align: "right", format: v => v === null ? "—" : fmtM(v) },
+      // Target per Position (2026-08-04, "add column in this Line
+      // Performance"): sits next to Sales per Position for a direct actual-
+      // vs-target-per-head comparison. Values come from
+      // buildLinePerformanceTable's targetPerPosition field, which is
+      // already Line-scoped whenever a Line filter is active (see that
+      // function's comments) -- this column just renders it, no extra
+      // filter-wiring needed here.
+      { key: "targetPerPosition", label: "Target per Position", align: "right", format: v => v === null ? "—" : fmtM(v) },
+      { key: "activePositions", label: "Positions", align: "right" },
+    ];
+
     // Period filter, scoped to this section only -- Coverage %/Right-Freq %
     // columns have no month dimension (organogram is a point-in-time
     // snapshot) and stay unaffected regardless of the selection; only the
@@ -2299,6 +2499,20 @@
       });
       headerRow.appendChild(periodDropdown);
     }
+
+    if (data.ok && data.rows && data.rows.length) {
+      const exportWrap = document.createElement("div");
+      exportWrap.innerHTML = global.DS.button({ label: "Export to Excel (CSV)", variant: "secondary", size: "sm", attrs: 'id="exec-lineperf-export"' });
+      const exportBtnEl = exportWrap.firstElementChild;
+      headerRow.appendChild(exportBtnEl);
+      exportBtnEl.addEventListener("click", () => {
+        exportTableRowsCSV(
+          activeLine ? "DSM_Performance_" + activeLine : "Line_Performance_" + ctx.filters.bu,
+          lpColumns,
+          data.rows
+        );
+      });
+    }
     wrap.appendChild(headerRow);
 
     if (!data.ok) {
@@ -2309,20 +2523,7 @@
       return wrap;
     }
 
-    const table = global.DS.table({
-      columns: [
-        { key: "name", label: activeLine ? "District Manager" : "Line" },
-        { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
-        { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
-        { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "contributionPct", label: "Contribution %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "salesPerPosition", label: "Sales per Position", align: "right", format: v => v === null ? "—" : fmtM(v) },
-        { key: "activePositions", label: "Positions", align: "right" },
-      ],
-      rows: data.rows,
-    });
+    const table = global.DS.table({ columns: lpColumns, rows: data.rows });
     const scopeNote = data.scope ? `<div style="font-size:var(--fs-xs,12px);color:var(--color-text-tertiary,#94A3B8);margin-bottom:var(--space-2,8px);">Sales figures: ${escapeAttr(data.scope)}. Contribution % = share of ${escapeAttr(ctx.filters.bu)}'s total Sales Value.</div>` : "";
     const bodyWrap = document.createElement("div");
     bodyWrap.innerHTML = scopeNote + table;
@@ -2349,7 +2550,7 @@
         else if (kpiId === "salesValue") openSalesValueModal(bu, ctx.filters.line);
         else if (kpiId === "salesUnitsAchievement") openSalesUnitsModal(bu, ctx.filters.line);
         else if (kpiId === "customerClusterMix") openCustomerClusterMixModal(bu, ctx.filters.line);
-        else if (kpiId === "marketShare") openMarketShareProductModal(bu);
+        else if (kpiId === "marketShare") openMarketShareProductModal(bu, ctx.filters.line);
         else if (kpiId === "sfe") switchToTab("sfe");
         else if (kpiId === "pullThroughRate") openTmsImsModal(bu, ctx.filters.line, "pullThrough");
         else if (kpiId === "stockDays") openTmsImsModal(bu, ctx.filters.line, "stockDays");

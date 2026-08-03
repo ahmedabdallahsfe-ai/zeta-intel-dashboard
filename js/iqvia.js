@@ -8546,6 +8546,7 @@ function computeDM1DM2Core(bu, line) {
 
       return {
         product: t.prod,
+        line: t.line,
         dm1Name: t.dm1,
         dm2Name: t.dm2,
         tgtDm1Pct: t.tgtDm1 != null ? t.tgtDm1 * 100 : null,
