@@ -211,6 +211,16 @@
     return (any && target > 0) ? (actual / target) * 100 : null;
   }
 
+  function corporateSalesUnitsAchievementPct() {
+    let actual = 0, target = 0, any = false;
+    global.SEMANTIC.BU_LIST.forEach(b => {
+      const line = (b === "CHC") ? "CHC" : "All"; // exclude CHC_SALES, same convention as corporateSalesValueAchievementPct()
+      const t = nonTenderUnitsTotals(b, line);
+      if (t) { actual += t.actualQty; target += t.targetQty; any = true; }
+    });
+    return (any && target > 0) ? (actual / target) * 100 : null;
+  }
+
   function corporateClusterConcentrationPct() {
     const merged = new Map();
     let any = false;
@@ -293,6 +303,17 @@
       return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
     const v = corporateSalesValueAchievementPct();
+    return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
+  }
+
+  function salesUnitsReferenceEntry(bu, line) {
+    const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
+    if (isLineMgr || (line && line !== "All")) {
+      const t = nonTenderUnitsTotals(bu, "All", true);
+      const v = t ? t.achievementPct : null;
+      return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
+    }
+    const v = corporateSalesUnitsAchievementPct();
     return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
   }
 
@@ -581,6 +602,27 @@
     return { actualValue: actualValue, targetValue: targetValue, achievementPct: targetValue > 0 ? (actualValue / targetValue) * 100 : null };
   }
 
+  // ---------------------------------------------------------------------
+  // KPI -- Sales Units Achievement (2026-08-02 addition)
+  // UNITS basis (actualQty/targetQty), a deliberately DIFFERENT cut from
+  // Sales Value above (Value/EGP basis) -- a brand/line can be ahead on
+  // Value while behind on Units (mix/pricing effects) or vice versa, so
+  // this is its own card, not a relabeling of Sales Value. Same source
+  // (getBrandAchievement()'s already-computed Non-Tender, BU/line-scoped
+  // per-brand rows) and same "sum the brands" pattern as
+  // nonTenderTotals() -- just totals actualQty/targetQty instead of
+  // actualValue/targetValue, so it can never drift out of sync with the
+  // Value card's underlying row set.
+  // ---------------------------------------------------------------------
+  function nonTenderUnitsTotals(bu, line, ignoreLineAuth) {
+    const targetLine = (bu === "CHC" && (line === "All" || !line)) ? "CHC" : (line === "All" ? null : line);
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, targetLine, ignoreLineAuth);
+    if (!data || !data.ok) return null;
+    let actualQty = 0, targetQty = 0;
+    data.brands.forEach(b => { actualQty += b.actualQty; targetQty += b.targetQty; });
+    return { actualQty: actualQty, targetQty: targetQty, achievementPct: targetQty > 0 ? (actualQty / targetQty) * 100 : null };
+  }
+
   function buildSalesValueCard(filters) {
     const bu = filters.bu, line = filters.line;
     const t = nonTenderTotals(bu, line);
@@ -615,6 +657,56 @@
       kpiId: "salesValue", name: "Sales Value",
       mainValue: fmtM(t.actualValue), mainValueSub: "Non-Tender · Current YTD" + (activeLineLabel ? " · " + activeLineLabel : ""),
       performance: { target: fmtM(t.targetValue), achievementPct: fmtPct1(t.achievementPct), variance: fmtSignedM(t.actualValue - t.targetValue) },
+      comparison: refEntry ? [refEntry] : null,
+      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
+      status: statusFromAchievement(t.achievementPct),
+      trend: null, trendLabel: null,
+      clickable: true, dblClickable: true,
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // KPI -- Sales Units Achievement (2026-08-02, "add card for sales units
+  // achievement with popup show brand units target actual and achievement
+  // and contribution by brand and item for chc"): mirrors buildSalesValueCard()
+  // exactly, but on UNITS basis throughout -- main value, target/variance,
+  // ranking, comparison row and status all key off actualQty/targetQty
+  // (nonTenderUnitsTotals()) instead of actualValue/targetValue.
+  // ---------------------------------------------------------------------
+  function buildSalesUnitsAchievementCard(filters) {
+    const bu = filters.bu, line = filters.line;
+    const t = nonTenderUnitsTotals(bu, line);
+    if (!t) return unavailableCard("salesUnitsAchievement", "Sales Units Achievement", "module_unavailable");
+
+    let rankInfo, rankUnit;
+    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    if (!activeLine && !isBuRestricted()) {
+      const vals = {};
+      getAllowedBUList().forEach(b => {
+        const bt = nonTenderUnitsTotals(b, b === "CHC" ? "CHC" : "All");
+        vals[b] = bt ? bt.achievementPct : null;
+      });
+      rankInfo = rank(vals, "desc")[bu];
+      rankUnit = "Business Units";
+    } else {
+      const lines = getAllowedLinesForBU(bu);
+      const vals = {};
+      lines.forEach(l => {
+        const lt = nonTenderUnitsTotals(bu, l);
+        vals[l] = lt ? lt.achievementPct : null;
+      });
+      const rankKey = activeLine || line;
+      rankInfo = rank(vals, "desc")[rankKey];
+      rankUnit = "Lines within " + bu;
+    }
+
+    const refEntry = salesUnitsReferenceEntry(bu, line);
+    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
+
+    return {
+      kpiId: "salesUnitsAchievement", name: "Sales Units Achievement",
+      mainValue: fmtInt(t.actualQty) + " units", mainValueSub: "Non-Tender · Current YTD" + (activeLineLabel ? " · " + activeLineLabel : ""),
+      performance: { target: fmtInt(t.targetQty) + " units", achievementPct: fmtPct1(t.achievementPct), variance: fmtInt(t.actualQty - t.targetQty) + " units" },
       comparison: refEntry ? [refEntry] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(t.achievementPct),
@@ -1665,6 +1757,57 @@
     global.DS.openModal({ title: bu + " — Sales Value by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.</div>` + table });
   }
 
+  // Sales Units Achievement card's popup (2026-08-02, "popup show brand
+  // units target actual and achievement and contribution by brand and
+  // item for chc"): same brand/item source + CHC-shows-items-not-brands
+  // convention as openSalesValueModal() immediately above, but Achievement
+  // % here is computed on UNITS basis (actualQty/targetQty) instead of
+  // Value basis -- getBrandAchievement()/getItemAchievement() only return
+  // a Value-basis achievementPct, so it's recomputed client-side from the
+  // same actualQty/targetQty fields those interfaces already return (no
+  // sales.js change needed, can never disagree with the row-level source).
+  // Contribution % stays Value-basis, same definition used everywhere else
+  // on this platform ("contribution based on value" -- see
+  // getBrandAchievement()'s own doc comment) -- deliberately NOT
+  // reinterpreted as a units-share, to avoid a second, conflicting meaning
+  // of "contribution" existing side by side with the established one.
+  function openSalesUnitsModal(bu, line) {
+    if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
+    const scopedLine = line && line !== "All" ? line : null;
+    const columns = [
+      { key: "name", label: null }, // label filled in per-mode below
+      { key: "actualQty", label: "Actual Units", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
+      { key: "targetQty", label: "Target Units", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
+      { key: "unitsAchievementPct", label: "Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "actualValue", label: "Value (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
+      { key: "contributionPct", label: "Contribution %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+    ];
+    const withUnitsAchievement = rows => rows.map(r => Object.assign({}, r, {
+      unitsAchievementPct: r.targetQty > 0 ? (r.actualQty / r.targetQty) * 100 : null,
+    }));
+
+    if (bu === "CHC") {
+      const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, null, scopedLine);
+      columns[0].label = "Item (SKU)";
+      if (!data || !data.ok || !data.items.length) {
+        global.DS.openModal({ title: bu + " — Sales Units by Item", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No item-level data available.</div>" });
+        return;
+      }
+      const table = global.DS.table({ columns: columns, rows: withUnitsAchievement(data.items) });
+      global.DS.openModal({ title: bu + " — Sales Units by Item", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis. CHC shows items directly (no brand grouping).</div>` + table });
+      return;
+    }
+
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine);
+    columns[0].label = "Brand";
+    if (!data || !data.ok || !data.brands.length) {
+      global.DS.openModal({ title: bu + " — Sales Units by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
+      return;
+    }
+    const table = global.DS.table({ columns: columns, rows: withUnitsAchievement(data.brands) });
+    global.DS.openModal({ title: bu + " — Sales Units by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis.</div>` + table });
+  }
+
   // Customer Channel Mix modal (2026-07-28) -- cluster-level table,
   // click a row to drill into that cluster's sub_type ("customer")
   // breakdown. Mirrors openBrandAchievementModal()/
@@ -2100,6 +2243,7 @@
       buildSFECard(filters, summaries),
       buildSalesAchievementCard(filters),
       buildSalesValueCard(filters),
+      buildSalesUnitsAchievementCard(filters),
       buildCustomerClusterMixCard(filters),
       buildMarketShareCard(filters),
       buildBUGrowthCard(filters),
@@ -2203,6 +2347,7 @@
         else if (kpiId === "rightFrequency") openTypeBreakdownModal(bu, "rf");
         else if (kpiId === "salesAchievement") openBrandAchievementModal(bu, ctx.filters.line);
         else if (kpiId === "salesValue") openSalesValueModal(bu, ctx.filters.line);
+        else if (kpiId === "salesUnitsAchievement") openSalesUnitsModal(bu, ctx.filters.line);
         else if (kpiId === "customerClusterMix") openCustomerClusterMixModal(bu, ctx.filters.line);
         else if (kpiId === "marketShare") openMarketShareProductModal(bu);
         else if (kpiId === "sfe") switchToTab("sfe");
@@ -2213,7 +2358,7 @@
     container.querySelectorAll("[data-exec-kpi-dbl]").forEach(el => {
       el.addEventListener("dblclick", () => {
         const kpiId = el.getAttribute("data-exec-kpi-dbl");
-        const tabByKpi = { coverage: "coverage", rightFrequency: "coverage", sfe: "sfe", salesAchievement: "sales", salesValue: "sales", marketShare: "iqvia", buGrowth: "iqvia", salesProductivity: "sales", pullThroughRate: "tomarket", stockDays: "tomarket" };
+        const tabByKpi = { coverage: "coverage", rightFrequency: "coverage", sfe: "sfe", salesAchievement: "sales", salesValue: "sales", salesUnitsAchievement: "sales", marketShare: "iqvia", buGrowth: "iqvia", salesProductivity: "sales", pullThroughRate: "tomarket", stockDays: "tomarket" };
         if (tabByKpi[kpiId]) switchToTab(tabByKpi[kpiId]);
       });
     });
