@@ -124,6 +124,17 @@ push, since this is a public repo:
   automatically. Validated with a synthetic v3-schema cache exercising
   both scenarios end-to-end (resolver, AUTH entitlement, CHC override)
   since the real committed cache is still v2 until that refresh runs.
+  Bug found and fixed same day (2026-08-04, caught via Ahmed's own
+  screenshot): against the current pre-refresh v2 cache, the Executive
+  Command Center's Line Performance table showed "NaN" for Target Value
+  -- a Buffer-locked viewer's missing buffer column was silently summing
+  to NaN and leaking through. Fixed at the source (row backfill in
+  sales.js's decompressCache) plus a cache-level availability switch
+  (SEMANTIC.isBufferScenarioAvailable) so resolveTarget() gracefully
+  falls back to Official whenever the loaded cache has no real Buffer
+  data yet, instead of showing NaN or a misleading fake zero. Confirmed
+  against the real, currently-committed cache that every role now sees
+  the correct Official numbers exactly as before this feature existed.
 
 **Infrastructure fixes:**
 - `refresh.bat`: added the missing Customer Analytics ETL step (its

@@ -147,6 +147,9 @@
     if (!global.AUTH) return "";
     if (global.SEMANTIC.isChcOverrideScope(lineOrBuName)) return " Target basis: Official (CHC is always Official).";
     const scenario = global.AUTH.getTargetScenario();
+    if (scenario === "buffer" && !global.SEMANTIC.isBufferScenarioAvailable()) {
+      return " Target basis: Official (Buffer target data isn't in the refreshed cache yet -- showing Official until the next refresh).";
+    }
     return scenario === "buffer" ? " Target basis: Buffer." : " Target basis: Official.";
   }
   function escapeAttr(s) { return String(s === null || s === undefined ? "" : s).replace(/&/g, "&amp;").replace(/"/g, "&quot;"); }

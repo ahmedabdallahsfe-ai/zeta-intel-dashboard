@@ -215,6 +215,39 @@
       cache = JSON.parse(decompressed);
       decodedRows = cache.rows;
 
+      // Buffer-target columns backfill (2026-08-04): a cache built before
+      // schemaVersion 3 has 27-element rows -- indices 27/28
+      // (TGT_QTY_BUFFER/TGT_VAL_BUFFER) are simply absent, reading back as
+      // `undefined`. isCacheStale()/REQUIRED_SCHEMA_VERSION already stops
+      // the Sales TAB itself from rendering against such a cache, but the
+      // semantic-interface functions below (getBusinessSummary,
+      // getLineSalesSummary, etc.) are called directly by the Executive
+      // Command Center and SFE pages, which have no equivalent gate --
+      // summing `0 += undefined` silently produces NaN, which then leaks
+      // into the RESOLVED (Official) figure too once a NaN buffer value
+      // slips past a null/undefined-only check. Backfilling 0 here, once,
+      // for every row fixes NaN for every downstream consumer instead of
+      // guarding each individual read site.
+      //
+      // That 0 is still a FAKE number, though -- it would make a Buffer-
+      // locked BU/Line Manager see "Target: EGP 0.0M" instead of a
+      // graceful fallback, which is just as misleading as NaN was. The
+      // module-level flag below is the real fix: it tells
+      // SEMANTIC.resolveTarget() (semantic-model.js) that NO buffer
+      // scenario data exists in this cache AT ALL yet, so it should
+      // always fall back to Official regardless of what numeric value a
+      // caller passes as bufferValue -- a global "buffer not available"
+      // switch, not a per-row guess.
+      if (cache && cache.meta && cache.meta.schemaVersion < 3 && Array.isArray(decodedRows)) {
+        decodedRows.forEach(r => {
+          if (r[27] === undefined) r[27] = 0;
+          if (r[28] === undefined) r[28] = 0;
+        });
+        window.SALES_BUFFER_SCENARIO_AVAILABLE = false;
+      } else {
+        window.SALES_BUFFER_SCENARIO_AVAILABLE = true;
+      }
+
       // Fix data anomaly for Mahmoud Mohamed Gharib Farghaly:
       // His raw transactions in sales cache are mistakenly marked under 'DIAB-II' (line index),
       // but his true organizational line is 'ORTHO-II'.

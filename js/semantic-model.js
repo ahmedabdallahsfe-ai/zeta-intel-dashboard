@@ -260,9 +260,33 @@
    */
   function resolveTarget(lineOrBuName, officialValue, bufferValue, scenarioOverride) {
     if (isChcOverrideScope(lineOrBuName)) return officialValue;
+    // Cache-level availability switch (2026-08-04): js/sales.js sets this
+    // to false whenever the loaded cache predates schemaVersion 3 (no
+    // Buffer columns exist in the data at all yet). Without this check, a
+    // pre-refresh cache would still report a per-row-summed buffer value
+    // of exactly 0 (backfilled to avoid NaN -- see sales.js's
+    // decompressCache) -- which LOOKS like valid data ("Target: EGP 0.0M")
+    // instead of "no buffer scenario available yet", misleading a
+    // Buffer-locked BU/Line Manager. Defaults to true (available) if
+    // unset, so callers/tests that never touch sales.js aren't blocked.
+    var bufferScenarioAvailable = (global.SALES_BUFFER_SCENARIO_AVAILABLE !== false);
     var scenario = scenarioOverride || (global.AUTH ? global.AUTH.getTargetScenario() : 'official');
-    if (scenario === 'buffer' && bufferValue !== null && bufferValue !== undefined) return bufferValue;
+    // NaN guard: NaN is neither null nor undefined, so it would otherwise
+    // slip past a null/undefined-only check and get returned as if it
+    // were a real Buffer value -- defense in depth alongside the
+    // availability switch above.
+    var bufferIsValid = bufferScenarioAvailable && bufferValue !== null && bufferValue !== undefined && !isNaN(bufferValue);
+    if (scenario === 'buffer' && bufferIsValid) return bufferValue;
     return officialValue;
+  }
+
+  /** True once js/sales.js has loaded a cache at schemaVersion>=3. False
+   * (not just "unset") means the Sales cache genuinely predates Buffer
+   * target support -- resolveTarget() falls back to Official for
+   * everyone in that state, and UI code can use this to show a clear
+   * "Buffer not available yet" note instead of silently substituting. */
+  function isBufferScenarioAvailable() {
+    return global.SALES_BUFFER_SCENARIO_AVAILABLE !== false;
   }
 
   global.SEMANTIC = {
@@ -275,6 +299,7 @@
     isInScope: isInScope,
     groupByBU: groupByBU,
     isChcOverrideScope: isChcOverrideScope,
-    resolveTarget: resolveTarget
+    resolveTarget: resolveTarget,
+    isBufferScenarioAvailable: isBufferScenarioAvailable
   };
 })(window);
