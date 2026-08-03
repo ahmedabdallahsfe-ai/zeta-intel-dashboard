@@ -104,6 +104,7 @@
 
   function logout() {
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(TARGET_SCENARIO_KEY);
     location.reload();
   }
 
@@ -133,12 +134,76 @@
    */
   function getScope() {
     var u = getValidSessionUser();
-    if (!u) return { unrestricted: false, bus: [], lines: [] };
+    if (!u) return { unrestricted: false, bus: [], lines: [], role: null };
     return {
       unrestricted: !u.bu && !u.lines,
       bus: u.bu || null,       // null = every BU allowed
-      lines: u.lines || null   // null = every line allowed
+      lines: u.lines || null,  // null = every line allowed
+      role: u.role || null
     };
+  }
+
+  /**
+   * TARGET SCENARIO ENTITLEMENT (2026-08-04)
+   * -----------------------------------------------------------------
+   * Sales data now carries two parallel target scenarios per BU/Line
+   * (see refresh_sales.py's TargetIndex=0/1 handling): Official (the
+   * figure this dashboard has always shown) and Buffer (a second,
+   * generally lower planning target -- confirmed by Ahmed as real,
+   * parallel data, not a placeholder). Per Ahmed's explicit rule:
+   * Line Managers must NEVER see Official, only Buffer -- this is a
+   * hard lock, not a default that can be toggled away from.
+   *
+   * Eligibility for the toggle (see both, switch freely) is tied to
+   * the SAME unrestricted/restricted scope this file already computes
+   * for BU/Line access -- not a separate hardcoded role list -- so it
+   * can never drift out of sync with the BU/Line permission model.
+   * Every role in today's real user roster (cache/iqvia.data.js) that
+   * is unrestricted (bu:null, lines:null) is: SFE Manager, CEO, BEX,
+   * VP, Marketing Consultant, Admin. Ahmed explicitly named SFE
+   * Manager/CEO/BEX/Admin; VP and Marketing Consultant fall out of the
+   * same "unrestricted" bucket automatically -- flagged to Ahmed as an
+   * assumption, easy to exclude explicitly later if wrong (see
+   * TOGGLE_ROLE_EXCLUSIONS below). BU Manager and Line Manager are both
+   * restricted-scope roles and are both hard-locked to Buffer.
+   */
+  var TOGGLE_ROLE_EXCLUSIONS = []; // role names to explicitly deny the toggle even if unrestricted, if Ahmed ever wants that split
+
+  function canToggleTargetScenario() {
+    var s = getScope();
+    if (!s.unrestricted) return false;
+    if (s.role && TOGGLE_ROLE_EXCLUSIONS.indexOf(s.role) >= 0) return false;
+    return true;
+  }
+
+  var TARGET_SCENARIO_KEY = 'zeta_target_scenario';
+
+  /** 'official' or 'buffer'. Hard-locked to 'buffer' for any role that
+   * can't toggle -- ignores/overrides any stored preference, so a stale
+   * localStorage value (e.g. from a prior admin session on a shared
+   * machine) can never leak Official to a Line/BU Manager. */
+  function getTargetScenario() {
+    if (!canToggleTargetScenario()) return 'buffer';
+    try {
+      var v = localStorage.getItem(TARGET_SCENARIO_KEY);
+      return (v === 'buffer') ? 'buffer' : 'official'; // default: Official (preserves pre-toggle behavior)
+    } catch (e) {
+      return 'official';
+    }
+  }
+
+  /** No-ops (does not throw) for a role that isn't entitled -- defense
+   * in depth; the UI toggle should never render for such a role, but
+   * this keeps the guarantee even if it somehow did. */
+  function setTargetScenario(scenario) {
+    if (!canToggleTargetScenario()) return false;
+    if (scenario !== 'official' && scenario !== 'buffer') return false;
+    try {
+      localStorage.setItem(TARGET_SCENARIO_KEY, scenario);
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   function isBuAllowed(bu) {
@@ -178,6 +243,9 @@
     isBuAllowed: isBuAllowed,
     isLineAllowed: isLineAllowed,
     filterAllowedBUs: filterAllowedBUs,
-    filterAllowedLines: filterAllowedLines
+    filterAllowedLines: filterAllowedLines,
+    canToggleTargetScenario: canToggleTargetScenario,
+    getTargetScenario: getTargetScenario,
+    setTargetScenario: setTargetScenario
   };
 })(window);

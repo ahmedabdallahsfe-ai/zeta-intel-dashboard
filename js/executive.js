@@ -137,6 +137,18 @@
   function fmtM(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : "EGP " + (v / 1e6).toFixed(1) + "M"; }
   function fmtSignedM(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : (v >= 0 ? "+" : "") + "EGP " + (v / 1e6).toFixed(1) + "M"; }
   function fmtInt(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : Math.round(v).toLocaleString(); }
+
+  /** Short suffix noting which Target scenario a figure used (2026-08-04
+   * Buffer/Official toggle) -- appended to basisNote strings so the card
+   * itself, not just a separate legend, tells the viewer which basis
+   * they're looking at. Empty string if the AUTH module isn't present
+   * (defensive -- shouldn't happen once app.js has booted). */
+  function targetScenarioNote(lineOrBuName) {
+    if (!global.AUTH) return "";
+    if (global.SEMANTIC.isChcOverrideScope(lineOrBuName)) return " Target basis: Official (CHC is always Official).";
+    const scenario = global.AUTH.getTargetScenario();
+    return scenario === "buffer" ? " Target basis: Buffer." : " Target basis: Official.";
+  }
   function escapeAttr(s) { return String(s === null || s === undefined ? "" : s).replace(/&/g, "&amp;").replace(/"/g, "&quot;"); }
 
   // ---------------------------------------------------------------------
@@ -1041,8 +1053,13 @@
       // teams achieved" with "what this team was assigned to hit" -- two
       // different things. Peer comparison is NOT removed, just no longer
       // masquerading as the target -- it still shows below as "vs Corporate".
-      let thisBuTargetYTD = (summaries.sales.bu[bu] || {}).targetYTD || null;
-      let thisBuPositions = (summaries.sales.bu[bu] || {}).activePositions || null;
+      const buSummary = summaries.sales.bu[bu] || {};
+      // Target Scenario (2026-08-04, "toggle between buffer target and
+      // original target"): resolveTarget picks Official vs Buffer per the
+      // signed-in user's entitlement/toggle state (js/auth.js), with CHC
+      // hard-forced to Official regardless -- see semantic-model.js.
+      let thisBuTargetYTD = global.SEMANTIC.resolveTarget(bu, buSummary.targetYTD || null, buSummary.targetYTD_buffer || null);
+      let thisBuPositions = buSummary.activePositions || null;
 
       // CHC mirror-image special case (2026-08-04, Ahmed: "chc and chc
       // sales is mirror image to each other... productivity of bu = [CHC
@@ -1072,7 +1089,7 @@
         const combinedPositions = (chcHeadcount && chcHeadcount.ok) ? chcHeadcount.headcountTotal : null;
         if (chcLineOnly && combinedPositions > 0) {
           perBU["CHC"] = chcLineOnly.actualValue / combinedPositions;
-          thisBuTargetYTD = chcLineOnly.targetValue;
+          thisBuTargetYTD = global.SEMANTIC.resolveTarget("CHC", chcLineOnly.targetValue, chcLineOnly.targetValue_buffer);
           thisBuPositions = combinedPositions;
         }
       }
@@ -1082,7 +1099,8 @@
       rankUnit = "Business Units";
       targetPerPosition = (thisBuPositions && thisBuPositions > 0) ? thisBuTargetYTD / thisBuPositions : null;
       basisNote = "Target = " + bu + "'s assigned sales target ÷ deployed positions. All-transaction basis."
-        + (bu === "CHC" ? " CHC figure uses CHC line's own actual/target ÷ CHC+CHC_SALES combined planned positions (49) -- the two lines mirror each other, see 2026-08-04 note." : "");
+        + (bu === "CHC" ? " CHC figure uses CHC line's own actual/target ÷ CHC+CHC_SALES combined planned positions (49) -- the two lines mirror each other, see 2026-08-04 note." : "")
+        + targetScenarioNote(bu);
     } else {
       const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
       const lineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, null, isLineMgr || activeLine || line !== "All");
@@ -1096,7 +1114,9 @@
         if (allowedLines.has(l.name)) {
           perLine[l.name] = l.activePositions > 0 ? l.salesPerPosition : null;
         }
-        buActual += l.actualValue; buTarget += l.targetValue; buPositions += l.activePositions;
+        buActual += l.actualValue;
+        buTarget += global.SEMANTIC.resolveTarget(l.name, l.targetValue, l.targetValue_buffer);
+        buPositions += l.activePositions;
       });
       platformAvg = buPositions > 0 ? buActual / buPositions : null;
       // Target per Position, Line-aware (2026-08-04, "when filter line the
@@ -1124,7 +1144,7 @@
           const combinedPositions = (chcHeadcount && chcHeadcount.ok) ? chcHeadcount.headcountTotal : null;
           if (chcLineOnly && combinedPositions > 0) {
             val = chcLineOnly.actualValue / combinedPositions;
-            targetPerPosition = chcLineOnly.targetValue / combinedPositions;
+            targetPerPosition = global.SEMANTIC.resolveTarget("CHC", chcLineOnly.targetValue, chcLineOnly.targetValue_buffer) / combinedPositions;
           }
         }
         rankInfo = null;
@@ -1133,12 +1153,15 @@
       } else {
         val = perLine[activeLine] !== undefined ? perLine[activeLine] : null;
         const lineEntry = lineData.lines.find(l => l.name === activeLine);
-        targetPerPosition = (lineEntry && lineEntry.activePositions > 0) ? lineEntry.targetValue / lineEntry.activePositions : null;
+        targetPerPosition = (lineEntry && lineEntry.activePositions > 0)
+          ? global.SEMANTIC.resolveTarget(activeLine, lineEntry.targetValue, lineEntry.targetValue_buffer) / lineEntry.activePositions
+          : null;
         const rankKey = activeLine || line;
         rankInfo = rank(perLine, "desc")[rankKey];
         rankUnit = "Lines within " + bu;
       }
-      basisNote = (isWholeBuView ? "Target = " + bu + "'s" : "Target = " + activeLine + "'s") + " assigned sales target ÷ deployed positions. Non-Tender basis (differs from the platform-wide 'All' view, which is all-transaction).";
+      basisNote = (isWholeBuView ? "Target = " + bu + "'s" : "Target = " + activeLine + "'s") + " assigned sales target ÷ deployed positions. Non-Tender basis (differs from the platform-wide 'All' view, which is all-transaction)."
+        + targetScenarioNote(isWholeBuView ? bu : activeLine);
     }
 
     const achievementPct = (val !== null && targetPerPosition) ? (val / targetPerPosition) * 100 : null;
@@ -1642,6 +1665,12 @@
 
         const s = salesByDm.get(name.toUpperCase().trim());
         const plannedHeadcount = sfeDms.filter(d => d === name).length;
+        // Target Scenario (2026-08-04): every DM row within this table is
+        // already scoped to the ONE chosen activeLine, so the Buffer/
+        // Official decision (incl. the CHC override) is the same for all
+        // of them -- resolve once per row using activeLine, not `name`
+        // (name here is a DM person, not a Line/BU).
+        const resolvedTarget = s ? global.SEMANTIC.resolveTarget(activeLine, s.targetValue, s.targetValue_buffer) : null;
 
         return {
           name: name,
@@ -1649,14 +1678,14 @@
           rightFreqPct: rightFreqPct,
           salesAchievementPct: s ? s.achievementPct : null,
           salesValue: s ? s.actualValue : null,
-          targetValue: s ? s.targetValue : null,
+          targetValue: resolvedTarget,
           // Target per Position (2026-08-04, "add column in this Line
           // Performance"): same targetValue this row already carries,
           // divided by the SAME plannedHeadcount denominator salesPerPosition
           // uses -- this row is already scoped to one DM WITHIN the chosen
           // Line (activeLine branch), so this is naturally Line-scoped too,
           // no extra plumbing needed.
-          targetPerPosition: (s && plannedHeadcount > 0) ? s.targetValue / plannedHeadcount : null,
+          targetPerPosition: (resolvedTarget !== null && plannedHeadcount > 0) ? resolvedTarget / plannedHeadcount : null,
           contributionPct: (s && totalSalesValue > 0) ? (s.actualValue / totalSalesValue) * 100 : null,
           salesPerPosition: (s && plannedHeadcount > 0) ? s.actualValue / plannedHeadcount : null,
           activePositions: plannedHeadcount,
@@ -1683,13 +1712,18 @@
         const s = salesByLine.get(name);
         const sfeLine = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, name);
         const plannedHeadcount = (sfeLine && sfeLine.ok) ? sfeLine.headcountTotal : 0;
+        // Target Scenario (2026-08-04): each row IS one Line, so resolve
+        // per-row using that Line's own name -- CHC/CHC_SALES rows always
+        // come back Official via the override, every other row respects
+        // the signed-in user's toggle state.
+        const resolvedTarget = s ? global.SEMANTIC.resolveTarget(name, s.targetValue, s.targetValue_buffer) : null;
         return {
           name: name,
           coveragePct: coveragePct,
           rightFreqPct: rightFreqPct,
           salesAchievementPct: s ? s.achievementPct : null,
           salesValue: s ? s.actualValue : null,
-          targetValue: s ? s.targetValue : null,
+          targetValue: resolvedTarget,
           // Target per Position (2026-08-04, "add column in this Line
           // Performance and dynamically added within line filter"): each
           // row here IS one Line already, so targetValue/plannedHeadcount
@@ -1697,7 +1731,7 @@
           // whole function (buildLinePerformanceTable is called fresh on
           // every filter change via renderLinePerformanceSection), so this
           // column is dynamic by construction, no separate wiring needed.
-          targetPerPosition: (s && plannedHeadcount > 0) ? s.targetValue / plannedHeadcount : null,
+          targetPerPosition: (resolvedTarget !== null && plannedHeadcount > 0) ? resolvedTarget / plannedHeadcount : null,
           contributionPct: (s && totalSalesValue > 0) ? (s.actualValue / totalSalesValue) * 100 : null,
           salesPerPosition: (s && plannedHeadcount > 0) ? s.actualValue / plannedHeadcount : null,
           activePositions: plannedHeadcount,
@@ -2390,6 +2424,30 @@
     wrap.appendChild(lineSelect);
     wrap.appendChild(periodSelect);
     wrap.appendChild(cmpSelect);
+
+    // Target Scenario toggle (2026-08-04, "let sfe ceo bex admin toggle
+    // between buffer target and original target... dynamic for all
+    // cards"): only rendered for roles AUTH says are entitled (see
+    // js/auth.js's canToggleTargetScenario -- tied to unrestricted scope,
+    // not a hardcoded role list). Line/BU Managers never see this control
+    // at all -- they are hard-locked to Buffer with no UI to change it.
+    // Re-rendering the whole page on change is the same pattern every
+    // other filter here already uses, so every card/table (Sales
+    // Productivity, Line Performance, KPI grid) picks up the new scenario
+    // automatically via SEMANTIC.resolveTarget() -- no per-card wiring.
+    if (global.AUTH && global.AUTH.canToggleTargetScenario()) {
+      const scenarioSelect = global.DS.select({
+        id: "exec-filter-target-scenario",
+        label: "Target Basis",
+        options: [{ value: "official", label: "Official Target" }, { value: "buffer", label: "Buffer Target" }],
+        value: global.AUTH.getTargetScenario()
+      });
+      wrap.appendChild(scenarioSelect);
+      scenarioSelect.querySelector("select").addEventListener("change", (e) => {
+        global.AUTH.setTargetScenario(e.target.value);
+        render(ctx.container);
+      });
+    }
 
     buSelect.querySelector("select").addEventListener("change", (e) => {
       ctx.filters.bu = e.target.value;

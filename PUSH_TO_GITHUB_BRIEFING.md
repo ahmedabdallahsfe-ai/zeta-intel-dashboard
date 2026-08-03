@@ -34,7 +34,7 @@ needing the earlier conversation history.
 ```
 cd "D:\2026\ZETA_INTEL_DASHBOARD\CoverageDashboard"
 git add -A
-git commit -m "Line-scoped Customer Health, dynamic SKU Penetration, exclude managers from leaderboards, real Target-per-Position in Sales Productivity/Line Performance, CHC mirror-image fix, BU/Line-scoped Zeta Organogram, refresh.bat fixes, credential/gitignore hardening"
+git commit -m "Line-scoped Customer Health, dynamic SKU Penetration, exclude managers from leaderboards, real Target-per-Position, CHC mirror-image fix, BU/Line-scoped Zeta Organogram, Buffer/Official Target Scenario toggle, refresh.bat fixes, credential/gitignore hardening"
 git push origin main
 ```
 
@@ -102,6 +102,28 @@ push, since this is a public repo:
   pre-aggregated as single company-wide numbers in the cache with no
   per-BU/Line breakdown available — fixing this needs an ETL change,
   not just a client-side scoping fix.
+
+- Buffer/Official Target Scenario toggle (2026-08-04, "toggle between
+  buffer target and original target"): sales data now carries a second,
+  parallel target scenario (TargetIndex=0 -- confirmed real via direct
+  probe of TOTAL_SALES_2026.xlsx and june.xlsx, not a placeholder,
+  present for every line except a near-identical mirror value on CHC).
+  SFE Manager/CEO/BEX/Admin (plus VP/Marketing Consultant, same
+  unrestricted-scope bucket -- flagged to Ahmed as an assumption) get a
+  "Target Basis" toggle in both the Sales dashboard and Executive
+  Command Center filter bars, switching Official vs Buffer across every
+  card, table, and CSV export that shows a Target figure. Line/BU
+  Managers are hard-locked to Buffer -- cannot see Official at all, not
+  just defaulted away from it. CHC/CHC_SALES always resolve to Official
+  regardless of role or toggle (per Ahmed's stated policy; also
+  confirmed the two scenarios are within EGP 15 of each other for CHC
+  in real June data, i.e. not a meaningfully different number there).
+  REQUIRES the Customer Analytics ETL's sibling, `refresh_sales.py`, to
+  be re-run once (new cache schema, v3) before this is visible --
+  `refresh.bat` already calls it, so a normal refresh run picks this up
+  automatically. Validated with a synthetic v3-schema cache exercising
+  both scenarios end-to-end (resolver, AUTH entitlement, CHC override)
+  since the real committed cache is still v2 until that refresh runs.
 
 **Infrastructure fixes:**
 - `refresh.bat`: added the missing Customer Analytics ETL step (its

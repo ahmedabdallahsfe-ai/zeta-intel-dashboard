@@ -192,7 +192,11 @@ HARD_DEADLINE = t0 + 38
 # mount). tempfile.gettempdir() resolves correctly on both this sandbox and
 # the user's real Windows machine, so refresh.bat works unchanged.
 import tempfile
-DB_PATH = os.path.join(tempfile.gettempdir(), 'zeta_sales_agg_checkpoint.db')
+# _v2 suffix (2026-08-04): the `aggregated` table gained two Buffer-target
+# columns (tgt_qty_buffer/tgt_val_buffer, see TargetIndex=0 handling below).
+# A stale checkpoint from before this change would have the old schema --
+# renaming avoids an ALTER TABLE migration and guarantees a clean rebuild.
+DB_PATH = os.path.join(tempfile.gettempdir(), 'zeta_sales_agg_checkpoint_v2.db')
 SEP = '\x1f'  # unit separator -- joins composite dict keys for SQLite storage
 
 expected_cols = {
@@ -236,7 +240,8 @@ def open_db():
             buhead TEXT, cm TEXT, region TEXT, brick TEXT, distributor TEXT, chain TEXT,
             main_type TEXT, sub_type TEXT, tx_type TEXT, mask INTEGER,
             qty REAL DEFAULT 0, val REAL DEFAULT 0, tgt_qty REAL DEFAULT 0, tgt_val REAL DEFAULT 0,
-            transfer_qty REAL DEFAULT 0, bulk_qty REAL DEFAULT 0, nat_ceiling REAL DEFAULT 0, reg_ceiling REAL DEFAULT 0
+            transfer_qty REAL DEFAULT 0, bulk_qty REAL DEFAULT 0, nat_ceiling REAL DEFAULT 0, reg_ceiling REAL DEFAULT 0,
+            tgt_qty_buffer REAL DEFAULT 0, tgt_val_buffer REAL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS agg_customers (gkey TEXT, cust_id TEXT, PRIMARY KEY(gkey, cust_id));
         CREATE TABLE IF NOT EXISTS customer_roster (rkey TEXT, month TEXT, val REAL DEFAULT 0, PRIMARY KEY(rkey, month));
@@ -308,13 +313,16 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
             cur.executemany('''
                 INSERT INTO aggregated (gkey, month, line, brand, product, rep, dm, rm, nsm, buhead, cm,
                     region, brick, distributor, chain, main_type, sub_type, tx_type, mask,
-                    qty, val, tgt_qty, tgt_val, transfer_qty, bulk_qty, nat_ceiling, reg_ceiling)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    qty, val, tgt_qty, tgt_val, transfer_qty, bulk_qty, nat_ceiling, reg_ceiling,
+                    tgt_qty_buffer, tgt_val_buffer)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(gkey) DO UPDATE SET
                     qty=qty+excluded.qty, val=val+excluded.val, tgt_qty=tgt_qty+excluded.tgt_qty,
                     tgt_val=tgt_val+excluded.tgt_val, transfer_qty=transfer_qty+excluded.transfer_qty,
                     bulk_qty=bulk_qty+excluded.bulk_qty, nat_ceiling=nat_ceiling+excluded.nat_ceiling,
-                    reg_ceiling=reg_ceiling+excluded.reg_ceiling
+                    reg_ceiling=reg_ceiling+excluded.reg_ceiling,
+                    tgt_qty_buffer=tgt_qty_buffer+excluded.tgt_qty_buffer,
+                    tgt_val_buffer=tgt_val_buffer+excluded.tgt_val_buffer
             ''', [(g, *dims, *vals) for g, (dims, vals) in agg_batch.items()])
         if cust_batch:
             cur.executemany('INSERT OR IGNORE INTO agg_customers (gkey, cust_id) VALUES (?,?)', list(cust_batch))
@@ -338,15 +346,26 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
         rows_done += 1
 
         if r and not all(c is None for c in r):
-            # Check target row based on TargetIndex == 1
+            # Check target row based on TargetIndex. Blank = actual sale row.
+            # TargetIndex==1 = Official target (the figure this dashboard has
+            # always shown). TargetIndex==0 (2026-08-04, Buffer target
+            # support) = a second, parallel target scenario -- confirmed
+            # present in this same source file (not a separate export) via
+            # direct probe: e.g. CHC carries both 674 Index=0 and 1350
+            # Index=1 rows in the first 230k rows alone. Any other/
+            # unparseable index is still excluded, unchanged from before.
             tgt_idx_val = gv(r, col['TargetIndex'])
-            is_mirror = False
+            is_mirror = False       # True for EITHER target scenario (not an actual sale)
+            is_buffer = False       # True specifically for TargetIndex==0
             skip_row = False
             if tgt_idx_val not in (None, ''):
                 try:
                     t_idx = int(round(float(tgt_idx_val)))
                     if t_idx == 1:
                         is_mirror = True
+                    elif t_idx == 0:
+                        is_mirror = True
+                        is_buffer = True
                     else:
                         skip_row = True  # target rows with other target indexes excluded
                 except:
@@ -394,6 +413,7 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
 
                 # Quantities and values
                 qty, val, tgt_qty, tgt_val = 0.0, 0.0, 0.0, 0.0
+                tgt_qty_buffer, tgt_val_buffer = 0.0, 0.0
                 transfer_qty, bulk_qty, nat_ceiling, reg_ceiling = 0.0, 0.0, 0.0, 0.0
 
                 if not is_mirror:
@@ -404,6 +424,18 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                     try:
                         _v = gv(r, col['Value'])
                         if _v not in (None, ''): val = float(_v)
+                    except: pass
+                elif is_buffer:
+                    # TargetIndex==0 -- Buffer target scenario, kept in its
+                    # own pair of measures so it never mixes with the
+                    # Official (Index=1) target below.
+                    try:
+                        _v = gv(r, col['TargetQuantity'])
+                        if _v not in (None, ''): tgt_qty_buffer = float(_v)
+                    except: pass
+                    try:
+                        _v = gv(r, col['TargetValue'])
+                        if _v not in (None, ''): tgt_val_buffer = float(_v)
                     except: pass
                 else:
                     try:
@@ -434,7 +466,10 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                     if _v not in (None, ''): reg_ceiling = float(_v)
                 except: pass
 
-                # Flag bitmask (Bit 0: IsBulk, Bit 1: IsTender, Bit 2: IsOffer, Bit 3: IsUPA, Bit 4: IsMirror)
+                # Flag bitmask (Bit 0: IsBulk, Bit 1: IsTender, Bit 2: IsOffer,
+                # Bit 3: IsUPA, Bit 4: IsMirror -- true for EITHER target
+                # scenario, Bit 5: IsBuffer -- true only for TargetIndex==0,
+                # added 2026-08-04 alongside the tgt_*_buffer measures)
                 is_bulk = gv(r, col['IsBulk']) in (True, 1, 'True', '1')
                 is_tender = gv(r, col['IsTender']) in (True, 1, 'True', '1')
                 is_offer = gv(r, col['IsOffer']) in (True, 1, 'True', '1')
@@ -446,6 +481,7 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 if is_offer: mask |= 4
                 if is_upa: mask |= 8
                 if is_mirror: mask |= 16
+                if is_buffer: mask |= 32
 
                 # Collect for lookup categories
                 for cat, v in (('months', month), ('lines', line), ('brands', brand), ('products', product),
@@ -458,10 +494,11 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 dims = (month, line, brand, product, rep, dm, rm, nsm, buhead, cm, region, brick, distributor, chain, main_type, sub_type, tx_type, mask)
                 gkey = SEP.join(str(d) for d in dims)
                 if gkey not in agg_batch:
-                    agg_batch[gkey] = (dims, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+                    agg_batch[gkey] = (dims, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
                 vals = agg_batch[gkey][1]
                 vals[0] += qty; vals[1] += val; vals[2] += tgt_qty; vals[3] += tgt_val
                 vals[4] += transfer_qty; vals[5] += bulk_qty; vals[6] += nat_ceiling; vals[7] += reg_ceiling
+                vals[8] += tgt_qty_buffer; vals[9] += tgt_val_buffer
 
                 if cust_id and val > 0:
                     cust_batch.add((gkey, cust_id))
@@ -551,7 +588,7 @@ if not all_complete or did_process_this_call:
 # written ONCE from the final, complete dataset, so unlike the earlier
 # growing-pickle-per-row-chunk design it never grows across multiple
 # calls -- lets the encode+write stage run as a clean, separate call.
-RECON_PKL = os.path.join(tempfile.gettempdir(), 'zeta_sales_recon_checkpoint.pkl')
+RECON_PKL = os.path.join(tempfile.gettempdir(), 'zeta_sales_recon_checkpoint_v2.pkl')  # _v2: Buffer-target columns (2026-08-04)
 
 if os.path.exists(RECON_PKL):
     conn.close()
@@ -582,11 +619,12 @@ else:
     _gkey_to_key = {}
     for row in conn.execute('''SELECT gkey, month, line, brand, product, rep, dm, rm, nsm, buhead, cm,
                                        region, brick, distributor, chain, main_type, sub_type, tx_type, mask,
-                                       qty, val, tgt_qty, tgt_val, transfer_qty, bulk_qty, nat_ceiling, reg_ceiling
+                                       qty, val, tgt_qty, tgt_val, transfer_qty, bulk_qty, nat_ceiling, reg_ceiling,
+                                       tgt_qty_buffer, tgt_val_buffer
                                 FROM aggregated'''):
         gkey = row[0]
         key = tuple(row[1:18]) + (row[18],)  # 17 str dims + mask int
-        aggregated[key] = [row[19], row[20], row[21], row[22], row[23], row[24], row[25], row[26], set()]
+        aggregated[key] = [row[19], row[20], row[21], row[22], row[23], row[24], row[25], row[26], set(), row[27], row[28]]
         _gkey_to_key[gkey] = key
 
     for gkey, cust_id in conn.execute('SELECT gkey, cust_id FROM agg_customers'):
@@ -720,13 +758,18 @@ for k, v in aggregated.items():
 
     # Row layout (index: field) — 0:month 1:line 2:brand 3:prod 4:rep 5:dm
     # 6:rm 7:nsm 8:buhead 9:cm 10:region 11:brick 12:distributor 13:chain
-    # 14:main_type 15:sub_type 16:tx_type 17:flags_mask, then measures.
+    # 14:main_type 15:sub_type 16:tx_type 17:flags_mask, then measures:
+    # 18:qty 19:val 20:tgt_qty 21:tgt_val 22:transfer_qty 23:bulk_qty
+    # 24:nat_ceiling 25:reg_ceiling 26:cust_count, then (2026-08-04, appended
+    # at the end so every existing index above is unchanged):
+    # 27:tgt_qty_buffer 28:tgt_val_buffer -- the TargetIndex=0 scenario.
     encoded_rows.append([
         month_i, line_i, brand_i, prod_i, rep_i, dm_i, rm_i, nsm_i, bu_i, cm_i, reg_i, brick_i, dist_i,
         chain_i, mtype_i, stype_i, txtype_i, mask,
         round(v[0], 2), round(v[1], 2), round(v[2], 2), round(v[3], 2),
         round(v[4], 2), round(v[5], 2), round(v[6], 2), round(v[7], 2),
-        len(v[8])
+        len(v[8]),
+        round(v[9], 2), round(v[10], 2)
     ])
 
 # Encode customer roster
@@ -757,7 +800,7 @@ print('\n[5/5] Gzipping and writing caches...', flush=True)
 # can never be read with the corrected front-end and silently show wrong
 # names -- it shows a "cache needs refresh" placeholder instead. Bump this
 # any time encoded_rows' column order/meaning or the lookups dict keys change.
-SCHEMA_VERSION = 2  # v2 = corrected hierarchy naming (BUHead->NSM->RM->DM->Rep) + CM (Emp6) captured
+SCHEMA_VERSION = 3  # v3 = added tgt_qty_buffer/tgt_val_buffer (TargetIndex=0 Buffer target scenario, 2026-08-04)
 
 cache_obj = {
     'meta': {
