@@ -196,7 +196,8 @@ if "%GIT_CMD%"=="" (
     "%GIT_CMD%" add -f cache/sales.data.js
     "%GIT_CMD%" add -f cache/iqvia.json
     "%GIT_CMD%" add -f cache/iqvia.data.js
-    "%GIT_CMD%" add -f cache/customer_analytics.json
+    REM customer_analytics.json is 140MB+ (exceeds GitHub 100MB limit)
+    REM -- only the compressed .data.js version is pushed
     "%GIT_CMD%" add -f cache/customer_analytics.data.js
     "%GIT_CMD%" add "TO MARKET_IN MARKET/index.html"
     "%GIT_CMD%" add assets/*.js
