@@ -338,15 +338,32 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
         rows_done += 1
 
         if r and not all(c is None for c in r):
-            # Check target row based on TargetIndex == 1
+            # Check target row based on TargetIndex in (0, 1). 2026-08-04
+            # (Target Scenario feature): TargetIndex=1 is Official Target,
+            # TargetIndex=0 is Working Target (business meaning still
+            # unconfirmed by the source-system owner -- "Working Target" is
+            # a placeholder label, not "Buffer", per explicit instruction
+            # not to guess at its semantics). Both are now kept -- this
+            # script previously discarded every TargetIndex=0 row
+            # (skip_row=True unconditionally for t_idx != 1); the semantic
+            # layer (js/semantic-model.js SEMANTIC.resolveScenario() +
+            # js/sales.js) now decides which scenario to aggregate on
+            # demand, per line, with a fallback for CHC/CHC_SALES (which
+            # have no real Working Target rows). Any TargetIndex value
+            # other than 0 or 1 is still excluded, unchanged from before.
             tgt_idx_val = gv(r, col['TargetIndex'])
             is_mirror = False
+            is_official_scenario = True  # only meaningful when is_mirror is True
             skip_row = False
             if tgt_idx_val not in (None, ''):
                 try:
                     t_idx = int(round(float(tgt_idx_val)))
                     if t_idx == 1:
                         is_mirror = True
+                        is_official_scenario = True
+                    elif t_idx == 0:
+                        is_mirror = True
+                        is_official_scenario = False
                     else:
                         skip_row = True  # target rows with other target indexes excluded
                 except:
@@ -434,7 +451,19 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                     if _v not in (None, ''): reg_ceiling = float(_v)
                 except: pass
 
-                # Flag bitmask (Bit 0: IsBulk, Bit 1: IsTender, Bit 2: IsOffer, Bit 3: IsUPA, Bit 4: IsMirror)
+                # Flag bitmask (Bit 0: IsBulk, Bit 1: IsTender, Bit 2: IsOffer,
+                # Bit 3: IsUPA, Bit 4: IsMirror, Bit 5: IsOfficialScenario --
+                # 2026-08-04, Target Scenario feature). Bit 5 is ONLY
+                # meaningful when Bit 4 (IsMirror) is set: 1 = this row's
+                # TargetIndex was 1 (Official Target), 0 = TargetIndex was 0
+                # (Working Target). For non-mirror (actual transaction) rows
+                # Bit 5 is always 0 and never inspected downstream. Reusing
+                # the existing mask field (rather than adding a new column)
+                # keeps row width unchanged, and because mask is already
+                # part of the groupby key below, Official and Working
+                # target rows for the same month/line/brand/... naturally
+                # land in two SEPARATE aggregated rows with no extra
+                # grouping logic required.
                 is_bulk = gv(r, col['IsBulk']) in (True, 1, 'True', '1')
                 is_tender = gv(r, col['IsTender']) in (True, 1, 'True', '1')
                 is_offer = gv(r, col['IsOffer']) in (True, 1, 'True', '1')
@@ -446,6 +475,7 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 if is_offer: mask |= 4
                 if is_upa: mask |= 8
                 if is_mirror: mask |= 16
+                if is_mirror and is_official_scenario: mask |= 32
 
                 # Collect for lookup categories
                 for cat, v in (('months', month), ('lines', line), ('brands', brand), ('products', product),
@@ -757,7 +787,12 @@ print('\n[5/5] Gzipping and writing caches...', flush=True)
 # can never be read with the corrected front-end and silently show wrong
 # names -- it shows a "cache needs refresh" placeholder instead. Bump this
 # any time encoded_rows' column order/meaning or the lookups dict keys change.
-SCHEMA_VERSION = 2  # v2 = corrected hierarchy naming (BUHead->NSM->RM->DM->Rep) + CM (Emp6) captured
+SCHEMA_VERSION = 3  # v3 (2026-08-04) = Target Scenario feature: mask bit 5 now
+# carries Official(1)/Working(0) scenario for mirror/target rows (see the
+# mask-bitfield comment above) -- bumped so js/sales.js's schema gate
+# rejects any pre-v3 cache instead of misreading its mirror rows as
+# all-Working (old caches never set bit 5, since it didn't exist yet).
+# v2 = corrected hierarchy naming (BUHead->NSM->RM->DM->Rep) + CM (Emp6) captured.
 
 cache_obj = {
     'meta': {

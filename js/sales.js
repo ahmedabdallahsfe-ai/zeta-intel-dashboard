@@ -16,6 +16,74 @@
   const CHAIN = 13, MTYPE = 14, STYPE = 15, TXTYPE = 16, MASK = 17;
   const QTY = 18, VAL = 19, TGT_QTY = 20, TGT_VAL = 21, TRANS_QTY = 22, BULK_QTY = 23, NAT_CEIL = 24, REG_CEIL = 25, CUST_COUNT = 26;
 
+  // =====================================================================
+  // TARGET SCENARIO (2026-08-04) -- Dual Target Scenario feature.
+  // =====================================================================
+  // Mask Bit 5 (32): see refresh_sales.py's mask-bitfield comment. Only
+  // meaningful when Bit 4 (isMirror, 16) is set -- 1 = row's TargetIndex
+  // was 1 (Official), 0 = TargetIndex was 0 (Working). This is the ONLY
+  // place in this file that reads Bit 5 directly; every accumulation
+  // site below goes through includeTargetRow()/buildLineScenarioMap(),
+  // never the raw bit, per the single-source-of-truth requirement.
+  function rowIsOfficialScenario(mask) { return (mask & 32) > 0; }
+
+  /**
+   * Should THIS row's TGT_VAL/TGT_QTY be added to a sum being built for
+   * `wantOfficial` (true = Official Target, false = Working Target)?
+   * Non-mirror (actual transaction) rows always pass through -- their
+   * TGT_VAL/TGT_QTY are already 0 by the ETL's row convention (a row is
+   * EITHER a real transaction OR a mirror/target row, never both), so
+   * including them unconditionally is harmless and keeps every
+   * accumulation loop's actual-value summation (r[VAL]) exactly as it
+   * was before this feature, with zero special-casing needed there.
+   *
+   * Graceful-degradation fix (2026-08-04, same day as the feature
+   * shipped): a cache produced by the pre-v3 ETL never set mask Bit 5
+   * at all (it didn't exist yet). Every one of ITS mirror rows is 100%
+   * real Official Target data, but under the Bit-5 convention it would
+   * read as Bit5=0, i.e. "Working". Filtering it by wantOfficial would
+   * make "Official Target" return zero/N/A (nothing has Bit5=1 yet)
+   * while "Working Target" quietly showed the real Official numbers
+   * mislabeled -- exactly backwards, and exactly what was observed in
+   * production against the live (still pre-v3) cache. When the loaded
+   * cache predates v3, skip the Bit-5 discrimination entirely and treat
+   * every mirror row as valid for whichever scenario was requested --
+   * this matches exactly how this function behaved before the Target
+   * Scenario feature existed. Real differentiation activates
+   * automatically the moment cache.meta.schemaVersion reaches 3.
+   */
+  function includeTargetRow(mask, wantOfficial) {
+    if ((mask & 16) === 0) return true;
+    if (!scenarioSchemaAvailable()) return true;
+    return rowIsOfficialScenario(mask) === wantOfficial;
+  }
+
+  /**
+   * Precomputes, ONCE per aggregation call (not per row), which scenario
+   * each line in cache.lookups.lines should actually resolve to for the
+   * given requested scenario -- applying SEMANTIC.resolveScenario()'s
+   * CHC/CHC_SALES fallback per line. Returns a plain array indexed by
+   * the same line-lookup index every row already carries at r[LINE], so
+   * the hot per-row loop only ever does an O(1) array read
+   * (`wantOfficialByLine[r[LINE]]`), never a function call or string
+   * compare -- this is what keeps the added scenario-awareness from
+   * having a measurable performance cost on ~1M-row aggregation passes.
+   *
+   * Per-LINE (not per-BU) resolution matters because a single
+   * aggregation pass (e.g. getBusinessSummary's BU loop) can blend rows
+   * from CHC (single-scenario, must fall back) and DIAB/GIT/Cluster
+   * lines (normal, honor the request) in the very same loop.
+   */
+  function buildLineScenarioMap(requestedScenario) {
+    const linesLookup = (cache && cache.lookups && cache.lookups.lines) || [];
+    const map = new Array(linesLookup.length);
+    for (let i = 0; i < linesLookup.length; i++) {
+      const resolved = window.SEMANTIC.resolveScenario(linesLookup[i], requestedScenario);
+      map[i] = (resolved.scenario === "official");
+    }
+    return map;
+  }
+
   const COLUMN_TO_LOOKUP = {
     [MONTH]: 'months',
     [LINE]: 'lines',
@@ -144,6 +212,26 @@
   // refuses to render (see isCacheStale/renderCachePendingState below) --
   // guards against ever reading an old cache with the corrected hierarchy
   // naming and silently showing wrong BUHEAD/NSM/RM names.
+  //
+  // v3 (2026-08-04, Target Scenario feature): refresh_sales.py now packs
+  // an Official(1)/Working(0) scenario flag into mask Bit 5 for every
+  // mirror/target row, and keeps BOTH TargetIndex=0 and =1 rows (v2 and
+  // earlier discarded TargetIndex=0 entirely).
+  //
+  // SAME-DAY FIX (2026-08-04): this was originally wired as a hard block
+  // -- bumping REQUIRED_SCHEMA_VERSION to 3 so the whole Sales tab (and,
+  // transitively, every Executive KPI that reads through SalesDashboard)
+  // would refuse to render against a pre-v3 cache rather than misread
+  // Bit 5. In production against the live (still v2) cache this blocked
+  // the entire Sales Performance page -- a bigger regression than the
+  // problem it prevented, since the feature was meant to be additive.
+  // includeTargetRow() below now degrades gracefully instead (treats
+  // every mirror row as valid regardless of requested scenario when
+  // Bit-5 data isn't present), so the hard block is no longer needed for
+  // correctness. REQUIRED_SCHEMA_VERSION is reverted to 2 -- the real,
+  // structural hierarchy/cms-lookup requirement this gate has always
+  // existed for. v3 (scenario Bit 5) is now a soft/optional capability,
+  // detected live via scenarioSchemaAvailable() just below.
   const REQUIRED_SCHEMA_VERSION = 2;
 
   // True if the loaded cache predates the hierarchy-naming fix (missing
@@ -155,6 +243,18 @@
     if (cache.meta.schemaVersion < REQUIRED_SCHEMA_VERSION) return true;
     if (!cache.lookups || !Array.isArray(cache.lookups.cms)) return true;
     return false;
+  }
+
+  // True once the loaded cache was produced by the v3+ ETL that tags
+  // Official/Working onto mask Bit 5 for every mirror row. See
+  // includeTargetRow()'s doc comment above for why this matters --
+  // before v3, Bit 5 is always 0 for every row (the bit didn't exist),
+  // which would misread 100% Official data as "Working" if trusted.
+  // Also used by the UI to show an informational note next to the
+  // Target Basis control so nobody is left thinking a toggle that isn't
+  // really differentiating anything yet is broken.
+  function scenarioSchemaAvailable() {
+    return !!(cache && cache.meta && typeof cache.meta.schemaVersion === 'number' && cache.meta.schemaVersion >= 3);
   }
 
   const STATE = {
@@ -191,7 +291,16 @@
     isTender: false,
     isOffer: "all",
     isUpa: "all",
-    isMirror: "all"
+    isMirror: "all",
+
+    // Target Scenario (2026-08-04): "official" | "working". Set once at
+    // init() from AUTH.getActiveScenario() (the user's role default, or
+    // their own in-session selector choice if their role can toggle) --
+    // never read ambiently by any aggregation function below, which all
+    // take scenario as an explicit parameter instead (see
+    // buildLineScenarioMap()). Changed only via setScenario(), which both
+    // updates this and re-renders, exactly like every other STATE filter.
+    scenario: "official"
   };
 
   // Helper to decompress Base64 gzipped cache
@@ -418,14 +527,27 @@
       clusterData: {}
     };
 
+    // Target Scenario (2026-08-04): resolved ONCE per line (not per row)
+    // via buildLineScenarioMap(), which applies the CHC/CHC_SALES
+    // fallback per SEMANTIC.resolveScenario(). The per-row check below
+    // (includeTargetRow) is then a cheap O(1) mask test -- every one of
+    // this function's many downstream buckets (monthlyData, regionalData,
+    // brandData, buData, lineData, nsmData, dmData, prodData, chainData,
+    // distData, repData, txData, positionData, clusterData) reads tqty/
+    // tval AFTER this gate, so they all become scenario-aware for free
+    // with no changes needed anywhere else in this function.
+    const wantOfficialByLine = buildLineScenarioMap(STATE.scenario);
+
     for (let i = 0; i < len; i++) {
       const r = rows[i];
       if (!isRowAllowed(r)) continue;
 
+      const mask = r[MASK];
+      const includeTgt = includeTargetRow(mask, wantOfficialByLine[r[LINE]]);
       const qty = r[QTY];
       const val = r[VAL];
-      const tqty = r[TGT_QTY];
-      const tval = r[TGT_VAL];
+      const tqty = includeTgt ? r[TGT_QTY] : 0;
+      const tval = includeTgt ? r[TGT_VAL] : 0;
       const tran = r[TRANS_QTY];
       const bulk = r[BULK_QTY];
       const nat = r[NAT_CEIL];
@@ -1029,6 +1151,38 @@
     const achColor = ach >= 95 ? '#15803d' : ach >= 80 ? '#b45309' : '#b91c1c';
     const achBg   = ach >= 95 ? '#f0fdf4' : ach >= 80 ? '#fffbeb' : '#fef2f2';
 
+    // Target Scenario (2026-08-04): role-gated selector, not a global
+    // toggle everyone sees -- AUTH.canToggleScenario() renders nothing at
+    // all (not a disabled control) for roles locked to their default, so
+    // a Line Manager's UI never implies a choice exists. Roles without
+    // toggle rights still see their current basis as a plain label, so
+    // nobody is left wondering what number they're looking at.
+    const canToggleScenario = !!(window.AUTH && typeof window.AUTH.canToggleScenario === "function" && window.AUTH.canToggleScenario());
+    const scenarioMeta = (window.SEMANTIC && window.SEMANTIC.TARGET_SCENARIOS[STATE.scenario]) || { label: "Official Target" };
+    // 2026-08-04 same-day fix: while the cache hasn't been refreshed
+    // under v3 yet, Official and Working both read identical (Official)
+    // data -- see scenarioSchemaAvailable()/includeTargetRow(). Surface
+    // that plainly next to the control rather than let it look broken.
+    const scenarioNoteHtml = !scenarioSchemaAvailable() ? `
+        <div style="font-size:9px; color:#b45309; margin-top:3px; max-width:170px; line-height:1.35;">Working Target activates after the next cache refresh</div>
+      ` : '';
+    const scenarioControlHtml = canToggleScenario ? `
+      <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
+        <span style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#64748b;">Target Basis</span>
+        <select id="select-scenario" class="sc-select" style="width:auto; min-width:150px; height:28px; padding:2px 8px;">
+          <option value="official" ${STATE.scenario==='official'?'selected':''}>Official Target</option>
+          <option value="working" ${STATE.scenario==='working'?'selected':''}>Working Target</option>
+        </select>
+        ${scenarioNoteHtml}
+      </div>
+    ` : `
+      <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px; background:#f1f5f9; border-radius:8px; padding:5px 12px;">
+        <span style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#64748b;">Target Basis</span>
+        <span style="font-size:12px; font-weight:700; color:#0f172a;">${scenarioMeta.label}</span>
+        ${scenarioNoteHtml}
+      </div>
+    `;
+
     root.innerHTML = `
       <div class="sc-shell" style="display:flex; background:#f8fafc; color:#0f172a; font-family:'Inter','Outfit',system-ui,sans-serif; min-height:calc(100vh - 70px);">
 
@@ -1146,6 +1300,7 @@
 
             <!-- Achievement Badge -->
             <div style="display:flex; align-items:center; gap:10px;">
+              ${scenarioControlHtml}
               <div style="background:${achBg}; border:1px solid ${achColor}20; border-radius:10px; padding:6px 14px; text-align:center;">
                 <div style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:${achColor}; margin-bottom:1px;">Target Achievement</div>
                 <div style="font-size:20px; font-weight:800; color:${achColor}; line-height:1;">${ach.toFixed(1)}%</div>
@@ -2503,9 +2658,22 @@
 
   // Export engine
   function exportCSV(res) {
+    // Target Scenario (2026-08-04): this export writes one CSV line per
+    // RAW cache row (not per aggregated group), including mirror/target
+    // rows -- previously exactly one mirror row existed per month/line/
+    // brand/... group, so `${r[TGT_QTY]},${r[TGT_VAL]}` was always
+    // unambiguous. Now that both Official and Working mirror rows exist
+    // in the cache, a mirror row that doesn't match the active scenario
+    // is skipped entirely (not emitted with zeroed columns, which would
+    // look like a phantom empty row) -- this is a raw-row read, so it
+    // goes through the same includeTargetRow()/buildLineScenarioMap()
+    // gate as every other accumulation site rather than a parallel check.
+    const wantOfficialByLine = buildLineScenarioMap(STATE.scenario);
     let csv = "Month,Line,Brand,Product,RepName,DMName,ActualQty,ActualValue,TargetQty,TargetValue\n";
     decodedRows.forEach(r => {
       if (!isRowAllowed(r)) return;
+      const mask = r[MASK];
+      if ((mask & 16) > 0 && !includeTargetRow(mask, wantOfficialByLine[r[LINE]])) return;
       const m = cache.lookups.months[r[MONTH]];
       const l = cache.lookups.lines[r[LINE]];
       const b = cache.lookups.brands[r[BRAND]];
@@ -2695,6 +2863,24 @@
       });
     }
 
+    // Target Scenario selector (2026-08-04) -- only rendered at all for
+    // toggle-capable roles (see scenarioControlHtml above), but
+    // AUTH.setActiveScenario() re-checks canToggleScenario() itself too,
+    // so this can never set a locked role's session scenario even if
+    // called some other way. Persists the choice for the rest of this
+    // browser session (AUTH.getActiveScenario()) and updates STATE here
+    // so this render pass picks it up immediately.
+    const selectScenario = document.getElementById("select-scenario");
+    if (selectScenario) {
+      selectScenario.addEventListener("change", () => {
+        const val = selectScenario.value;
+        if (window.AUTH && window.AUTH.setActiveScenario(val)) {
+          STATE.scenario = val;
+          renderLayout();
+        }
+      });
+    }
+
     // Interactive SVG Map path clicks
     document.querySelectorAll(".map-path").forEach(path => {
       path.addEventListener("click", () => {
@@ -2736,6 +2922,16 @@
         return;
       }
       document.body.classList.add('sales-mode');
+      // Target Scenario (2026-08-04): seed STATE from the signed-in
+      // user's role default / in-session choice every time this page is
+      // (re)entered, rather than once at script-load -- a user's own
+      // toggle choice from a prior visit this session should still
+      // apply, but a freshly signed-in user (or one whose role has no
+      // toggle rights) must never inherit a stale scenario left over
+      // from a previous session's module state.
+      if (window.AUTH && typeof window.AUTH.getActiveScenario === "function") {
+        STATE.scenario = window.AUTH.getActiveScenario();
+      }
       renderLayout();
     },
     /**
@@ -2768,7 +2964,7 @@
      * IQVIA's job (it has multi-year history); Sales' contribution is
      * Target vs Actual achievement and internal MoM trend.
      */
-    getBusinessSummary() {
+    getBusinessSummary(scenario) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: {} };
@@ -2777,6 +2973,11 @@
         console.error('[Sales] getBusinessSummary() requires js/semantic-model.js to be loaded first.');
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: {} };
       }
+      // Target Scenario (2026-08-04): defaults to "official" when omitted
+      // so any pre-existing caller that doesn't pass scenario is 100%
+      // backward compatible -- identical output to before this feature.
+      scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
+      const wantOfficialByLine = buildLineScenarioMap(scenario);
       const lines = cache.lookups.lines;
       const months = cache.lookups.months;
       const lastIdx = months.length - 1;
@@ -2799,7 +3000,7 @@
         if (!bu) continue;
         const t = totals[bu];
         t.actualYTD += r[VAL];
-        t.targetYTD += r[TGT_VAL];
+        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) t.targetYTD += r[TGT_VAL];
         const m = r[MONTH];
         byMonth[bu][m] = (byMonth[bu][m] || 0) + r[VAL];
         // Deployed-territory count, same convention as the Sales tab's own
@@ -2834,6 +3035,7 @@
         status: 'ready',
         asOfDate: months[lastIdx] || null,
         source: 'sales',
+        scenario: scenario,
         bu: buOut
       };
     },
@@ -2870,7 +3072,7 @@
      * additionally scopes to one line within the BU -- omit/pass null for
      * the whole-BU figure (identical to the pre-2026-07-27 behavior).
      */
-    getBrandAchievement(bu, line, ignoreLineAuth) {
+    getBrandAchievement(bu, line, ignoreLineAuth, scenario) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, brands: [] };
@@ -2879,6 +3081,8 @@
         console.error('[Sales] getBrandAchievement() requires js/semantic-model.js to be loaded first.');
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, brands: [] };
       }
+      scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
+      const wantOfficialByLine = buildLineScenarioMap(scenario);
       const lines = cache.lookups.lines;
       const brandsLk = cache.lookups.brands || [];
       const months = cache.lookups.months;
@@ -2898,9 +3102,11 @@
         if (!acc.has(bIdx)) acc.set(bIdx, { val: 0, tgtVal: 0, qty: 0, tgtQty: 0 });
         const a = acc.get(bIdx);
         a.val += r[VAL];
-        a.tgtVal += r[TGT_VAL];
         a.qty += r[QTY];
-        a.tgtQty += r[TGT_QTY];
+        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) {
+          a.tgtVal += r[TGT_VAL];
+          a.tgtQty += r[TGT_QTY];
+        }
         totalVal += r[VAL];
       }
 
@@ -2926,6 +3132,7 @@
         line: line || 'All',
         unit: 'EGP',
         scope: 'Non-Tender transactions only, Value basis',
+        scenario: scenario,
         totalActualValue: totalVal,
         brands: brands,
       };
@@ -2976,7 +3183,7 @@
      * convention, so the Period control's summary text and the actual
      * data never disagree.
      */
-    getLineSalesSummary(bu, months, ignoreLineAuth) {
+    getLineSalesSummary(bu, months, ignoreLineAuth, scenario) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, lines: [] };
@@ -2990,6 +3197,8 @@
       if (window.AUTH && !window.AUTH.isBuAllowed(bu)) {
         return { ok: false, status: 'access_denied', asOfDate: null, source: 'sales', bu: bu, lines: [] };
       }
+      scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
+      const wantOfficialByLine = buildLineScenarioMap(scenario);
       const linesLk = cache.lookups.lines;
       const monthsLk = cache.lookups.months;
       const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
@@ -3016,7 +3225,7 @@
         if (!acc.has(canon)) acc.set(canon, { val: 0, tgtVal: 0 });
         const a = acc.get(canon);
         a.val += r[VAL];
-        a.tgtVal += r[TGT_VAL];
+        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) a.tgtVal += r[TGT_VAL];
       }
 
       const lines = Array.from(acc.entries())
@@ -3046,6 +3255,7 @@
         bu: bu,
         unit: 'EGP',
         scope: 'Non-Tender transactions only, Value basis',
+        scenario: scenario,
         lines: lines,
       };
     },
@@ -3091,7 +3301,7 @@
      * momGrowthPct) so the trend indicator is on the same basis as the
      * headline, not silently mixing bases.
      */
-    getSalesAchievementSummary(bu, line, ignoreLineAuth) {
+    getSalesAchievementSummary(bu, line, ignoreLineAuth, scenario) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, line: line || 'All' };
@@ -3100,6 +3310,8 @@
         console.error('[Sales] getSalesAchievementSummary() requires js/semantic-model.js to be loaded first.');
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, line: line || 'All' };
       }
+      scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
+      const wantOfficialByLine = buildLineScenarioMap(scenario);
       const linesLk = cache.lookups.lines;
       const months = cache.lookups.months;
       const lastIdx = months.length - 1;
@@ -3116,7 +3328,7 @@
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only -- see header comment
         actualYTD += r[VAL];
-        targetYTD += r[TGT_VAL];
+        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) targetYTD += r[TGT_VAL];
         const m = r[MONTH];
         byMonth[m] = (byMonth[m] || 0) + r[VAL];
       }
@@ -3135,6 +3347,7 @@
         line: line || 'All',
         unit: 'EGP',
         scope: 'Non-Tender transactions only, Value basis',
+        scenario: scenario,
         actualYTD: actualYTD,
         targetYTD: targetYTD,
         achievementPct: achievementPct,
@@ -3162,7 +3375,7 @@
      * returned scope's total Non-Tender VALUE), and accepts an optional
      * `line` param exactly like getBrandAchievement()'s.
      */
-    getItemAchievement(bu, brandName, line) {
+    getItemAchievement(bu, brandName, line, scenario) {
       if (bu !== 'CHC') {
         return { ok: false, status: 'bu_not_supported', asOfDate: null, source: 'sales', bu: bu, brand: brandName || null, items: [] };
       }
@@ -3174,6 +3387,13 @@
         console.error('[Sales] getItemAchievement() requires js/semantic-model.js to be loaded first.');
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, brand: brandName || null, items: [] };
       }
+      // bu is always 'CHC' here (see the bu_not_supported gate above), and
+      // both CHC lines are single-scenario -- this always resolves to
+      // Official today. Still routed through buildLineScenarioMap() (not
+      // hardcoded) so this function needs no changes if CHC ever gains a
+      // real Working Target.
+      scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
+      const wantOfficialByLine = buildLineScenarioMap(scenario);
       const lines = cache.lookups.lines;
       const brandsLk = cache.lookups.brands || [];
       const productsLk = cache.lookups.products || [];
@@ -3200,9 +3420,11 @@
         if (!acc.has(pIdx)) acc.set(pIdx, { val: 0, tgtVal: 0, qty: 0, tgtQty: 0 });
         const a = acc.get(pIdx);
         a.val += r[VAL];
-        a.tgtVal += r[TGT_VAL];
         a.qty += r[QTY];
-        a.tgtQty += r[TGT_QTY];
+        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) {
+          a.tgtVal += r[TGT_VAL];
+          a.tgtQty += r[TGT_QTY];
+        }
         totalVal += r[VAL];
       }
 
@@ -3229,6 +3451,7 @@
         line: line || 'All',
         unit: 'EGP',
         scope: 'Non-Tender transactions only, Value basis',
+        scenario: scenario,
         totalActualValue: totalVal,
         items: items,
       };
@@ -3632,7 +3855,7 @@
       };
     },
 
-    getDmSalesSummary(bu, line, months) {
+    getDmSalesSummary(bu, line, months, scenario) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, dms: [] };
@@ -3644,6 +3867,8 @@
       if (window.AUTH && !window.AUTH.isBuAllowed(bu)) {
         return { ok: false, status: 'access_denied', asOfDate: null, source: 'sales', bu: bu, dms: [] };
       }
+      scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
+      const wantOfficialByLine = buildLineScenarioMap(scenario);
       const linesLk = cache.lookups.lines;
       const dmsLk = cache.lookups.dms;
       const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
@@ -3672,7 +3897,7 @@
         if (!acc.has(dmName)) acc.set(dmName, { val: 0, tgtVal: 0 });
         const a = acc.get(dmName);
         a.val += r[VAL];
-        a.tgtVal += r[TGT_VAL];
+        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) a.tgtVal += r[TGT_VAL];
       }
 
       const dms = Array.from(acc.entries())
@@ -3699,6 +3924,7 @@
         bu: bu,
         line: line || 'All',
         scope: 'Non-Tender transactions only, Value basis',
+        scenario: scenario,
         dms: dms,
       };
     },
@@ -3717,9 +3943,11 @@
       return map;
     },
 
-    getDmRepsSalesSummary(bu, line, dmName, months) {
+    getDmRepsSalesSummary(bu, line, dmName, months, scenario) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) return {};
+      scenario = (window.SEMANTIC && window.SEMANTIC.isValidScenario(scenario)) ? scenario : (window.SEMANTIC ? window.SEMANTIC.DEFAULT_SCENARIO : "official");
+      const wantOfficialByLine = window.SEMANTIC ? buildLineScenarioMap(scenario) : [];
       const dmsLk = cache.lookups.dms;
       const linesLk = cache.lookups.lines;
       const repsLk = cache.lookups.reps;
@@ -3750,9 +3978,21 @@
           map[key] = { val: 0, tgtVal: 0 };
         }
         map[key].val += r[VAL] || 0;
-        map[key].tgtVal += r[TGT_VAL] || 0;
+        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) map[key].tgtVal += r[TGT_VAL] || 0;
       }
       return map;
+    },
+
+    // Target Scenario (2026-08-04 same-day fix): lets other modules
+    // (executive.js) know whether Official/Working actually differentiate
+    // real data yet, so they can show the same "activates after refresh"
+    // note next to their own Target Basis control rather than let a
+    // no-op toggle look broken. Deliberately excluded from heavyFns
+    // memoization below -- it's a cheap boolean read, not a data
+    // aggregation, and must always reflect the live cache state.
+    isScenarioDataAvailable() {
+      decompressCache();
+      return scenarioSchemaAvailable();
     },
 
     destroy() {

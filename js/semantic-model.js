@@ -214,6 +214,74 @@
     return buckets;
   }
 
+  // =====================================================================
+  // TARGET SCENARIO (2026-08-04) -- Dual Target Scenario feature.
+  // =====================================================================
+  // Single source of truth for the TargetIndex -> business-label mapping
+  // and the CHC/CHC_SALES single-scenario fallback rule. Per the approved
+  // architecture (TARGET_SCENARIO_ARCHITECTURE_PROPOSAL.md /
+  // TARGET_SCENARIO_DEPENDENCY_ANALYSIS.md), this registry is the ONLY
+  // place either concept is encoded -- js/sales.js and js/executive.js
+  // call resolveScenario() rather than re-implementing the CHC exception
+  // or hardcoding TargetIndex anywhere else. `TargetIndex` itself is
+  // never exposed in the UI; only the labels below are.
+  //
+  // "Working Target" is a deliberate placeholder label (business owner
+  // confirmation of TargetIndex=0's true meaning is still pending) --
+  // NOT "Buffer": the real data shows Working >= Official for every line
+  // that has both (100%-174%), the opposite of what "buffer" implies.
+  // Do not rename this without an explicit decision (see proposal §3/§13).
+  var TARGET_SCENARIOS = {
+    official: { index: 1, label: "Official Target", isDefault: true },
+    working:  { index: 0, label: "Working Target", isDefault: false }
+  };
+  var DEFAULT_SCENARIO = "official";
+
+  // CHC and CHC_SALES have no real Working Target (confirmed by direct
+  // data audit, 2026-08-03): the annual source file's TargetIndex=0 rows
+  // for these two lines sum to zero/don't exist at all -- only June
+  // carries an incidental value nearly identical to Official. Any request
+  // for a non-official scenario against these two lines silently falls
+  // back to Official (see resolveScenario() below) rather than showing a
+  // blank/zero/NaN figure.
+  var CHC_SINGLE_SCENARIO_LINES = ["CHC", "CHC_SALES"];
+
+  function isValidScenario(key) {
+    return TARGET_SCENARIOS.hasOwnProperty(key);
+  }
+
+  function isChcSingleScenarioLine(rawLine) {
+    var canon = normalizeLine(rawLine);
+    return CHC_SINGLE_SCENARIO_LINES.indexOf(canon) >= 0;
+  }
+
+  /**
+   * THE single entry point for target-scenario resolution platform-wide.
+   * Given a raw line/BU name and the scenario the signed-in user has
+   * requested (or their role default), returns which scenario should
+   * ACTUALLY be used to aggregate that line's target rows, plus whether
+   * a fallback occurred (so callers can surface an inline "Official
+   * Target shown -- no Working Target for this line" note instead of a
+   * silent, unexplained number).
+   *
+   * Deliberately takes a LINE (or BU name -- CHC as a BU name resolves
+   * identically to CHC as a line name), not a whole filter/context
+   * object: callers that aggregate multiple lines in one pass (e.g.
+   * getBusinessSummary's per-BU loop, which blends CHC and CHC_SALES
+   * rows under BU "CHC") must resolve PER ROW'S LINE, since CHC's
+   * fallback must apply even when the rest of the same aggregation call
+   * (DIAB/GIT/Cluster lines) honors the requested scenario normally.
+   * See buildLineScenarioMap() in js/sales.js for the perf-conscious
+   * per-call precomputation pattern built on top of this function.
+   */
+  function resolveScenario(rawLine, requestedScenario) {
+    var requested = isValidScenario(requestedScenario) ? requestedScenario : DEFAULT_SCENARIO;
+    if (requested !== "official" && isChcSingleScenarioLine(rawLine)) {
+      return { scenario: "official", requestedScenario: requested, isFallback: true };
+    }
+    return { scenario: requested, requestedScenario: requested, isFallback: false };
+  }
+
   global.SEMANTIC = {
     BU_LIST: BU_LIST,
     BU_META: BU_META,
@@ -222,6 +290,12 @@
     classifyLine: classifyLine,
     normalizeLine: normalizeLine,
     isInScope: isInScope,
-    groupByBU: groupByBU
+    groupByBU: groupByBU,
+    TARGET_SCENARIOS: TARGET_SCENARIOS,
+    DEFAULT_SCENARIO: DEFAULT_SCENARIO,
+    CHC_SINGLE_SCENARIO_LINES: CHC_SINGLE_SCENARIO_LINES,
+    isValidScenario: isValidScenario,
+    isChcSingleScenarioLine: isChcSingleScenarioLine,
+    resolveScenario: resolveScenario
   };
 })(window);

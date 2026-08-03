@@ -104,7 +104,96 @@
 
   function logout() {
     localStorage.removeItem(SESSION_KEY);
+    try { sessionStorage.removeItem(ACTIVE_SCENARIO_KEY); } catch (e) {}
     location.reload();
+  }
+
+  /**
+   * TARGET SCENARIO ENTITLEMENT (2026-08-04)
+   * -----------------------------------------------------------------
+   * Confirmed by Ahmed (TARGET_SCENARIO_DEPENDENCY_ANALYSIS.md §10):
+   * executives/managers default to Official Target and may switch to
+   * Working Target to compare; Line Managers are locked to Working
+   * Target and must never see Official. Any role not explicitly listed
+   * here -- including any future role added to
+   * Zeta_Dashboard_User_Config.xlsx's Users sheet before this table is
+   * updated for it -- falls back to the safest behavior: Official
+   * Target, no toggle. This table never silently grants Working-Target
+   * visibility to a role it doesn't recognize.
+   *
+   * IMPORTANT: this module only holds the user's CURRENT UI SELECTION
+   * (what they clicked in the scenario selector). It is never read
+   * directly by any target-aggregation function -- js/sales.js and
+   * js/executive.js read getActiveScenario() ONCE at the top of a
+   * render/card-build pass and pass the result down as an explicit
+   * `scenario` parameter through the whole call chain, per Ahmed's
+   * explicit requirement that scenario resolution stay deterministic
+   * and free of ambient/global reads inside the semantic layer itself
+   * (so the existing per-argument memoization cache in js/sales.js
+   * stays correct -- see that file's heavyFns wrapper).
+   */
+  var SCENARIO_ROLE_CONFIG = {
+    "CEO":                  { canToggleScenario: true,  defaultScenario: "official" },
+    "VP":                   { canToggleScenario: true,  defaultScenario: "official" },
+    "Commercial Director":  { canToggleScenario: true,  defaultScenario: "official" },
+    "BEX":                  { canToggleScenario: true,  defaultScenario: "official" },
+    "SFE Manager":          { canToggleScenario: true,  defaultScenario: "official" },
+    "Admin":                { canToggleScenario: true,  defaultScenario: "official" },
+    "BU Manager":           { canToggleScenario: true,  defaultScenario: "official" },
+    "Line Manager":         { canToggleScenario: false, defaultScenario: "working" },
+    // Not explicitly covered by Ahmed's 2026-08-04 decision list (which
+    // named CEO/VP/Commercial Director/BEX/SFE Manager/Admin/BU
+    // Manager/Line Manager) but IS a real, currently-active role in the
+    // live user roster -- given the safest fallback (Official, no
+    // toggle, identical to pre-feature behavior) rather than left
+    // undefined. Flag to Ahmed for explicit confirmation.
+    "Marketing Consultant": { canToggleScenario: false, defaultScenario: "official" }
+  };
+  var SCENARIO_ROLE_FALLBACK = { canToggleScenario: false, defaultScenario: "official" };
+  var ACTIVE_SCENARIO_KEY = "zeta_active_scenario";
+
+  function getScenarioConfig() {
+    var u = getValidSessionUser();
+    if (!u) return SCENARIO_ROLE_FALLBACK;
+    return SCENARIO_ROLE_CONFIG.hasOwnProperty(u.role) ? SCENARIO_ROLE_CONFIG[u.role] : SCENARIO_ROLE_FALLBACK;
+  }
+
+  /** Whether the signed-in user is allowed to see a scenario selector
+   * control at all. Roles without this render no selector -- not a
+   * disabled one -- so a locked role's UI never implies a choice exists. */
+  function canToggleScenario() {
+    return getScenarioConfig().canToggleScenario;
+  }
+
+  /**
+   * Current scenario for the signed-in user: their own locked default
+   * unless they're toggle-capable AND have made an explicit in-session
+   * choice. Uses sessionStorage (not localStorage) deliberately --
+   * scenario is a working-session lens on the data, not a saved account
+   * preference, so it resets on a fresh sign-in or a new tab rather than
+   * silently persisting across logins.
+   */
+  function getActiveScenario() {
+    var cfg = getScenarioConfig();
+    if (!cfg.canToggleScenario) return cfg.defaultScenario;
+    try {
+      var stored = sessionStorage.getItem(ACTIVE_SCENARIO_KEY);
+      if (stored && global.SEMANTIC && global.SEMANTIC.isValidScenario(stored)) return stored;
+    } catch (e) {}
+    return cfg.defaultScenario;
+  }
+
+  /** Set the active scenario for this browser session. Re-checks
+   * canToggleScenario() itself (not just trusting the UI not to call it)
+   * so a locked role can never end up with a Working-Target session
+   * value even via a stray call. Returns false (no-op) if disallowed or
+   * the scenario key isn't a real one from SEMANTIC.TARGET_SCENARIOS. */
+  function setActiveScenario(scenario) {
+    var cfg = getScenarioConfig();
+    if (!cfg.canToggleScenario) return false;
+    if (!global.SEMANTIC || !global.SEMANTIC.isValidScenario(scenario)) return false;
+    try { sessionStorage.setItem(ACTIVE_SCENARIO_KEY, scenario); } catch (e) {}
+    return true;
   }
 
   /**
@@ -178,6 +267,9 @@
     isBuAllowed: isBuAllowed,
     isLineAllowed: isLineAllowed,
     filterAllowedBUs: filterAllowedBUs,
-    filterAllowedLines: filterAllowedLines
+    filterAllowedLines: filterAllowedLines,
+    canToggleScenario: canToggleScenario,
+    getActiveScenario: getActiveScenario,
+    setActiveScenario: setActiveScenario
   };
 })(window);

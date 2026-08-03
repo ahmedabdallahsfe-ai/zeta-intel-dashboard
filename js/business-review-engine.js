@@ -22,6 +22,22 @@
  * i.e. the caller collects the four standardized business objects once;
  * this engine only ever reads through that, never through any module's
  * internals -- same module-boundary rule as the interfaces themselves.
+ *
+ * TARGET SCENARIO GOVERNANCE PIN (2026-08-04, Ahmed's explicit decision):
+ * `summaries.sales` MUST be built with SalesDashboard.getBusinessSummary
+ * ("official") -- i.e. Official Target -- REGARDLESS of whatever
+ * scenario the signed-in user currently has toggled on the Executive
+ * Command Center or Sales Performance page. Business Review is a board/
+ * executive governance document; it must never silently show Working
+ * Target figures because someone else's browser tab happened to be
+ * toggled when this ran. Do not build `summaries` for this engine with
+ * js/executive.js's collectSummaries() (which deliberately reads the
+ * user's active scenario) -- use collectSummariesPinnedOfficial() on
+ * window.ExecutiveDashboard instead, which exists specifically for this.
+ * This engine has no live caller in dashboard.html yet (see
+ * PLATFORM_ROADMAP.md) -- this note is here so the correct integration
+ * is the path of least resistance whenever one is built, not something
+ * that has to be independently rediscovered.
  * =====================================================================
  */
 

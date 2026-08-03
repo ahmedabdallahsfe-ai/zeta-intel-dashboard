@@ -164,7 +164,7 @@
        workspace module. Must load after cache/iqvia.data.js (reads
        IQVIA_CACHE.users) and before js/app.js (the boot sequence gates
        on it first). See js/auth.js for the full rationale. -->
-  <script defer src="js/auth.js?v=20260729_rolescope"></script>
+  <script defer src="js/auth.js?v=20260804_targetscenario"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script defer src="js/config.js?v=20260725_v2"></script>
@@ -175,7 +175,7 @@
 
   <!-- Enterprise semantic layer (Phase 4-lite): Line -> Business Unit crosswalk.
        Self-contained (no cache dependency) -- shared by every getBusinessSummary(). -->
-  <script defer src="js/semantic-model.js?v=20260727_chc2lines"></script>
+  <script defer src="js/semantic-model.js?v=20260804_targetscenario"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
@@ -203,7 +203,7 @@
        v20260728_clustermix = SUBTYPE_TO_CLUSTER map + getCustomerClusterMix()
        added for the Customer Channel Mix KPI card (cluster-then-sub_type
        drill -- see sales_subtypes.xlsx for the clustering source of truth). -->
-  <script defer src="js/sales.js?v=20260803_skupenetration_linescope"></script>
+  <script defer src="js/sales.js?v=20260804_targetscenario_fix2"></script>
   <script defer src="js/iqvia.js?v=20260803_dm1dm2line"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
@@ -215,7 +215,7 @@
        (not individual-customer) granularity, by the Customer Channel Mix
        card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
   <script defer src="cache/tms_ims.data.js"></script>
-  <script defer src="js/executive.js?v=20260804_chcmirrorfix"></script>
+  <script defer src="js/executive.js?v=20260804_targetscenario_fix2"></script>
 
 
   <script defer src="js/app.js?v=20260803_visitedmonths"></script>

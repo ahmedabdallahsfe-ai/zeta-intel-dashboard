@@ -87,7 +87,40 @@
 
   function collectSummaries() {
     return {
-      sales: safeCall("sales", "SalesDashboard", "getBusinessSummary"),
+      // Target Scenario (2026-08-04): _filters.scenario isn't seeded yet
+      // the very first time this runs (collectSummaries() is called while
+      // building ctx, before clampFiltersToScope() -- see init()), so
+      // this reads AUTH directly rather than via activeScenario() (which
+      // is defined below _filters but that's not the ordering issue here;
+      // this is just the one call site that predates ctx existing at all).
+      sales: safeCall("sales", "SalesDashboard", "getBusinessSummary", _filters.scenario || (global.AUTH && global.AUTH.getActiveScenario())),
+      coverage: safeCall("coverage", "CoverageDashboard", "getBusinessSummary"),
+      sfe: safeCall("sfe", "SFEDashboard", "getBusinessSummary"),
+      iqvia: safeCall("iqvia", "IQVIADashboard", "getBusinessSummary"),
+    };
+  }
+
+  /**
+   * Target Scenario (2026-08-04) -- Business Review governance pin.
+   * Ahmed's explicit decision: the Business Review workspace (board/
+   * executive reporting, js/business-review-engine.js) must ALWAYS use
+   * Official Target, regardless of whatever scenario the signed-in
+   * user currently has toggled on the Executive Command Center or Sales
+   * Performance page. collectSummaries() above intentionally reads the
+   * user's active scenario -- do NOT reuse it for Business Review.
+   *
+   * business-review-engine.js's input contract takes an opaque
+   * `summaries` object (see that file's header) and never calls
+   * SalesDashboard itself, so pinning happens at the collection point --
+   * this function is that point. Not currently wired to a live page
+   * (business-review-engine.js has no consumer yet in dashboard.html),
+   * but exported now so the correct, safe entry point already exists
+   * the moment that integration is built -- the alternative is relying
+   * on whoever writes that integration to remember this rule.
+   */
+  function collectSummariesPinnedOfficial() {
+    return {
+      sales: safeCall("sales", "SalesDashboard", "getBusinessSummary", "official"),
       coverage: safeCall("coverage", "CoverageDashboard", "getBusinessSummary"),
       sfe: safeCall("sfe", "SFEDashboard", "getBusinessSummary"),
       iqvia: safeCall("iqvia", "IQVIADashboard", "getBusinessSummary"),
@@ -191,11 +224,17 @@
   // the identical Non-Tender methodology -- flagged to the user, not
   // silently assumed, since only Sales Achievement was explicitly
   // confirmed.
+  // Target Scenario (2026-08-04): each of these 3 corporate benchmarks
+  // feeds the "vs Corporate" reference row on the SAME card that shows
+  // the scenario-scoped BU/line figure -- must resolve the identical
+  // scenario, via activeScenario(), or a Working-Target card view would
+  // silently compare itself against an Official-Target corporate number.
   function corporateSalesAchievementPct() {
     let actual = 0, target = 0, any = false;
+    const scenario = activeScenario();
     global.SEMANTIC.BU_LIST.forEach(b => {
       const line = (b === "CHC") ? "CHC" : null; // exclude CHC_SALES
-      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, line);
+      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, line, undefined, scenario);
       if (s && s.ok) { actual += s.actualYTD; target += s.targetYTD; any = true; }
     });
     return (any && target > 0) ? (actual / target) * 100 : null;
@@ -203,9 +242,10 @@
 
   function corporateSalesValueAchievementPct() {
     let actual = 0, target = 0, any = false;
+    const scenario = activeScenario();
     global.SEMANTIC.BU_LIST.forEach(b => {
       const line = (b === "CHC") ? "CHC" : "All"; // exclude CHC_SALES, same convention as corporateSalesAchievementPct()
-      const t = nonTenderTotals(b, line);
+      const t = nonTenderTotals(b, line, undefined, scenario);
       if (t) { actual += t.actualValue; target += t.targetValue; any = true; }
     });
     return (any && target > 0) ? (actual / target) * 100 : null;
@@ -213,9 +253,10 @@
 
   function corporateSalesUnitsAchievementPct() {
     let actual = 0, target = 0, any = false;
+    const scenario = activeScenario();
     global.SEMANTIC.BU_LIST.forEach(b => {
       const line = (b === "CHC") ? "CHC" : "All"; // exclude CHC_SALES, same convention as corporateSalesValueAchievementPct()
-      const t = nonTenderUnitsTotals(b, line);
+      const t = nonTenderUnitsTotals(b, line, undefined, scenario);
       if (t) { actual += t.actualQty; target += t.targetQty; any = true; }
     });
     return (any && target > 0) ? (actual / target) * 100 : null;
@@ -287,7 +328,7 @@
   function salesAchievementReferenceEntry(bu, line) {
     const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
     if (isLineMgr || (line && line !== "All")) {
-      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, null, true);
+      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, null, true, activeScenario());
       const v = (s && s.ok) ? s.achievementPct : null;
       return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
@@ -340,7 +381,7 @@
   // ---------------------------------------------------------------------
   // Filter state + BU line lists.
   // ---------------------------------------------------------------------
-  let _filters = { bu: "CHC", line: "All" }; // re-clamped to the signed-in user's scope in init(), see clampFiltersToScope()
+  let _filters = { bu: "CHC", line: "All", scenario: "official" }; // re-clamped to the signed-in user's scope/role in init(), see clampFiltersToScope()
   // Local Period state for the Line Performance section ONLY (2026-07-29)
   // -- NOT the platform-wide Period selector in the global filter bar,
   // which stays disabled since Coverage/SFE have no month dimension to
@@ -410,6 +451,41 @@
       const allowedLines = getAllowedLinesForBU(_filters.bu);
       if (allowedLines.indexOf(_filters.line) < 0) _filters.line = "All";
     }
+    // Target Scenario (2026-08-04): seed from the signed-in user's role
+    // default / in-session choice, same convention as sales.js's
+    // STATE.scenario seeding in init(). Re-run every time init() runs
+    // (not just once at script load) so a freshly signed-in user, or one
+    // whose role has no toggle rights, never inherits a stale scenario
+    // from a previous session's module state.
+    if (global.AUTH && typeof global.AUTH.getActiveScenario === "function") {
+      _filters.scenario = global.AUTH.getActiveScenario();
+    }
+  }
+
+  /** Target Scenario (2026-08-04): single read point, explicitly passed
+   * as a real argument at every safeCall("sales", "SalesDashboard", ...)
+   * site below -- never left implicit -- so it participates in that
+   * module's own per-argument memoization key, exactly like this file's
+   * existing ctx.filters.bu/line convention. */
+  function activeScenario() {
+    return _filters.scenario || (global.AUTH && typeof global.AUTH.getActiveScenario === "function" ? global.AUTH.getActiveScenario() : "official");
+  }
+
+  /** Target Scenario CHC fallback note (2026-08-04): CHC/CHC_SALES have
+   * no real Working Target (js/semantic-model.js's resolveScenario()
+   * silently substitutes Official for these two lines at the data
+   * layer) -- this returns the small informational string the CHC
+   * exception's approved design calls for ("automatic fallback with a
+   * small informational message. No broken KPIs, blank charts, or
+   * special UI"), or "" when it doesn't apply, so callers can always
+   * just concatenate it onto an existing basisNote/scope string. Checks
+   * the BU/line SEMANTIC name, not the raw filter value, so it fires
+   * correctly whether the card is scoped to CHC as a BU or to
+   * CHC/CHC_SALES as a specific line. */
+  function scenarioFallbackNote(buOrLine) {
+    if (activeScenario() === "official") return "";
+    if (!buOrLine || !global.SEMANTIC || !global.SEMANTIC.isChcSingleScenarioLine(buOrLine)) return "";
+    return " Showing Official Target -- no Working Target is defined for " + buOrLine + ".";
   }
 
   // ---------------------------------------------------------------------
@@ -538,7 +614,7 @@
     const bu = filters.bu, line = filters.line;
     // CHC Exception: use "CHC" line when BU is CHC and line is "All" or null
     const targetLine = (bu === "CHC" && (line === "All" || !line)) ? "CHC" : (line === "All" ? null : line);
-    const scoped = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLine);
+    const scoped = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLine, undefined, activeScenario());
     if (!scoped || !scoped.ok) return unavailableCard("salesAchievement", "Sales Achievement", scoped ? scoped.status : "module_unavailable");
 
     let rankInfo, rankUnit;
@@ -547,7 +623,7 @@
       const vals = {};
       getAllowedBUList().forEach(b => {
         const targetBLine = (b === "CHC") ? "CHC" : null;
-        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, targetBLine);
+        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, targetBLine, undefined, activeScenario());
         vals[b] = (s && s.ok) ? s.achievementPct : null;
       });
       rankInfo = rank(vals, "desc")[bu];
@@ -556,7 +632,7 @@
       const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
-        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, l);
+        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, l, undefined, activeScenario());
         vals[l] = (s && s.ok) ? s.achievementPct : null;
       });
       const rankKey = activeLine || line;
@@ -593,13 +669,13 @@
   // gives the exact BU-level Non-Tender total with no separate
   // calculation to maintain or drift out of sync.
   // ---------------------------------------------------------------------
-  function nonTenderTotals(bu, line, ignoreLineAuth) {
+  function nonTenderTotals(bu, line, ignoreLineAuth, scenario) {
     const targetLine = (bu === "CHC" && (line === "All" || !line)) ? "CHC" : (line === "All" ? null : line);
-    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, targetLine, ignoreLineAuth);
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, targetLine, ignoreLineAuth, scenario || activeScenario());
     if (!data || !data.ok) return null;
     let actualValue = 0, targetValue = 0;
     data.brands.forEach(b => { actualValue += b.actualValue; targetValue += b.targetValue; });
-    return { actualValue: actualValue, targetValue: targetValue, achievementPct: targetValue > 0 ? (actualValue / targetValue) * 100 : null };
+    return { actualValue: actualValue, targetValue: targetValue, achievementPct: targetValue > 0 ? (actualValue / targetValue) * 100 : null, scenario: data.scenario };
   }
 
   // ---------------------------------------------------------------------
@@ -614,13 +690,13 @@
   // actualValue/targetValue, so it can never drift out of sync with the
   // Value card's underlying row set.
   // ---------------------------------------------------------------------
-  function nonTenderUnitsTotals(bu, line, ignoreLineAuth) {
+  function nonTenderUnitsTotals(bu, line, ignoreLineAuth, scenario) {
     const targetLine = (bu === "CHC" && (line === "All" || !line)) ? "CHC" : (line === "All" ? null : line);
-    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, targetLine, ignoreLineAuth);
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, targetLine, ignoreLineAuth, scenario || activeScenario());
     if (!data || !data.ok) return null;
     let actualQty = 0, targetQty = 0;
     data.brands.forEach(b => { actualQty += b.actualQty; targetQty += b.targetQty; });
-    return { actualQty: actualQty, targetQty: targetQty, achievementPct: targetQty > 0 ? (actualQty / targetQty) * 100 : null };
+    return { actualQty: actualQty, targetQty: targetQty, achievementPct: targetQty > 0 ? (actualQty / targetQty) * 100 : null, scenario: data.scenario };
   }
 
   function buildSalesValueCard(filters) {
@@ -1066,7 +1142,7 @@
       // the denominator, since both lines' reps are deployed CHC BU
       // workforce regardless of which line's revenue is being measured.
       if (bu === "CHC") {
-        const chcLineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", "CHC", null, true);
+        const chcLineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", "CHC", null, true, activeScenario());
         const chcHeadcount = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", "CHC", null, true);
         const chcLineOnly = (chcLineData && chcLineData.ok) ? chcLineData.lines.find(l => l.name === "CHC") : null;
         const combinedPositions = (chcHeadcount && chcHeadcount.ok) ? chcHeadcount.headcountTotal : null;
@@ -1082,10 +1158,11 @@
       rankUnit = "Business Units";
       targetPerPosition = (thisBuPositions && thisBuPositions > 0) ? thisBuTargetYTD / thisBuPositions : null;
       basisNote = "Target = " + bu + "'s assigned sales target ÷ deployed positions. All-transaction basis."
-        + (bu === "CHC" ? " CHC figure uses CHC line's own actual/target ÷ CHC+CHC_SALES combined planned positions (49) -- the two lines mirror each other, see 2026-08-04 note." : "");
+        + (bu === "CHC" ? " CHC figure uses CHC line's own actual/target ÷ CHC+CHC_SALES combined planned positions (49) -- the two lines mirror each other, see 2026-08-04 note." : "")
+        + scenarioFallbackNote(bu);
     } else {
       const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
-      const lineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, null, isLineMgr || activeLine || line !== "All");
+      const lineData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, null, isLineMgr || activeLine || line !== "All", activeScenario());
       if (!lineData || !lineData.ok) {
         return unavailableCard("salesProductivity", "Sales Productivity", lineData ? lineData.status : "module_unavailable");
       }
@@ -1138,7 +1215,8 @@
         rankInfo = rank(perLine, "desc")[rankKey];
         rankUnit = "Lines within " + bu;
       }
-      basisNote = (isWholeBuView ? "Target = " + bu + "'s" : "Target = " + activeLine + "'s") + " assigned sales target ÷ deployed positions. Non-Tender basis (differs from the platform-wide 'All' view, which is all-transaction).";
+      basisNote = (isWholeBuView ? "Target = " + bu + "'s" : "Target = " + activeLine + "'s") + " assigned sales target ÷ deployed positions. Non-Tender basis (differs from the platform-wide 'All' view, which is all-transaction)."
+        + scenarioFallbackNote(isWholeBuView ? bu : activeLine);
     }
 
     const achievementPct = (val !== null && targetPerPosition) ? (val / targetPerPosition) * 100 : null;
@@ -1617,6 +1695,7 @@
   // "CHC_SALES"), which is expected.
   // ---------------------------------------------------------------------
   function buildLinePerformanceTable(bu, line, months) {
+    const scenario = activeScenario();
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
 
     if (activeLine) {
@@ -1628,7 +1707,7 @@
 
       const allDms = [...new Set(sfeDms)];
 
-      const salesData = safeCall("sales", "SalesDashboard", "getDmSalesSummary", bu, activeLine, months);
+      const salesData = safeCall("sales", "SalesDashboard", "getDmSalesSummary", bu, activeLine, months, scenario);
       const salesByDm = new Map();
       let totalSalesValue = 0;
       if (salesData && salesData.ok) {
@@ -1666,7 +1745,7 @@
       return { ok: true, bu: bu, scope: (salesData && salesData.ok) ? salesData.scope : null, rows: rows };
     } else {
       const covProbe = safeCall("coverage", "CoverageDashboard", "getLineAndTerritoryBreakdown", bu);
-      const salesData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, months);
+      const salesData = safeCall("sales", "SalesDashboard", "getLineSalesSummary", bu, months, undefined, scenario);
       if (!covProbe || !covProbe.ok) return { ok: false, status: covProbe ? covProbe.status : "module_unavailable" };
 
       const salesByLine = new Map();
@@ -1749,7 +1828,7 @@
   }
 
   function openBrandAchievementModal(bu, line) {
-    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, line && line !== "All" ? line : null);
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, line && line !== "All" ? line : null, undefined, activeScenario());
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     if (!data || !data.ok || !data.brands.length) {
       global.DS.openModal({ title: bu + " — Brand Achievement", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
@@ -1766,8 +1845,8 @@
       rows: rows,
     });
     const note = bu === "CHC"
-      ? `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Click a brand row for Item-level detail (CHC only).</div>`
-      : `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.</div>`;
+      ? `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Click a brand row for Item-level detail (CHC only).${escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>`
+      : `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.${escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>`;
     global.DS.openModal({ title: bu + " — Brand Achievement", bodyHtml: note + table });
 
     if (bu === "CHC") {
@@ -1786,7 +1865,7 @@
   }
 
   function openItemAchievementModal(bu, brandName) {
-    const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, brandName);
+    const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, brandName, undefined, activeScenario());
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     if (!data || !data.ok || !data.items.length) {
       global.DS.openModal({ title: bu + " — " + brandName + " — Item Detail", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No item-level data available.</div>" });
@@ -1801,7 +1880,7 @@
       ],
       rows: data.items,
     });
-    global.DS.openModal({ title: bu + " — " + brandName + " — Item Detail", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.</div>` + table });
+    global.DS.openModal({ title: bu + " — " + brandName + " — Item Detail", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.${escapeAttr(scenarioFallbackNote(bu))}</div>` + table });
   }
 
   // Sales Value card's popup (2026-07-27): Value + Units + Target +
@@ -1822,26 +1901,27 @@
       { key: "contributionPct", label: "Contribution %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
     ];
 
+    const scenario = activeScenario();
     if (bu === "CHC") {
-      const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, null, scopedLine);
+      const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, null, scopedLine, scenario);
       columns[0].label = "Item (SKU)";
       if (!data || !data.ok || !data.items.length) {
         global.DS.openModal({ title: bu + " — Sales Value by Item", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No item-level data available.</div>" });
         return;
       }
       const table = global.DS.table({ columns: columns, rows: data.items });
-      global.DS.openModal({ title: bu + " — Sales Value by Item", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. CHC shows items directly (no brand grouping).</div>` + table });
+      global.DS.openModal({ title: bu + " — Sales Value by Item", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. CHC shows items directly (no brand grouping).${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
       return;
     }
 
-    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine);
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine, undefined, scenario);
     columns[0].label = "Brand";
     if (!data || !data.ok || !data.brands.length) {
       global.DS.openModal({ title: bu + " — Sales Value by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
       return;
     }
     const table = global.DS.table({ columns: columns, rows: data.brands });
-    global.DS.openModal({ title: bu + " — Sales Value by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.</div>` + table });
+    global.DS.openModal({ title: bu + " — Sales Value by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
   }
 
   // Sales Units Achievement card's popup (2026-08-02, "popup show brand
@@ -1873,26 +1953,27 @@
       unitsAchievementPct: r.targetQty > 0 ? (r.actualQty / r.targetQty) * 100 : null,
     }));
 
+    const scenario = activeScenario();
     if (bu === "CHC") {
-      const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, null, scopedLine);
+      const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, null, scopedLine, scenario);
       columns[0].label = "Item (SKU)";
       if (!data || !data.ok || !data.items.length) {
         global.DS.openModal({ title: bu + " — Sales Units by Item", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No item-level data available.</div>" });
         return;
       }
       const table = global.DS.table({ columns: columns, rows: withUnitsAchievement(data.items) });
-      global.DS.openModal({ title: bu + " — Sales Units by Item", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis. CHC shows items directly (no brand grouping).</div>` + table });
+      global.DS.openModal({ title: bu + " — Sales Units by Item", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis. CHC shows items directly (no brand grouping).${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
       return;
     }
 
-    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine);
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine, undefined, scenario);
     columns[0].label = "Brand";
     if (!data || !data.ok || !data.brands.length) {
       global.DS.openModal({ title: bu + " — Sales Units by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
       return;
     }
     const table = global.DS.table({ columns: columns, rows: withUnitsAchievement(data.brands) });
-    global.DS.openModal({ title: bu + " — Sales Units by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis.</div>` + table });
+    global.DS.openModal({ title: bu + " — Sales Units by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis.${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
   }
 
   // Customer Channel Mix modal (2026-07-28) -- cluster-level table,
@@ -1937,7 +2018,7 @@
     const reps = safeCall("coverage", "CoverageDashboard", "getDmRepsList", bu, line, dmName) || [];
     const posMap = safeCall("sales", "SalesDashboard", "getRepPositionsMap") || {};
     const monthsParam = _linePerfMonths === "all" ? null : _linePerfMonths;
-    const salesMap = safeCall("sales", "SalesDashboard", "getDmRepsSalesSummary", bu, line, dmName, monthsParam) || {};
+    const salesMap = safeCall("sales", "SalesDashboard", "getDmRepsSalesSummary", bu, line, dmName, monthsParam, activeScenario()) || {};
 
     if (!reps.length) {
       global.DS.openModal({
@@ -2391,6 +2472,45 @@
     wrap.appendChild(periodSelect);
     wrap.appendChild(cmpSelect);
 
+    // Target Scenario (2026-08-04): role-gated, same convention as the
+    // Sales Performance page's own selector (js/sales.js renderLayout).
+    // Roles without canToggleScenario() rights get no <select> at all --
+    // not a disabled one -- so their UI never implies a choice exists;
+    // they still see their current basis as a plain read-only label so
+    // nobody is left guessing what number is on screen.
+    const canToggleScenario = !!(global.AUTH && typeof global.AUTH.canToggleScenario === "function" && global.AUTH.canToggleScenario());
+    const scenarioMeta = (global.SEMANTIC && global.SEMANTIC.TARGET_SCENARIOS[ctx.filters.scenario]) || { label: "Official Target" };
+    // 2026-08-04 same-day fix: mirrors the note added to the Sales
+    // Performance page's own selector -- while the cache hasn't been
+    // refreshed under v3 yet, Official and Working both read identical
+    // (Official) data (see sales.js's scenarioSchemaAvailable() /
+    // includeTargetRow()). Surface that here too rather than let a
+    // toggle that isn't differentiating anything yet look broken.
+    const scenarioDataReady = !!(global.SalesDashboard && typeof global.SalesDashboard.isScenarioDataAvailable === "function" && global.SalesDashboard.isScenarioDataAvailable());
+    if (canToggleScenario) {
+      const scenarioOptions = Object.keys(global.SEMANTIC.TARGET_SCENARIOS).map(key => ({ value: key, label: global.SEMANTIC.TARGET_SCENARIOS[key].label }));
+      const scenarioSelect = global.DS.select({ id: "exec-filter-scenario", label: "Target Basis", options: scenarioOptions, value: ctx.filters.scenario });
+      if (!scenarioDataReady) {
+        const note = document.createElement("div");
+        note.style.cssText = "font-size:9px;color:#b45309;margin-top:3px;max-width:170px;line-height:1.35;";
+        note.textContent = "Working Target activates after the next cache refresh";
+        scenarioSelect.appendChild(note);
+      }
+      wrap.appendChild(scenarioSelect);
+      scenarioSelect.querySelector("select").addEventListener("change", (e) => {
+        if (global.AUTH && global.AUTH.setActiveScenario(e.target.value)) {
+          ctx.filters.scenario = e.target.value;
+          render(ctx.container);
+        }
+      });
+    } else {
+      const scenarioLabel = document.createElement("div");
+      scenarioLabel.className = "ds-select-wrap";
+      scenarioLabel.innerHTML = `<label class="ds-select-label">Target Basis</label><div style="font-size:13px;font-weight:700;color:var(--color-text-primary,#0F172A);padding:6px 0;">${scenarioMeta.label}</div>`
+        + (!scenarioDataReady ? `<div style="font-size:9px;color:#b45309;margin-top:3px;max-width:170px;line-height:1.35;">Working Target activates after the next cache refresh</div>` : '');
+      wrap.appendChild(scenarioLabel);
+    }
+
     buSelect.querySelector("select").addEventListener("change", (e) => {
       ctx.filters.bu = e.target.value;
       ctx.filters.line = "All"; // Line is BU-dependent -- reset on BU change
@@ -2524,7 +2644,7 @@
     }
 
     const table = global.DS.table({ columns: lpColumns, rows: data.rows });
-    const scopeNote = data.scope ? `<div style="font-size:var(--fs-xs,12px);color:var(--color-text-tertiary,#94A3B8);margin-bottom:var(--space-2,8px);">Sales figures: ${escapeAttr(data.scope)}. Contribution % = share of ${escapeAttr(ctx.filters.bu)}'s total Sales Value.</div>` : "";
+    const scopeNote = data.scope ? `<div style="font-size:var(--fs-xs,12px);color:var(--color-text-tertiary,#94A3B8);margin-bottom:var(--space-2,8px);">Sales figures: ${escapeAttr(data.scope)}. Contribution % = share of ${escapeAttr(ctx.filters.bu)}'s total Sales Value.${escapeAttr(scenarioFallbackNote(activeLine || ctx.filters.bu))}</div>` : "";
     const bodyWrap = document.createElement("div");
     bodyWrap.innerHTML = scopeNote + table;
     if (activeLine) {
@@ -2599,6 +2719,11 @@
     },
     destroy() {
       document.body.classList.remove("executive-mode");
-    }
+    },
+    // Target Scenario governance pin (2026-08-04) -- see the function's
+    // own doc comment above. Any future Business Review integration
+    // should call this, not collectSummaries()/getActiveScenario(), to
+    // guarantee Official Target regardless of the user's dashboard toggle.
+    collectSummariesPinnedOfficial: collectSummariesPinnedOfficial
   };
 })(window);
