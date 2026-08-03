@@ -1,0 +1,5 @@
+
+[1-2/5] Loading + aggregating Sales workbook (chunked/resumable, SQLite-backed)...
+  Progress: main 620,000 rows done (complete=False), june 0 rows done (complete=False), june_tgt 0 rows done (complete=False)
+    Sheet fetched: D:\2026\ZETA_INTEL_DASHBOARD\CoverageDashboard\TOTAL_SALES_2026.xlsx (34.9s)
+^C
