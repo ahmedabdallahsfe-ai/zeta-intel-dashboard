@@ -15,12 +15,6 @@
   const MONTH = 0, LINE = 1, BRAND = 2, PROD = 3, REP = 4, DM = 5, RM = 6, NSM = 7, BUHEAD = 8, CM = 9, REG = 10, BRICK = 11, DIST = 12;
   const CHAIN = 13, MTYPE = 14, STYPE = 15, TXTYPE = 16, MASK = 17;
   const QTY = 18, VAL = 19, TGT_QTY = 20, TGT_VAL = 21, TRANS_QTY = 22, BULK_QTY = 23, NAT_CEIL = 24, REG_CEIL = 25, CUST_COUNT = 26;
-  // Buffer target scenario (TargetIndex=0), added 2026-08-04 alongside the
-  // Official target above (TGT_VAL = TargetIndex=1). Appended after
-  // CUST_COUNT so every existing index is unchanged -- see refresh_sales.py's
-  // matching comment for the ETL side of this. Requires schemaVersion>=3
-  // (REQUIRED_SCHEMA_VERSION below); a v2 cache has no columns 27/28 at all.
-  const TGT_QTY_BUFFER = 27, TGT_VAL_BUFFER = 28;
 
   const COLUMN_TO_LOOKUP = {
     [MONTH]: 'months',
@@ -150,7 +144,7 @@
   // refuses to render (see isCacheStale/renderCachePendingState below) --
   // guards against ever reading an old cache with the corrected hierarchy
   // naming and silently showing wrong BUHEAD/NSM/RM names.
-  const REQUIRED_SCHEMA_VERSION = 3;
+  const REQUIRED_SCHEMA_VERSION = 2;
 
   // True if the loaded cache predates the hierarchy-naming fix (missing
   // meta entirely, wrong/old schemaVersion, or missing the 'cms' lookup
@@ -214,39 +208,6 @@
       const decompressed = pako.ungzip(bytes, { to: 'string' });
       cache = JSON.parse(decompressed);
       decodedRows = cache.rows;
-
-      // Buffer-target columns backfill (2026-08-04): a cache built before
-      // schemaVersion 3 has 27-element rows -- indices 27/28
-      // (TGT_QTY_BUFFER/TGT_VAL_BUFFER) are simply absent, reading back as
-      // `undefined`. isCacheStale()/REQUIRED_SCHEMA_VERSION already stops
-      // the Sales TAB itself from rendering against such a cache, but the
-      // semantic-interface functions below (getBusinessSummary,
-      // getLineSalesSummary, etc.) are called directly by the Executive
-      // Command Center and SFE pages, which have no equivalent gate --
-      // summing `0 += undefined` silently produces NaN, which then leaks
-      // into the RESOLVED (Official) figure too once a NaN buffer value
-      // slips past a null/undefined-only check. Backfilling 0 here, once,
-      // for every row fixes NaN for every downstream consumer instead of
-      // guarding each individual read site.
-      //
-      // That 0 is still a FAKE number, though -- it would make a Buffer-
-      // locked BU/Line Manager see "Target: EGP 0.0M" instead of a
-      // graceful fallback, which is just as misleading as NaN was. The
-      // module-level flag below is the real fix: it tells
-      // SEMANTIC.resolveTarget() (semantic-model.js) that NO buffer
-      // scenario data exists in this cache AT ALL yet, so it should
-      // always fall back to Official regardless of what numeric value a
-      // caller passes as bufferValue -- a global "buffer not available"
-      // switch, not a per-row guess.
-      if (cache && cache.meta && cache.meta.schemaVersion < 3 && Array.isArray(decodedRows)) {
-        decodedRows.forEach(r => {
-          if (r[27] === undefined) r[27] = 0;
-          if (r[28] === undefined) r[28] = 0;
-        });
-        window.SALES_BUFFER_SCENARIO_AVAILABLE = false;
-      } else {
-        window.SALES_BUFFER_SCENARIO_AVAILABLE = true;
-      }
 
       // Fix data anomaly for Mahmoud Mohamed Gharib Farghaly:
       // His raw transactions in sales cache are mistakenly marked under 'DIAB-II' (line index),
@@ -427,8 +388,6 @@
       salesQty: 0.0,
       tgtValue: 0.0,
       tgtQty: 0.0,
-      tgtValueBuffer: 0.0,
-      tgtQtyBuffer: 0.0,
       transferQty: 0.0,
       bulkQty: 0.0,
       natCeiling: 0.0,
@@ -467,8 +426,6 @@
       const val = r[VAL];
       const tqty = r[TGT_QTY];
       const tval = r[TGT_VAL];
-      const tqtyBuf = r[TGT_QTY_BUFFER];
-      const tvalBuf = r[TGT_VAL_BUFFER];
       const tran = r[TRANS_QTY];
       const bulk = r[BULK_QTY];
       const nat = r[NAT_CEIL];
@@ -478,8 +435,6 @@
       res.salesQty += qty;
       res.tgtValue += tval;
       res.tgtQty += tqty;
-      res.tgtValueBuffer += tvalBuf;
-      res.tgtQtyBuffer += tqtyBuf;
       res.transferQty += tran;
       res.bulkQty += bulk;
       res.natCeiling += nat;
@@ -504,13 +459,11 @@
 
       // Monthly aggregation
       const mIdx = r[MONTH];
-      if (!res.monthlyData[mIdx]) res.monthlyData[mIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0, tgtValBuffer: 0, tgtQtyBuffer: 0 };
+      if (!res.monthlyData[mIdx]) res.monthlyData[mIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0 };
       res.monthlyData[mIdx].val += val;
       res.monthlyData[mIdx].qty += qty;
       res.monthlyData[mIdx].tgtVal += tval;
       res.monthlyData[mIdx].tgtQty += tqty;
-      res.monthlyData[mIdx].tgtValBuffer += tvalBuf;
-      res.monthlyData[mIdx].tgtQtyBuffer += tqtyBuf;
 
       // Regional
       // tgtVal/tgtQty added 2026-07-29 (Geography tab redesign attempt),
@@ -555,13 +508,11 @@
       // Brand) was silently always 0/0% regardless of real performance.
       // Fixed to mirror lineData/monthlyData's existing tgtVal pattern below.
       const bIdx = r[BRAND];
-      if (!res.brandData[bIdx]) res.brandData[bIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0, tgtValBuffer: 0, tgtQtyBuffer: 0 };
+      if (!res.brandData[bIdx]) res.brandData[bIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0 };
       res.brandData[bIdx].val += val;
       res.brandData[bIdx].qty += qty;
       res.brandData[bIdx].tgtVal += tval;
       res.brandData[bIdx].tgtQty += tqty;
-      res.brandData[bIdx].tgtValBuffer += tvalBuf;
-      res.brandData[bIdx].tgtQtyBuffer += tqtyBuf;
 
       // Products
       const pIdx = r[PROD];
@@ -583,45 +534,39 @@
 
       // Representatives
       const repIdx = r[REP];
-      if (!res.repData[repIdx]) res.repData[repIdx] = { val: 0, tgtVal: 0, qty: 0, tgtValBuffer: 0 };
+      if (!res.repData[repIdx]) res.repData[repIdx] = { val: 0, tgtVal: 0, qty: 0 };
       res.repData[repIdx].val += val;
       res.repData[repIdx].tgtVal += tval;
       res.repData[repIdx].qty += qty;
-      res.repData[repIdx].tgtValBuffer += tvalBuf;
 
       // Product Lines
       const lnIdx = r[LINE];
-      if (!res.lineData[lnIdx]) res.lineData[lnIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0, tgtValBuffer: 0, tgtQtyBuffer: 0 };
+      if (!res.lineData[lnIdx]) res.lineData[lnIdx] = { val: 0, qty: 0, tgtVal: 0, tgtQty: 0 };
       res.lineData[lnIdx].val    += val;
       res.lineData[lnIdx].qty    += qty;
       res.lineData[lnIdx].tgtVal += tval;
       res.lineData[lnIdx].tgtQty += tqty;
-      res.lineData[lnIdx].tgtValBuffer += tvalBuf;
-      res.lineData[lnIdx].tgtQtyBuffer += tqtyBuf;
 
       // Business Units (BU Head level)
       const buIdx = r[BUHEAD];
-      if (!res.buData[buIdx]) res.buData[buIdx] = { val: 0, qty: 0, tgtVal: 0, tgtValBuffer: 0 };
+      if (!res.buData[buIdx]) res.buData[buIdx] = { val: 0, qty: 0, tgtVal: 0 };
       res.buData[buIdx].val += val;
       res.buData[buIdx].qty += qty;
       res.buData[buIdx].tgtVal += tval;
-      res.buData[buIdx].tgtValBuffer += tvalBuf;
 
       // NSM level
       const nsmIdx = r[NSM];
-      if (!res.nsmData[nsmIdx]) res.nsmData[nsmIdx] = { val: 0, qty: 0, tgtVal: 0, tgtValBuffer: 0 };
+      if (!res.nsmData[nsmIdx]) res.nsmData[nsmIdx] = { val: 0, qty: 0, tgtVal: 0 };
       res.nsmData[nsmIdx].val += val;
       res.nsmData[nsmIdx].qty += qty;
       res.nsmData[nsmIdx].tgtVal += tval;
-      res.nsmData[nsmIdx].tgtValBuffer += tvalBuf;
 
       // DM level
       const dmIdx = r[DM];
-      if (!res.dmData[dmIdx]) res.dmData[dmIdx] = { val: 0, qty: 0, tgtVal: 0, tgtValBuffer: 0 };
+      if (!res.dmData[dmIdx]) res.dmData[dmIdx] = { val: 0, qty: 0, tgtVal: 0 };
       res.dmData[dmIdx].val += val;
       res.dmData[dmIdx].qty += qty;
       res.dmData[dmIdx].tgtVal += tval;
-      res.dmData[dmIdx].tgtValBuffer += tvalBuf;
 
       // Transaction Types
       const txIdx = r[TXTYPE];
@@ -645,28 +590,6 @@
     }
 
     return res;
-  }
-
-  /**
-   * Target Scenario resolution for a flat aggregate total (2026-08-04).
-   * `res.tgtValue`/`res.tgtValueBuffer` mix every line currently in scope
-   * together, so a single resolveTarget() call can't apply the CHC
-   * override correctly if the current filter selection spans CHC plus
-   * other lines. Summing the per-line resolution (res.lineData is already
-   * keyed by line, each carrying its own tgtVal/tgtValBuffer) gives the
-   * exact same total in the common single-BU/single-Line case, and stays
-   * correct in the multi-line case too -- CHC's own contribution is
-   * always forced Official even if the rest of the selection is on Buffer.
-   */
-  function resolveAggregateTarget(res) {
-    if (!cache || !res || !res.lineData) return (res && res.tgtValue) || 0;
-    let total = 0;
-    Object.keys(res.lineData).forEach(lnIdx => {
-      const ld = res.lineData[lnIdx];
-      const lineName = cache.lookups.lines[lnIdx];
-      total += window.SEMANTIC.resolveTarget(lineName, ld.tgtVal, ld.tgtValBuffer);
-    });
-    return total;
   }
 
   // --- Dynamic Searchable Multi-Select Dropdown Helper ---
@@ -846,7 +769,7 @@
   // --- Dynamic Business AI Narrative ---
   function getStrategicNarrative(res) {
     const actual = res.salesValue;
-    const target = resolveAggregateTarget(res);
+    const target = res.tgtValue;
     const ach = target > 0 ? (actual / target) * 100 : 0;
 
     const sortedBrands = Object.entries(res.brandData).map(([idx, val]) => ({
@@ -1101,7 +1024,7 @@
     if (!root) return;
 
     const actual = res.salesValue;
-    const target = resolveAggregateTarget(res);
+    const target = res.tgtValue;
     const ach = target > 0 ? (actual / target) * 100 : 0;
     const achColor = ach >= 95 ? '#15803d' : ach >= 80 ? '#b45309' : '#b91c1c';
     const achBg   = ach >= 95 ? '#f0fdf4' : ach >= 80 ? '#fffbeb' : '#fef2f2';
@@ -1223,14 +1146,6 @@
 
             <!-- Achievement Badge -->
             <div style="display:flex; align-items:center; gap:10px;">
-              ${(window.AUTH && window.AUTH.canToggleTargetScenario()) ? `
-              <div style="margin-right:2px;">
-                <label style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; display:block; margin-bottom:2px;">Target Basis</label>
-                <select id="select-target-scenario" class="sc-select" style="font-size:11px; padding:4px 8px;">
-                  <option value="official" ${window.AUTH.getTargetScenario()==='official'?'selected':''}>Official Target</option>
-                  <option value="buffer" ${window.AUTH.getTargetScenario()==='buffer'?'selected':''}>Buffer Target</option>
-                </select>
-              </div>` : ''}
               <div style="background:${achBg}; border:1px solid ${achColor}20; border-radius:10px; padding:6px 14px; text-align:center;">
                 <div style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:${achColor}; margin-bottom:1px;">Target Achievement</div>
                 <div style="font-size:20px; font-weight:800; color:${achColor}; line-height:1;">${ach.toFixed(1)}%</div>
@@ -1299,7 +1214,7 @@
   function getPageContentHTML(res) {
     const totalVal = res.salesValue;
     const totalQty = res.salesQty;
-    const target = resolveAggregateTarget(res);
+    const target = res.tgtValue;
     const ach = target > 0 ? (totalVal / target) * 100 : 0;
     
     // KPI Cards computations
@@ -2587,20 +2502,8 @@
   }
 
   // Export engine
-  //
-  // Target Scenario gating (2026-08-04): a Line/BU Manager must never see
-  // the Official target, not even in an exported file -- exposing both
-  // raw columns unconditionally here would leak it around the same rule
-  // every on-screen card already enforces. Entitled roles (see
-  // AUTH.canToggleTargetScenario) get both raw columns for full
-  // auditability; everyone else gets a single Target column already
-  // resolved to whatever scenario they're locked to (CHC/CHC_SALES rows
-  // still always resolve to Official for them too, per the CHC override).
   function exportCSV(res) {
-    const showBothScenarios = window.AUTH && window.AUTH.canToggleTargetScenario();
-    let csv = showBothScenarios
-      ? "Month,Line,Brand,Product,RepName,DMName,ActualQty,ActualValue,TargetQty,TargetValue,TargetQtyBuffer,TargetValueBuffer\n"
-      : "Month,Line,Brand,Product,RepName,DMName,ActualQty,ActualValue,TargetQty,TargetValue\n";
+    let csv = "Month,Line,Brand,Product,RepName,DMName,ActualQty,ActualValue,TargetQty,TargetValue\n";
     decodedRows.forEach(r => {
       if (!isRowAllowed(r)) return;
       const m = cache.lookups.months[r[MONTH]];
@@ -2610,13 +2513,7 @@
       const rep = cache.lookups.reps[r[REP]];
       const dm = cache.lookups.dms[r[DM]];
 
-      if (showBothScenarios) {
-        csv += `"${m}","${l}","${b}","${p}","${rep}","${dm}",${r[QTY]},${r[VAL]},${r[TGT_QTY]},${r[TGT_VAL]},${r[TGT_QTY_BUFFER]},${r[TGT_VAL_BUFFER]}\n`;
-      } else {
-        const resolvedTgtQty = window.SEMANTIC.resolveTarget(l, r[TGT_QTY], r[TGT_QTY_BUFFER]);
-        const resolvedTgtVal = window.SEMANTIC.resolveTarget(l, r[TGT_VAL], r[TGT_VAL_BUFFER]);
-        csv += `"${m}","${l}","${b}","${p}","${rep}","${dm}",${r[QTY]},${r[VAL]},${resolvedTgtQty},${resolvedTgtVal}\n`;
-      }
+      csv += `"${m}","${l}","${b}","${p}","${rep}","${dm}",${r[QTY]},${r[VAL]},${r[TGT_QTY]},${r[TGT_VAL]}\n`;
     });
 
     // UTF-8 BOM (2026-07-30): without this, Excel opens the CSV using the
@@ -2798,18 +2695,6 @@
       });
     }
 
-    // Target Scenario toggle (2026-08-04) -- only present in the DOM at
-    // all for roles AUTH says are entitled (see the template above), so
-    // this element simply won't exist for a Line/BU Manager -- no extra
-    // gating needed here beyond the existence check.
-    const selectTargetScenario = document.getElementById("select-target-scenario");
-    if (selectTargetScenario && window.AUTH) {
-      selectTargetScenario.addEventListener("change", () => {
-        window.AUTH.setTargetScenario(selectTargetScenario.value);
-        renderLayout();
-      });
-    }
-
     // Interactive SVG Map path clicks
     document.querySelectorAll(".map-path").forEach(path => {
       path.addEventListener("click", () => {
@@ -2901,7 +2786,7 @@
       const byMonth = {}; // bu -> { monthIdx -> actualVal }
       const activePositions = {}; // bu -> Set of deployed, non-placeholder position codes
       window.SEMANTIC.BU_LIST.forEach(bu => {
-        totals[bu] = { actualYTD: 0, targetYTD: 0, targetYTD_buffer: 0 };
+        totals[bu] = { actualYTD: 0, targetYTD: 0 };
         byMonth[bu] = {};
         activePositions[bu] = new Set();
       });
@@ -2915,7 +2800,6 @@
         const t = totals[bu];
         t.actualYTD += r[VAL];
         t.targetYTD += r[TGT_VAL];
-        t.targetYTD_buffer += r[TGT_VAL_BUFFER];
         const m = r[MONTH];
         byMonth[bu][m] = (byMonth[bu][m] || 0) + r[VAL];
         // Deployed-territory count, same convention as the Sales tab's own
@@ -2937,7 +2821,6 @@
         buOut[bu] = {
           actualYTD: t.actualYTD,
           targetYTD: t.targetYTD,
-          targetYTD_buffer: t.targetYTD_buffer,
           achievementPct: achievementPct,
           momGrowthPct: momGrowthPct,
           activePositions: activePositions[bu].size,
@@ -3000,7 +2883,7 @@
       const brandsLk = cache.lookups.brands || [];
       const months = cache.lookups.months;
 
-      const acc = new Map(); // brandIdx -> { val, tgtVal, tgtValBuffer, qty, tgtQty }
+      const acc = new Map(); // brandIdx -> { val, tgtVal, qty, tgtQty }
       let totalVal = 0;
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
@@ -3012,11 +2895,10 @@
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only, per request
         const bIdx = r[BRAND];
-        if (!acc.has(bIdx)) acc.set(bIdx, { val: 0, tgtVal: 0, tgtValBuffer: 0, qty: 0, tgtQty: 0 });
+        if (!acc.has(bIdx)) acc.set(bIdx, { val: 0, tgtVal: 0, qty: 0, tgtQty: 0 });
         const a = acc.get(bIdx);
         a.val += r[VAL];
         a.tgtVal += r[TGT_VAL];
-        a.tgtValBuffer += r[TGT_VAL_BUFFER];
         a.qty += r[QTY];
         a.tgtQty += r[TGT_QTY];
         totalVal += r[VAL];
@@ -3027,7 +2909,6 @@
           name: brandsLk[idx] || 'Unknown',
           actualValue: a.val,
           targetValue: a.tgtVal,
-          targetValue_buffer: a.tgtValBuffer,
           actualQty: a.qty,
           targetQty: a.tgtQty,
           achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
@@ -3113,7 +2994,7 @@
       const monthsLk = cache.lookups.months;
       const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
 
-      const acc = new Map(); // canonicalLineName -> { val, tgtVal, tgtValBuffer }
+      const acc = new Map(); // canonicalLineName -> { val, tgtVal }
       const posByLine = new Map(); // canonicalLineName -> Set of deployed position codes
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
@@ -3132,11 +3013,10 @@
         }
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only -- see header comment
-        if (!acc.has(canon)) acc.set(canon, { val: 0, tgtVal: 0, tgtValBuffer: 0 });
+        if (!acc.has(canon)) acc.set(canon, { val: 0, tgtVal: 0 });
         const a = acc.get(canon);
         a.val += r[VAL];
         a.tgtVal += r[TGT_VAL];
-        a.tgtValBuffer += r[TGT_VAL_BUFFER];
       }
 
       const lines = Array.from(acc.entries())
@@ -3146,7 +3026,6 @@
             name: name,
             actualValue: a.val,
             targetValue: a.tgtVal,
-            targetValue_buffer: a.tgtValBuffer,
             achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
             activePositions: activePositions,
             salesPerPosition: activePositions > 0 ? a.val / activePositions : null,
@@ -3226,7 +3105,7 @@
       const lastIdx = months.length - 1;
       const prevIdx = months.length - 2;
 
-      let actualYTD = 0, targetYTD = 0, targetYTD_buffer = 0;
+      let actualYTD = 0, targetYTD = 0;
       const byMonth = {};
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
@@ -3238,7 +3117,6 @@
         if (isTender) continue; // Non-Tender only -- see header comment
         actualYTD += r[VAL];
         targetYTD += r[TGT_VAL];
-        targetYTD_buffer += r[TGT_VAL_BUFFER];
         const m = r[MONTH];
         byMonth[m] = (byMonth[m] || 0) + r[VAL];
       }
@@ -3259,7 +3137,6 @@
         scope: 'Non-Tender transactions only, Value basis',
         actualYTD: actualYTD,
         targetYTD: targetYTD,
-        targetYTD_buffer: targetYTD_buffer,
         achievementPct: achievementPct,
         momGrowthPct: momGrowthPct,
         confidence: months.length >= 3 ? 'high' : 'low',
@@ -3320,11 +3197,10 @@
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only, same convention as getBrandAchievement()
         const pIdx = r[PROD];
-        if (!acc.has(pIdx)) acc.set(pIdx, { val: 0, tgtVal: 0, tgtValBuffer: 0, qty: 0, tgtQty: 0 });
+        if (!acc.has(pIdx)) acc.set(pIdx, { val: 0, tgtVal: 0, qty: 0, tgtQty: 0 });
         const a = acc.get(pIdx);
         a.val += r[VAL];
         a.tgtVal += r[TGT_VAL];
-        a.tgtValBuffer += r[TGT_VAL_BUFFER];
         a.qty += r[QTY];
         a.tgtQty += r[TGT_QTY];
         totalVal += r[VAL];
@@ -3335,7 +3211,6 @@
           name: productsLk[idx] || 'Unknown',
           actualValue: a.val,
           targetValue: a.tgtVal,
-          targetValue_buffer: a.tgtValBuffer,
           actualQty: a.qty,
           targetQty: a.tgtQty,
           achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
@@ -3794,11 +3669,10 @@
         }
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only -- see header comment
-        if (!acc.has(dmName)) acc.set(dmName, { val: 0, tgtVal: 0, tgtValBuffer: 0 });
+        if (!acc.has(dmName)) acc.set(dmName, { val: 0, tgtVal: 0 });
         const a = acc.get(dmName);
         a.val += r[VAL];
         a.tgtVal += r[TGT_VAL];
-        a.tgtValBuffer += r[TGT_VAL_BUFFER];
       }
 
       const dms = Array.from(acc.entries())
@@ -3808,7 +3682,6 @@
             name: name,
             actualValue: a.val,
             targetValue: a.tgtVal,
-            targetValue_buffer: a.tgtValBuffer,
             achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
             activePositions: activePositions,
             salesPerPosition: activePositions > 0 ? a.val / activePositions : null,
@@ -3874,11 +3747,10 @@
         if (!repName) continue;
         const key = repName.toUpperCase().trim();
         if (!map[key]) {
-          map[key] = { val: 0, tgtVal: 0, tgtValBuffer: 0 };
+          map[key] = { val: 0, tgtVal: 0 };
         }
         map[key].val += r[VAL] || 0;
         map[key].tgtVal += r[TGT_VAL] || 0;
-        map[key].tgtValBuffer += r[TGT_VAL_BUFFER] || 0;
       }
       return map;
     },

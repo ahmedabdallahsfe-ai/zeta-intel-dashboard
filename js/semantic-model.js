@@ -214,81 +214,6 @@
     return buckets;
   }
 
-  /**
-   * TARGET SCENARIO RESOLVER (2026-08-04)
-   * -----------------------------------------------------------------
-   * Single choke point for picking Official vs Buffer target, used by
-   * every card/table/popup in both the Sales dashboard (js/sales.js)
-   * and the Executive Command Center (js/executive.js) that shows a
-   * Target figure. Every one of those call sites now exposes BOTH
-   * `targetValue`/`targetYTD` (Official, TargetIndex=1) and a
-   * `..._buffer` companion (Buffer, TargetIndex=0) -- this function is
-   * the only place that decides which one a given viewer actually sees,
-   * so the decision can never drift differently across cards.
-   *
-   * CHC OVERRIDE: confirmed via direct probe against real June data
-   * that CHC's Official and Buffer target values are effectively
-   * identical (25,719,843 vs 25,719,858 EGP -- a rounding-level
-   * difference, not a real second scenario), and Ahmed has explicitly
-   * stated CHC is worked on Index 1 (Official) only. So CHC and
-   * CHC_SALES always resolve to Official, regardless of role or the
-   * toggle state -- a Line Manager restricted to CHC is the one
-   * documented exception to "Line Managers only see Buffer".
-   *
-   * `lineOrBuName` accepts either a raw/canonical Line name or a BU
-   * name (whichever the caller already has) -- only checked for CHC
-   * membership, so any spelling variant SEMANTIC already normalizes
-   * (NEUROSCIENCE/CNS, etc.) is fine to pass through as-is.
-   */
-  var CHC_OVERRIDE_NAMES = ["CHC", "CHC_SALES"];
-
-  function isChcOverrideScope(lineOrBuName) {
-    if (!lineOrBuName) return false;
-    return CHC_OVERRIDE_NAMES.indexOf(lineOrBuName) >= 0;
-  }
-
-  /**
-   * @param lineOrBuName  Line or BU name the figure belongs to (for the
-   *                       CHC override check). Pass null if resolving a
-   *                       platform-wide figure with no single BU/Line.
-   * @param officialValue  The Official (TargetIndex=1) figure.
-   * @param bufferValue    The Buffer (TargetIndex=0) figure -- may be
-   *                       null/undefined if the caller's data source
-   *                       doesn't carry it; falls back to Official.
-   * @param scenarioOverride  Optional explicit 'official'|'buffer' --
-   *                       if omitted, reads window.AUTH.getTargetScenario().
-   */
-  function resolveTarget(lineOrBuName, officialValue, bufferValue, scenarioOverride) {
-    if (isChcOverrideScope(lineOrBuName)) return officialValue;
-    // Cache-level availability switch (2026-08-04): js/sales.js sets this
-    // to false whenever the loaded cache predates schemaVersion 3 (no
-    // Buffer columns exist in the data at all yet). Without this check, a
-    // pre-refresh cache would still report a per-row-summed buffer value
-    // of exactly 0 (backfilled to avoid NaN -- see sales.js's
-    // decompressCache) -- which LOOKS like valid data ("Target: EGP 0.0M")
-    // instead of "no buffer scenario available yet", misleading a
-    // Buffer-locked BU/Line Manager. Defaults to true (available) if
-    // unset, so callers/tests that never touch sales.js aren't blocked.
-    var bufferScenarioAvailable = (global.SALES_BUFFER_SCENARIO_AVAILABLE !== false);
-    var scenario = scenarioOverride || (global.AUTH ? global.AUTH.getTargetScenario() : 'official');
-    // NaN guard: NaN is neither null nor undefined, so it would otherwise
-    // slip past a null/undefined-only check and get returned as if it
-    // were a real Buffer value -- defense in depth alongside the
-    // availability switch above.
-    var bufferIsValid = bufferScenarioAvailable && bufferValue !== null && bufferValue !== undefined && !isNaN(bufferValue);
-    if (scenario === 'buffer' && bufferIsValid) return bufferValue;
-    return officialValue;
-  }
-
-  /** True once js/sales.js has loaded a cache at schemaVersion>=3. False
-   * (not just "unset") means the Sales cache genuinely predates Buffer
-   * target support -- resolveTarget() falls back to Official for
-   * everyone in that state, and UI code can use this to show a clear
-   * "Buffer not available yet" note instead of silently substituting. */
-  function isBufferScenarioAvailable() {
-    return global.SALES_BUFFER_SCENARIO_AVAILABLE !== false;
-  }
-
   global.SEMANTIC = {
     BU_LIST: BU_LIST,
     BU_META: BU_META,
@@ -297,9 +222,6 @@
     classifyLine: classifyLine,
     normalizeLine: normalizeLine,
     isInScope: isInScope,
-    groupByBU: groupByBU,
-    isChcOverrideScope: isChcOverrideScope,
-    resolveTarget: resolveTarget,
-    isBufferScenarioAvailable: isBufferScenarioAvailable
+    groupByBU: groupByBU
   };
 })(window);

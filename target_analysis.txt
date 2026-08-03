@@ -1,0 +1,56 @@
+﻿python : Traceback (most recent call last):
+At line:1 char:124
++ ... $env:PYTHONIOENCODING='utf-8'; python analyze_targets.py 2>&1 | Out-F ...
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "D:\2026\ZETA_INTEL_DASHBOARD\CoverageDashboard\analyze_targets.py", line 5, in <module>
+    df = pd.read_excel(
+        r"D:\2026\ZETA_INTEL_DASHBOARD\TOTAL_SALES_2026.xlsx",
+        sheet_name="TOTAL_SALES_2026",
+        engine="calamine"
+    )
+  File "C:\Users\Dell\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\io\excel\_base.py", line 481, 
+in read_excel
+    io = ExcelFile(
+        io,
+    ...<2 lines>...
+        engine_kwargs=engine_kwargs,
+    )
+  File "C:\Users\Dell\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\io\excel\_base.py", line 1621, 
+in __init__
+    self._reader = self._engines[engine](
+                   ~~~~~~~~~~~~~~~~~~~~~^
+        self._io,
+        ^^^^^^^^^
+        storage_options=storage_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        engine_kwargs=engine_kwargs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Dell\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\io\excel\_calamine.py", line 
+63, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        filepath_or_buffer,
+        ^^^^^^^^^^^^^^^^^^^
+        storage_options=storage_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        engine_kwargs=engine_kwargs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Dell\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\io\excel\_base.py", line 544, 
+in __init__
+    self.handles = get_handle(
+                   ~~~~~~~~~~^
+        filepath_or_buffer, "rb", storage_options=storage_options, is_text=False
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Dell\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\io\common.py", line 939, in 
+get_handle
+    handle = open(handle, ioargs.mode)
+FileNotFoundError: [Errno 2] No such file or directory: 'D:\\2026\\ZETA_INTEL_DASHBOARD\\TOTAL_SALES_2026.xlsx'
