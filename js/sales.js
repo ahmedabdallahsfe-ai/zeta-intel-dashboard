@@ -74,6 +74,26 @@
    * from CHC (single-scenario, must fall back) and DIAB/GIT/Cluster
    * lines (normal, honor the request) in the very same loop.
    */
+  /**
+   * Lookup-indices of lines excluded from unscoped BU/Corporate rollups
+   * (CHC_SALES today -- see SEMANTIC.countsInBuRollup). Built once from
+   * the loaded cache and memoized, since isRowAllowed() runs per row on
+   * ~600k rows: an index Set lookup is O(1), whereas resolving the line
+   * name and calling the semantic helper per row is not. Invalidated
+   * whenever the cache is (re)decompressed.
+   */
+  let _rollupExcludedIdx = null;
+  function rollupExcludedLineIdx() {
+    if (_rollupExcludedIdx) return _rollupExcludedIdx;
+    const s = new Set();
+    const lines = (cache && cache.lookups && cache.lookups.lines) || [];
+    for (let i = 0; i < lines.length; i++) {
+      if (window.SEMANTIC && !window.SEMANTIC.countsInBuRollup(lines[i])) s.add(i);
+    }
+    _rollupExcludedIdx = s;
+    return s;
+  }
+
   function buildLineScenarioMap(requestedScenario) {
     const linesLookup = (cache && cache.lookups && cache.lookups.lines) || [];
     const map = new Array(linesLookup.length);
@@ -335,6 +355,18 @@
         }
       }
 
+      // Target Scenario coverage (2026-08-04): hand the ETL's measured
+      // per-line scenario coverage to the semantic layer, which resolves
+      // fallback from it instead of a hardcoded line list. Done here --
+      // once, right after decompression -- so every consumer sees it
+      // before the first aggregation runs. A pre-coverage cache simply
+      // passes undefined, and resolveScenario() degrades to honoring the
+      // request untouched (pre-feature behavior).
+      if (window.SEMANTIC && typeof window.SEMANTIC.setScenarioCoverage === "function") {
+        window.SEMANTIC.setScenarioCoverage(cache.meta && cache.meta.scenarioCoverage);
+      }
+      _rollupExcludedIdx = null; // rebuild against this cache's line lookup
+
       console.log(`[Sales] Cache loaded & decompressed in ${(performance.now() - t0).toFixed(1)}ms. Rows: ${decodedRows.length}`);
     } catch (e) {
       console.error("[Sales] Failed to decompress sales cache", e);
@@ -380,10 +412,17 @@
     if (ignoreKey !== "month" && STATE.month !== "all" && !STATE.month.includes(r[MONTH])) return false;
 
     const rowLine = r[LINE];
-    const chcSalesIdx = cache && cache.lookups && cache.lookups.lines ? cache.lookups.lines.indexOf("CHC_SALES") : -1;
     if (ignoreKey !== "line") {
       if (STATE.line === "all") {
-        if (chcSalesIdx !== -1 && rowLine === chcSalesIdx) return false;
+        // Unscoped ("All Lines") totals exclude any line that doesn't
+        // count in a BU/Corporate rollup -- CHC_SALES today, a second
+        // channel view of CHC's own catalogue. This page has behaved this
+        // way since 2026-07 via a hardcoded CHC_SALES index check; as of
+        // 2026-08-04 it defers to SEMANTIC.countsInBuRollup() instead, so
+        // this page and the Executive Command Center (which now applies
+        // the same rule in its semantic interface) can never drift apart.
+        // Explicitly selecting the line still includes it in full.
+        if (rollupExcludedLineIdx().has(rowLine)) return false;
       } else {
         if (!STATE.line.includes(rowLine)) return false;
       }
@@ -2998,6 +3037,12 @@
         if (window.AUTH && !window.AUTH.isLineAllowed(rawLineName)) continue;
         const bu = window.SEMANTIC.lineToBU(rawLineName);
         if (!bu) continue;
+        // BU/Corporate rollup exclusion (2026-08-04): CHC_SALES is a
+        // second channel view of CHC's own catalogue, so it must not be
+        // added into an unscoped BU total. This function is BU-level by
+        // definition (no line parameter), so the exclusion always
+        // applies here. See SEMANTIC.countsInBuRollup().
+        if (!window.SEMANTIC.countsInBuRollup(rawLineName)) continue;
         const t = totals[bu];
         t.actualYTD += r[VAL];
         if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) t.targetYTD += r[TGT_VAL];
@@ -3096,6 +3141,10 @@
         const rBu = window.SEMANTIC.lineToBU(rawLine);
         if (rBu !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
+        // BU rollup exclusion (2026-08-04): only when NO specific line was
+        // asked for. Selecting CHC_SALES explicitly still returns its full
+        // brand breakdown. See SEMANTIC.countsInBuRollup().
+        if ((!line || line === 'All') && !window.SEMANTIC.countsInBuRollup(rawLine)) continue;
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only, per request
         const bIdx = r[BRAND];
@@ -3238,6 +3287,14 @@
             achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
             activePositions: activePositions,
             salesPerPosition: activePositions > 0 ? a.val / activePositions : null,
+            // BU rollup membership (2026-08-04). This function deliberately
+            // still returns EVERY line, including ones excluded from the BU
+            // total (CHC_SALES today) -- Ahmed's confirmed decision was
+            // "keep it selectable and visible", so hiding it here would be
+            // wrong. But a consumer that naively SUMS these rows would then
+            // disagree with the BU's own Sales Value card, so each row
+            // states whether it counts. Sum only rows where this is true.
+            countsInBuRollup: window.SEMANTIC.countsInBuRollup(name),
           };
         })
         .filter(l => l.targetValue > 0 || l.actualValue > 0)
@@ -3325,6 +3382,10 @@
         if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
+        // BU rollup exclusion (2026-08-04): only when NO specific line was
+        // asked for -- selecting CHC_SALES explicitly still returns its
+        // own full figures. See SEMANTIC.countsInBuRollup().
+        if ((!line || line === 'All') && !window.SEMANTIC.countsInBuRollup(rawLine)) continue;
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only -- see header comment
         actualYTD += r[VAL];
@@ -3413,6 +3474,9 @@
         const rawLine = lines[r[LINE]];
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
+        // BU rollup exclusion (2026-08-04): only when NO specific line was
+        // asked for -- drilling into CHC_SALES still shows its own items.
+        if ((!line || line === 'All') && !window.SEMANTIC.countsInBuRollup(rawLine)) continue;
         if (brandIdx !== null && r[BRAND] !== brandIdx) continue;
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only, same convention as getBrandAchievement()
@@ -3498,6 +3562,10 @@
         if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
+        // BU rollup exclusion (2026-08-04): only when NO specific line was
+        // asked for. Keeps the channel mix reconciling with the BU's own
+        // Sales Value card. See SEMANTIC.countsInBuRollup().
+        if ((!line || line === 'All') && !window.SEMANTIC.countsInBuRollup(rawLine)) continue;
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only -- see header comment
 

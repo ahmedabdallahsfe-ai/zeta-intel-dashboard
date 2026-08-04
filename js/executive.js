@@ -471,21 +471,32 @@
     return _filters.scenario || (global.AUTH && typeof global.AUTH.getActiveScenario === "function" ? global.AUTH.getActiveScenario() : "official");
   }
 
-  /** Target Scenario CHC fallback note (2026-08-04): CHC/CHC_SALES have
-   * no real Working Target (js/semantic-model.js's resolveScenario()
-   * silently substitutes Official for these two lines at the data
-   * layer) -- this returns the small informational string the CHC
-   * exception's approved design calls for ("automatic fallback with a
-   * small informational message. No broken KPIs, blank charts, or
-   * special UI"), or "" when it doesn't apply, so callers can always
-   * just concatenate it onto an existing basisNote/scope string. Checks
-   * the BU/line SEMANTIC name, not the raw filter value, so it fires
-   * correctly whether the card is scoped to CHC as a BU or to
+  /** Target Scenario fallback note (2026-08-04, made data-driven and
+   * bidirectional later the same day). Some lines carry only one target
+   * scenario -- CHC/CHC_SALES are Working-only per Ahmed's confirmed
+   * classification, and a future line could just as easily be
+   * Official-only. js/semantic-model.js's resolveScenario() substitutes
+   * whichever scenario the line actually has, reading the ETL's measured
+   * per-line coverage; this returns the small informational string the
+   * approved design calls for ("automatic fallback with a small
+   * informational message. No broken KPIs, blank charts, or special
+   * UI"), or "" when no fallback occurred, so callers can always just
+   * concatenate it onto an existing basisNote/scope string.
+   *
+   * Deliberately asks resolveScenario() rather than re-deriving the
+   * condition: the note then cannot drift out of sync with the actual
+   * data decision, and it names the real direction of the substitution
+   * instead of assuming Working->Official as the earlier hardcoded
+   * version did. Checks the BU/line SEMANTIC name, not the raw filter
+   * value, so it fires whether the card is scoped to CHC as a BU or to
    * CHC/CHC_SALES as a specific line. */
   function scenarioFallbackNote(buOrLine) {
-    if (activeScenario() === "official") return "";
-    if (!buOrLine || !global.SEMANTIC || !global.SEMANTIC.isChcSingleScenarioLine(buOrLine)) return "";
-    return " Showing Official Target -- no Working Target is defined for " + buOrLine + ".";
+    if (!buOrLine || !global.SEMANTIC || typeof global.SEMANTIC.resolveScenario !== "function") return "";
+    var r = global.SEMANTIC.resolveScenario(buOrLine, activeScenario());
+    if (!r || !r.isFallback) return "";
+    var shown = (global.SEMANTIC.TARGET_SCENARIOS[r.scenario] || {}).label || r.scenario;
+    var asked = (global.SEMANTIC.TARGET_SCENARIOS[r.requestedScenario] || {}).label || r.requestedScenario;
+    return " Showing " + shown + " -- no " + asked + " is defined for " + buOrLine + ".";
   }
 
   // ---------------------------------------------------------------------

@@ -33,7 +33,7 @@ cache/sales.json, must stay aligned with this table or the Sales tab's
 filters will silently mean something other than what they say.
 """
 
-import os, sys, gzip, base64, json, re, time, pickle
+import os, sys, gzip, base64, json, re, time, pickle, collections
 from datetime import datetime
 
 # Path setup
@@ -73,6 +73,112 @@ JUNE_SHEET_NAME = 'SalesPerDistributor'
 # and the column-resolution comment below.
 JUNE_TGT_XLSX   = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'June TGT 2026.xlsx')
 JUNE_TGT_SHEET  = 'SalesPositionTargets'
+
+# ---------------------------------------------------------------------------
+# JUNE TARGET DE-DUPLICATION (2026-08-04)
+# ---------------------------------------------------------------------------
+# Ahmed re-exported both June files on 2026-08-04: june.xlsx now carries
+# ZERO target rows (all 193,782 of its rows have a blank TargetIndex --
+# pure actuals), and June TGT 2026.xlsx now carries a complete, balanced
+# target set (2,843 TargetIndex=1 + 2,843 TargetIndex=0, covering all 16
+# lines including CHC/CHC_SALES, which previously had none).
+#
+# The problem this constant fixes: the main workbook ALSO contributes June
+# target rows, so June's Working Target was landing in the cache at
+# exactly 2x the June TGT file's figure (measured: DIAB-I June Working
+# read 48,960,000 against the file's true 24,480,000; whole-month Working
+# read EGP 611.88M against the file's 305.94M -- precisely double, while
+# Official was not doubled). Ahmed's ruling: "JUNE TARGET FILE IS THE
+# RIGHT ONE ... DIAB-I June Working IS THE RIGHT 1".
+#
+# So June TGT 2026.xlsx is the SOLE authority for June targets: any
+# June-dated TARGET row arriving from the main workbook is dropped.
+# Deliberately scoped to target rows only -- June ACTUALS from the main
+# workbook (if any) are untouched, since actuals were never double-counted
+# and june.xlsx is their own separate, already-correct source.
+JUNE_TARGET_AUTHORITY_MONTH = '2026-06'
+JUNE_TARGET_AUTHORITY_LABEL = 'june_tgt'
+
+# ---------------------------------------------------------------------------
+# WORKING-ONLY LINES (2026-08-04)
+# ---------------------------------------------------------------------------
+# Per Ahmed's explicit, confirmed instruction: CHC and CHC_SALES have no
+# Official Target -- so their target rows are reported as Working.
+#
+# RULE: keep TargetIndex=1 rows ONLY (relabelled to Working); DROP their
+# TargetIndex=0 rows. This is not the same as a plain relabel, and the
+# difference matters -- see below.
+#
+# WHY A PLAIN RELABEL IS WRONG HERE. A first implementation simply flipped
+# the scenario flag on every CHC target row. A collision detector added
+# alongside it fired immediately on the next real run:
+#
+#   *** WARNING: CHC 2026-01 carries BOTH TargetIndex 0 and 1 ...  (and
+#   the same for 2026-02 .. 2026-05)
+#
+# The main workbook carries CHC's Jan-May target TWICE -- once under each
+# index, at identical values (EGP 105,737,194 each; confirmed by comparing
+# two cache builds, one of which happened to tag those rows Official and
+# the other Working, both reporting the same figure). Relabelling both
+# collapses them onto one groupby key and SUMS them, doubling CHC's
+# Jan-May target to ~211M and BU CHC's total to ~237M.
+#
+# WHY KEEP INDEX 1 RATHER THAN 0. Ahmed's instruction was literally
+# "CONSIDER TARGET INDEX 1 AND CONSIDER IT AS INDEX 0" -- index 1 is the
+# figure that means something for these lines, it just must not be
+# reported under the Official label. It is also the only index June TGT
+# 2026.xlsx carries for CHC/CHC_SALES (270 and 162 rows, zero index-0
+# rows), so keeping index 1 is the one choice consistent across BOTH
+# sources. Keeping index 0 instead would silently zero out June.
+#
+# Resulting figures: CHC = 105,737,194 (Jan-May) + 25,719,858 (June) =
+# EGP 131.46M; CHC_SALES = 79,302,895 + 19,289,894 = EGP 98.59M.
+#
+# _wol_seen tracks the per-line/month index mix; check_working_only_lines()
+# warns after each source if any month supplied ONLY index-0 rows, since
+# that month's target would be dropped to zero by this rule.
+WORKING_ONLY_KEEP_INDEX = 1
+#
+# This is NOT the old CHC_SINGLE_SCENARIO_LINES exception, which has been
+# removed: that one hardcoded a FALLBACK RULE in the presentation layer
+# and had gone stale the moment the June file gained real CHC Working
+# data. This is a source-data classification rule, applied once at ingest,
+# where it belongs. Fallback itself is now data-driven -- the ETL records
+# which scenarios each line actually has (see SCENARIO COVERAGE below) and
+# js/semantic-model.js resolves from that, so a line becoming Working-only
+# (or regaining Official) needs no code change anywhere.
+WORKING_ONLY_LINES = {'CHC', 'CHC_SALES'}
+
+# Collision tracker for the relabel above: {(line, month): {index: count}}.
+# Populated in the row loop, checked once at the end of aggregation. A
+# working-only line that shows BOTH TargetIndex 0 and 1 in the same month
+# means the relabel is now summing two rows into one -- see the SAFETY
+# CONDITION note above.
+_wol_seen = collections.defaultdict(collections.Counter)
+
+
+def check_working_only_lines():
+    """Warn if any working-only line/month supplied ONLY TargetIndex=0
+    rows. Those get dropped by the keep-index-1 rule, leaving that
+    line/month with no target at all -- silently, and only visible as a
+    suspiciously low achievement denominator weeks later. Called after
+    each source finishes; per-invocation, which is enough because each
+    source file is streamed within a single call."""
+    orphaned = sorted(
+        f'{ln} {mo}' for (ln, mo), c in _wol_seen.items()
+        if c.get(WORKING_ONLY_KEEP_INDEX, 0) == 0 and sum(c.values()) > 0
+    )
+    if orphaned:
+        log(f'  *** WARNING: no TargetIndex={WORKING_ONLY_KEEP_INDEX} rows for '
+            f'{", ".join(orphaned)} -- these have TargetIndex=0 rows only, which the '
+            f'working-only rule drops, leaving them with ZERO target. Check the source '
+            f'file before trusting these lines\' achievement. See WORKING_ONLY_LINES. ***')
+    else:
+        kept = sum(c.get(WORKING_ONLY_KEEP_INDEX, 0) for c in _wol_seen.values())
+        dropped = sum(sum(c.values()) for c in _wol_seen.values()) - kept
+        if kept or dropped:
+            log(f'  Working-only lines: kept {kept:,} TargetIndex={WORKING_ONLY_KEEP_INDEX} '
+                f'target rows, dropped {dropped:,} duplicate TargetIndex=0 rows.')
 
 # Checkpoint (2026-07-28, revised): processing ~1.19M rows across two xlsx
 # files comfortably exceeds the sandbox's 45s hard command timeout in one
@@ -193,6 +299,9 @@ HARD_DEADLINE = t0 + 300
 # the user's real Windows machine, so refresh.bat works unchanged.
 import tempfile
 DB_PATH = os.path.join(tempfile.gettempdir(), 'zeta_sales_agg_checkpoint.db')
+# Declared up here (not next to its first use further down) so the
+# rules-version guard, which runs before that point, can clear it too.
+RECON_PKL_PATH = os.path.join(tempfile.gettempdir(), 'zeta_sales_recon_checkpoint.pkl')
 SEP = '\x1f'  # unit separator -- joins composite dict keys for SQLite storage
 
 expected_cols = {
@@ -255,8 +364,59 @@ def get_progress(conn):
     p = dict(conn.execute('SELECT key, value FROM progress').fetchall())
     out = {}
     for k, v in p.items():
+        if k == RULES_VERSION_KEY:
+            continue  # not a progress counter -- see ensure_rules_version()
         out[k] = (v == '1') if k.endswith('_complete') else int(v)
     return out
+
+
+# ---------------------------------------------------------------------------
+# CHECKPOINT RULES-VERSION GUARD (2026-08-04)
+# ---------------------------------------------------------------------------
+# The resumable checkpoint stores AGGREGATED rows, with each row's `mask`
+# (scenario bit, tender/bulk/mirror flags) and its inclusion/exclusion
+# already decided by whatever version of the classification rules was
+# running when that row was processed. Re-running after a rules change
+# therefore does NOT re-derive old rows -- it resumes on top of them,
+# silently producing a cache that is part old-rules, part new-rules.
+#
+# This bit us for real on 2026-08-04: a run picked up the new June target
+# de-duplication (DIAB-I June landed at the correct 21,828,000/24,480,000)
+# while the CHC working-only rule never reached the Jan-May rows, which
+# had been aggregated into the checkpoint under earlier code. The output
+# looked plausible and was internally inconsistent -- the worst kind of
+# wrong for an executive dashboard.
+#
+# Bump ETL_RULES_VERSION whenever a change alters how any row is
+# classified, masked, included or excluded (NOT for logging, comments, or
+# output-formatting changes). On mismatch the checkpoint is discarded and
+# the run starts clean, which costs one full re-read but guarantees every
+# row in the cache was produced by exactly one version of the rules.
+ETL_RULES_VERSION = '2026-08-04.a'  # June TGT authority + CHC/CHC_SALES working-only + scenario bit 5
+RULES_VERSION_KEY = 'etl_rules_version'
+
+
+def ensure_rules_version(conn):
+    """Wipe the checkpoint if it was built under different rules. Returns
+    a fresh connection (the old one is closed if the DB was recreated)."""
+    row = conn.execute('SELECT value FROM progress WHERE key=?', (RULES_VERSION_KEY,)).fetchone()
+    found = row[0] if row else None
+    if found == ETL_RULES_VERSION:
+        return conn
+    has_rows = conn.execute('SELECT 1 FROM aggregated LIMIT 1').fetchone() is not None
+    if has_rows or found is not None:
+        log(f'  Checkpoint was built under rules "{found or "unknown"}" but this script is '
+            f'"{ETL_RULES_VERSION}" -- discarding it and starting clean so the cache '
+            f'cannot mix rule versions.')
+        conn.close()
+        for p in (DB_PATH, DB_PATH + '-wal', DB_PATH + '-shm', RECON_PKL_PATH):
+            _clear_checkpoint(p, t0)
+        conn = open_db()
+    conn.execute('INSERT INTO progress(key, value) VALUES (?,?) '
+                 'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                 (RULES_VERSION_KEY, ETL_RULES_VERSION))
+    conn.commit()
+    return conn
 
 def set_progress(conn, **kv):
     for k, v in kv.items():
@@ -265,11 +425,18 @@ def set_progress(conn, **kv):
                      'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (k, v))
     conn.commit()
 
-def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, prog):
+def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, prog, source_label):
     """Fetch xlsx_path's sheet, skip prog[rows_done_key] rows already
     committed by a previous invocation, then upsert new rows into the
     SQLite tables in bounded batches until HARD_DEADLINE is hit or the
-    sheet runs out of rows. Returns (fully_consumed, rows_done)."""
+    sheet runs out of rows. Returns (fully_consumed, rows_done).
+
+    source_label (2026-08-04) is the SOURCES entry's label ('main',
+    'june', 'june_tgt') -- needed by the June target de-duplication rule
+    in the row loop, which must know which file a given target row came
+    from. Passing it explicitly rather than inferring from xlsx_path
+    keeps the rule readable and keeps SOURCES the single place where a
+    source's identity is defined."""
     wb = CalamineWorkbook.from_path(xlsx_path)
     ws = wb.get_sheet_by_name(sheet_name)
     log(f'  Sheet fetched: {xlsx_path} ({time.time()-t0:.1f}s)')
@@ -340,17 +507,19 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
         if r and not all(c is None for c in r):
             # Check target row based on TargetIndex in (0, 1). 2026-08-04
             # (Target Scenario feature): TargetIndex=1 is Official Target,
-            # TargetIndex=0 is Working Target (business meaning still
-            # unconfirmed by the source-system owner -- "Working Target" is
-            # a placeholder label, not "Buffer", per explicit instruction
-            # not to guess at its semantics). Both are now kept -- this
+            # TargetIndex=0 is Working Target -- CONFIRMED by Ahmed
+            # 2026-08-04 ("I NEED TO CONFIRM TO YOU THAT TARGET INDEX 1 IS
+            # OFFICIAL TARGET AND 0 IS WORKING TARGET"), so this mapping is
+            # no longer provisional and "Working Target" is the settled
+            # business label, not a placeholder. Both are kept -- this
             # script previously discarded every TargetIndex=0 row
             # (skip_row=True unconditionally for t_idx != 1); the semantic
             # layer (js/semantic-model.js SEMANTIC.resolveScenario() +
-            # js/sales.js) now decides which scenario to aggregate on
-            # demand, per line, with a fallback for CHC/CHC_SALES (which
-            # have no real Working Target rows). Any TargetIndex value
-            # other than 0 or 1 is still excluded, unchanged from before.
+            # js/sales.js) decides which scenario to aggregate on demand,
+            # per line, resolving fallback from the per-line scenario
+            # coverage this script now emits into cache.meta. Any
+            # TargetIndex value other than 0 or 1 is still excluded,
+            # unchanged from before.
             tgt_idx_val = gv(r, col['TargetIndex'])
             is_mirror = False
             is_official_scenario = True  # only meaningful when is_mirror is True
@@ -372,6 +541,30 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
             if not skip_row:
                 month = parse_month(gv(r, col['Date']))
                 line = norm_line(gv(r, col['Line']))
+
+                # --- June target de-duplication (2026-08-04) -------------
+                # June TGT 2026.xlsx is the sole authority for June
+                # targets; drop any June-dated TARGET row arriving from
+                # another source. Without this, June Working Target lands
+                # at exactly 2x its true value. Actual (non-mirror) rows
+                # are never affected. See JUNE_TARGET_AUTHORITY_* above.
+                if (is_mirror
+                        and month == JUNE_TARGET_AUTHORITY_MONTH
+                        and source_label != JUNE_TARGET_AUTHORITY_LABEL):
+                    skip_row = True
+
+                # --- Working-only lines (2026-08-04) --------------------
+                # CHC/CHC_SALES: keep TargetIndex=1 only, relabelled to
+                # Working. Their TargetIndex=0 rows are duplicates of the
+                # same target and are dropped. See WORKING_ONLY_LINES.
+                if is_mirror and line in WORKING_ONLY_LINES:
+                    _wol_seen[(line, month)][t_idx] += 1
+                    if t_idx == WORKING_ONLY_KEEP_INDEX:
+                        is_official_scenario = False
+                    else:
+                        skip_row = True
+
+            if not skip_row:
                 brand = str(gv(r, col['Brand'], '')).strip() or '(none)'
                 product = str(gv(r, col['Item'], '')).strip() or '(none)'
 
@@ -518,6 +711,10 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
 
 
 conn = open_db()
+# Discard any checkpoint built under different classification rules before
+# reading progress from it -- otherwise this run would resume on top of
+# rows another rules version produced. See ensure_rules_version().
+conn = ensure_rules_version(conn)
 prog = get_progress(conn)
 
 # SOURCES (2026-07-29, generalized from a hardcoded main/June pair when
@@ -554,7 +751,7 @@ for label, xlsx_path, sheet_name, rows_done_key, complete_key in SOURCES:
         set_progress(conn, **{complete_key: True})
         prog = get_progress(conn)
         continue
-    process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, prog)
+    process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, prog, label)
     did_process_this_call = True
     break  # one source's worth of work per call, same as before
 
@@ -581,7 +778,7 @@ if not all_complete or did_process_this_call:
 # written ONCE from the final, complete dataset, so unlike the earlier
 # growing-pickle-per-row-chunk design it never grows across multiple
 # calls -- lets the encode+write stage run as a clean, separate call.
-RECON_PKL = os.path.join(tempfile.gettempdir(), 'zeta_sales_recon_checkpoint.pkl')
+RECON_PKL = RECON_PKL_PATH  # defined near DB_PATH so the rules-version guard can clear it
 
 if os.path.exists(RECON_PKL):
     conn.close()
@@ -779,6 +976,45 @@ for k, v in customer_roster.items():
         cust_id, rep_i, brick_i, reg_i, line_i, mask, round(ytd_sales, 2)
     ])
 
+# ── 4b. Per-line Target Scenario coverage ───────────────────────────────────
+# (2026-08-04) Which scenarios does each line ACTUALLY have target data
+# for? Emitted into cache.meta so js/semantic-model.js's resolveScenario()
+# can decide fallback from data instead of a hardcoded line list.
+#
+# This replaces the old CHC_SINGLE_SCENARIO_LINES constant, which was
+# hardcoded from a one-off audit and went stale the moment the June TGT
+# export gained real CHC Working data -- at which point it was actively
+# suppressing figures that existed. Anything derived from the data should
+# be measured from the data, not frozen into a name list that no one
+# remembers to revisit.
+#
+# Coverage is keyed on NON-ZERO target value, not mere row presence: a
+# line whose target rows are all zeros has no usable target for that
+# scenario, and treating it as "covered" would surface a 0 target and a
+# meaningless infinite achievement. Tender rows are excluded to match the
+# Non-Tender convention every Achievement-family KPI already uses.
+print('\n[4b/5] Measuring per-line target scenario coverage...', flush=True)
+_MIRROR_BIT, _TENDER_BIT, _OFFICIAL_BIT = 16, 2, 32
+scenario_coverage = {}
+for _row in encoded_rows:
+    _mask = _row[17]
+    if not (_mask & _MIRROR_BIT):      # target/mirror rows only
+        continue
+    if _mask & _TENDER_BIT:            # Non-Tender convention
+        continue
+    if not _row[21] and not _row[20]:  # no target value AND no target qty
+        continue
+    _line = lines_list[_row[1]]
+    _entry = scenario_coverage.setdefault(_line, {'official': False, 'working': False})
+    _entry['official' if (_mask & _OFFICIAL_BIT) else 'working'] = True
+
+_cov_official = sorted(l for l, c in scenario_coverage.items() if c['official'] and not c['working'])
+_cov_working  = sorted(l for l, c in scenario_coverage.items() if c['working'] and not c['official'])
+_cov_both     = sorted(l for l, c in scenario_coverage.items() if c['working'] and c['official'])
+log(f'  Scenario coverage: {len(_cov_both)} line(s) with BOTH, '
+    f'{len(_cov_official)} Official-only {_cov_official or ""}, '
+    f'{len(_cov_working)} Working-only {_cov_working or ""}')
+
 # ── 5. Output Caches ────────────────────────────────────────────────────────
 print('\n[5/5] Gzipping and writing caches...', flush=True)
 
@@ -789,9 +1025,14 @@ print('\n[5/5] Gzipping and writing caches...', flush=True)
 # any time encoded_rows' column order/meaning or the lookups dict keys change.
 SCHEMA_VERSION = 3  # v3 (2026-08-04) = Target Scenario feature: mask bit 5 now
 # carries Official(1)/Working(0) scenario for mirror/target rows (see the
-# mask-bitfield comment above) -- bumped so js/sales.js's schema gate
-# rejects any pre-v3 cache instead of misreading its mirror rows as
-# all-Working (old caches never set bit 5, since it didn't exist yet).
+# mask-bitfield comment above), and meta.scenarioCoverage reports which
+# scenarios each line actually has data for. NOTE (2026-08-04, later same
+# day): js/sales.js does NOT hard-gate on v3 -- it degrades gracefully on
+# an older cache (treating every mirror row as valid for whichever
+# scenario is requested, i.e. exactly pre-feature behavior) rather than
+# blocking the whole Sales tab, which an earlier hard gate did and which
+# was a worse regression than the misread it prevented. Its
+# REQUIRED_SCHEMA_VERSION stays at 2 -- the real structural gate.
 # v2 = corrected hierarchy naming (BUHead->NSM->RM->DM->Rep) + CM (Emp6) captured.
 
 cache_obj = {
@@ -801,6 +1042,11 @@ cache_obj = {
         'generatedAt': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'sourceRows': total_source_rows,
         'aggregatedRows': len(aggregated),
+        # Per-line Target Scenario coverage (2026-08-04): see section 4b.
+        # {lineName: {'official': bool, 'working': bool}} -- read by
+        # js/semantic-model.js resolveScenario() to resolve fallback from
+        # measured data rather than a hardcoded line list.
+        'scenarioCoverage': scenario_coverage,
     },
     'lookups': lookups,
     'rows': encoded_rows,

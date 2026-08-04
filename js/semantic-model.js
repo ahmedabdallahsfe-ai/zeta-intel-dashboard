@@ -63,6 +63,49 @@
   // In-scope Business Units for the Executive Command Center.
   var BU_LIST = ["CHC", "Cluster", "DIAB", "GIT"];
 
+  // ---------------------------------------------------------------------
+  // BU / CORPORATE SALES ROLLUP EXCLUSIONS (2026-08-04, Ahmed's decision)
+  // ---------------------------------------------------------------------
+  // "CONSIDER CHC BU SALES AND TARGET = CHC LINE NOT SUM OF CHC+CHC_SALES".
+  //
+  // CHC has two lines: "CHC" (Medical Rep / Contract-Doctor-Hospital
+  // channel) and "CHC_SALES" (Pharmacy-facing Sales Rep channel). Both
+  // carry the SAME 11 SKUs -- CHC_SALES is a second channel view of the
+  // same catalogue, not incremental business -- so adding them together
+  // overstates the BU. Measured on the 2026-08-04 cache, summing them
+  // inflated CHC from EGP 59.59M to 105.98M actual (+43.8%) and its
+  // target from 131.46M to 230.05M.
+  //
+  // Confirmed scope (both answered by Ahmed before implementation):
+  //   - Excluded from CORPORATE too, not just the CHC BU card, so
+  //     Corporate stays equal to the sum of the four BUs and every
+  //     "vs Corporate" benchmark reconciles. (~3.27% of all non-tender
+  //     sales in the cache.)
+  //   - STILL FULLY VISIBLE as its own line: selectable in the Line
+  //     filter, present in Line Performance and every drill-down, with
+  //     its own sales/target/achievement. Nothing is hidden -- it just
+  //     stops contributing to an unscoped BU/Corporate total.
+  //
+  // Applies to SALES metrics only. Coverage/Frequency deliberately still
+  // count both CHC teams (they are genuinely distinct rep populations
+  // measured against different customer types -- see
+  // getFilteredCoverageForLine() in js/coverage-interface.js). Do not
+  // "unify" the two behaviors; they answer different questions.
+  var BU_ROLLUP_EXCLUDED_LINES = ["CHC_SALES"];
+
+  /**
+   * Should this line be counted in an UNSCOPED BU or Corporate sales
+   * rollup? False only for lines in BU_ROLLUP_EXCLUDED_LINES.
+   *
+   * Callers must apply this ONLY when no specific line was requested.
+   * When the user explicitly selects CHC_SALES (or it is being listed as
+   * its own row), it must be included in full -- that is the whole point
+   * of keeping it visible.
+   */
+  function countsInBuRollup(rawLine) {
+    return BU_ROLLUP_EXCLUDED_LINES.indexOf(normalizeLine(rawLine)) < 0;
+  }
+
   // Excluded from the BU Executive Review, but retained (not discarded)
   // for IQVIA's own market-sizing / whitespace / competitive-benchmark
   // analysis. See classifyLine() below.
@@ -218,41 +261,94 @@
   // TARGET SCENARIO (2026-08-04) -- Dual Target Scenario feature.
   // =====================================================================
   // Single source of truth for the TargetIndex -> business-label mapping
-  // and the CHC/CHC_SALES single-scenario fallback rule. Per the approved
-  // architecture (TARGET_SCENARIO_ARCHITECTURE_PROPOSAL.md /
+  // and for scenario fallback. Per the approved architecture
+  // (TARGET_SCENARIO_ARCHITECTURE_PROPOSAL.md /
   // TARGET_SCENARIO_DEPENDENCY_ANALYSIS.md), this registry is the ONLY
   // place either concept is encoded -- js/sales.js and js/executive.js
-  // call resolveScenario() rather than re-implementing the CHC exception
-  // or hardcoding TargetIndex anywhere else. `TargetIndex` itself is
-  // never exposed in the UI; only the labels below are.
+  // call resolveScenario() rather than re-implementing fallback or
+  // hardcoding TargetIndex anywhere else. `TargetIndex` itself is never
+  // exposed in the UI; only the labels below are.
   //
-  // "Working Target" is a deliberate placeholder label (business owner
-  // confirmation of TargetIndex=0's true meaning is still pending) --
-  // NOT "Buffer": the real data shows Working >= Official for every line
-  // that has both (100%-174%), the opposite of what "buffer" implies.
-  // Do not rename this without an explicit decision (see proposal §3/§13).
+  // TargetIndex 1 = Official Target, 0 = Working Target -- CONFIRMED by
+  // Ahmed 2026-08-04. This mapping is settled, and "Working Target" is
+  // the agreed business label (NOT "Buffer" -- the data shows Working >=
+  // Official on every line that has both, the opposite of what "buffer"
+  // implies).
   var TARGET_SCENARIOS = {
     official: { index: 1, label: "Official Target", isDefault: true },
     working:  { index: 0, label: "Working Target", isDefault: false }
   };
   var DEFAULT_SCENARIO = "official";
 
-  // CHC and CHC_SALES have no real Working Target (confirmed by direct
-  // data audit, 2026-08-03): the annual source file's TargetIndex=0 rows
-  // for these two lines sum to zero/don't exist at all -- only June
-  // carries an incidental value nearly identical to Official. Any request
-  // for a non-official scenario against these two lines silently falls
-  // back to Official (see resolveScenario() below) rather than showing a
-  // blank/zero/NaN figure.
-  var CHC_SINGLE_SCENARIO_LINES = ["CHC", "CHC_SALES"];
+  // ---------------------------------------------------------------------
+  // DATA-DRIVEN SCENARIO COVERAGE (2026-08-04)
+  // ---------------------------------------------------------------------
+  // Replaces the former CHC_SINGLE_SCENARIO_LINES constant, which
+  // hardcoded ["CHC","CHC_SALES"] from a one-off audit and went stale the
+  // same week: the 2026-08-04 June TGT export gave CHC_SALES a genuinely
+  // distinct Working Target (169% of Official), which the hardcoded rule
+  // was then actively suppressing. Anything measured from the data
+  // belongs in the data.
+  //
+  // refresh_sales.py now emits cache.meta.scenarioCoverage --
+  // {lineName: {official: bool, working: bool}} -- computed from the rows
+  // it actually wrote. setScenarioCoverage() is called once by
+  // js/sales.js right after the cache decompresses; resolveScenario()
+  // then answers from measured fact.
+  //
+  // Fallback is bidirectional by design. The old rule only ever fell back
+  // Working -> Official, on the assumption Official is always present.
+  // That assumption is now false: per Ahmed's confirmed instruction, CHC
+  // and CHC_SALES are classified Working-only at ingest, so for those two
+  // an OFFICIAL request must fall back to Working. Direction is derived
+  // from coverage, never assumed.
+  //
+  // Unknown lines (not in coverage, or coverage never set -- e.g. a cache
+  // predating this metadata) resolve to the requested scenario with no
+  // fallback, which is exactly the pre-feature behavior js/sales.js also
+  // degrades to. Never guess a fallback from absent information.
+  var _scenarioCoverage = null;
+
+  function setScenarioCoverage(coverage) {
+    _scenarioCoverage = (coverage && typeof coverage === "object") ? coverage : null;
+  }
+
+  function getScenarioCoverage() {
+    return _scenarioCoverage;
+  }
+
+  /**
+   * What target scenarios does this line actually have data for?
+   * Returns null when unknown (no coverage metadata loaded, or the line
+   * isn't in it) -- callers must treat null as "don't intervene", not as
+   * "has nothing".
+   */
+  function lineScenarioCoverage(rawLine) {
+    if (!_scenarioCoverage) return null;
+    var canon = normalizeLine(rawLine);
+    if (Object.prototype.hasOwnProperty.call(_scenarioCoverage, canon)) return _scenarioCoverage[canon];
+    // Coverage is keyed on the raw line name the ETL wrote; normalizeLine
+    // is usually a no-op but check the raw key too rather than silently
+    // returning "unknown" on a naming mismatch.
+    if (Object.prototype.hasOwnProperty.call(_scenarioCoverage, rawLine)) return _scenarioCoverage[rawLine];
+    return null;
+  }
 
   function isValidScenario(key) {
     return TARGET_SCENARIOS.hasOwnProperty(key);
   }
 
-  function isChcSingleScenarioLine(rawLine) {
-    var canon = normalizeLine(rawLine);
-    return CHC_SINGLE_SCENARIO_LINES.indexOf(canon) >= 0;
+  /**
+   * True when this line carries data for one scenario only -- i.e. any
+   * request for the other one will fall back. Kept as a named export
+   * because the UI uses it to decide whether to show an explanatory note.
+   * Replaces isChcSingleScenarioLine(), which asked the same question of
+   * a hardcoded list.
+   */
+  function isSingleScenarioLine(rawLine) {
+    var cov = lineScenarioCoverage(rawLine);
+    if (!cov) return false;
+    return !(cov.official && cov.working);
   }
 
   /**
@@ -276,15 +372,34 @@
    */
   function resolveScenario(rawLine, requestedScenario) {
     var requested = isValidScenario(requestedScenario) ? requestedScenario : DEFAULT_SCENARIO;
-    if (requested !== "official" && isChcSingleScenarioLine(rawLine)) {
-      return { scenario: "official", requestedScenario: requested, isFallback: true };
-    }
+    var cov = lineScenarioCoverage(rawLine);
+
+    // Unknown line, or no coverage metadata at all (older cache): honor
+    // the request untouched. Same graceful-degradation stance as
+    // js/sales.js's includeTargetRow() -- absent information is never
+    // grounds for silently substituting a different number.
+    if (!cov) return { scenario: requested, requestedScenario: requested, isFallback: false };
+
+    // The line has what was asked for.
+    if (cov[requested]) return { scenario: requested, requestedScenario: requested, isFallback: false };
+
+    // It doesn't -- fall back to the other scenario if that one has data.
+    // Bidirectional: Working->Official for an Official-only line,
+    // Official->Working for a Working-only line (CHC/CHC_SALES today).
+    var other = requested === "official" ? "working" : "official";
+    if (cov[other]) return { scenario: other, requestedScenario: requested, isFallback: true };
+
+    // Line has neither -- nothing to fall back to. Return the request
+    // unchanged so the caller surfaces an honest empty figure rather than
+    // a borrowed one.
     return { scenario: requested, requestedScenario: requested, isFallback: false };
   }
 
   global.SEMANTIC = {
     BU_LIST: BU_LIST,
     BU_META: BU_META,
+    BU_ROLLUP_EXCLUDED_LINES: BU_ROLLUP_EXCLUDED_LINES,
+    countsInBuRollup: countsInBuRollup,
     CONTEXT_SEGMENTS: CONTEXT_SEGMENTS,
     lineToBU: lineToBU,
     classifyLine: classifyLine,
@@ -293,9 +408,15 @@
     groupByBU: groupByBU,
     TARGET_SCENARIOS: TARGET_SCENARIOS,
     DEFAULT_SCENARIO: DEFAULT_SCENARIO,
-    CHC_SINGLE_SCENARIO_LINES: CHC_SINGLE_SCENARIO_LINES,
     isValidScenario: isValidScenario,
-    isChcSingleScenarioLine: isChcSingleScenarioLine,
+    setScenarioCoverage: setScenarioCoverage,
+    getScenarioCoverage: getScenarioCoverage,
+    lineScenarioCoverage: lineScenarioCoverage,
+    isSingleScenarioLine: isSingleScenarioLine,
+    // Back-compat alias (2026-08-04): the CHC-specific name is gone, but
+    // anything still calling it gets the data-driven answer rather than a
+    // hard failure. Prefer isSingleScenarioLine() in new code.
+    isChcSingleScenarioLine: isSingleScenarioLine,
     resolveScenario: resolveScenario
   };
 })(window);
