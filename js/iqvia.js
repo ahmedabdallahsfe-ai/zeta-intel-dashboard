@@ -8677,6 +8677,143 @@ window.IQVIADashboard = {
    * (Phase 7) is a separate, future concern; this interface respects
    * whatever the current gate is, unweakened.
    */
+  /**
+   * ENTERPRISE SEMANTIC INTERFACE -- getCorporateMarketIntel()
+   * ------------------------------------------------------------------
+   * (2026-08-04, Ahmed: "market share and business unit growth from
+   * market intelligence you can get easy for zeta")
+   *
+   * Company-wide market share and growth for the Executive Command
+   * Center's All-Business-Units view. Those two cards previously showed
+   * N/A there because averaging four BU percentages is arithmetically
+   * wrong -- each BU competes in a differently-sized market universe, so
+   * an unweighted mean over-weights small markets.
+   *
+   * The correct aggregation needs ABSOLUTE volumes, which this module has
+   * all along: sum Zeta's units and the total market's units across every
+   * in-scope BU, then divide once at the end. That is a genuine
+   * volume-weighted company share, not a blend of ratios.
+   *
+   * BASIS: YTD window, SU (standard units), Other Markets excluded.
+   *
+   * MARKET DEFINITION -- the part that matters, and that a first
+   * implementation got wrong (2026-08-04). "Market" here is NOT the whole
+   * ATC universe every row in the cache belongs to. It is the set of DM1
+   * competitive segments TARGETS_2026 defines for Zeta's own products --
+   * the markets Zeta actually competes in. Measuring against the full ATC
+   * universe drags in categories Zeta has no presence in and produced a
+   * company share of 3.9% against a business-validated 10.2%, plus an
+   * implausible "market -40%" growth figure that was pure artefact of
+   * non-competitive segments entering the denominator.
+   *
+   * Restricting the denominator to target DM1 segments reproduces
+   * 10.2475% (Ahmed's stated 10.2%) and yields sane growth: Zeta +60.4%
+   * against a market at +16.0%.
+   *
+   * DM1 vs DM2: targets carry two nested market definitions per product
+   * (DM1 broader, DM2 narrower). The headline uses DM1 -- the figure the
+   * business quotes -- and DM2 is returned alongside so the narrower read
+   * stays available without a second pass.
+   */
+  getCorporateMarketIntel() {
+    const user = getValidSessionUser();
+    if (!user) return { ok: false, status: 'auth_required', source: 'iqvia' };
+    if (typeof window.SEMANTIC === 'undefined') {
+      return { ok: false, status: 'semantic_model_missing', source: 'iqvia' };
+    }
+    if (!flat) {
+      try { loadData(); } catch (e) { /* loadData() logs internally */ }
+    }
+    if (!flat) return { ok: false, status: 'cache_unavailable', source: 'iqvia' };
+
+    const zetaIdx = LOOKUPS.corps.findIndex(c => c && c.toUpperCase().includes('ZETA PHARM'));
+    if (zetaIdx < 0) return { ok: false, status: 'zeta_not_found', source: 'iqvia' };
+
+    const targets = (typeof TARGETS_2026 !== 'undefined' && Array.isArray(TARGETS_2026)) ? TARGETS_2026 : null;
+    if (!targets || targets.length === 0) return { ok: false, status: 'targets_unavailable', source: 'iqvia' };
+
+    // Build the competitive-market segment sets from the target list,
+    // dropping any target that belongs to the Other Markets BU.
+    const norm = s => String(s === null || s === undefined ? '' : s).trim().toUpperCase();
+    const d1Index = new Map(LOOKUPS.dm1s.map((v, i) => [norm(v), i]));
+    const d2Index = new Map(LOOKUPS.dm2s.map((v, i) => [norm(v), i]));
+    const segD1 = new Set(), segD2 = new Set();
+    targets.forEach(t => {
+      if (norm(t.bu) === 'OTHER MARKETS') return;
+      const a = d1Index.get(norm(t.dm1)); if (a !== undefined) segD1.add(a);
+      const b = d2Index.get(norm(t.dm2)); if (b !== undefined) segD2.add(b);
+    });
+    if (segD1.size === 0) return { ok: false, status: 'no_target_segments', source: 'iqvia' };
+
+    const curPidxs = getPeriodIndices('ytd');
+    const prevPidxs = getPrevPeriodIndices('ytd');
+
+    let zc1 = 0, tc1 = 0, zp1 = 0, tp1 = 0;
+    let zc2 = 0, tc2 = 0, zp2 = 0, tp2 = 0;
+    for (let i = 0; i < flat.length; i += 10) {
+      const bu = LOOKUPS.bus[flat[i + BUCI]];
+      if (bu === 'Other Markets') continue;
+      const t = flat[i + TI];
+      const isCur = curPidxs.has(t), isPrev = prevPidxs.has(t);
+      if (!isCur && !isPrev) continue;
+      const su = flat[i + SI];
+      const isZeta = (flat[i + CI] === zetaIdx);
+      if (segD1.has(flat[i + D1I])) {
+        if (isCur) { tc1 += su; if (isZeta) zc1 += su; }
+        else { tp1 += su; if (isZeta) zp1 += su; }
+      }
+      if (segD2.has(flat[i + D2I])) {
+        if (isCur) { tc2 += su; if (isZeta) zc2 += su; }
+        else { tp2 += su; if (isZeta) zp2 += su; }
+      }
+    }
+
+    function pack(zCur, tCur, zPrev, tPrev) {
+      const sharePct = tCur > 0 ? (zCur / tCur) * 100 : null;
+      const sharePrevPct = tPrev > 0 ? (zPrev / tPrev) * 100 : null;
+      const zetaGrowthPct = zPrev > 0 ? ((zCur - zPrev) / zPrev) * 100 : null;
+      const marketGrowthPct = tPrev > 0 ? ((tCur - tPrev) / tPrev) * 100 : null;
+      const evi = (zetaGrowthPct !== null && marketGrowthPct !== null)
+        ? Math.round(((1 + zetaGrowthPct / 100) / (1 + marketGrowthPct / 100)) * 100)
+        : null;
+      return {
+        sharePct: sharePct,
+        priorYearSharePct: sharePrevPct,
+        deltaPts: (sharePct !== null && sharePrevPct !== null) ? sharePct - sharePrevPct : null,
+        zetaGrowthPct: zetaGrowthPct,
+        marketGrowthPct: marketGrowthPct,
+        growthGapPts: (zetaGrowthPct !== null && marketGrowthPct !== null) ? zetaGrowthPct - marketGrowthPct : null,
+        evi: evi,
+        zetaUnitsYTD: zCur,
+        marketUnitsYTD: tCur,
+      };
+    }
+
+    const dm1 = pack(zc1, tc1, zp1, tp1);
+    const dm2 = pack(zc2, tc2, zp2, tp2);
+
+    return Object.assign({
+      ok: true,
+      status: 'ready',
+      source: 'iqvia',
+      asOfDate: refPeriodLabel(),
+      basis: 'YTD · SU basis · excl. Other Markets',
+      segmentsDm1: segD1.size,
+      segmentsDm2: segD2.size,
+      dm1: dm1,
+      dm2: dm2,
+      // Legacy field names from the removed 2026-07-31 averaging
+      // implementation, kept so any caller still reading them keeps
+      // working -- now carrying the volume-weighted values instead of
+      // the unweighted BU average. See the SUPERSEDED note below.
+      avgSharePct: dm1.sharePct,
+      avgZetaGrowthPct: dm1.zetaGrowthPct,
+      avgMarketGrowthPct: dm1.marketGrowthPct,
+      avgGrowthGapPts: dm1.growthGapPts,
+      avgEvi: dm1.evi,
+    }, dm1); // DM1 fields promoted to the top level -- the headline read
+  },
+
   getBusinessSummary() {
     const user = getValidSessionUser();
     if (!user) {
@@ -8833,70 +8970,23 @@ window.IQVIADashboard = {
   },
 
   /**
-   * ENTERPRISE SEMANTIC INTERFACE -- getCorporateMarketIntel()
-   * ------------------------------------------------------------------
-   * ADDED 2026-07-31 ("add corporate performance to each Executive KPI
-   * card as reference"): a company-wide (all 4 BUs blended) reference
-   * figure for Market Share (KPI 8) and Business Unit Growth (KPI 9),
-   * built by running computeDM1DM2Core() -- the SAME per-BU blended-
-   * share/growth methodology getDM1DM2MarketIntel() uses -- once per
-   * BU in SEMANTIC.BU_LIST, then averaging the 4 results.
+   * SUPERSEDED 2026-08-04 -- a second getCorporateMarketIntel() lived
+   * here (added 2026-07-31) that averaged the four BUs' own blended
+   * share/growth percentages. Two problems:
    *
-   * "Corporate" here is a documented approximation, same spirit as
-   * this file's existing avg(dm1,dm2) blending: each BU tracks a
-   * DIFFERENT set of DM1/DM2 competitive markets (that's inherent to
-   * how Zeta's portfolio is organized), so there is no single unified
-   * market denominator to sum across BUs the way Sales/Coverage figures
-   * can be summed. A simple average of each BU's own already-blended
-   * share/growth number is the same-basis approximation the platform
-   * already uses for "vs DM1 / vs DM2" -- flagged here, not silently
-   * presented as more precise than it is.
+   *   1. Arithmetically wrong for a company figure. Each BU competes in
+   *      a differently-sized market, so an unweighted mean of ratios
+   *      over-weights small markets. Measured against the real cache it
+   *      gave 9.5% where the business-validated company share is 10.2%.
+   *   2. It was a DUPLICATE KEY in this same object literal, so it
+   *      silently overrode the volume-weighted implementation defined
+   *      above and the Executive cards rendered undefined.
    *
-   * Deliberately UNGATED per-BU (unlike getDM1DM2MarketIntel): only
-   * the blended 4-BU average is returned, never a per-BU breakdown, so
-   * a caller can never recover one specific out-of-scope BU's number
-   * through this -- see the Visibility decision in the 2026-07-31
-   * "corporate reference" request (shown to every signed-in user,
-   * restricted or not, same as every other KPI card's Corporate row).
-   * Still requires a valid session (same baseline as every other IQVIA
-   * getter) -- just not a per-BU AUTH.isBuAllowed() check.
+   * Removed. The weighted implementation earlier in this object is now
+   * the single definition, and exposes the legacy avg* field names as
+   * aliases so any dynamic caller keeps working -- reading correct
+   * values now.
    */
-  getCorporateMarketIntel() {
-    const user = getValidSessionUser();
-    if (!user) {
-      return { ok: false, status: 'auth_required', avgSharePct: null, avgZetaGrowthPct: null, avgMarketGrowthPct: null, avgGrowthGapPts: null, avgEvi: null };
-    }
-    if (typeof window.SEMANTIC === 'undefined') {
-      console.error('[IQVIA] getCorporateMarketIntel() requires js/semantic-model.js to be loaded first.');
-      return { ok: false, status: 'semantic_model_missing', avgSharePct: null, avgZetaGrowthPct: null, avgMarketGrowthPct: null, avgGrowthGapPts: null, avgEvi: null };
-    }
-    const avg = (a, b) => (a != null && b != null) ? (a + b) / 2 : (a != null ? a : b);
-    const shares = [], zetaGrowths = [], marketGrowths = [], evis = [];
-    window.SEMANTIC.BU_LIST.forEach(bu => {
-      const r = computeDM1DM2Core(bu, null);
-      if (!r || !r.ok || !r.total) return;
-      const d1 = r.total.dm1.ytd.su, d2 = r.total.dm2.ytd.su;
-      const share = avg(d1.sharePct, d2.sharePct);
-      const zg = avg(d1.zetaGrowthPct, d2.zetaGrowthPct);
-      const mg = avg(d1.marketGrowthPct, d2.marketGrowthPct);
-      const evi = avg(d1.evi, d2.evi);
-      if (share != null) shares.push(share);
-      if (zg != null) zetaGrowths.push(zg);
-      if (mg != null) marketGrowths.push(mg);
-      if (evi != null) evis.push(evi);
-    });
-    const mean = arr => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
-    const avgSharePct = mean(shares);
-    const avgZetaGrowthPct = mean(zetaGrowths);
-    const avgMarketGrowthPct = mean(marketGrowths);
-    const avgGrowthGapPts = (avgZetaGrowthPct != null && avgMarketGrowthPct != null) ? avgZetaGrowthPct - avgMarketGrowthPct : null;
-    return {
-      ok: true, status: 'ready',
-      avgSharePct: avgSharePct, avgZetaGrowthPct: avgZetaGrowthPct,
-      avgMarketGrowthPct: avgMarketGrowthPct, avgGrowthGapPts: avgGrowthGapPts,
-      avgEvi: mean(evis),
-    };
-  },
 
   destroy() {
     // Restore filters

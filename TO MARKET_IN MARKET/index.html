@@ -293,7 +293,16 @@ function TmsImsDashboard() {
   const [lines, setLines] = useState([]);
   const [brands, setBrands] = useState([]);
   const [products, setProducts] = useState([]);
-  const [salesTypes, setSalesTypes] = useState([]);
+  // Sales Type is FROZEN at "Private" (2026-08-04, Ahmed: "make sale
+  // type freezed at private"). Tender business is reported separately
+  // and every other workspace on the platform already scopes its
+  // headline figures to Non-Tender -- leaving this page selectable was
+  // the one place a viewer could unknowingly blend the two bases and
+  // read TMS/IMS numbers that reconcile with nothing else.
+  // Seeded here rather than filtered at the data layer so the scope
+  // description line and every derived chart pick it up automatically.
+  const SALES_TYPE_LOCK = "Private";
+  const [salesTypes, setSalesTypes] = useState([SALES_TYPE_LOCK]);
   const [invLevel, setInvLevel] = useState("brand"); // "brand" | "sku"
 
   // ---------- cascading filter options ----------
@@ -759,9 +768,9 @@ function TmsImsDashboard() {
   const activeGapMonths = GAP_MONTHS.filter((m) => sel(months, m));
   const onlyGapSelected = months.length > 0 && months.every((m) => GAP_MONTHS.includes(m));
   const activeFilterCount =
-    [months, bus, lines, brands, products, salesTypes].filter((a) => a.length > 0).length;
+    [months, bus, lines, brands, products].filter((a) => a.length > 0).length; // salesTypes excluded -- it is locked, not user-applied
   const resetFilters = () => {
-    setMonths([]); setBus([]); setLines([]); setBrands([]); setProducts([]); setSalesTypes([]);
+    setMonths([]); setBus([]); setLines([]); setBrands([]); setProducts([]); setSalesTypes([SALES_TYPE_LOCK]);
   };
 
   const ChartTooltip = ({ active, payload, label }) => {
@@ -864,7 +873,13 @@ function TmsImsDashboard() {
             <MultiSelect label="Line" options={lineOptions} selected={lines} onChange={handleLines} />
             <MultiSelect label="Brand" options={brandOptions} selected={brands} onChange={handleBrands} />
             <MultiSelect label="Product (SKU)" options={productOptions} selected={products} onChange={setProducts} wide />
-            <MultiSelect label="Sales Type" options={STYPES} selected={salesTypes} onChange={setSalesTypes} />
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Sales Type</span>
+              <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700" title="Locked to Private — Tender business is reported separately">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="text-slate-400"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                {SALES_TYPE_LOCK}
+              </div>
+            </div>
             {activeFilterCount > 0 && (
               <button
                 type="button"

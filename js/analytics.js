@@ -528,9 +528,48 @@ const Analytics = (() => {
     //   null = all periods → use latest
     //   Set with one entry → that entry
     //   Set with multiple → use the latest (max index) among selected
+    //
+    // kpiPeriodIdx remains the SINGLE reference period, used for
+    // point-in-time measures (headcount, vacancy, customers per rep) --
+    // those must never be pooled: summing headcount across five months
+    // would report 785 employees where 157 exist.
     const kpiPeriodIdx = want.period !== null
       ? Math.max(...Array.from(want.period))
       : latestPeriodIdx;
+
+    // PERIOD POOLING (2026-08-04, Ahmed: "when period called YTD it should
+    // obey Feb-June pooled and apply all over the page").
+    //
+    // Previously every headline KPI read byPeriod.get(kpiPeriodIdx) -- a
+    // single month -- so selecting "Period: YTD" changed nothing on the
+    // cards. Coverage/RF read 95.9%/80.5% (June) while the Executive
+    // Command Center's pooled figure was 94.1%/71.4%, and the two pages
+    // could not be reconciled no matter what the user selected.
+    //
+    // kpiPeriodSet is every period actually in scope. Rate and volume
+    // KPIs now aggregate across ALL of them, which for a single-month
+    // selection reduces to exactly the previous behavior.
+    const kpiPeriodSet = want.period !== null
+      ? want.period
+      : new Set(dims.periods.map((_, i) => i));
+    const isPooledPeriod = kpiPeriodSet.size > 1;
+
+    // Row-weighted pooled group across every in-scope period. Same
+    // accumulator shape as a single byPeriod entry, so downstream code
+    // reads it identically.
+    const pooledGroup = emptyGroup();
+    kpiPeriodSet.forEach(pIdx => {
+      const g = byPeriod.get(pIdx);
+      if (!g) return;
+      pooledGroup.coveredSum += g.coveredSum;
+      pooledGroup.rightFreqSum += g.rightFreqSum;
+      pooledGroup.rowCount += g.rowCount;
+      pooledGroup.freqSum += g.freqSum;
+      pooledGroup.visitsSum += g.visitsSum;
+      pooledGroup.onTargetCalls += g.onTargetCalls;
+      pooledGroup.missedCalls += g.missedCalls;
+      pooledGroup.wastedCalls += g.wastedCalls;
+    });
 
     const headcount = global.activeEmployees.size;
     const resigned = global.resignedEmployees.size;
@@ -568,28 +607,48 @@ const Analytics = (() => {
       resignedReps: kpiResigned,
       headcount: kpiHeadcount,
       vacancyCount: kpiVacancy,
-      coveragePct: round4(pct(kpiPeriodGroup.coveredSum, kpiPeriodGroup.rowCount)),
-      rightFreqPct: round4(pct(kpiPeriodGroup.rightFreqSum, kpiPeriodGroup.rowCount)),
+      // RATES -- pooled (row-weighted) across every in-scope period, so
+      // "Period: YTD" now reports the Feb-Jun figure that reconciles with
+      // the Executive Command Center's YTD-average line, and a
+      // single-month selection reduces to that month exactly as before.
+      coveragePct: round4(pct(pooledGroup.coveredSum, pooledGroup.rowCount)),
+      rightFreqPct: round4(pct(pooledGroup.rightFreqSum, pooledGroup.rowCount)),
+      // POINT-IN-TIME -- deliberately NOT pooled (see kpiPeriodIdx note).
       customersPerRep: round2(customersPerRep),
       spanOfControl: round2(spanOfControl),
       attritionRate: round4(attritionRate),
       avgVisits: round2(avgVisits),
       avgFrequencyAchievement: round4(avgFrequencyAchievement),
       latestMonth: dims.periods[kpiPeriodIdx],
-      // Visit productivity KPIs
-      totalTargetVisits: kpiPeriodGroup.freqSum,
-      totalActualVisits: kpiPeriodGroup.visitsSum,
-      visitAchievementPct: round4(kpiPeriodGroup.freqSum > 0 ? kpiPeriodGroup.visitsSum / kpiPeriodGroup.freqSum : null),
-      // Coverage gap KPIs
-      notSeenCount: kpiPeriodGroup.rowCount - kpiPeriodGroup.coveredSum,
-      notSeenPct: round4(kpiPeriodGroup.rowCount > 0 ? (kpiPeriodGroup.rowCount - kpiPeriodGroup.coveredSum) / kpiPeriodGroup.rowCount : null),
-      // Unique customer count for KPI period — each doctor counted once
-      // regardless of how many reps target them (no duplication across reps).
-      totalUniqueCustomers: (custUniqByPeriod.get(kpiPeriodIdx) || new Set()).size,
+      // Period basis, so the UI can caption honestly instead of implying
+      // a single month when several are pooled.
+      periodBasis: isPooledPeriod
+        ? dims.periods[Math.min(...Array.from(kpiPeriodSet))] + "–" + dims.periods[kpiPeriodIdx]
+        : dims.periods[kpiPeriodIdx],
+      periodsPooled: kpiPeriodSet.size,
+      // VOLUMES -- summed across in-scope periods. Total planned/executed
+      // visits over Feb-Jun is a meaningful cumulative figure.
+      totalTargetVisits: pooledGroup.freqSum,
+      totalActualVisits: pooledGroup.visitsSum,
+      visitAchievementPct: round4(pooledGroup.freqSum > 0 ? pooledGroup.visitsSum / pooledGroup.freqSum : null),
+      // Coverage gap -- pooled, consistent with the rates above.
+      notSeenCount: pooledGroup.rowCount - pooledGroup.coveredSum,
+      notSeenPct: round4(pooledGroup.rowCount > 0 ? (pooledGroup.rowCount - pooledGroup.coveredSum) / pooledGroup.rowCount : null),
+      // Unique customers -- UNION across in-scope periods, never a sum:
+      // a doctor targeted in five months is one doctor, not five.
+      totalUniqueCustomers: (() => {
+        if (!isPooledPeriod) return (custUniqByPeriod.get(kpiPeriodIdx) || new Set()).size;
+        const u = new Set();
+        kpiPeriodSet.forEach(p => (custUniqByPeriod.get(p) || new Set()).forEach(c => u.add(c)));
+        return u.size;
+      })(),
+      // Customer ACCOUNTS in scope -- point-in-time, so this stays on the
+      // reference period. Pooling would report customer-months as if they
+      // were distinct accounts.
       totalSharedCustomers: kpiPeriodGroup.rowCount,
-      onTargetCalls: kpiPeriodGroup.onTargetCalls,
-      missedCalls: kpiPeriodGroup.missedCalls,
-      wastedCalls: kpiPeriodGroup.wastedCalls,
+      onTargetCalls: pooledGroup.onTargetCalls,
+      missedCalls: pooledGroup.missedCalls,
+      wastedCalls: pooledGroup.wastedCalls,
       overFreqCount: overFreqCount,
       belowFreqCount: belowFreqCount,
     };
@@ -628,7 +687,11 @@ const Analytics = (() => {
     // series already respects the current Team/Manager/etc. filters --
     // this isn't a separate query). null when there's no earlier period
     // to compare against (e.g. Period=February selected explicitly).
-    const kpiDeltas = buildKpiDeltas(trend.series, kpiPeriodIdx, kpis);
+    // Month-over-month deltas only make sense against a single-month
+    // headline. When several periods are pooled, the cards would read
+    // "vs May" beside a Feb-Jun figure -- comparing a five-month average
+    // to one month. Suppressed rather than shown misleadingly (2026-08-04).
+    const kpiDeltas = isPooledPeriod ? null : buildKpiDeltas(trend.series, kpiPeriodIdx, kpis);
 
     const teamComparison = mapGroupsToRows(byTeam, dims.teams, (name, g) => ({
       team: name,

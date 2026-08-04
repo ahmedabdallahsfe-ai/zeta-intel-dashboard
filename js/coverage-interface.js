@@ -229,18 +229,32 @@
   }
 
   /**
-   * ENTERPRISE SEMANTIC INTERFACE -- getFilteredCoverageByType(bu)
+   * ENTERPRISE SEMANTIC INTERFACE -- getFilteredCoverageByType(bu, line)
    * ------------------------------------------------------------------
    * Executive KPI cards (2026-07-27): Operational Coverage and Right
    * Frequency each need a click-through breakdown of the SAME filtered
-   * population getFilteredCoverageSummary() already scopes (Title=Medical
-   * Representative, Experience=Non-Probation, Status=Active), but split
-   * BY customer type (Contract/Doctor/Hospital) instead of merged into
-   * one number -- same filter scope, same source rows, just grouped one
-   * level finer. Single BU per call (the modal only ever needs the BU
-   * the user clicked into).
+   * population getFilteredCoverageForLine() already scopes, but split BY
+   * customer type instead of merged into one number -- same filter
+   * scope, same source rows, just grouped one level finer.
+   *
+   * `line` (added 2026-08-04, Ahmed): previously this took only `bu`, so
+   * the modal ignored the Line filter entirely -- selecting CHC_SALES
+   * showed a card scoped to the Pharmacy/Sales-Rep team (95.1% coverage)
+   * above a popup still listing Contract/Doctor/Hospital under
+   * "Title=Medical Representative". The card and its own drill-down
+   * disagreed about which population they described.
+   *
+   * The per-row Title/Type flip is identical to
+   * getFilteredCoverageForLine()'s: CHC_SALES rows are matched on
+   * Title="Sales Representative" and Type="Pharmacy", every other line on
+   * Title="Medical Representative" and Type in {Contract, Doctor,
+   * Hospital}. Experience=Non-Probation and Status=Active apply to all
+   * lines. Because the type universe itself depends on the line, the
+   * returned `types` array is built from whichever types are actually in
+   * scope -- so a CHC_SALES drill-down returns a single "Pharmacy" row,
+   * not three empty ones.
    */
-  function getFilteredCoverageByType(bu) {
+  function getFilteredCoverageByType(bu, line) {
     if (typeof CacheStore === "undefined" || !CacheStore.isReady()) {
       if (typeof CacheStore !== "undefined" && !CacheStore.isReady()) {
         CacheStore.init();
@@ -276,32 +290,55 @@
 
     const latestPeriodIdx = (dims.periods || []).length - 1;
     const titleIdx = (dims.titles || []).indexOf("Medical Representative");
+    // CHC_SALES reps are titled "Sales Representative" and their customers
+    // are Type="Pharmacy" -- both dimensions flip together for that one
+    // team, exactly as in getFilteredCoverageForLine().
+    const salesRepTitleIdx = (dims.titles || []).indexOf("Sales Representative");
     const expIdx = (dims.experiences || []).indexOf("Non-Probation");
     const statusIdx = (dims.statuses || []).indexOf("Active");
-    // Same 3-type scope as getFilteredCoverageSummary() -- kept identical
-    // on purpose so the modal's per-type rows sum back to the headline
-    // card's merged number.
-    const wantTypes = ["Contract", "Doctor", "Hospital"];
+    const standardTypes = ["Contract", "Doctor", "Hospital"];
+    const pharmacyTypes = ["Pharmacy"];
+    const normLineArg = line && line !== "All" ? window.SEMANTIC.normalizeLine(line) : null;
+
+    // Which types can appear at all for this BU/line selection. Scoping
+    // to CHC_SALES yields ["Pharmacy"]; anything else yields the standard
+    // three. Selecting the whole CHC BU yields all four, since both
+    // populations are legitimately in scope and each row is matched
+    // against ITS OWN applicable title/type pair below.
+    const chcSalesOnly = (bu === "CHC" && normLineArg === "CHC_SALES");
+    const chcBuAll = (bu === "CHC" && !normLineArg);
+    const wantTypes = chcSalesOnly ? pharmacyTypes
+                    : chcBuAll ? standardTypes.concat(pharmacyTypes)
+                    : standardTypes;
+
     const typeIdxByName = {};
     wantTypes.forEach(t => { const i = (dims.types || []).indexOf(t); if (i >= 0) typeIdxByName[t] = i; });
 
     if (titleIdx < 0 || expIdx < 0 || statusIdx < 0 || Object.keys(typeIdxByName).length === 0) {
-      return { ok: false, status: "dimension_mismatch", asOfDate: latestPeriod, source: "coverage", bu: bu, types: [] };
+      return { ok: false, status: "dimension_mismatch", asOfDate: latestPeriod, source: "coverage", bu: bu, line: line || "All", types: [] };
     }
 
     const acc = {};
     wantTypes.forEach(t => { acc[t] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, repSet: new Set(), classes: {} }; });
 
     records.rows.forEach(row => {
-      if (row[F.title] !== titleIdx) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
-      const typeName = wantTypes.find(t => typeIdxByName[t] === row[F.type]);
-      if (!typeName) return;
 
       const teamName = (dims.teams || [])[row[F.team]];
       if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
       if (window.SEMANTIC.lineToBU(teamName) !== bu) return;
+      const canonLine = window.SEMANTIC.normalizeLine(teamName);
+      if (normLineArg && canonLine !== normLineArg) return;
+
+      // Per-row title/type scope -- resolved from which line the row
+      // belongs to, not from the filter selection, so a whole-BU CHC
+      // drill-down measures each of its two teams correctly.
+      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
+      if (row[F.title] !== (isChcSalesTeam ? salesRepTitleIdx : titleIdx)) return;
+      const applicableTypes = isChcSalesTeam ? pharmacyTypes : standardTypes;
+      const typeName = applicableTypes.find(t => typeIdxByName[t] === row[F.type]);
+      if (!typeName || !acc[typeName]) return;
 
       if (row[F.isActive]) {
         const a = acc[typeName];
@@ -377,8 +414,21 @@
       asOfDate: latestPeriod,
       source: "coverage",
       bu: bu,
-      filterScope: { title: "Medical Representative", experience: "Non-Probation", status: "Active" },
-      types: types,
+      line: line || "All",
+      // Reports the scope ACTUALLY applied so the modal can caption itself
+      // honestly instead of hardcoding "Title=Medical Representative" --
+      // which was wrong the moment CHC_SALES was selected (2026-08-04).
+      filterScope: {
+        title: chcSalesOnly ? "Sales Representative"
+             : chcBuAll ? "Medical Representative / Sales Representative (per line)"
+             : "Medical Representative",
+        experience: "Non-Probation",
+        status: "Active",
+        types: wantTypes,
+      },
+      // Drop types with no rows in scope, so a CHC_SALES drill shows one
+      // Pharmacy row rather than three empty Contract/Doctor/Hospital ones.
+      types: types.filter(t => t.customerRowCount > 0),
     };
   }
 
@@ -488,6 +538,19 @@
 
     let coveredSum = 0, rightFreqSum = 0, rowCount = 0;
     const repSet = new Set();
+    // Latest-period accumulators (2026-08-04). Coverage % and RF % are
+    // RATES, not cumulative totals: pooling every month's rows and
+    // averaging produces a blended figure that lags current performance,
+    // which is not what "YTD" means to a reader and not what an
+    // Executive card claiming to show "right now" should lead with.
+    // Measured on DIAB: pooled Feb-Jun gives Coverage 94.1% / RF 71.4%,
+    // while June alone gives 95.8% / 80.5% -- a 9-point RF gap that was
+    // pushing the card to an "At Risk" badge the current month doesn't
+    // warrant. Both are computed in the SAME pass (no second scan) so
+    // callers can lead with the latest period and show the pooled
+    // average as context. See buildCoverageFamilyCard() in executive.js.
+    let coveredSumLatest = 0, rightFreqSumLatest = 0, rowCountLatest = 0;
+    const repSetLatest = new Set();
 
     records.rows.forEach(row => {
       if (row[F.experience] !== expIdx) return;
@@ -511,6 +574,13 @@
         rightFreqSum += row[F.rightFreq] || 0;
         rowCount += 1;
         repSet.add(row[F.employee]);
+
+        if (row[F.period] === latestPeriodIdx) {
+          coveredSumLatest += row[F.coveredDoctor] || 0;
+          rightFreqSumLatest += row[F.rightFreq] || 0;
+          rowCountLatest += 1;
+          repSetLatest.add(row[F.employee]);
+        }
       }
     });
 
@@ -521,10 +591,23 @@
       source: "coverage",
       bu: bu,
       line: line || "All",
+      // Pooled across every period in the cache. Kept as the primary
+      // field names for backward compatibility -- every existing consumer
+      // (rankings, corporate benchmark, Evidence dashboard) keeps reading
+      // exactly what it read before.
       coveragePct: rowCount > 0 ? (coveredSum / rowCount) * 100 : null,
       rightFreqPct: rowCount > 0 ? (rightFreqSum / rowCount) * 100 : null,
       repCount: repSet.size,
       customerRowCount: rowCount,
+      // Latest period only (2026-08-04) -- see the accumulator comment
+      // above for why rates need this. `periodsPooled` lets a caller
+      // caption the pooled figure accurately instead of guessing.
+      latestPeriod: latestPeriod,
+      periodsPooled: (dims.periods || []).length,
+      coveragePctLatest: rowCountLatest > 0 ? (coveredSumLatest / rowCountLatest) * 100 : null,
+      rightFreqPctLatest: rowCountLatest > 0 ? (rightFreqSumLatest / rowCountLatest) * 100 : null,
+      repCountLatest: repSetLatest.size,
+      customerRowCountLatest: rowCountLatest,
       filterScope: {
         title: "Medical Representative", experience: "Non-Probation", status: "Active",
         types: wantTypes,
@@ -813,6 +896,11 @@
     }
 
     let coveredSum = 0, rightFreqSum = 0, rowCount = 0;
+    // Latest-period corporate figures (2026-08-04) -- the Executive cards
+    // now lead with the latest period for these rate metrics, and a
+    // benchmark computed on a different period basis than the number it
+    // sits under would be actively misleading. Same single pass.
+    let coveredSumLatest = 0, rightFreqSumLatest = 0, rowCountLatest = 0;
 
     records.rows.forEach(row => {
       if (row[F.experience] !== expIdx) return;
@@ -834,6 +922,12 @@
         coveredSum += row[F.coveredDoctor] || 0;
         rightFreqSum += row[F.rightFreq] || 0;
         rowCount += 1;
+
+        if (row[F.period] === latestPeriodIdx) {
+          coveredSumLatest += row[F.coveredDoctor] || 0;
+          rightFreqSumLatest += row[F.rightFreq] || 0;
+          rowCountLatest += 1;
+        }
       }
     });
 
@@ -845,6 +939,11 @@
       coveragePct: rowCount > 0 ? (coveredSum / rowCount) * 100 : null,
       rightFreqPct: rowCount > 0 ? (rightFreqSum / rowCount) * 100 : null,
       customerRowCount: rowCount,
+      latestPeriod: latestPeriod,
+      periodsPooled: (dims.periods || []).length,
+      coveragePctLatest: rowCountLatest > 0 ? (coveredSumLatest / rowCountLatest) * 100 : null,
+      rightFreqPctLatest: rowCountLatest > 0 ? (rightFreqSumLatest / rowCountLatest) * 100 : null,
+      customerRowCountLatest: rowCountLatest,
     };
   }
 

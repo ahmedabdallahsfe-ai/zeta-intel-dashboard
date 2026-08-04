@@ -167,9 +167,38 @@
   function fmtPct1(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : v.toFixed(1) + "%"; }
   function fmtSignedPts(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : (v >= 0 ? "+" : "") + v.toFixed(1) + " pts"; }
   function fmtSignedPct(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
-  function fmtM(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : "EGP " + (v / 1e6).toFixed(1) + "M"; }
-  function fmtSignedM(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : (v >= 0 ? "+" : "") + "EGP " + (v / 1e6).toFixed(1) + "M"; }
+  // Currency scale (2026-08-04, Ahmed: "make in million and billion").
+  // The All-BU view pushed company figures past a billion, where "EGP
+  // 1370.1M" is harder to read at a glance than "EGP 1.37B" -- an
+  // executive scanning a card should not have to count digits. Auto-
+  // scales at the 1e9 boundary and keeps 2 decimals for billions (so
+  // 1.37B, not a lossy 1.4B), 1 decimal for millions exactly as before.
+  // Everything below a million falls back to a plain grouped integer
+  // rather than rendering "EGP 0.4M".
+  function scaleEgp(v) {
+    const abs = Math.abs(v);
+    if (abs >= 1e9) return (v / 1e9).toFixed(2) + "B";
+    if (abs >= 1e6) return (v / 1e6).toFixed(1) + "M";
+    if (abs >= 1e3) return (v / 1e3).toFixed(0) + "K";
+    return Math.round(v).toLocaleString();
+  }
+  function fmtM(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : "EGP " + scaleEgp(v); }
+  function fmtSignedM(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : (v >= 0 ? "+" : "-") + "EGP " + scaleEgp(Math.abs(v)); }
   function fmtInt(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : Math.round(v).toLocaleString(); }
+  // Unit counts scale the same way but without a currency prefix, so
+  // "6,371,216 units" reads as "6.37M units" on the company view while
+  // a single BU's smaller counts stay exact.
+  function fmtUnits(v) {
+    if (v === null || v === undefined || isNaN(v)) return "N/A";
+    const abs = Math.abs(v);
+    if (abs >= 1e9) return (v / 1e9).toFixed(2) + "B";
+    if (abs >= 1e6) return (v / 1e6).toFixed(2) + "M";
+    return Math.round(v).toLocaleString();
+  }
+  function fmtSignedUnits(v) {
+    if (v === null || v === undefined || isNaN(v)) return "N/A";
+    return (v >= 0 ? "+" : "-") + fmtUnits(Math.abs(v));
+  }
   function escapeAttr(s) { return String(s === null || s === undefined ? "" : s).replace(/&/g, "&amp;").replace(/"/g, "&quot;"); }
 
   // ---------------------------------------------------------------------
@@ -277,6 +306,63 @@
     const total = values.reduce((s, v) => s + v, 0);
     if (total <= 0) return null;
     return (Math.max.apply(null, values) / total) * 100;
+  }
+
+  // -------------------------------------------------------------------
+  // COMPANY AGGREGATES for the All-BU view (2026-08-04)
+  // -------------------------------------------------------------------
+  // These return the SAME object shape their per-BU counterparts do, so
+  // the card builders can swap one for the other with a single branch
+  // instead of growing a parallel rendering path.
+  //
+  // The `line` convention below -- "CHC" for the CHC BU, null/"All"
+  // elsewhere -- is deliberately identical to corporateSalesAchievementPct()
+  // above: it excludes CHC_SALES, which is a second channel view of CHC's
+  // own catalogue rather than incremental business. That is what makes
+  // this view satisfy "same conditions of sales calculation": Non-Tender
+  // only, CHC_SALES out, scenario-resolved per line.
+  function corporateSalesAchievementSummary() {
+    let actual = 0, target = 0, lastVal = 0, prevVal = 0, any = false;
+    const scenario = activeScenario();
+    global.SEMANTIC.BU_LIST.forEach(b => {
+      const line = (b === "CHC") ? "CHC" : null;
+      const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, line, undefined, scenario);
+      if (s && s.ok) {
+        any = true;
+        actual += s.actualYTD || 0;
+        target += s.targetYTD || 0;
+        // Reconstruct company MoM from each BU's own last/previous month
+        // values rather than averaging their percentages, which would
+        // weight a tiny BU the same as a large one.
+        if (typeof s.lastMonthValue === "number") lastVal += s.lastMonthValue;
+        if (typeof s.prevMonthValue === "number") prevVal += s.prevMonthValue;
+      }
+    });
+    if (!any) return { ok: false, status: "module_unavailable" };
+    return {
+      ok: true, status: "ready",
+      actualYTD: actual, targetYTD: target,
+      achievementPct: target > 0 ? (actual / target) * 100 : null,
+      momGrowthPct: prevVal > 0 ? ((lastVal - prevVal) / prevVal) * 100 : null,
+    };
+  }
+
+  function corporateNonTenderTotals(units) {
+    let actual = 0, target = 0, any = false;
+    const scenario = activeScenario();
+    global.SEMANTIC.BU_LIST.forEach(b => {
+      const line = (b === "CHC") ? "CHC" : "All";
+      const t = units ? nonTenderUnitsTotals(b, line, undefined, scenario)
+                      : nonTenderTotals(b, line, undefined, scenario);
+      if (t) {
+        any = true;
+        actual += units ? (t.actualQty || 0) : (t.actualValue || 0);
+        target += units ? (t.targetQty || 0) : (t.targetValue || 0);
+      }
+    });
+    if (!any) return null;
+    return units ? { actualQty: actual, targetQty: target }
+                 : { actualValue: actual, targetValue: target };
   }
 
   function corporateSalesProductivity(summaries) {
@@ -414,6 +500,32 @@
   // "everyone allowed" if AUTH isn't loaded (defensive only -- it's
   // always loaded before this file, see dashboard.html script order).
   // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // ALL-BUSINESS-UNITS VIEW (2026-08-04, Ahmed: "make select all, I need
+  // to show all company performance with same conditions of sales
+  // calculation")
+  // ---------------------------------------------------------------------
+  // ALL_BU is a sentinel filter value, not a real BU -- SEMANTIC.BU_LIST
+  // stays the four actual business units, and lineToBU() never returns
+  // this. Every card builder checks isAllBU() and routes to the corporate
+  // helper it ALREADY uses for its "vs Corporate" reference row, so the
+  // company view is computed by exactly the same code (and therefore the
+  // same conditions: Non-Tender only, CHC_SALES excluded from the sales
+  // rollup) that has been feeding that benchmark all along. No parallel
+  // company-total logic is introduced.
+  var ALL_BU = "All";
+
+  function isAllBU(bu) {
+    return bu === ALL_BU;
+  }
+
+  /** Whether the signed-in user may select the All-BU view at all.
+   * Role-gated in auth.js (CEO/VP/BEX/Admin/SFE Manager, unrestricted
+   * scope only) -- see canViewAllBUs() there for why scope matters. */
+  function canSelectAllBUs() {
+    return !!(global.AUTH && typeof global.AUTH.canViewAllBUs === "function" && global.AUTH.canViewAllBUs());
+  }
+
   function isBuRestricted() {
     return !!(global.AUTH && global.AUTH.getScope().bus !== null);
   }
@@ -443,13 +555,25 @@
   function clampFiltersToScope() {
     const allowedBUs = getAllowedBUList();
     if (allowedBUs.length === 0) return; // AUTH not ready yet -- leave as-is, nothing to clamp against
-    if (allowedBUs.indexOf(_filters.bu) < 0) {
+    // ALL_BU is legitimate only for permitted roles. A user who loses the
+    // entitlement (role change, or a scope restriction added since their
+    // last session) is clamped back to a real BU rather than silently
+    // continuing to see company-wide totals.
+    if (isAllBU(_filters.bu) && !canSelectAllBUs()) {
       _filters.bu = allowedBUs[0];
       _filters.line = "All";
     }
-    if (_filters.line !== "All") {
-      const allowedLines = getAllowedLinesForBU(_filters.bu);
-      if (allowedLines.indexOf(_filters.line) < 0) _filters.line = "All";
+    if (isAllBU(_filters.bu)) {
+      _filters.line = "All"; // Line has no meaning across BUs
+    } else {
+      if (allowedBUs.indexOf(_filters.bu) < 0) {
+        _filters.bu = allowedBUs[0];
+        _filters.line = "All";
+      }
+      if (_filters.line !== "All") {
+        const allowedLines = getAllowedLinesForBU(_filters.bu);
+        if (allowedLines.indexOf(_filters.line) < 0) _filters.line = "All";
+      }
     }
     // Target Scenario (2026-08-04): seed from the signed-in user's role
     // default / in-session choice, same convention as sales.js's
@@ -507,19 +631,45 @@
   // ---------------------------------------------------------------------
   function buildCoverageFamilyCard(kpiId, name, metricKey, target, filters) {
     const bu = filters.bu, line = filters.line;
-    const scoped = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, line === "All" ? null : line);
+    // Company view: reuse getCorporateCoverageTotals(), the SAME function
+    // that already produces this card's "vs Corporate" row, so the
+    // headline and the benchmark can never be computed differently.
+    const scoped = isAllBU(bu)
+      ? safeCall("coverage", "CoverageDashboard", "getCorporateCoverageTotals")
+      : safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, line === "All" ? null : line);
     if (!scoped || !scoped.ok) return unavailableCard(kpiId, name, scoped ? scoped.status : "module_unavailable");
 
-    const mainVal = scoped[metricKey];
+    // PERIOD BASIS (2026-08-04, Ahmed's decision: "show latest month with
+    // YTD as the comparison"). Coverage % and RF % are rates, so the
+    // pooled Feb-Jun figure this card used to lead with was a blended
+    // average that lagged the current month -- DIAB read RF 71.4% and
+    // earned an "At Risk" badge while June's actual RF was 80.5%. The
+    // headline is now the latest period; the pooled average moves to the
+    // comparison block as context. Sales cards are deliberately NOT
+    // changed: summing money across months IS a meaningful YTD total.
+    const latestKey = metricKey === "coveragePct" ? "coveragePctLatest" : "rightFreqPctLatest";
+    const latestVal = scoped[latestKey];
+    const pooledVal = scoped[metricKey];
+    // Fall back to the pooled value if a cache predating these fields is
+    // loaded -- never render a blank card over a presentation change.
+    const mainVal = (latestVal === null || latestVal === undefined) ? pooledVal : latestVal;
+    const usingLatest = (latestVal !== null && latestVal !== undefined);
     const achievementPct = mainVal !== null ? (mainVal / target) * 100 : null;
     const variance = mainVal !== null ? mainVal - target : null;
 
-    let rankInfo, rankUnit;
-    if (line === "All" && !isBuRestricted()) {
+    // Rank on the SAME basis as the headline, or a BU could rank #1 on a
+    // number the card isn't showing.
+    const rankKey = usingLatest ? latestKey : metricKey;
+    let rankInfo = null, rankUnit = null;
+    if (isAllBU(bu)) {
+      // The company total has nothing to rank against, and "vs Corporate"
+      // would compare the figure to itself. Both suppressed.
+      rankInfo = null;
+    } else if (line === "All" && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const r = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", b, null);
-        vals[b] = (r && r.ok) ? r[metricKey] : null;
+        vals[b] = (r && r.ok) ? r[rankKey] : null;
       });
       rankInfo = rank(vals, "desc")[bu];
       rankUnit = "Business Units";
@@ -528,22 +678,39 @@
       const vals = {};
       lines.forEach(l => {
         const r = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, l);
-        vals[l] = (r && r.ok) ? r[metricKey] : null;
+        vals[l] = (r && r.ok) ? r[rankKey] : null;
       });
       rankInfo = rank(vals, "desc")[line];
       rankUnit = "Lines within " + bu;
     }
 
-    const refEntry = coverageReferenceEntry(metricKey, bu, line);
+    // Comparison block: the pooled average first (the "YTD as comparison"
+    // Ahmed asked for), then the existing Corporate benchmark, which is
+    // retained rather than displaced -- it is the cross-BU reference every
+    // other card on this page carries.
+    const comparison = [];
+    if (usingLatest && pooledVal !== null && pooledVal !== undefined) {
+      const n = scoped.periodsPooled;
+      comparison.push({
+        label: n ? "YTD avg (" + n + " mo)" : "YTD average",
+        value: fmtPct1(pooledVal),
+      });
+    }
+    if (!isAllBU(bu)) {
+      const refEntry = coverageReferenceEntry(rankKey, bu, line);
+      if (refEntry) comparison.push(refEntry);
+    }
 
     return {
       kpiId: kpiId, name: name,
-      mainValue: fmtPct1(mainVal), mainValueSub: "Current YTD" + (line !== "All" ? " · " + line : ""),
+      mainValue: fmtPct1(mainVal),
+      mainValueSub: (usingLatest && scoped.latestPeriod ? scoped.latestPeriod : "Current YTD")
+                    + (isAllBU(bu) ? " · All Business Units" : (line !== "All" ? " · " + line : "")),
       performance: { target: target + "%", achievementPct: fmtPct1(achievementPct), variance: fmtSignedPts(variance) },
-      comparison: refEntry ? [refEntry] : null,
+      comparison: comparison.length ? comparison : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
-      trend: null, trendLabel: "Trend not yet available (single-period snapshot)",
+      trend: null, trendLabel: usingLatest ? "Latest period vs YTD average shown above" : "Trend not yet available (single-period snapshot)",
       clickable: true, dblClickable: true,
     };
   }
@@ -564,13 +731,35 @@
   // ---------------------------------------------------------------------
   function buildSFECard(filters, summaries) {
     const bu = filters.bu, line = filters.line;
-    const scoped = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, line === "All" ? null : line);
+    // Company view: sum headcount across the four BUs. Headcount is
+    // additive (unlike a rate), so this is a plain roll-up.
+    let scoped;
+    if (isAllBU(bu)) {
+      let total = 0, active = 0, vacant = 0, any = false;
+      global.SEMANTIC.BU_LIST.forEach(b => {
+        const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", b, null);
+        if (r && r.ok) {
+          any = true;
+          total += r.headcountTotal || 0;
+          active += r.headcountActive || 0;
+          vacant += r.headcountVacant || 0;
+        }
+      });
+      scoped = any
+        ? { ok: true, headcountTotal: total, headcountActive: active, headcountVacant: vacant,
+            vacancyRatePct: total > 0 ? (vacant / total) * 100 : null }
+        : { ok: false, status: "module_unavailable" };
+    } else {
+      scoped = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, line === "All" ? null : line);
+    }
     if (!scoped || !scoped.ok) return unavailableCard("sfe", "Sales Force Health", scoped ? scoped.status : "module_unavailable");
     const fillRatePct = scoped.vacancyRatePct !== null ? 100 - scoped.vacancyRatePct : null;
 
-    let rankInfo, rankUnit;
-    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
-    if (!activeLine && !isBuRestricted()) {
+    let rankInfo = null, rankUnit = null;
+    const activeLine = isAllBU(bu) ? null : ((line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null));
+    if (isAllBU(bu)) {
+      rankInfo = null;
+    } else if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const r = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", b, null);
@@ -590,8 +779,10 @@
       rankUnit = "Lines within " + bu;
     }
 
-    const refEntry = sfeReferenceEntry(bu, line, summaries);
-    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
+    const refEntry = isAllBU(bu) ? null : sfeReferenceEntry(bu, line, summaries);
+    const activeLineLabel = isAllBU(bu)
+      ? "All Business Units"
+      : (activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : ""));
 
     return {
       kpiId: "sfe", name: "Sales Force Health",
@@ -625,12 +816,16 @@
     const bu = filters.bu, line = filters.line;
     // CHC Exception: use "CHC" line when BU is CHC and line is "All" or null
     const targetLine = (bu === "CHC" && (line === "All" || !line)) ? "CHC" : (line === "All" ? null : line);
-    const scoped = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLine, undefined, activeScenario());
+    const scoped = isAllBU(bu)
+      ? corporateSalesAchievementSummary()
+      : safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLine, undefined, activeScenario());
     if (!scoped || !scoped.ok) return unavailableCard("salesAchievement", "Sales Achievement", scoped ? scoped.status : "module_unavailable");
 
-    let rankInfo, rankUnit;
+    let rankInfo = null, rankUnit = null;
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
-    if (!activeLine && !isBuRestricted()) {
+    if (isAllBU(bu)) {
+      rankInfo = null; // nothing to rank the company against
+    } else if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const targetBLine = (b === "CHC") ? "CHC" : null;
@@ -651,8 +846,10 @@
       rankUnit = "Lines within " + bu;
     }
 
-    const refEntry = salesAchievementReferenceEntry(bu, line);
-    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
+    const refEntry = isAllBU(bu) ? null : salesAchievementReferenceEntry(bu, line);
+    const activeLineLabel = isAllBU(bu)
+      ? "All Business Units"
+      : (activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : ""));
 
     return {
       kpiId: "salesAchievement", name: "Sales Achievement",
@@ -712,12 +909,17 @@
 
   function buildSalesValueCard(filters) {
     const bu = filters.bu, line = filters.line;
-    const t = nonTenderTotals(bu, line);
-    if (!t) return unavailableCard("salesValue", "Sales Value", "module_unavailable");
+    const rawT = isAllBU(bu) ? corporateNonTenderTotals(false) : nonTenderTotals(bu, line);
+    if (!rawT) return unavailableCard("salesValue", "Sales Value", "module_unavailable");
+    const t = isAllBU(bu)
+      ? Object.assign({}, rawT, { achievementPct: rawT.targetValue > 0 ? (rawT.actualValue / rawT.targetValue) * 100 : null })
+      : rawT;
 
-    let rankInfo, rankUnit;
+    let rankInfo = null, rankUnit = null;
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
-    if (!activeLine && !isBuRestricted()) {
+    if (isAllBU(bu)) {
+      rankInfo = null;
+    } else if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const bt = nonTenderTotals(b, b === "CHC" ? "CHC" : "All");
@@ -737,8 +939,10 @@
       rankUnit = "Lines within " + bu;
     }
 
-    const refEntry = salesValueReferenceEntry(bu, line);
-    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
+    const refEntry = isAllBU(bu) ? null : salesValueReferenceEntry(bu, line);
+    const activeLineLabel = isAllBU(bu)
+      ? "All Business Units"
+      : (activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : ""));
 
     return {
       kpiId: "salesValue", name: "Sales Value",
@@ -762,12 +966,17 @@
   // ---------------------------------------------------------------------
   function buildSalesUnitsAchievementCard(filters) {
     const bu = filters.bu, line = filters.line;
-    const t = nonTenderUnitsTotals(bu, line);
-    if (!t) return unavailableCard("salesUnitsAchievement", "Sales Units Achievement", "module_unavailable");
+    const rawU = isAllBU(bu) ? corporateNonTenderTotals(true) : nonTenderUnitsTotals(bu, line);
+    if (!rawU) return unavailableCard("salesUnitsAchievement", "Sales Units Achievement", "module_unavailable");
+    const t = isAllBU(bu)
+      ? Object.assign({}, rawU, { achievementPct: rawU.targetQty > 0 ? (rawU.actualQty / rawU.targetQty) * 100 : null })
+      : rawU;
 
-    let rankInfo, rankUnit;
+    let rankInfo = null, rankUnit = null;
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
-    if (!activeLine && !isBuRestricted()) {
+    if (isAllBU(bu)) {
+      rankInfo = null;
+    } else if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const bt = nonTenderUnitsTotals(b, b === "CHC" ? "CHC" : "All");
@@ -787,13 +996,15 @@
       rankUnit = "Lines within " + bu;
     }
 
-    const refEntry = salesUnitsReferenceEntry(bu, line);
-    const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : "");
+    const refEntry = isAllBU(bu) ? null : salesUnitsReferenceEntry(bu, line);
+    const activeLineLabel = isAllBU(bu)
+      ? "All Business Units"
+      : (activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : ""));
 
     return {
       kpiId: "salesUnitsAchievement", name: "Sales Units Achievement",
-      mainValue: fmtInt(t.actualQty) + " units", mainValueSub: "Non-Tender · Current YTD" + (activeLineLabel ? " · " + activeLineLabel : ""),
-      performance: { target: fmtInt(t.targetQty) + " units", achievementPct: fmtPct1(t.achievementPct), variance: fmtInt(t.actualQty - t.targetQty) + " units" },
+      mainValue: fmtUnits(t.actualQty) + " units", mainValueSub: "Non-Tender · Current YTD" + (activeLineLabel ? " · " + activeLineLabel : ""),
+      performance: { target: fmtUnits(t.targetQty) + " units", achievementPct: fmtPct1(t.achievementPct), variance: fmtSignedUnits(t.actualQty - t.targetQty) + " units" },
       comparison: refEntry ? [refEntry] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(t.achievementPct),
@@ -831,11 +1042,30 @@
   // ---------------------------------------------------------------------
   function buildCustomerClusterMixCard(filters) {
     const bu = filters.bu, line = filters.line;
-    const data = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line === "All" ? null : line);
-    if (!data || !data.ok || !data.clusters.length) return unavailableCard("customerClusterMix", "Customer Channel Mix", data ? data.status : "module_unavailable");
-
-    const top = data.clusters[0]; // already sorted desc by actualValue in sales.js
-    const concentrationPct = top.contributionPct;
+    // Company view: merge every BU's channel mix, then take the top
+    // channel's share of the merged total -- same construction as
+    // corporateClusterConcentrationPct(), which feeds the "vs Corporate"
+    // row on the per-BU version of this card.
+    let top = null, concentrationPct = null;
+    if (isAllBU(bu)) {
+      const merged = new Map();
+      let any = false;
+      global.SEMANTIC.BU_LIST.forEach(b => {
+        const d = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null);
+        if (d && d.ok) { any = true; d.clusters.forEach(c => merged.set(c.name, (merged.get(c.name) || 0) + c.actualValue)); }
+      });
+      if (!any || merged.size === 0) return unavailableCard("customerClusterMix", "Customer Channel Mix", "module_unavailable");
+      const entries = Array.from(merged.entries()).sort((a, b2) => b2[1] - a[1]);
+      const total = entries.reduce((s, e) => s + e[1], 0);
+      if (total <= 0) return unavailableCard("customerClusterMix", "Customer Channel Mix", "module_unavailable");
+      top = { name: entries[0][0], contributionPct: (entries[0][1] / total) * 100 };
+      concentrationPct = top.contributionPct;
+    } else {
+      const data = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line === "All" ? null : line);
+      if (!data || !data.ok || !data.clusters.length) return unavailableCard("customerClusterMix", "Customer Channel Mix", data ? data.status : "module_unavailable");
+      top = data.clusters[0]; // already sorted desc by actualValue in sales.js
+      concentrationPct = top.contributionPct;
+    }
 
     function statusFromConcentration(pct) {
       if (pct === null || pct === undefined || isNaN(pct)) return null;
@@ -845,8 +1075,10 @@
       return "Critical";
     }
 
-    let rankInfo, rankUnit;
-    if (line === "All" && !isBuRestricted()) {
+    let rankInfo = null, rankUnit = null;
+    if (isAllBU(bu)) {
+      rankInfo = null;
+    } else if (line === "All" && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
         const bd = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null);
@@ -865,11 +1097,11 @@
       rankUnit = "Lines within " + bu;
     }
 
-    const refEntry = clusterMixReferenceEntry(bu, line);
+    const refEntry = isAllBU(bu) ? null : clusterMixReferenceEntry(bu, line);
 
     return {
       kpiId: "customerClusterMix", name: "Customer Channel Mix",
-      mainValue: fmtPct1(concentrationPct), mainValueSub: "Top Channel: " + top.name + " · Non-Tender YTD" + (line !== "All" ? " · " + line : ""),
+      mainValue: fmtPct1(concentrationPct), mainValueSub: "Top Channel: " + top.name + " · Non-Tender YTD" + (isAllBU(bu) ? " · All Business Units" : (line !== "All" ? " · " + line : "")),
       performance: null,
       comparison: refEntry ? [refEntry] : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
@@ -896,6 +1128,36 @@
   // ---------------------------------------------------------------------
   function buildMarketShareCard(filters) {
     const bu = filters.bu, line = filters.line;
+    // Company view (2026-08-04): a volume-weighted share from
+    // getCorporateMarketIntel(), which sums Zeta's SU and the total
+    // market's SU across every in-scope BU and divides once -- NOT an
+    // average of the four BU percentages, which would over-weight small
+    // markets. Same YTD/SU/excl-Other-Markets basis as the per-BU card.
+    if (isAllBU(bu)) {
+      const c = safeCall("iqvia", "IQVIADashboard", "getCorporateMarketIntel");
+      if (!c || !c.ok || c.sharePct === null) {
+        const card = unavailableCard("marketShare", "Market Share", c ? c.status : "module_unavailable");
+        card.mainValueSub = c && c.status === "auth_required" ? "Sign in to the Market Intelligence workspace" : card.mainValueSub;
+        return card;
+      }
+      const comparison = [];
+      if (c.priorYearSharePct !== null) comparison.push({ label: "Prior year", value: fmtPct1(c.priorYearSharePct) });
+      if (c.evi !== null) comparison.push({ label: "EVI", value: String(c.evi) });
+      return {
+        kpiId: "marketShare", name: "Market Share",
+        mainValue: fmtPct1(c.sharePct),
+        mainValueSub: c.basis + " · All Business Units",
+        performance: c.deltaPts !== null
+          ? { target: "Prior year " + fmtPct1(c.priorYearSharePct), achievementPct: null, variance: fmtSignedPts(c.deltaPts) }
+          : null,
+        comparison: comparison.length ? comparison : null,
+        rank: null, rankOf: null, rankUnit: null,
+        status: c.deltaPts === null ? null : (c.deltaPts >= 0 ? "On Track" : "At Risk"),
+        trend: trendFromDelta(c.deltaPts, 0.1),
+        trendLabel: c.deltaPts !== null ? "Share " + fmtSignedPts(c.deltaPts) + " vs prior year" : null,
+        clickable: false, dblClickable: false,
+      };
+    }
     const lineArg = line === "All" ? null : (line === "CHC_SALES" ? "CHC" : line);
     const dm1dm2 = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, lineArg);
     if (!dm1dm2 || !dm1dm2.ok || !dm1dm2.total) {
@@ -980,6 +1242,35 @@
   // ---------------------------------------------------------------------
   function buildBUGrowthCard(filters) {
     const bu = filters.bu, line = filters.line;
+    // Company view (2026-08-04): volume-weighted growth from
+    // getCorporateMarketIntel() -- Zeta's total SU this YTD vs the same
+    // window last year, against the market's own total. Correct because
+    // it is computed from summed volumes, not averaged growth rates.
+    if (isAllBU(bu)) {
+      const c = safeCall("iqvia", "IQVIADashboard", "getCorporateMarketIntel");
+      if (!c || !c.ok || c.zetaGrowthPct === null) {
+        const card = unavailableCard("buGrowth", "Company Growth", c ? c.status : "module_unavailable");
+        card.mainValueSub = c && c.status === "auth_required" ? "Sign in to the Market Intelligence workspace" : card.mainValueSub;
+        return card;
+      }
+      const comparison = [];
+      if (c.marketGrowthPct !== null) comparison.push({ label: "Market growth", value: fmtSignedPct(c.marketGrowthPct) });
+      if (c.evi !== null) comparison.push({ label: "EVI", value: String(c.evi) });
+      return {
+        kpiId: "buGrowth", name: "Company Growth",
+        mainValue: fmtSignedPct(c.zetaGrowthPct),
+        mainValueSub: c.basis + " · All Business Units",
+        performance: c.growthGapPts !== null
+          ? { target: "Match market " + fmtSignedPct(c.marketGrowthPct), achievementPct: null, variance: fmtSignedPts(c.growthGapPts) }
+          : null,
+        comparison: comparison.length ? comparison : null,
+        rank: null, rankOf: null, rankUnit: null,
+        status: c.growthGapPts === null ? null : (c.growthGapPts >= 0 ? "On Track" : "At Risk"),
+        trend: trendFromDelta(c.growthGapPts, 0.1),
+        trendLabel: c.growthGapPts !== null ? (c.growthGapPts >= 0 ? "Outgrowing the market" : "Growing slower than the market") : null,
+        clickable: false, dblClickable: false,
+      };
+    }
     const lineArg = line === "All" ? null : (line === "CHC_SALES" ? "CHC" : line);
     const dm1dm2 = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, lineArg);
     if (!dm1dm2 || !dm1dm2.ok || !dm1dm2.total) {
@@ -1103,9 +1394,29 @@
     }
 
     let val, platformAvg, targetPerPosition, rankInfo, rankUnit, basisNote, isWholeBuView = false;
-    const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    const activeLine = isAllBU(bu) ? null : ((line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null));
 
-    if (!activeLine && !isBuRestricted()) {
+    if (isAllBU(bu)) {
+      // Company productivity: total non-tender actual over total deployed
+      // positions across the four BUs -- the same figure that already
+      // serves as every BU card's "vs Corporate" benchmark, so the
+      // company view and the benchmark are one number, not two.
+      let cActual = 0, cTarget = 0, cPositions = 0;
+      global.SEMANTIC.BU_LIST.forEach(b => {
+        const s = summaries.sales.bu[b];
+        if (s && s.activePositions > 0) {
+          cActual += s.actualYTD || 0;
+          cTarget += s.targetYTD || 0;
+          cPositions += s.activePositions;
+        }
+      });
+      val = cPositions > 0 ? cActual / cPositions : null;
+      targetPerPosition = cPositions > 0 ? cTarget / cPositions : null;
+      platformAvg = null; // the company IS the platform -- nothing to compare to
+      rankInfo = null;
+      basisNote = "All Business Units · Non-Tender · " + cPositions.toLocaleString() + " deployed positions";
+      isWholeBuView = true;
+    } else if (!activeLine && !isBuRestricted()) {
       const perBU = {};
       let platformActual = 0, platformPositions = 0;
       getAllowedBUList().forEach(b => {
@@ -1265,9 +1576,23 @@
     }
     const cache = window.TMS_IMS_CACHE;
     const buMap = { "CHC": "CHC", "Cluster": "Cluster", "DIAB": "Diabetes", "GIT": "GIT" };
-    const targetBuName = buMap[bu] || bu;
-    const buIdx = cache.BUS.indexOf(targetBuName);
-    if (buIdx < 0) return { ok: false, status: "bu_not_found" };
+    // Company view (2026-08-04): accept every in-scope BU rather than one.
+    // Pull-Through and Stock Days are both ratios of SUMMED unit volumes
+    // (IMS/TMS and inventory/velocity), so they aggregate correctly by
+    // widening the row filter -- no averaging of BU percentages involved,
+    // and the same code path computes both the BU and company figures.
+    let buIdxSet = null;
+    let buIdx = -1;
+    if (isAllBU(bu)) {
+      buIdxSet = new Set(
+        Object.keys(buMap).map(k => cache.BUS.indexOf(buMap[k])).filter(i => i >= 0)
+      );
+      if (buIdxSet.size === 0) return { ok: false, status: "bu_not_found" };
+    } else {
+      const targetBuName = buMap[bu] || bu;
+      buIdx = cache.BUS.indexOf(targetBuName);
+      if (buIdx < 0) return { ok: false, status: "bu_not_found" };
+    }
 
     const privateIdx = cache.STYPES.indexOf("Private");
     if (privateIdx < 0) return { ok: false, status: "type_not_found" };
@@ -1300,7 +1625,7 @@
     let imsVelocityUnits = 0;
 
     cache.ROWS.forEach(r => {
-      if (r[1] !== buIdx) return;
+      if (buIdxSet ? !buIdxSet.has(r[1]) : (r[1] !== buIdx)) return;
       if (r[5] !== privateIdx) return;
       if (lineIndices && !lineIndices.includes(r[2])) return;
 
@@ -1365,9 +1690,20 @@
     if (!window.TMS_IMS_CACHE) return null;
     const cache = window.TMS_IMS_CACHE;
     const buMap = { "CHC": "CHC", "Cluster": "Cluster", "DIAB": "Diabetes", "GIT": "GIT" };
-    const targetBuName = buMap[bu] || bu;
-    const buIdx = cache.BUS.indexOf(targetBuName);
-    if (buIdx < 0) return null;
+    // Company view: widen to every in-scope BU, same approach as
+    // getTmsImsMetrics() above so the drill-down matches its card.
+    let buIdxSet = null;
+    let buIdx = -1;
+    if (isAllBU(bu)) {
+      buIdxSet = new Set(
+        Object.keys(buMap).map(k => cache.BUS.indexOf(buMap[k])).filter(i => i >= 0)
+      );
+      if (buIdxSet.size === 0) return null;
+    } else {
+      const targetBuName = buMap[bu] || bu;
+      buIdx = cache.BUS.indexOf(targetBuName);
+      if (buIdx < 0) return null;
+    }
 
     const privateIdx = cache.STYPES.indexOf("Private");
     if (privateIdx < 0) return null;
@@ -1393,7 +1729,7 @@
     const productData = {};
 
     cache.ROWS.forEach(r => {
-      if (r[1] !== buIdx) return;
+      if (buIdxSet ? !buIdxSet.has(r[1]) : (r[1] !== buIdx)) return;
       if (r[5] !== privateIdx) return;
       if (lineIndices && !lineIndices.includes(r[2])) return;
 
@@ -1709,6 +2045,44 @@
     const scenario = activeScenario();
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
 
+    // COMPANY VIEW (2026-08-04, Ahmed: "in below last table first column
+    // is will be related to bu"): one row per Business Unit instead of
+    // per Line. Every metric column is unchanged -- only the grain of the
+    // first column moves up one level. Sales figures use the same
+    // CHC-excludes-CHC_SALES convention as the company KPI cards above,
+    // so the rows sum to the headline totals.
+    if (isAllBU(bu)) {
+      const buList = getAllowedBUList();
+      const salesByBu = new Map();
+      let totalSalesValue = 0;
+      buList.forEach(b => {
+        const bLine = (b === "CHC") ? "CHC" : null;
+        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, bLine, undefined, scenario);
+        if (s && s.ok) { salesByBu.set(b, s); totalSalesValue += s.actualYTD || 0; }
+      });
+
+      const rows = buList.map(b => {
+        const cov = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", b, null);
+        const s = salesByBu.get(b);
+        const sfeBu = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", b, null);
+        const plannedHeadcount = (sfeBu && sfeBu.ok) ? sfeBu.headcountTotal : 0;
+        return {
+          name: b,
+          coveragePct: (cov && cov.ok) ? cov.coveragePct : null,
+          rightFreqPct: (cov && cov.ok) ? cov.rightFreqPct : null,
+          salesAchievementPct: s ? s.achievementPct : null,
+          salesValue: s ? s.actualYTD : null,
+          targetValue: s ? s.targetYTD : null,
+          targetPerPosition: (s && plannedHeadcount > 0) ? s.targetYTD / plannedHeadcount : null,
+          contributionPct: (s && totalSalesValue > 0) ? (s.actualYTD / totalSalesValue) * 100 : null,
+          salesPerPosition: (s && plannedHeadcount > 0) ? s.actualYTD / plannedHeadcount : null,
+          activePositions: plannedHeadcount,
+        };
+      }).sort((a, b) => (b.salesAchievementPct === null ? -Infinity : b.salesAchievementPct) - (a.salesAchievementPct === null ? -Infinity : a.salesAchievementPct));
+
+      return { ok: true, bu: ALL_BU, grain: "bu", scope: "Non-Tender · CHC_SALES excluded", rows: rows };
+    }
+
     if (activeLine) {
       const hierarchy = safeCall("sfe", "SFEDashboard", "getHierarchyList") || [];
       const sfeDms = hierarchy
@@ -1802,11 +2176,19 @@
   // Modals -- type breakdown (Coverage/RF), Brand Achievement + Item
   // drill (Sales), per-product Market Share breakdown (IQVIA).
   // ---------------------------------------------------------------------
-  function openTypeBreakdownModal(bu, kind) {
-    const data = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageByType", bu);
+  function openTypeBreakdownModal(bu, kind, line) {
+    // Line-aware since 2026-08-04 (Ahmed): this modal used to be called
+    // with `bu` only, so selecting CHC_SALES gave a Pharmacy/Sales-Rep
+    // headline card above a popup that still listed Contract/Doctor/
+    // Hospital under "Title=Medical Representative". Passing the active
+    // Line filter through makes the drill-down describe the same
+    // population as the card it opened from.
+    const scopedLine = (line && line !== "All") ? line : null;
+    const data = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageByType", bu, scopedLine);
+    const titleScope = bu + (scopedLine ? " / " + scopedLine : "");
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     if (!data || !data.ok) {
-      global.DS.openModal({ title: bu + " — " + (kind === "coverage" ? "Coverage" : "Right Frequency") + " by Type", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>Data unavailable.</div>" });
+      global.DS.openModal({ title: titleScope + " — " + (kind === "coverage" ? "Coverage" : "Right Frequency") + " by Type", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>Data unavailable.</div>" });
       return;
     }
     const metricKey = kind === "coverage" ? "coveragePct" : "rightFreqPct";
@@ -1835,7 +2217,20 @@
       ],
       rows: rows,
     });
-    global.DS.openModal({ title: bu + " — " + (kind === "coverage" ? "Operational Coverage" : "Right Frequency") + " by Type", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Title=Medical Representative, Experience=Non-Probation, Status=Active, as of ${escapeAttr(data.asOfDate)}.</div>` + table });
+    // Caption reads from the scope the interface actually applied, rather
+    // than hardcoding "Title=Medical Representative" (which was simply
+    // false for CHC_SALES -- see openTypeBreakdownModal's header note).
+    const fs = data.filterScope || {};
+    const scopeCaption = [
+      "Title=" + (fs.title || "Medical Representative"),
+      "Type=" + ((fs.types && fs.types.length) ? fs.types.join("/") : "Contract/Doctor/Hospital"),
+      "Experience=" + (fs.experience || "Non-Probation"),
+      "Status=" + (fs.status || "Active"),
+    ].join(", ");
+    global.DS.openModal({
+      title: titleScope + " — " + (kind === "coverage" ? "Operational Coverage" : "Right Frequency") + " by Type",
+      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${escapeAttr(scopeCaption)}, as of ${escapeAttr(data.asOfDate)}.</div>` + table
+    });
   }
 
   function openBrandAchievementModal(bu, line) {
@@ -2467,14 +2862,24 @@
     // own allowed BUs/lines as selectable options -- there is no way to
     // switch into another BU's data through this dropdown at all, not
     // just a data-layer block after the fact.
-    const buOptions = getAllowedBUList().map(b => ({ value: b, label: b }));
-    const lineOptions = [{ value: "All", label: "All Lines" }].concat(getAllowedLinesForBU(ctx.filters.bu).map(l => ({ value: l, label: l })));
+    // "All Business Units" leads the list for entitled roles only
+    // (2026-08-04) -- see canSelectAllBUs()/AUTH.canViewAllBUs(). Roles
+    // without the entitlement see exactly the option set they saw before.
+    const buOptions = (canSelectAllBUs() ? [{ value: ALL_BU, label: "All Business Units" }] : [])
+      .concat(getAllowedBUList().map(b => ({ value: b, label: b })));
+    // Line is meaningless across BUs (the same line name never spans two),
+    // so it locks to "All Lines" while the company view is active rather
+    // than offering a choice that cannot be honored.
+    const allBuActive = isAllBU(ctx.filters.bu);
+    const lineOptions = allBuActive
+      ? [{ value: "All", label: "All Lines" }]
+      : [{ value: "All", label: "All Lines" }].concat(getAllowedLinesForBU(ctx.filters.bu).map(l => ({ value: l, label: l })));
 
     const wrap = document.createElement("div");
     wrap.className = "ds-exec-filterbar";
 
     const buSelect = global.DS.select({ id: "exec-filter-bu", label: "Business Unit", options: buOptions, value: ctx.filters.bu, disabled: buOptions.length <= 1 });
-    const lineSelect = global.DS.select({ id: "exec-filter-line", label: "Line", options: lineOptions, value: ctx.filters.line });
+    const lineSelect = global.DS.select({ id: "exec-filter-line", label: "Line", options: lineOptions, value: allBuActive ? "All" : ctx.filters.line, disabled: allBuActive });
     const periodSelect = global.DS.select({ id: "exec-filter-period", label: "Period", options: [{ value: "latest", label: "Latest Period" }], value: "latest", disabled: true });
     const cmpSelect = global.DS.select({ id: "exec-filter-cmp", label: "Comparison Period", options: [{ value: "YTD", label: "YTD" }], value: "YTD", disabled: true });
 
@@ -2585,16 +2990,21 @@
     const titleEl = document.createElement("div");
     titleEl.style.cssText = "font-weight:600;font-size:var(--fs-sm,13px);";
 
-    const activeLine = (ctx.filters.line !== "All") ? ctx.filters.line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
+    // Company view (2026-08-04): rows are Business Units, so the grain
+    // label and first-column header both move up a level.
+    const allBuView = isAllBU(ctx.filters.bu);
+    const activeLine = allBuView ? null : ((ctx.filters.line !== "All") ? ctx.filters.line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null));
     const activeLineLabel = activeLine || (global.AUTH && global.AUTH.getScope().lines ? global.AUTH.getScope().lines.join(", ") : ctx.filters.bu);
 
-    titleEl.textContent = activeLine ? "DSM Performance within " + activeLineLabel : "Line Performance within " + activeLineLabel;
+    titleEl.textContent = allBuView
+      ? "Business Unit Performance — All Business Units"
+      : (activeLine ? "DSM Performance within " + activeLineLabel : "Line Performance within " + activeLineLabel);
     headerRow.appendChild(titleEl);
 
     // Shared between the DS.table() render below and the Export-to-Excel
     // button so the exported CSV always matches what's on screen.
     const lpColumns = [
-      { key: "name", label: activeLine ? "District Manager" : "Line" },
+      { key: "name", label: allBuView ? "Business Unit" : (activeLine ? "District Manager" : "Line") },
       { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
@@ -2675,8 +3085,11 @@
       el.addEventListener("click", () => {
         const kpiId = el.getAttribute("data-exec-kpi");
         const bu = ctx.filters.bu;
-        if (kpiId === "coverage") openTypeBreakdownModal(bu, "coverage");
-        else if (kpiId === "rightFrequency") openTypeBreakdownModal(bu, "rf");
+        // Pass the active Line filter, same as every other drill-down on
+        // this row already does (2026-08-04) -- these two were the only
+        // modals still ignoring it.
+        if (kpiId === "coverage") openTypeBreakdownModal(bu, "coverage", ctx.filters.line);
+        else if (kpiId === "rightFrequency") openTypeBreakdownModal(bu, "rf", ctx.filters.line);
         else if (kpiId === "salesAchievement") openBrandAchievementModal(bu, ctx.filters.line);
         else if (kpiId === "salesValue") openSalesValueModal(bu, ctx.filters.line);
         else if (kpiId === "salesUnitsAchievement") openSalesUnitsModal(bu, ctx.filters.line);
@@ -2703,7 +3116,7 @@
     const header = document.createElement("div");
     header.className = "ds-mb-4";
     header.innerHTML = `<div style="font-size:var(--fs-2xl,28px);font-weight:800;color:var(--color-text-primary,#0F172A);">Executive Command Center</div>
-      <div style="font-size:var(--fs-sm,13px);color:var(--color-text-tertiary,#94A3B8);margin-top:4px;">Zeta Pharma — ${escapeAttr(ctx.filters.bu)} — how the business is performing, right now.</div>`;
+      <div style="font-size:var(--fs-sm,13px);color:var(--color-text-tertiary,#94A3B8);margin-top:4px;">Zeta Pharma — ${escapeAttr(isAllBU(ctx.filters.bu) ? "All Business Units" : ctx.filters.bu)} — how the business is performing, right now.</div>`;
     container.appendChild(header);
 
     container.appendChild(renderFilterBar(ctx));

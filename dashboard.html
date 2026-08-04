@@ -164,7 +164,7 @@
        workspace module. Must load after cache/iqvia.data.js (reads
        IQVIA_CACHE.users) and before js/app.js (the boot sequence gates
        on it first). See js/auth.js for the full rationale. -->
-  <script defer src="js/auth.js?v=20260804_targetscenario"></script>
+  <script defer src="js/auth.js?v=20260804_allbu"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script defer src="js/config.js?v=20260725_v2"></script>
@@ -181,7 +181,7 @@
   <script defer src="js/utils.js?v=20260724"></script>
   <script defer src="js/cache.js?v=20260724"></script>
   <script defer src="js/loader.js?v=20260724"></script>
-  <script defer src="js/analytics.js?v=20260803_fieldreponly"></script>
+  <script defer src="js/analytics.js?v=20260804_period_pool"></script>
   <script defer src="js/ui.js?v=20260724"></script>
   <script defer src="js/charts.js?v=20260724"></script>
   <script defer src="js/tables.js?v=20260724"></script>
@@ -196,7 +196,7 @@
        instead of the standard Medical Representative/Contract-Doctor-
        Hospital scope (CHC has two real lines, not one -- see
        semantic-model.js). -->
-  <script defer src="js/coverage-interface.js?v=20260731_corpref"></script>
+  <script defer src="js/coverage-interface.js?v=20260804_period_basis"></script>
   <script defer src="js/sfe.js?v=20260804_bulinescoping"></script>
   <!-- v20260727_execkpi = getLineSalesSummary() and getItemAchievement() added for
        the Executive KPI cards (Line Performance, CHC Brand-to-Item drill).
@@ -204,7 +204,7 @@
        added for the Customer Channel Mix KPI card (cluster-then-sub_type
        drill -- see sales_subtypes.xlsx for the clustering source of truth). -->
   <script defer src="js/sales.js?v=20260804_burollup"></script>
-  <script defer src="js/iqvia.js?v=20260803_dm1dm2line"></script>
+  <script defer src="js/iqvia.js?v=20260804_corpshare_dedupe"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
        Default landing page. Reads only through SEMANTIC, DS, and the four
@@ -215,7 +215,7 @@
        (not individual-customer) granularity, by the Customer Channel Mix
        card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
   <script defer src="cache/tms_ims.data.js"></script>
-  <script defer src="js/executive.js?v=20260804_burollup"></script>
+  <script defer src="js/executive.js?v=20260804_allbu_tmsims"></script>
 
 
   <script defer src="js/app.js?v=20260803_visitedmonths"></script>

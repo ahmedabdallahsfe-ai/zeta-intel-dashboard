@@ -150,6 +150,35 @@
     "Marketing Consultant": { canToggleScenario: false, defaultScenario: "official" }
   };
   var SCENARIO_ROLE_FALLBACK = { canToggleScenario: false, defaultScenario: "official" };
+
+  // -------------------------------------------------------------------
+  // ALL-BUSINESS-UNITS VIEW (2026-08-04, Ahmed)
+  // -------------------------------------------------------------------
+  // The Executive Command Center's BU filter gains an "All Business
+  // Units" option showing whole-company performance. Ahmed scoped its
+  // visibility explicitly: "visible for ceo, vp, bex, admin and sfe
+  // manager only". Every other role -- including BU Manager and Line
+  // Manager, who legitimately use this page -- continues to see only the
+  // individual BUs they are entitled to.
+  //
+  // Gated on TWO conditions, not one: the role must be listed here AND
+  // the user must be unrestricted in scope. A BU- or line-restricted
+  // account could otherwise use a permitted role to see company-wide
+  // totals that include BUs their own scope excludes, which would defeat
+  // the platform's access model.
+  var ALL_BU_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager"];
+
+  function canViewAllBUs() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    if (ALL_BU_ROLES.indexOf(u.role) < 0) return false;
+    var scope = getScope();
+    if (!scope) return false;
+    // Any BU or Line restriction disqualifies, regardless of role.
+    if (scope.bus !== null && scope.bus !== undefined) return false;
+    if (scope.lines !== null && scope.lines !== undefined) return false;
+    return true;
+  }
   var ACTIVE_SCENARIO_KEY = "zeta_active_scenario";
 
   function getScenarioConfig() {
@@ -269,6 +298,8 @@
     filterAllowedBUs: filterAllowedBUs,
     filterAllowedLines: filterAllowedLines,
     canToggleScenario: canToggleScenario,
+    canViewAllBUs: canViewAllBUs,
+    ALL_BU_ROLES: ALL_BU_ROLES,
     getActiveScenario: getActiveScenario,
     setActiveScenario: setActiveScenario
   };
