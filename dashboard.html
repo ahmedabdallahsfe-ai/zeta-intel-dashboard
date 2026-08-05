@@ -196,14 +196,14 @@
        instead of the standard Medical Representative/Contract-Doctor-
        Hospital scope (CHC has two real lines, not one -- see
        semantic-model.js). -->
-  <script defer src="js/coverage-interface.js?v=20260804_period_basis"></script>
+  <script defer src="js/coverage-interface.js?v=20260804_noperiod"></script>
   <script defer src="js/sfe.js?v=20260804_bulinescoping"></script>
   <!-- v20260727_execkpi = getLineSalesSummary() and getItemAchievement() added for
        the Executive KPI cards (Line Performance, CHC Brand-to-Item drill).
        v20260728_clustermix = SUBTYPE_TO_CLUSTER map + getCustomerClusterMix()
        added for the Customer Channel Mix KPI card (cluster-then-sub_type
        drill -- see sales_subtypes.xlsx for the clustering source of truth). -->
-  <script defer src="js/sales.js?v=20260804_burollup"></script>
+  <script defer src="js/sales.js?v=20260804_noperiod"></script>
   <script defer src="js/iqvia.js?v=20260804_corpshare_dedupe"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
@@ -215,10 +215,10 @@
        (not individual-customer) granularity, by the Customer Channel Mix
        card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
   <script defer src="cache/tms_ims.data.js"></script>
-  <script defer src="js/executive.js?v=20260804_allbu_tmsims"></script>
+  <script defer src="js/executive.js?v=20260804_noperiod"></script>
 
 
-  <script defer src="js/app.js?v=20260803_visitedmonths"></script>
+  <script defer src="js/app.js?v=20260804_tomarket_bu"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

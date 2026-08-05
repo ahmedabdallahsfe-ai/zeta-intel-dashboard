@@ -249,17 +249,25 @@ function startAppBody() {
   // Initialize title
   updateTopbarTitle(currentTab);
 
-  // To-Market vs In-Market sidebar entry (2026-07-31): brand/SKU-level
-  // trade data crosses every BU at once, so it's only shown to
-  // unrestricted users (Allowed BU = ALL and Allowed Lines = ALL) --
-  // renderTomarketTab() below also refuses to render for anyone else,
-  // this just keeps the entry out of the sidebar entirely for scoped
-  // users instead of showing them a dead-end "Access restricted" click
-  // target.
+  // To-Market vs In-Market sidebar entry.
+  //
+  // 2026-07-31 (original): hidden from anyone whose scope wasn't fully
+  // unrestricted, because the embedded workspace shows brand/SKU trade
+  // data across every BU at once and there was no way to narrow it.
+  //
+  // 2026-08-04 (Ahmed: "show this page for bu"): BU-scoped users now get
+  // it too, pre-filtered AND LOCKED to their own Business Unit -- the
+  // embedded page reads a `bu` query parameter and freezes its Business
+  // Unit control when one is supplied (see TO MARKET_IN MARKET/index.html).
+  // That makes the page genuinely scoped rather than merely defaulted, so
+  // a BU Manager can never widen it back out to the whole portfolio.
+  //
+  // LINE-restricted users are still excluded: this data has no line
+  // dimension to narrow by, so there is no honest way to scope it for
+  // them -- better a hidden entry than one showing more than their scope.
   const tomarketMenuItem = document.getElementById("menu-item-tomarket");
   if (tomarketMenuItem) {
-    const scope = window.AUTH ? window.AUTH.getScope() : { unrestricted: false };
-    tomarketMenuItem.style.display = scope.unrestricted ? "" : "none";
+    tomarketMenuItem.style.display = tomarketAllowedBU() === false ? "none" : "";
   }
 
 
@@ -383,6 +391,28 @@ function startAppBody() {
  * same way as the sidebar entry (unrestricted users only) so a scoped
  * user can't reach it by manipulating the tab click directly.
  */
+/**
+ * Who may open To-Market vs In-Market, and scoped to what?
+ *   true          -- unrestricted: full cross-BU view
+ *   "<BU name>"   -- BU-scoped: locked to that single BU
+ *   false         -- not permitted (Line-restricted, or no session)
+ *
+ * The embedded workspace's own BU labels differ from the platform's
+ * (it calls DIAB "Diabetes"), so the name is translated here -- the one
+ * place that already knows it is bridging to a separate app.
+ */
+function tomarketAllowedBU() {
+  const scope = window.AUTH ? window.AUTH.getScope() : null;
+  if (!scope) return false;
+  if (scope.unrestricted) return true;
+  // No line dimension exists in this dataset -- cannot honestly scope it.
+  if (scope.lines !== null && scope.lines !== undefined) return false;
+  const bus = scope.bus;
+  if (!Array.isArray(bus) || bus.length !== 1) return false; // multi-BU scoping unsupported
+  const EMBEDDED_BU_NAME = { DIAB: "Diabetes", CHC: "CHC", GIT: "GIT", Cluster: "Cluster" };
+  return EMBEDDED_BU_NAME[bus[0]] || bus[0];
+}
+
 function renderTomarketTab(container) {
   if (!container) return;
 
@@ -397,13 +427,13 @@ function renderTomarketTab(container) {
   // handler).
   document.body.classList.add("tomarket-mode");
 
-  const scope = window.AUTH ? window.AUTH.getScope() : { unrestricted: false };
-  if (!scope.unrestricted) {
+  const allowedBU = tomarketAllowedBU();
+  if (allowedBU === false) {
     container.innerHTML = window.DS
       ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
           icon: "🔒",
           title: "Access restricted",
-          hint: "The To-Market vs In-Market workspace is available to unrestricted (Allowed BU = ALL, Allowed Lines = ALL) users only.",
+          hint: "The To-Market vs In-Market workspace has no Line dimension, so it can't be scoped to a Line-restricted account.",
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;
@@ -424,7 +454,10 @@ function renderTomarketTab(container) {
   // scrolling itself, plus a JS-measured (not guessed) iframe height kept
   // in sync on resize -- see sizeTomarketIframe() below. index.html
   // itself is untouched; only the platform's own chrome around it changed.
-  container.innerHTML = `<iframe id="tomarket-iframe" src="TO%20MARKET_IN%20MARKET/index.html" title="To-Market vs In-Market" style="display:block;border:0;width:100%;height:100%;background:#fff;"></iframe>`;
+  // Pass the user's BU through so the embedded page opens locked to it.
+  // Unrestricted users pass nothing and see the full cross-BU view.
+  const buParam = (allowedBU && allowedBU !== true) ? "?bu=" + encodeURIComponent(allowedBU) : "";
+  container.innerHTML = `<iframe id="tomarket-iframe" src="TO%20MARKET_IN%20MARKET/index.html${buParam}" title="To-Market vs In-Market" style="display:block;border:0;width:100%;height:100%;background:#fff;"></iframe>`;
   sizeTomarketIframe();
   window.addEventListener("resize", sizeTomarketIframe);
 }

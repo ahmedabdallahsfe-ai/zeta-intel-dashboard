@@ -295,7 +295,7 @@
     const merged = new Map();
     let any = false;
     global.SEMANTIC.BU_LIST.forEach(b => {
-      const d = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null);
+      const d = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null, undefined);
       if (d && d.ok) {
         any = true;
         d.clusters.forEach(c => merged.set(c.name, (merged.get(c.name) || 0) + c.actualValue));
@@ -1051,7 +1051,7 @@
       const merged = new Map();
       let any = false;
       global.SEMANTIC.BU_LIST.forEach(b => {
-        const d = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null);
+        const d = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null, undefined);
         if (d && d.ok) { any = true; d.clusters.forEach(c => merged.set(c.name, (merged.get(c.name) || 0) + c.actualValue)); }
       });
       if (!any || merged.size === 0) return unavailableCard("customerClusterMix", "Customer Channel Mix", "module_unavailable");
@@ -1061,7 +1061,7 @@
       top = { name: entries[0][0], contributionPct: (entries[0][1] / total) * 100 };
       concentrationPct = top.contributionPct;
     } else {
-      const data = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line === "All" ? null : line);
+      const data = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line === "All" ? null : line, undefined);
       if (!data || !data.ok || !data.clusters.length) return unavailableCard("customerClusterMix", "Customer Channel Mix", data ? data.status : "module_unavailable");
       top = data.clusters[0]; // already sorted desc by actualValue in sales.js
       concentrationPct = top.contributionPct;
@@ -1081,7 +1081,7 @@
     } else if (line === "All" && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
-        const bd = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null);
+        const bd = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, null, undefined);
         vals[b] = (bd && bd.ok && bd.clusters.length) ? bd.clusters[0].contributionPct : null;
       });
       rankInfo = rank(vals, "asc")[bu];
@@ -1090,7 +1090,7 @@
       const lines = getAllowedLinesForBU(bu);
       const vals = {};
       lines.forEach(l => {
-        const ld = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, l);
+        const ld = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, l, undefined);
         vals[l] = (ld && ld.ok && ld.clusters.length) ? ld.clusters[0].contributionPct : null;
       });
       rankInfo = rank(vals, "asc")[line];

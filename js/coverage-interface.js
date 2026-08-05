@@ -891,6 +891,7 @@
     const pharmacyTypes = ["Pharmacy"];
     const pharmacyTypeIdxSet = new Set(pharmacyTypes.map(t => (dims.types || []).indexOf(t)).filter(i => i >= 0));
 
+
     if (titleIdx < 0 || expIdx < 0 || statusIdx < 0 || standardTypeIdxSet.size === 0) {
       return { ok: false, status: "dimension_mismatch", asOfDate: latestPeriod, source: "coverage" };
     }
