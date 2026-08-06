@@ -55,6 +55,7 @@
       var bytes = new Uint8Array(bin.length);
       for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       CACHE = JSON.parse(pako.ungzip(bytes, { to: "string" }));
+      _askIndex = null;   // alias index is cache-derived; rebuild with it
       A = CACHE.annual;
       A.n = A.units.length;
       console.log("[MarketIntel] cache decoded in " +
@@ -280,6 +281,64 @@
     if (prev === null || prev === undefined || prev === 0) return null;
     return ((cur - prev) / prev) * 100;
   }
+
+  // ---------------------------------------------------------------------
+  // THE GROWTH WINDOW — every growth figure on this page is a CAGR
+  // ---------------------------------------------------------------------
+  // Ahmed's instruction, 2026-08-06: all growth expressed as CAGR.
+  //
+  // This is a change of MEASUREMENT WINDOW, not a relabelling. The page
+  // previously compared the latest year against the one before it. It now
+  // compares the FIRST and LAST full years in scope and annualises the
+  // result, so with the default scope every growth number on the page is
+  // the 2022→2025 compound annual rate.
+  //
+  // Why that is the better statistic here:
+  //   - A single year-on-year step is easily a restock, a tender, a
+  //     shipment landing either side of a year end, or launch phasing.
+  //     Over three years those wash out and what is left is trajectory.
+  //   - It is comparable across entities regardless of their size or the
+  //     shape of their history, because it is normalised per annum.
+  //   - It is the number a competitor set is actually judged on. "Grew
+  //     34% last year" and "compounding 10.4% a year since 2022" are
+  //     different claims, and the second is the one that survives
+  //     scrutiny in a business review.
+  //
+  // PARTIAL YEARS ARE EXCLUDED FROM THE WINDOW ENTIRELY. A four-month
+  // endpoint would drag every compound rate down by roughly two thirds
+  // and the error would be invisible in the output. If fewer than two
+  // full years are in scope there is no window, growth reads "—", and
+  // the UI says why rather than quietly falling back to a year-on-year
+  // step wearing a CAGR label.
+  function growthWindow() {
+    var full = activeYears().filter(function (o) { return !isPartialYear(o.y); });
+    if (full.length < 2) return { base: null, end: null, span: 0, ok: false };
+    var b = full[0], e = full[full.length - 1];
+    return { base: b, end: e, span: e.y - b.y, ok: (e.y - b.y) > 0 };
+  }
+
+  /** Compound annual growth rate, as a percentage. */
+  function cagrPct(startV, endV, span) {
+    if (!span || span <= 0) return null;
+    if (startV === null || endV === null || isNaN(startV) || isNaN(endV)) return null;
+    if (!(startV > 0) || endV < 0) return null;   // a zero start has no rate
+    return (Math.pow(endV / startV, 1 / span) - 1) * 100;
+  }
+
+  /** "CAGR 2022–2025", for column headers and captions. */
+  function growthLabel() {
+    var w = growthWindow();
+    return w.ok ? "CAGR " + w.base.y + "–" + w.end.y : "CAGR";
+  }
+
+  /** The sentence that explains the number, used in tooltips and notes. */
+  function growthTooltip() {
+    var w = growthWindow();
+    return w.ok
+      ? "Compound annual growth rate, " + w.base.y + " → " + w.end.y +
+        " (" + w.span + " years). Partial years are excluded."
+      : "Needs at least two full years in scope to compute a compound rate.";
+  }
   function esc(s) {
     return String(s === null || s === undefined ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -377,9 +436,23 @@
   function buildKpis() {
     var series = yearSeries();
     var cur = series.length ? series[series.length - 1] : null;
-    var prev = series.length > 1 ? series[series.length - 2] : null;
+    var w = growthWindow();
+
+    // Every card's percentage is a CAGR across the window, so the
+    // comparison point is the window BASE year, not last year. `prev`
+    // therefore means "the start of the window" throughout this function.
+    var baseRow = w.ok ? series.filter(function (s) { return s.year === w.base.y; })[0] : null;
+    var endRow = w.ok ? series.filter(function (s) { return s.year === w.end.y; })[0] : null;
+    var prev = baseRow || null;
     var curSet = cur ? new Set([cur.idx]) : null;
     var prevSet = prev ? new Set([prev.idx]) : null;
+    var endSet = endRow ? new Set([endRow.idx]) : null;
+
+    /** CAGR of a measure across the window. */
+    function windowCagr(pick) {
+      if (!w.ok || !baseRow || !endRow) return null;
+      return cagrPct(pick(baseRow), pick(endRow), w.span);
+    }
 
     var valSpark = series.map(function (s) { return s.value; });
     var unitSpark = series.map(function (s) { return s.units; });
@@ -398,11 +471,13 @@
 
     function countCard(id, name, field, hint) {
       var c = countIn(field, curSet);
-      var p = prevSet ? countIn(field, prevSet) : null;
+      var b = prevSet ? countIn(field, prevSet) : null;
+      var e = endSet ? countIn(field, endSet) : null;
       return {
         id: id, name: name, value: c.toLocaleString(),
-        prev: p === null ? null : p.toLocaleString(),
-        growthPct: p ? growth(c, p) : null,
+        prev: b === null ? null : b.toLocaleString() + baseYearTxt,
+        growthPct: cagrPct(b, e, w.span),
+        growthLabel: "CAGR",
         spark: null, hint: hint,
       };
     }
@@ -483,28 +558,33 @@
     }
 
     var avgPriceCur = weightedAvgPrice(curSet);
-    var avgPricePrev = prevSet ? weightedAvgPrice(prevSet) : null;
+    var avgPriceBase = prevSet ? weightedAvgPrice(prevSet) : null;
+    var avgPriceEnd = endSet ? weightedAvgPrice(endSet) : null;
+    var baseYearTxt = w.ok ? " in " + w.base.y : "";
 
     var cards = [
       {
         id: "mktValue", name: "Total Market Value",
         value: fmtLC(cur ? cur.value : 0), unit: "LC",
-        prev: prev ? fmtLC(prev.value) : null,
-        growthPct: prev ? growth(cur.value, prev.value) : null,
+        prev: prev ? fmtLC(prev.value) + baseYearTxt : null,
+        growthPct: windowCagr(function (s) { return s.value; }),
+        growthLabel: "CAGR",
         spark: valSpark, primary: true,
       },
       {
         id: "mktUnits", name: "Total Market Units",
         value: fmtUnits(cur ? cur.units : 0), unit: "units",
-        prev: prev ? fmtUnits(prev.units) : null,
-        growthPct: prev ? growth(cur.units, prev.units) : null,
+        prev: prev ? fmtUnits(prev.units) + baseYearTxt : null,
+        growthPct: windowCagr(function (s) { return s.units; }),
+        growthLabel: "CAGR",
         spark: unitSpark, primary: true,
       },
       {
         id: "avgPrice", name: "Average Price / Unit",
         value: avgPriceCur === null ? "—" : fmtPrice(avgPriceCur), unit: "LC",
-        prev: avgPricePrev === null ? null : fmtPrice(avgPricePrev),
-        growthPct: avgPricePrev ? growth(avgPriceCur, avgPricePrev) : null,
+        prev: avgPriceBase === null ? null : fmtPrice(avgPriceBase) + baseYearTxt,
+        growthPct: cagrPct(avgPriceBase, avgPriceEnd, w.span),
+        growthLabel: "CAGR",
         spark: series.map(function (s) {
           return s.units > 0 ? s.value / s.units : 0;
         }),
@@ -553,7 +633,8 @@
           '<div class="mi-kpi-delta ' + cls + '">' +
             (arrow ? '<span class="mi-arrow">' + arrow + "</span>" : "") +
             (k.growthPct === null || k.growthPct === undefined || isNaN(k.growthPct)
-              ? '<span class="mi-muted">no prior period</span>'
+              ? '<span class="mi-muted">' +
+                (growthWindow().ok ? "no compound rate" : "needs 2 full years") + "</span>"
               : "<span>" + fmtSignedPct(k.growthPct) +
                 (k.growthLabel ? ' <span class="mi-muted">' + esc(k.growthLabel) + "</span>" : "") +
                 "</span>") +
@@ -573,11 +654,31 @@
    * share and secondary counts. `countFields` adds distinct-count columns
    * (e.g. molecules and products inside each Therapeutic Area).
    */
+  /**
+   * The workhorse behind every ranked table.
+   *
+   * Three buckets are accumulated in one pass:
+   *   cur   — the latest year in scope, which is what the value, units,
+   *           share and price columns report;
+   *   base  — the first FULL year in scope, the CAGR start point;
+   *   end   — the last FULL year in scope, the CAGR end point.
+   *
+   * `cur` and `end` are the same year in the normal case and diverge only
+   * when the user has pulled the partial year into scope. Keeping them
+   * separate is what stops a four-month endpoint from silently becoming
+   * the terminal value of a compound rate. See `growthWindow`.
+   *
+   * `prevValue` is retained as an alias of the window base so existing
+   * callers keep working; it means "the comparison point", which is now
+   * the start of the window rather than last year.
+   */
   function rankedRows(field, lookupKey, opts) {
     opts = opts || {};
     var cmp = comparisonYears();
+    var w = growthWindow();
     var curSet = cmp.cur ? new Set([cmp.cur.i]) : null;
-    var prevSet = cmp.prev ? new Set([cmp.prev.i]) : null;
+    var baseI = w.base ? w.base.i : -1;
+    var endI = w.end ? w.end.i : -1;
     var acc = new Map();
     var counts = opts.countFields || [];
 
@@ -586,16 +687,18 @@
       var k = A.rows[o + field];
       var e = acc.get(k);
       if (!e) {
-        e = { idx: k, cur: 0, prev: 0, units: 0, prevUnits: 0, sets: {} };
+        e = { idx: k, cur: 0, units: 0, base: 0, baseUnits: 0, end: 0, endUnits: 0, sets: {} };
         counts.forEach(function (c) { e.sets[c.key] = new Set(); });
         acc.set(k, e);
       }
+      // Not mutually exclusive: the current year is usually also the
+      // window end, and both totals are needed.
       if (curSet && curSet.has(y)) {
         e.cur += v; e.units += u;
         counts.forEach(function (c) { e.sets[c.key].add(A.rows[o + c.field]); });
-      } else if (prevSet && prevSet.has(y)) {
-        e.prev += v; e.prevUnits += u;
       }
+      if (y === baseI) { e.base += v; e.baseUnits += u; }
+      if (y === endI) { e.end += v; e.endUnits += u; }
     });
 
     var total = 0;
@@ -603,14 +706,19 @@
     var names = CACHE.lookups[lookupKey];
     var rows = [];
     acc.forEach(function (e) {
-      if (e.cur <= 0 && e.prev <= 0) return;
+      if (e.cur <= 0 && e.base <= 0 && e.end <= 0) return;
       var row = {
         idx: e.idx, name: names[e.idx],
-        value: e.cur, prevValue: e.prev, units: e.units,
-        growthPct: growth(e.cur, e.prev),
+        value: e.cur, units: e.units,
+        baseValue: e.base, baseUnits: e.baseUnits,
+        endValue: e.end, endUnits: e.endUnits,
+        prevValue: e.base,                        // alias: the comparison point
+        deltaValue: e.end - e.base,
+        growthPct: cagrPct(e.base, e.end, w.span),
+        totalGrowthPct: growth(e.end, e.base),    // whole-window, un-annualised
         sharePct: total > 0 ? (e.cur / total) * 100 : null,
         avgPrice: e.units > 0 ? e.cur / e.units : null,
-        contribPts: total > 0 && e.prev > 0 ? ((e.cur - e.prev) / total) * 100 : null,
+        contribPts: total > 0 ? ((e.end - e.base) / total) * 100 : null,
       };
       counts.forEach(function (c) { row[c.key] = e.sets[c.key].size; });
       rows.push(row);
@@ -622,7 +730,7 @@
       if (bv === null) return -1;
       return bv - av;
     });
-    return { rows: rows, total: total, cur: cmp.cur, prev: cmp.prev };
+    return { rows: rows, total: total, cur: cmp.cur, prev: cmp.prev, window: w };
   }
 
   function topSlice(rows) {
@@ -664,7 +772,7 @@
       '<th class="mi-num">LC Value</th>' +
       '<th class="mi-num">Units</th>' +
       '<th class="mi-num">Share</th>' +
-      '<th class="mi-num">Growth</th>';
+      '<th class="mi-num" title="' + esc(growthTooltip()) + '">' + esc(growthLabel()) + "</th>";
     extra.forEach(function (c) { h += '<th class="mi-num">' + esc(c.label) + "</th>"; });
     if (opts.drill) h += '<th class="mi-th-drill"></th>';
     h += "</tr></thead><tbody>";
@@ -779,17 +887,25 @@
   function buildInsights() {
     var out = [];
     var cmp = comparisonYears();
-    if (!cmp.cur || !cmp.prev) {
+    var w = growthWindow();
+    if (!cmp.cur || !w.ok) {
       return [{
-        tone: "neutral", title: "Single period in scope",
-        body: "Select at least two calendar years to generate growth insights.",
+        tone: "neutral", title: "Not enough history in scope",
+        body: "Growth on this page is measured as a compound annual rate, which needs " +
+              "at least two full calendar years. Widen the Calendar Year filter to " +
+              "generate growth insights.",
       }];
     }
-    var curY = cmp.cur.y, prevY = cmp.prev.y;
+    var curY = cmp.cur.y;
+    var baseY = w.base.y, endY = w.end.y, span = w.span;
     var partial = curY === PARTIAL_YEAR;
     var totals = yearSeries();
-    var cur = totals[totals.length - 1], prev = totals[totals.length - 2];
-    var mktG = growth(cur.value, prev.value);
+    var cur = totals[totals.length - 1];
+    // The comparison point is the start of the CAGR window, not last year.
+    var prev = totals.filter(function (s) { return s.year === baseY; })[0] || cur;
+    var endRow = totals.filter(function (s) { return s.year === endY; })[0] || cur;
+    var mktG = cagrPct(prev.value, endRow.value, span);
+    var windowTxt = baseY + "→" + endY;
 
     // 0. Zeta first. An executive reading this page wants our own
     // position before the market commentary, not after it.
@@ -809,14 +925,14 @@
           title: "Zeta Pharma ranks #" + (mePos + 1) + " of " +
                  corpsAll.rows.length.toLocaleString() + " with " + fmtPct(me.sharePct, 2) + " share",
           what: "Zeta recorded " + fmtLC(me.value) + " LC in " + curY +
-                (me.prevValue > 0 ? ", up from " + fmtLC(me.prevValue) + " in " + prevY : "") + ".",
+                (me.baseValue > 0 ? ", from " + fmtLC(me.baseValue) + " in " + baseY : "") + ".",
           where: scopeLabel(),
-          why: gap === null ? "No prior-year basis to compare against the market."
+          why: gap === null ? "Not enough full years in scope to compute a compound rate."
             : beating
-              ? "Growing " + fmtSignedPct(me.growthPct) + " against a market at " +
-                fmtSignedPct(mktG) + " — " + fmtSignedPct(gap) + " points ahead."
-              : "Growing " + fmtSignedPct(me.growthPct) + " while the market grew " +
-                fmtSignedPct(mktG) + " — " + Math.abs(gap).toFixed(1) + " points behind.",
+              ? "Compounding " + fmtSignedPct(me.growthPct) + " a year against a market at " +
+                fmtSignedPct(mktG) + " — " + fmtSignedPct(gap) + " points ahead, " + windowTxt + "."
+              : "Compounding " + fmtSignedPct(me.growthPct) + " a year while the market compounded " +
+                fmtSignedPct(mktG) + " — " + Math.abs(gap).toFixed(1) + " points behind, " + windowTxt + ".",
           impact: gap === null ? "Share position is static in this scope."
             : beating
               ? "Share is being gained. Every point of market share here is worth roughly " +
@@ -834,19 +950,22 @@
     if (mktG !== null) {
       out.push({
         tone: mktG >= 0 ? "positive" : "negative",
-        title: "Market " + (mktG >= 0 ? "grew" : "declined") + " " +
-               fmtSignedPct(mktG) + " in " + curY,
-        what: "Total market value moved from " + fmtLC(prev.value) + " to " +
-              fmtLC(cur.value) + " LC.",
+        title: "Market " + (mktG >= 0 ? "compounded" : "contracted") + " " +
+               fmtSignedPct(mktG) + " a year, " + windowTxt,
+        what: "Total market value moved from " + fmtLC(prev.value) + " in " + baseY +
+              " to " + fmtLC(endRow.value) + " LC in " + endY + " — " +
+              fmtSignedPct(growth(endRow.value, prev.value)) + " across the whole " +
+              span + "-year window.",
         where: scopeLabel(),
-        why: priceVolumeAttribution(cur, prev),
+        why: priceVolumeAttribution(endRow, prev, span),
         impact: "Every share position below is measured against this base. A " +
-                fmtLC(Math.abs(cur.value - prev.value)) + " LC swing resets " +
+                fmtLC(Math.abs(endRow.value - prev.value)) + " LC swing resets " +
                 "what a point of share is worth.",
         action: mktG >= 0
-          ? "Confirm our own growth is at least matching the market — anything less is share erosion in a rising market."
+          ? "Confirm our own compound rate is at least matching the market — anything less is share erosion in a rising market."
           : "Protect price and mix before chasing volume in a contracting market.",
-        caveat: partial ? curY + " covers January–April only; it is NOT comparable to a full " + prevY + "." : null,
+        caveat: partial ? curY + " covers January–April only. It is shown in the value " +
+          "columns but excluded from every compound rate on this page." : null,
       });
     }
 
@@ -854,18 +973,20 @@
     var corps = rankedRows(F_CORP, "corps");
     var matFloor = cur.value * 0.005;
     var movers = corps.rows.filter(function (r) {
-      return r.prevValue > 0 && r.value >= matFloor && r.growthPct !== null;
+      return r.baseValue > 0 && r.endValue >= matFloor && r.growthPct !== null;
     });
     var gainers = movers.slice().sort(function (a, b) { return b.growthPct - a.growthPct; });
     if (gainers.length) {
       var g = gainers[0];
       out.push({
         tone: "positive",
-        title: g.name + " is the fastest-growing corporation at " + fmtSignedPct(g.growthPct),
-        what: g.name + " grew from " + fmtLC(g.prevValue) + " to " + fmtLC(g.value) + " LC.",
+        title: g.name + " is the fastest-growing corporation at " +
+               fmtSignedPct(g.growthPct) + " a year",
+        what: g.name + " went from " + fmtLC(g.baseValue) + " in " + baseY + " to " +
+              fmtLC(g.endValue) + " LC in " + endY + ".",
         where: "Holds " + fmtPct(g.sharePct) + " of the market in scope.",
         why: topDriverFor(F_CORP, g.idx),
-        impact: "Added " + fmtLC(g.value - g.prevValue) + " LC — " +
+        impact: "Added " + fmtLC(g.deltaValue) + " LC across the window — " +
                 fmtPct(g.contribPts) + " of total market value.",
         action: "Review where this competitor overlaps our portfolio and whether the gain is price, volume or new launches.",
       });
@@ -876,11 +997,12 @@
       var l = losers[0];
       out.push({
         tone: "negative",
-        title: l.name + " lost " + fmtSignedPct(l.growthPct) + " of its value",
-        what: l.name + " fell from " + fmtLC(l.prevValue) + " to " + fmtLC(l.value) + " LC.",
+        title: l.name + " is contracting " + fmtSignedPct(l.growthPct) + " a year",
+        what: l.name + " fell from " + fmtLC(l.baseValue) + " in " + baseY + " to " +
+              fmtLC(l.endValue) + " LC in " + endY + ".",
         where: "Still holds " + fmtPct(l.sharePct) + " share.",
         why: topDriverFor(F_CORP, l.idx),
-        impact: fmtLC(Math.abs(l.value - l.prevValue)) + " LC has left this competitor — " +
+        impact: fmtLC(Math.abs(l.deltaValue)) + " LC has left this competitor — " +
                 "share that is now in play.",
         action: "Identify which of their molecules lost ground and whether we compete in them.",
       });
@@ -895,8 +1017,9 @@
         title: t.name + " is the largest therapeutic area at " + fmtPct(t.sharePct) + " of the market",
         what: fmtLC(t.value) + " LC across " + (t.molecules || 0) + " molecules.",
         where: scopeLabel(),
-        why: t.growthPct === null ? "No prior-year comparison in scope."
-          : "It is " + (t.growthPct >= 0 ? "growing" : "declining") + " at " + fmtSignedPct(t.growthPct) + ".",
+        why: t.growthPct === null ? "Not enough full years in scope for a compound rate."
+          : "It is " + (t.growthPct >= 0 ? "compounding" : "contracting") + " at " +
+            fmtSignedPct(t.growthPct) + " a year, " + windowTxt + ".",
         impact: "Concentration here means portfolio decisions in this area move the whole business.",
         action: "Check our share of this area specifically — under-indexing in the largest TA is the most expensive gap to carry.",
       });
@@ -935,33 +1058,49 @@
 
   /** Price vs volume attribution for a market movement -- the first
    *  question any commercial director asks about a growth number. */
-  function priceVolumeAttribution(cur, prev) {
-    if (!prev || prev.units <= 0 || prev.value <= 0) return "No prior-period basis for attribution.";
-    var unitG = growth(cur.units, prev.units);
-    var valG = growth(cur.value, prev.value);
+  /**
+   * Splits a value movement into its volume and price/mix components.
+   *
+   * Both sides are compound annual rates when a span is supplied, so the
+   * comparison is like-for-like: subtracting a 3-year unit CAGR from a
+   * one-year value growth would attribute the difference to price when
+   * most of it is just the difference in window length.
+   */
+  function priceVolumeAttribution(cur, prev, span) {
+    if (!prev || prev.units <= 0 || prev.value <= 0) return "No basis for attribution in scope.";
+    var unitG = span ? cagrPct(prev.units, cur.units, span) : growth(cur.units, prev.units);
+    var valG = span ? cagrPct(prev.value, cur.value, span) : growth(cur.value, prev.value);
     if (unitG === null || valG === null) return "";
+    var per = span ? " a year" : "";
+    // Price/mix is the residual once volume is taken out. On compound
+    // rates this is an approximation -- the exact decomposition is
+    // multiplicative -- but at these magnitudes the difference is well
+    // inside the rounding shown.
     var priceEffect = valG - unitG;
     if (Math.abs(unitG) < 1 && Math.abs(priceEffect) > 3) {
-      return "Almost entirely price/mix: units moved " + fmtSignedPct(unitG) +
-             " while value moved " + fmtSignedPct(valG) + ".";
+      return "Almost entirely price/mix: units moved " + fmtSignedPct(unitG) + per +
+             " while value moved " + fmtSignedPct(valG) + per + ".";
     }
     if (Math.abs(priceEffect) < 3) {
-      return "Volume-led: units " + fmtSignedPct(unitG) + " against value " + fmtSignedPct(valG) + ".";
+      return "Volume-led: units " + fmtSignedPct(unitG) + per + " against value " +
+             fmtSignedPct(valG) + per + ".";
     }
-    return "Units " + fmtSignedPct(unitG) + " and price/mix roughly " +
-           fmtSignedPct(priceEffect) + " — both contributing.";
+    return "Units " + fmtSignedPct(unitG) + per + " and price/mix roughly " +
+           fmtSignedPct(priceEffect) + per + " — both contributing.";
   }
 
   /** Largest molecule inside a filtered entity, used as the "why". */
   function topDriverFor(field, idx) {
-    var cmp = comparisonYears();
-    if (!cmp.cur) return "";
+    var w = growthWindow();
+    if (!w.ok) return "";
+    // Measured across the same window as the rate it is explaining --
+    // a driver picked from a different period is not an explanation.
     var acc = new Map(), prevAcc = new Map();
     scanAnnual(function (o, u, v) {
       if (A.rows[o + field] !== idx) return;
       var y = A.rows[o + F_YEAR], m = A.rows[o + F_MOL];
-      if (y === cmp.cur.i) acc.set(m, (acc.get(m) || 0) + v);
-      else if (cmp.prev && y === cmp.prev.i) prevAcc.set(m, (prevAcc.get(m) || 0) + v);
+      if (y === w.end.i) acc.set(m, (acc.get(m) || 0) + v);
+      else if (y === w.base.i) prevAcc.set(m, (prevAcc.get(m) || 0) + v);
     });
     var best = null;
     acc.forEach(function (v, k) {
@@ -1252,41 +1391,32 @@
     var me = res.rows[meIdx];
     var cmp = comparisonYears();
 
-    // Market growth on the same basis, so "are we outpacing the market"
-    // is answered rather than left for the reader to compute.
+    // Market growth on exactly the same basis, so "are we outpacing the
+    // market" is answered rather than left for the reader to compute.
+    // `me.growthPct` is already the CAGR across the window -- there is no
+    // second, separately-derived rate here any more, which is what used to
+    // let a "Growth" stat and a "CAGR" stat sit side by side disagreeing.
+    var w = res.window;
     var series = yearSeries();
-    var mktCur = series.length ? series[series.length - 1].value : 0;
-    var mktPrev = series.length > 1 ? series[series.length - 2].value : 0;
-    var mktG = growth(mktCur, mktPrev);
-    var outpace = (me.growthPct !== null && mktG !== null) ? me.growthPct - mktG : null;
-
-    // CAGR over the full years in scope -- the trajectory, not one step.
-    var fullYears = activeYears().filter(function (o) { return !isPartialYear(o.y); });
-    var cagr = null, cagrSpan = 0;
-    if (fullYears.length >= 2) {
-      var f = fullYears[0], l = fullYears[fullYears.length - 1];
-      cagrSpan = l.y - f.y;
-      var sV = 0, eV = 0;
-      scanAnnual(function (o, u, v) {
-        if (A.rows[o + F_CORP] !== zi) return;
-        var y = A.rows[o + F_YEAR];
-        if (y === f.i) sV += v; else if (y === l.i) eV += v;
-      });
-      if (sV > 0 && cagrSpan > 0) cagr = (Math.pow(eV / sV, 1 / cagrSpan) - 1) * 100;
+    function totalFor(y) {
+      var row = series.filter(function (s) { return s.year === y; })[0];
+      return row ? row.value : 0;
     }
+    var mktG = w.ok ? cagrPct(totalFor(w.base.y), totalFor(w.end.y), w.span) : null;
+    var outpace = (me.growthPct !== null && mktG !== null) ? me.growthPct - mktG : null;
+    var windowSub = w.ok ? w.base.y + "→" + w.end.y + " compound" : "needs 2 full years";
 
     var stats =
       zetaStat("LC Value", fmtLC(me.value), (cmp.cur ? cmp.cur.y : "") + " · " + fmtUnits(me.units) + " units") +
       zetaStat("Market Share", fmtPct(me.sharePct, 2), "of " + fmtLC(res.total) + " LC in scope") +
       zetaStat("Rank", "#" + (meIdx + 1), "of " + res.rows.length.toLocaleString() + " corporations") +
-      zetaStat("Growth", fmtSignedPct(me.growthPct),
-               cmp.prev ? "vs " + cmp.prev.y : "no prior year",
+      zetaStat("CAGR", fmtSignedPct(me.growthPct), windowSub,
                me.growthPct === null ? "" : me.growthPct >= 0 ? "mi-up" : "mi-down") +
-      zetaStat("CAGR", cagr === null ? "—" : fmtSignedPct(cagr),
-               cagrSpan ? cagrSpan + "-year compound" : "needs 2 full years",
-               cagr === null ? "" : cagr >= 0 ? "mi-up" : "mi-down") +
+      zetaStat("Total Growth", fmtSignedPct(me.totalGrowthPct),
+               w.ok ? "across the whole " + w.span + " years" : "needs 2 full years",
+               me.totalGrowthPct === null ? "" : me.totalGrowthPct >= 0 ? "mi-up" : "mi-down") +
       zetaStat("vs Market", outpace === null ? "—" : fmtSignedPct(outpace) + " pts",
-               mktG === null ? "" : "market grew " + fmtSignedPct(mktG),
+               mktG === null ? "" : "market compounded " + fmtSignedPct(mktG),
                outpace === null ? "" : outpace >= 0 ? "mi-up" : "mi-down");
 
     // Where our value sits, and where we hold the most share -- two
@@ -1301,10 +1431,10 @@
       "</div>" +
       (outpace !== null
         ? '<div class="mi-note">' + (outpace >= 0
-            ? "Zeta is outgrowing the market by " + fmtSignedPct(outpace) +
-              " points — share is being gained."
-            : "Zeta is growing " + fmtSignedPct(Math.abs(outpace)).replace("+", "") +
-              " points slower than the market — share is eroding even though value is " +
+            ? "Zeta is compounding " + fmtSignedPct(outpace) +
+              " points a year faster than the market — share is being gained."
+            : "Zeta is compounding " + fmtSignedPct(Math.abs(outpace)).replace("+", "") +
+              " points a year slower than the market — share is eroding even though value is " +
               (me.growthPct >= 0 ? "up" : "down") + ".") + "</div>"
         : "");
 
@@ -1606,7 +1736,7 @@
         '" data-top="' + d.key + '">' + esc(d.label) + "</button>";
     }).join("") + "</div>" +
     '<div class="mi-seg mi-seg-sort">' +
-      [["value", "LC Value"], ["units", "Units"], ["growthPct", "Growth %"]].map(function (s) {
+      [["value", "LC Value"], ["units", "Units"], ["growthPct", "CAGR"]].map(function (s) {
         return '<button type="button" class="mi-seg-btn' + (_topSort === s[0] ? " on" : "") +
           '" data-topsort="' + s[0] + '">' + esc(s[1]) + "</button>";
       }).join("") + "</div>";
@@ -1615,11 +1745,12 @@
     var body = rankedTableHtml(res, { label: d.label.replace(/s$/, ""), drill: d.drill, isCorp: d.key === "corp" }) +
       '<div class="mi-note"><strong>Share</strong> = entity LC Value ÷ total LC Value ' +
         "of all " + esc(d.label.toLowerCase()) + " in the current scope, for the latest " +
-        "year selected. <strong>Growth</strong> = year-on-year change in LC Value versus " +
-        "the previous year in scope." +
+        "year selected. <strong>" + esc(growthLabel()) + "</strong> = " + esc(growthTooltip()) +
+        " A single year-on-year step is easily a restock, a tender, or shipment phasing; " +
+        "compounding over the whole window shows trajectory instead." +
         (_topSort === "growthPct"
-          ? " Sorted by growth — entities with no prior-year value rank last, because a " +
-            "percentage from a zero base is undefined rather than infinite."
+          ? " Sorted by CAGR — entities with no value in the base year rank last, because a " +
+            "compound rate from a zero base is undefined rather than infinite."
           : "") +
       "</div>";
     return section("mi-top", "Top Performers",
@@ -1721,8 +1852,11 @@
           "competitor plays at high price or high volume.</li>" +
         "<li><strong>Share</strong> — their LC Value ÷ the LC Value of every corporation in " +
           "the current scope.</li>" +
-        "<li><strong>Growth</strong> — year-on-year change in LC Value versus the previous " +
-          "year in scope.</li>" +
+        "<li><strong>" + esc(growthLabel()) + "</strong> — compound annual growth rate in " +
+          "LC Value across the full years in scope. Not a year-on-year step: one step is " +
+          "easily a restock or a tender landing either side of a year end, while a compound " +
+          "rate over the window describes trajectory and is comparable between competitors " +
+          "of very different sizes.</li>" +
         "<li><strong>Products</strong> — distinct products (SKU-level items) they sell.</li>" +
         "<li><strong>Molecules</strong> — distinct active ingredients behind those products. " +
           "Far fewer molecules than products means many brands built on the same chemistry.</li>" +
@@ -1763,6 +1897,44 @@
       "</ul></div>";
   }
 
+  /**
+   * States the heatmap's basis on the page. A concentration chart is only
+   * interpretable if the reader knows what the colour encodes, what the
+   * denominator is, and how many columns are shown out of how many exist
+   * -- otherwise a pale row reads as "small company" when it may mean
+   * "competes outside the top 12 classes".
+   */
+  function heatmapBasisNote() {
+    var cmp = comparisonYears();
+    var yr = cmp.cur ? cmp.cur.y : "—";
+    var nCorp = corpSliceWithZeta().length;
+    return '<div class="mi-method">' +
+      '<div class="mi-method-h">What these heatmaps are built on</div>' +
+      "<ul>" +
+        "<li><strong>Measure:</strong> LC Value — local currency sales value at retail, " +
+          "as reported by IMS. Not units, not growth.</li>" +
+        "<li><strong>Period:</strong> " + esc(String(yr)) + " only, the latest year in your " +
+          "current scope. Concentration is a point-in-time position, never summed across years.</li>" +
+        "<li><strong>Rows:</strong> the top " + nCorp + " corporations by LC Value in scope, " +
+          "plus Zeta pinned in regardless of rank. The <em>%</em> badge beside each name is how " +
+          "much of that corporation's total business the displayed columns account for.</li>" +
+        "<li><strong>Columns:</strong> the 12 largest " +
+          "classes by LC Value in scope — out of " + CACHE.lookups.atc4s.length + " ATC4 classes " +
+          "and " + CACHE.lookups.tas.length + " therapeutic areas that exist. A company can be " +
+          "large and still look sparse here if it competes outside those 12.</li>" +
+        "<li><strong>Cell value:</strong> that corporation's LC Value in that class. The tooltip's " +
+          "percentage is of the corporation's <em>entire</em> business in scope — not of the " +
+          "columns shown — so it is comparable across rows.</li>" +
+        "<li><strong>Colour intensity:</strong> scaled against the single largest cell in the grid, " +
+          "with a gamma curve (^0.45) applied. A linear ramp collapses everything below the " +
+          "leader into near-white; the curve keeps mid-range values legible. Colour shows " +
+          "<em>relative</em> magnitude only — read the number, not the shade, for the value.</li>" +
+      "</ul>" +
+      '<div class="mi-gloss-bench">Zeta is always included even when it falls outside the ' +
+        "Top N — its row and treemap node are marked in light blue.</div>" +
+      "</div>";
+  }
+
   function priceColumnNote() {
     return '<div class="mi-note">Average price is market value ÷ units for the segment — ' +
       "a realised blend of pack mix and discounting, not a list price.</div>";
@@ -1778,7 +1950,8 @@
     var h = '<table class="mi-table"><thead><tr>' +
       '<th class="mi-th-rank">#</th><th>Product</th>' +
       '<th class="mi-num">LC Value</th><th class="mi-num">Units</th>' +
-      '<th class="mi-num">Share</th><th class="mi-num">Growth</th>' +
+      '<th class="mi-num">Share</th><th class="mi-num" title="' + esc(growthTooltip()) +
+      '">' + esc(growthLabel()) + "</th>" +
       '<th class="mi-num">Avg Price</th><th>Molecule</th>' +
       "<th>Therapeutic Area</th><th class=\"mi-num\">Launch</th>" +
       '<th class="mi-th-drill"></th></tr></thead><tbody>';
@@ -1870,8 +2043,7 @@
     var body = heatmapHtml(F_TA, "tas", "Therapeutic Area") +
       heatmapHtml(F_ATC, "atc4s", "ATC4") +
       treemapHtml() +
-      '<div class="mi-note">Zeta is always included in the visuals above, even when it ' +
-        "falls outside the Top N — its row and node are marked in light blue.</div>";
+      heatmapBasisNote();
     return section("mi-portfolio", "Portfolio Analysis",
       "Where each corporation actually competes, and how concentrated its portfolio is.", body);
   }
@@ -1905,13 +2077,33 @@
     var dims = rankedRows(field, lookup).rows.slice(0, 12).map(function (r) { return r.idx; });
     if (!corps.length || !dims.length) return "";
     var corpSet = new Set(corps), dimSet = new Set(dims);
-    var cell = new Map(), rowTot = new Map();
+    var cell = new Map();
+    // TWO different row totals, and conflating them was a real bug
+    // (found 2026-08-06 when Ahmed asked what basis this chart uses).
+    //
+    //   rowTotAll   -- the corporation's ENTIRE value in scope, across
+    //                  every ATC4/TA it sells in, not just the columns
+    //                  displayed. This is the honest denominator for
+    //                  "what % of this company is this cell".
+    //   rowTotShown -- its value within the 12 displayed columns only.
+    //                  Useful for stating COVERAGE ("these columns are
+    //                  37% of PHARCO's business"), never as a share base.
+    //
+    // The tooltip previously divided by rowTotShown while labelling the
+    // result "% of this corporation". For AMOUN that reported its largest
+    // cell as 63.3% of the company when the true figure is 21.0% -- a
+    // threefold overstatement of concentration, because the 12 shown
+    // columns are only a third of their business.
+    var rowTotAll = new Map(), rowTotShown = new Map();
     scanAnnual(function (o, u, v) {
       if (A.rows[o + F_YEAR] !== cmp.cur.i) return;
-      var c = A.rows[o + F_CORP], d = A.rows[o + field];
-      if (!corpSet.has(c) || !dimSet.has(d)) return;
+      var c = A.rows[o + F_CORP];
+      if (!corpSet.has(c)) return;
+      rowTotAll.set(c, (rowTotAll.get(c) || 0) + v);
+      var d = A.rows[o + field];
+      if (!dimSet.has(d)) return;
       cell.set(c + "|" + d, (cell.get(c + "|" + d) || 0) + v);
-      rowTot.set(c, (rowTot.get(c) || 0) + v);
+      rowTotShown.set(c, (rowTotShown.get(c) || 0) + v);
     });
     var max = 0;
     cell.forEach(function (v) { if (v > max) max = v; });
@@ -1926,22 +2118,30 @@
     });
     corps.forEach(function (c) {
       var zeta = isZetaCorp(c);
+      // Coverage: how much of this corporation's business the shown
+      // columns actually account for. Without it a sparse row is
+      // ambiguous -- is the company small, or simply concentrated in
+      // classes that fall outside the top 12?
+      var cov = rowTotAll.get(c) ? (rowTotShown.get(c) || 0) / rowTotAll.get(c) * 100 : 0;
       h += '<div class="mi-heat-rowh' + (zeta ? " mi-heat-zeta" : "") + '" title="' +
-        esc(corpNames[c]) + '">' + esc(corpNames[c]) +
-        (zeta ? '<span class="mi-zeta-tag">US</span>' : "") + "</div>";
+        esc(corpNames[c] + " — " + fmtLC(rowTotAll.get(c) || 0) + " LC total; " +
+            "the columns shown cover " + cov.toFixed(0) + "% of it") + '">' +
+        esc(corpNames[c]) +
+        (zeta ? '<span class="mi-zeta-tag">US</span>' : "") +
+        '<span class="mi-heat-cov">' + cov.toFixed(0) + "%</span></div>";
       dims.forEach(function (d) {
         var v = cell.get(c + "|" + d) || 0;
         // Gamma-lifted so mid-range values stay visible; a linear ramp
         // collapses everything below the leader into near-white.
         var intensity = max > 0 ? Math.pow(v / max, 0.45) : 0;
-        var pctOfCorp = rowTot.get(c) ? (v / rowTot.get(c)) * 100 : 0;
+        var pctOfCorp = rowTotAll.get(c) ? (v / rowTotAll.get(c)) * 100 : 0;
         // Zeta's own row is tinted in the Zeta blue rather than the house
         // navy, so our footprint reads as ours at a glance.
         var rgb = zeta ? "14,165,233" : "15,76,129";
         h += '<div class="mi-heat-cell" style="background:rgba(' + rgb + "," +
           (0.06 + intensity * 0.88).toFixed(3) + ')" title="' +
           esc(corpNames[c] + " · " + dimNames[d] + "\n" + fmtLC(v) + " LC · " +
-              pctOfCorp.toFixed(1) + "% of this corporation") + '">' +
+              pctOfCorp.toFixed(1) + "% of this corporation's total business") + '">' +
           (v > 0 && intensity > 0.32
             ? '<span style="color:#fff">' + fmtLC(v) + "</span>"
             : v > 0 ? "<span>" + fmtLC(v) + "</span>" : "") +
@@ -2024,24 +2224,29 @@
       if (res.rows[i].idx === zi) { me = res.rows[i]; break; }
     }
     if (!me || me.growthPct === null) return "";
-    var cmp = comparisonYears();
-    var marketCur = 0, marketPrev = 0;
-    res.rows.forEach(function (r) { marketCur += r.value; marketPrev += r.prevValue; });
-    var marketDelta = marketCur - marketPrev;
-    var myDelta = me.value - me.prevValue;
-    var mktG = growth(marketCur, marketPrev);
+    var w = res.window;
+    // Every figure here spans the CAGR window, so the absolute movement
+    // and the rate describe the same period. Mixing the latest year's
+    // value with the base year's would produce a delta that matches
+    // neither.
+    var marketEnd = 0, marketBase = 0;
+    res.rows.forEach(function (r) { marketEnd += r.endValue; marketBase += r.baseValue; });
+    var marketDelta = marketEnd - marketBase;
+    var myDelta = me.deltaValue;
+    var mktG = cagrPct(marketBase, marketEnd, w.span);
     var shareOfGrowth = marketDelta !== 0 ? (myDelta / marketDelta) * 100 : null;
     var gap = (mktG !== null) ? me.growthPct - mktG : null;
     var beating = gap !== null && gap >= 0;
+    var windowTxt = w.ok ? w.base.y + " → " + w.end.y : "";
 
     return '<div class="mi-zgrow">' +
       '<div class="mi-zgrow-head">Zeta Pharma in this movement' +
         '<span class="mi-zeta-tag">US</span></div>' +
       '<div class="mi-zgrow-stats">' +
         zgrowStat("Value added", (myDelta >= 0 ? "+" : "−") + fmtLC(Math.abs(myDelta)),
-                  cmp.prev ? cmp.prev.y + " → " + cmp.cur.y : "") +
-        zgrowStat("Our growth", fmtSignedPct(me.growthPct),
-                  mktG === null ? "" : "market " + fmtSignedPct(mktG)) +
+                  windowTxt) +
+        zgrowStat("Our CAGR", fmtSignedPct(me.growthPct),
+                  mktG === null ? "" : "market " + fmtSignedPct(mktG) + " a year") +
         zgrowStat("vs Market", gap === null ? "—" : fmtSignedPct(gap) + " pts",
                   beating ? "outpacing" : "trailing") +
         zgrowStat("Share of market growth",
@@ -2050,10 +2255,10 @@
       "</div>" +
       '<div class="mi-zgrow-note">' +
         (beating
-          ? "Zeta grew faster than the market, so share moved our way — but we captured " +
+          ? "Zeta compounded faster than the market, so share moved our way — but we captured " +
             (shareOfGrowth === null ? "—" : fmtPct(shareOfGrowth, 2)) +
             " of the total growth on offer. The bridge below names who took the rest."
-          : "Zeta grew slower than the market. Value is " +
+          : "Zeta compounded slower than the market. Value is " +
             (myDelta >= 0 ? "up" : "down") + " but share is eroding — the competitors " +
             "gaining that share are named in the bridge below.") +
       "</div></div>";
@@ -2075,19 +2280,24 @@
         '<div>' + growthListHtml(F_TA, "tas", "Therapeutic Area", true) + "</div>" +
         '<div>' + growthListHtml(F_MOL, "molecules", "Molecule", true) + "</div>" +
       "</div>";
+    var gw = growthWindow();
     return section("mi-growth", "Growth Analysis",
-      "Where value was created and destroyed between the two most recent periods in scope.", body);
+      gw.ok
+        ? "Where value was created and destroyed between " + gw.base.y + " and " + gw.end.y +
+          ". Rates are compound annual (CAGR); bars are the absolute movement across the " +
+          "whole " + gw.span + "-year window."
+        : "Needs at least two full calendar years in scope.", body);
   }
 
   function growthListHtml(field, lookup, label, gaining) {
     var res = rankedRows(field, lookup);
     var floor = res.total * 0.002;
     var rows = res.rows.filter(function (r) {
-      return r.growthPct !== null && (r.value >= floor || r.prevValue >= floor);
+      return r.growthPct !== null && (r.endValue >= floor || r.baseValue >= floor);
     });
     rows.sort(function (a, b) {
-      return gaining ? (b.value - b.prevValue) - (a.value - a.prevValue)
-                     : (a.value - a.prevValue) - (b.value - b.prevValue);
+      return gaining ? b.deltaValue - a.deltaValue
+                     : a.deltaValue - b.deltaValue;
     });
     rows = rows.slice(0, Fx.topN === 0 ? 10 : Math.min(Fx.topN, 10));
     // Zeta is appended to the corporation lists when it falls outside the
@@ -2105,12 +2315,13 @@
       }
     }
     if (!rows.length) return "";
-    var title = (gaining ? "Top growing " : "Top declining ") + label.toLowerCase() + "s";
+    var title = (gaining ? "Top growing " : "Top declining ") + label.toLowerCase() + "s" +
+      (res.window.ok ? " · " + res.window.base.y + "–" + res.window.end.y : "");
     var h = '<div class="mi-mini"><div class="mi-mini-title">' + esc(title) + "</div>";
-    var maxAbs = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.value - r.prevValue); })) || 1;
+    var maxAbs = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.deltaValue); })) || 1;
     var isCorpDim = (field === F_CORP);
     rows.forEach(function (r) {
-      var d = r.value - r.prevValue;
+      var d = r.deltaValue;
       var w = (Math.abs(d) / maxAbs) * 100;
       var zeta = isCorpDim && isZetaCorp(r.idx);
       h += '<div class="mi-mini-row' + (zeta ? " mi-mini-zeta" : "") + '" title="' + esc(r.name) + '">' +
@@ -2131,12 +2342,14 @@
     // total. Answers "where did the change actually come from", which a
     // pair of bar charts never does.
     var res = rankedRows(F_CORP, "corps");
-    var cmp = comparisonYears();
-    if (!cmp.cur || !cmp.prev) return;
+    var w = res.window;
+    if (!w.ok) return;
+    // The bridge spans the CAGR window, so it reconciles to the same two
+    // endpoints every rate on this page is computed from.
     var prevTotal = 0, curTotal = 0;
-    res.rows.forEach(function (r) { prevTotal += r.prevValue; curTotal += r.value; });
-    var movers = res.rows.filter(function (r) { return r.prevValue > 0 || r.value > 0; })
-      .map(function (r) { return { name: r.name, d: r.value - r.prevValue, idx: r.idx }; })
+    res.rows.forEach(function (r) { prevTotal += r.baseValue; curTotal += r.endValue; });
+    var movers = res.rows.filter(function (r) { return r.baseValue > 0 || r.endValue > 0; })
+      .map(function (r) { return { name: r.name, d: r.deltaValue, idx: r.idx }; })
       .sort(function (a, b) { return Math.abs(b.d) - Math.abs(a.d); });
     // Zeta is always shown in the bridge even when it isn't a top mover --
     // an executive bridge that omits our own contribution is not useful.
@@ -2150,7 +2363,7 @@
     var top = movers.slice(0, showN);
     var rest = movers.slice(showN).reduce(function (a, m) { return a + m.d; }, 0);
 
-    var labels = [String(cmp.prev.y)], bars = [[0, prevTotal]], colors = ["#94A3B8"];
+    var labels = [String(w.base.y)], bars = [[0, prevTotal]], colors = ["#94A3B8"];
     var run = prevTotal;
     var zetaName = zetaCorpIdx() >= 0 ? CACHE.lookups.corps[zetaCorpIdx()] : null;
     top.forEach(function (m) {
@@ -2165,7 +2378,7 @@
       colors.push(rest >= 0 ? "#4A9D5F" : "#C4713A");
       run += rest;
     }
-    labels.push(String(cmp.cur.y));
+    labels.push(String(w.end.y));
     bars.push([0, curTotal]);
     colors.push("#0F4C81");
 
@@ -2178,7 +2391,7 @@
         plugins: Object.assign({}, CHART_BASE.plugins, {
           legend: { display: false },
           title: { display: true,
-            text: "Value bridge " + cmp.prev.y + " → " + cmp.cur.y + " (by corporation)",
+            text: "Value bridge " + w.base.y + " → " + w.end.y + " (by corporation)",
             font: { size: 12, weight: "600" } },
           tooltip: Object.assign({}, CHART_BASE.plugins.tooltip, {
             callbacks: { label: function (c) {
@@ -2234,14 +2447,17 @@
     Fx[fkey] = new Set([idx]);
 
     var cmp = comparisonYears();
+    var dw = growthWindow();
     var tot = totalsForYears(cmp.cur ? new Set([cmp.cur.i]) : null);
-    var prevTot = cmp.prev ? totalsForYears(new Set([cmp.prev.i])) : null;
-    var g = prevTot ? growth(tot.value, prevTot.value) : null;
+    var baseTot = dw.ok ? totalsForYears(new Set([dw.base.i])) : null;
+    var endTot = dw.ok ? totalsForYears(new Set([dw.end.i])) : null;
+    var g = dw.ok ? cagrPct(baseTot.value, endTot.value, dw.span) : null;
 
     var head = '<div class="mi-drill-kpis">' +
       drillStat("LC Value", fmtLC(tot.value), cmp.cur ? cmp.cur.y : "") +
       drillStat("Units", fmtUnits(tot.units), cmp.cur ? cmp.cur.y : "") +
-      drillStat("Growth", fmtSignedPct(g), prevTot ? "vs " + cmp.prev.y : "no prior year") +
+      drillStat("CAGR", fmtSignedPct(g),
+                dw.ok ? dw.base.y + "–" + dw.end.y + " p.a." : "needs 2 full years") +
       drillStat("Avg price", fmtPrice(tot.units > 0 ? tot.value / tot.units : null), "LC/unit") +
       "</div>";
 
@@ -2301,7 +2517,9 @@
   function exportCsv() {
     var d = TOP_DIMS.filter(function (x) { return x.key === _topDim; })[0];
     var res = rankedRows(d.field, d.lookup, { sortBy: _topSort });
-    var lines = ["Rank,Name,LC Value,Units,Share %,Growth %"];
+    var gw = growthWindow();
+    var cagrCol = gw.ok ? "CAGR % p.a. (" + gw.base.y + "-" + gw.end.y + ")" : "CAGR % p.a.";
+    var lines = ["Rank,Name,LC Value,Units,Share %," + cagrCol];
     topSlice(res.rows).forEach(function (r, i) {
       lines.push([i + 1, '"' + String(r.name).replace(/"/g, '""') + '"',
         Math.round(r.value), Math.round(r.units),
@@ -2313,6 +2531,764 @@
     a.href = URL.createObjectURL(blob);
     a.download = "market-intelligence-" + d.key + "-" + Date.now() + ".csv";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
+  // ---------------------------------------------------------------------
+  // ASK THE DATA
+  // ---------------------------------------------------------------------
+  /**
+   * Typed questions, answered from the cube, with the working shown.
+   *
+   * WHY THIS IS DETERMINISTIC AND NOT A LANGUAGE MODEL. The platform is a
+   * static GitHub Pages deployment with no backend. A model-backed
+   * assistant would need an API key shipped inside client-side JavaScript,
+   * readable by anyone who opens devtools — not an acceptable trade for a
+   * convenience feature.
+   *
+   * It is also the better answer for this particular job. Every figure
+   * below is computed from the same cube the charts read, so a number
+   * quoted in an answer is by construction the number on the page. It
+   * cannot invent a competitor, misremember a denominator, or produce a
+   * confident figure from nothing. What it gives up is free-form phrasing.
+   * What it buys is that every answer arrives carrying its formula, its
+   * inputs, its period, its denominator and its caveats — which is the
+   * half of "ask anything" that actually matters when someone is about to
+   * act on the reply.
+   *
+   * When a question cannot be resolved it says so and shows what it can
+   * answer. It never falls back to a plausible-sounding number for the
+   * wrong entity, which is the failure mode that would make the whole
+   * feature untrustworthy.
+   */
+
+  // Question shapes, tested in priority order. "share" before "size"
+  // because "how much share" is a share question, not a size one.
+  var ASK_INTENTS = [
+    { id: "share",   test: /\b(share|percentage|percent)\b|%\s*of/i },
+    { id: "growth",  test: /\b(grow|grew|growth|growing|cagr|trend|declin|increase|decrease|down|up)\b/i },
+    { id: "compare", test: /\b(compare|versus|vs\.?|against)\b/i },
+    { id: "rank",    test: /\b(rank|ranking|position|standing|place)\b/i },
+    { id: "top",     test: /\b(top|biggest|largest|leading|leader|best|highest|main)\b/i },
+    { id: "price",   test: /\b(price|pricing|expensive|cheap|per unit)\b/i },
+    { id: "size",    test: /.*/ },
+  ];
+
+  // Dimensions searched for entity mentions. Order matters only for
+  // display; resolution is by match length then market value.
+  var ASK_DIMS = [
+    { key: "corp",     fx: "corp",     lookup: "corps",     field: F_CORP,  label: "Corporation" },
+    { key: "ta",       fx: "ta",       lookup: "tas",       field: F_TA,    label: "Therapeutic Area" },
+    { key: "atc4",     fx: "atc4",     lookup: "atc4s",     field: F_ATC,   label: "ATC4 class" },
+    { key: "molecule", fx: "molecule", lookup: "molecules", field: F_MOL,   label: "Molecule" },
+    { key: "brand",    fx: null,       lookup: "brands",    field: F_BRAND, label: "Brand" },
+    { key: "product",  fx: null,       lookup: "products",  field: F_PROD,  label: "Product" },
+  ];
+
+  var _askQuestion = "";   // survives re-render, so an answer tracks the filters
+
+  function askNormalise(s) {
+    return String(s || "").toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  /**
+   * Whether `needle` appears in `hay` on whole-word boundaries.
+   *
+   * A plain indexOf is not good enough here: "EVA" matches inside
+   * "PREVACID" and "GIT" inside "DIGITALIS", so the answer would silently
+   * describe an entity the user never named. Both strings are already
+   * normalised to single-spaced alphanumerics, so padding with spaces
+   * makes the boundary test exact.
+   */
+  function askHasPhrase(hay, needle) {
+    if (!needle) return false;
+    return (" " + hay + " ").indexOf(" " + needle + " ") >= 0;
+  }
+
+  /**
+   * Boilerplate that nobody types.
+   *
+   * Nobody asks about "AMOUN PHARM.CO.*" — they ask about Amoun. Matching
+   * only on the full panel name would answer almost nothing a real person
+   * types, so each entity also gets an alias with its corporate-form
+   * tokens stripped from the tail. "ZETA PHARM*" → "zeta",
+   * "AMOUN PHARM.CO.*" → "amoun", "HIKMA PLC*" → "hikma".
+   */
+  var ASK_GENERIC_TOKENS = {
+    pharm: 1, pharma: 1, pharmaceutical: 1, pharmaceuticals: 1, pharmacare: 1,
+    co: 1, company: 1, corp: 1, corporation: 1, inc: 1, ltd: 1, llc: 1,
+    plc: 1, sae: 1, sa: 1, ag: 1, nv: 1, bv: 1, gmbh: 1, spa: 1, srl: 1,
+    group: 1, holding: 1, holdings: 1, healthcare: 1, health: 1,
+    lab: 1, labs: 1, laboratory: 1, laboratories: 1,
+    industries: 1, industry: 1, international: 1, intl: 1, global: 1,
+    egypt: 1, egyptian: 1, for: 1, and: 1, the: 1, of: 1,
+  };
+
+  /** Leading ATC code token, e.g. the "a02b2" in "A02B2 PROTON PUMP…". */
+  function isAtcCodeToken(t) { return /^[a-z]\d{2}[a-z0-9]{0,2}$/.test(t); }
+
+  /**
+   * Words that are part of the question, not part of an entity name.
+   *
+   * This list exists because of a real failure. There is a corporation in
+   * the panel called SHARE PHARMACEUTICALS. Its alias is "share" — so
+   * "What is Zeta's share?" resolved to that company, computed its value
+   * (zero in 2025), and answered "SHARE PHARMACEUTICALS holds 0.00%
+   * share". Fluent, sourced, evidenced, and about entirely the wrong
+   * company.
+   *
+   * That is the worst thing this feature could do, so the rule is strict:
+   * a candidate whose ENTIRE matched text is question vocabulary is never
+   * an entity. SHARE PHARMACEUTICALS is still reachable — by its full
+   * name, which nobody types by accident.
+   */
+  var ASK_STOPWORDS = {
+    share: 1, shares: 1, growth: 1, grow: 1, grew: 1, growing: 1,
+    price: 1, prices: 1, pricing: 1, value: 1, values: 1, cost: 1,
+    sales: 1, sale: 1, selling: 1, sell: 1, unit: 1, units: 1,
+    market: 1, markets: 1, top: 1, best: 1, biggest: 1, largest: 1,
+    leading: 1, leader: 1, leaders: 1, highest: 1, lowest: 1, main: 1,
+    rank: 1, ranking: 1, position: 1, standing: 1, place: 1,
+    compare: 1, versus: 1, vs: 1, against: 1, trend: 1, trends: 1,
+    total: 1, average: 1, mean: 1, class: 1, classes: 1, cagr: 1,
+    product: 1, products: 1, brand: 1, brands: 1, molecule: 1, molecules: 1,
+    corporation: 1, corporations: 1, competitor: 1, competitors: 1,
+    area: 1, areas: 1, therapeutic: 1, percent: 1, percentage: 1,
+    year: 1, years: 1, data: 1, report: 1, performance: 1, business: 1,
+    what: 1, which: 1, who: 1, where: 1, when: 1, how: 1, why: 1,
+    much: 1, many: 1, show: 1, tell: 1, give: 1, about: 1, doing: 1,
+    our: 1, ours: 1, we: 1, us: 1, my: 1, me: 1, is: 1, are: 1, was: 1,
+    does: 1, did: 1, do: 1, in: 1, on: 1, of: 1, by: 1, to: 1, at: 1,
+    increase: 1, decrease: 1, up: 1, down: 1, over: 1, from: 1,
+  };
+
+  /** True when every token of `form` is question vocabulary. */
+  function askAllStopwords(form) {
+    var t = form.split(" ");
+    for (var i = 0; i < t.length; i++) {
+      if (!ASK_STOPWORDS[t[i]] && !ASK_GENERIC_TOKENS[t[i]]) return false;
+    }
+    return true;
+  }
+
+  /**
+   * The strings that should resolve to this entity: the full normalised
+   * name, and a shortened alias with the ATC code and the corporate-form
+   * tail removed. Returned longest-first so the more specific match is
+   * preferred when both are present in the question.
+   */
+  function askAliases(normName) {
+    var out = [normName];
+    var toks = normName.split(" ");
+    if (toks.length > 1 && isAtcCodeToken(toks[0])) {
+      toks = toks.slice(1);
+      out.push(toks.join(" "));
+    }
+    var end = toks.length;
+    while (end > 1 && ASK_GENERIC_TOKENS[toks[end - 1]]) end--;
+    if (end < toks.length) {
+      var short = toks.slice(0, end).join(" ");
+      if (out.indexOf(short) < 0) out.push(short);
+    }
+    return out;
+  }
+
+  /**
+   * Resolve entity mentions.
+   *
+   * Longest match wins, then largest by market value. The value tiebreak
+   * matters: hundreds of products share a token with a molecule or a
+   * corporation, and resolving to the commercially larger reading is right
+   * far more often than resolving alphabetically.
+   */
+  // Normalising and alias-splitting 34,000 lookup names is ~90ms, and it
+  // depends only on the cache, never on the filters. Built once on first
+  // question; every question after that reuses it.
+  var _askIndex = null;
+
+  function askBuildIndex() {
+    if (_askIndex) return _askIndex;
+    var idx = [];
+    ASK_DIMS.forEach(function (dim) {
+      var names = CACHE.lookups[dim.lookup];
+      if (!names) return;
+      // Aliases are shorter than full names, so they collide with ordinary
+      // words more readily. Products and brands number ~28,000 between
+      // them, which makes a four-letter alias close to a coin toss; hold
+      // those to a longer minimum than the small, controlled dimensions.
+      var minAlias = (dim.key === "product" || dim.key === "brand") ? 5 : 4;
+      for (var i = 0; i < names.length; i++) {
+        var raw = names[i];
+        if (!raw || raw === "(Unknown)") continue;
+        var n = askNormalise(raw);
+        if (n.length < 3) continue;
+        var forms = askAliases(n).filter(function (form, f) {
+          if (f > 0 && form.length < minAlias) return false;
+          return !askAllStopwords(form);
+        });
+        if (forms.length) idx.push({ dim: dim, idx: i, name: raw, forms: forms });
+      }
+    });
+    _askIndex = idx;
+    return idx;
+  }
+
+  function askFindEntities(q) {
+    var nq = askNormalise(q);
+    if (!nq) return [];
+    var padded = " " + nq + " ";
+    var hits = [];
+    askBuildIndex().forEach(function (e) {
+      for (var f = 0; f < e.forms.length; f++) {
+        var form = e.forms[f];
+        if (padded.indexOf(" " + form + " ") < 0) continue;
+        hits.push({ dim: e.dim, idx: e.idx, name: e.name, len: form.length,
+                    matched: form, pos: nq.indexOf(form) });
+        return;   // longest form first, so the first hit is the best one
+      }
+    });
+    if (!hits.length) return [];
+
+    // One pass to value every hit, so ties break commercially.
+    var need = {};
+    hits.forEach(function (h) { need[h.dim.key] = true; });
+    var vals = {};
+    Object.keys(need).forEach(function (k) { vals[k] = new Map(); });
+    scanAnnual(function (o, u, v) {
+      ASK_DIMS.forEach(function (d) {
+        if (!need[d.key]) return;
+        var m = vals[d.key], k = A.rows[o + d.field];
+        m.set(k, (m.get(k) || 0) + v);
+      });
+    });
+    hits.forEach(function (h) { h.value = vals[h.dim.key].get(h.idx) || 0; });
+
+    hits.sort(function (a, b) { return b.len - a.len || b.value - a.value; });
+
+    // Drop hits whose matched text sits inside a longer match already
+    // kept. One mention of "ZETA PHARM" must yield one entity, not also a
+    // second hit for the bare token "zeta".
+    var kept = [];
+    hits.forEach(function (h) {
+      var swallowed = kept.some(function (k) { return askHasPhrase(k.matched, h.matched); });
+      if (!swallowed) kept.push(h);
+    });
+    // Resolution ranked by match quality; presentation follows the order
+    // the user wrote them, so "compare Zeta and PHARCO" puts Zeta first.
+    kept = kept.slice(0, 3).sort(function (a, b) { return a.pos - b.pos; });
+    return kept;
+  }
+
+  function askFindYears(q) {
+    var out = [], seen = {};
+    var m = String(q).match(/\b(20\d{2})\b/g) || [];
+    m.forEach(function (y) {
+      var yr = parseInt(y, 10);
+      if (seen[yr]) return;
+      var idx = CACHE.lookups.years.indexOf(yr);
+      if (idx >= 0) { seen[yr] = 1; out.push({ year: yr, idx: idx }); }
+    });
+    return out;
+  }
+
+  function askIntent(q) {
+    for (var i = 0; i < ASK_INTENTS.length; i++) {
+      if (ASK_INTENTS[i].test.test(q)) return ASK_INTENTS[i].id;
+    }
+    return "size";
+  }
+
+  /**
+   * Scan with an optional extra scope, on top of the filter bar.
+   *
+   * Needed because two of the six askable dimensions (Brand, Product) have
+   * no filter-bar control, so scoping cannot be done by mutating Fx. Doing
+   * it explicitly also avoids leaving global filter state dirty if a
+   * handler throws part-way through.
+   */
+  function askScan(visit, scope) {
+    scanAnnual(function (o, u, v, i) {
+      if (scope && A.rows[o + scope.field] !== scope.idx) return;
+      visit(o, u, v, i);
+    });
+  }
+
+  function askAggregate(ent, yearIdxSet, scope) {
+    var value = 0, units = 0, cells = 0;
+    askScan(function (o, u, v) {
+      if (A.rows[o + ent.dim.field] !== ent.idx) return;
+      if (yearIdxSet && !yearIdxSet.has(A.rows[o + F_YEAR])) return;
+      value += v; units += u; cells++;
+    }, scope);
+    return { value: value, units: units, cells: cells };
+  }
+
+  /** Every entity in a dimension, ranked by value — the share denominator
+   *  and the rank list in one pass. */
+  function askRankList(dim, yearIdxSet, scope) {
+    var acc = new Map();
+    askScan(function (o, u, v) {
+      if (yearIdxSet && !yearIdxSet.has(A.rows[o + F_YEAR])) return;
+      var k = A.rows[o + dim.field];
+      var e = acc.get(k);
+      if (e) { e.v += v; e.u += u; } else acc.set(k, { k: k, v: v, u: u });
+    }, scope);
+    var list = [];
+    var total = 0, totalUnits = 0;
+    acc.forEach(function (e) { list.push(e); total += e.v; totalUnits += e.u; });
+    list.sort(function (a, b) { return b.v - a.v; });
+    return { list: list, total: total, totalUnits: totalUnits };
+  }
+
+  function askRankOf(rl, idx) {
+    for (var i = 0; i < rl.list.length; i++) if (rl.list[i].k === idx) return i + 1;
+    return null;
+  }
+
+  /**
+   * The engine. Always returns a structured result — an answer with its
+   * evidence, or an honest failure with a hint. Never a guess.
+   *
+   * A year named in the question temporarily overrides the year filter.
+   * Without this, "Zeta share in 2026" returns a dash: the filter bar
+   * defaults to full years only, so every 2026 cell is discarded before
+   * the question is even considered. Answering "—" to a question that
+   * names its own period would be a bug wearing the costume of a filter.
+   * The partial-year caveat still fires, so the reader is told what 2026
+   * actually covers.
+   *
+   * The override is restored in a `finally` so a throw part-way through a
+   * handler cannot leave the page filtered to a year the user never chose.
+   */
+  function answerQuestion(q) {
+    if (!q || !q.trim()) return null;
+    var years = askFindYears(q);
+    var savedYear = Fx.year;
+    if (years.length) {
+      var ov = new Set();
+      years.forEach(function (y) { ov.add(y.idx); });
+      // One named year: admit the year before it too, so growth questions
+      // still have something to compare against.
+      if (years.length === 1) {
+        var pi = CACHE.lookups.years.indexOf(years[0].year - 1);
+        if (pi >= 0) ov.add(pi);
+      }
+      Fx.year = ov;
+    }
+    try {
+      return answerQuestionFor(q, years);
+    } finally {
+      Fx.year = savedYear;
+    }
+  }
+
+  function answerQuestionFor(q, years) {
+    var cmp = comparisonYears();
+    if (!cmp.cur) {
+      return { ok: false, question: q,
+        message: "No period is currently in scope.",
+        hint: "Clear or widen the Calendar Year filter, then ask again." };
+    }
+
+    var ents = askFindEntities(q);
+    var intent = askIntent(q);
+
+    // "we", "our", "us" and "Zeta" all resolve to the Zeta corporation.
+    var zi = zetaCorpIdx();
+    if (/\b(zeta|we|our|ours|us)\b/i.test(q) && zi >= 0 &&
+        !ents.some(function (e) { return e.dim.key === "corp" && e.idx === zi; })) {
+      ents.unshift({ dim: ASK_DIMS[0], idx: zi, name: CACHE.lookups.corps[zi], len: 10, value: 0 });
+      ents = ents.slice(0, 3);
+    }
+
+    // An explicit year in the question overrides the filter bar; without
+    // one, the answer follows whatever period the page is already showing,
+    // so it can never contradict the charts beside it.
+    var yearSet, periodLabel, periodSrc;
+    if (years.length === 1) {
+      yearSet = new Set([years[0].idx]);
+      periodLabel = String(years[0].year); periodSrc = "from your question";
+    } else if (years.length > 1) {
+      yearSet = new Set(years.map(function (y) { return y.idx; }));
+      periodLabel = years.map(function (y) { return y.year; }).join(" + ");
+      periodSrc = "from your question";
+    } else {
+      yearSet = new Set([cmp.cur.i]);
+      periodLabel = String(cmp.cur.y); periodSrc = "latest year in the current filter scope";
+    }
+    // A prior period exists when the scope is a single year — either the
+    // page's latest, or one named in the question (the override above
+    // admitted the year before it precisely so this works). Two or more
+    // named years are a pooled scope with no meaningful "previous".
+    var prevSet = (years.length <= 1 && cmp.prev) ? new Set([cmp.prev.i]) : null;
+    var prevLabel = prevSet ? String(cmp.prev.y) : null;
+
+    if (!ents.length && intent !== "top") {
+      return {
+        ok: false, question: q,
+        message: "I could not match a corporation, therapeutic area, ATC4 class, molecule, " +
+                 "brand or product in that question.",
+        hint: "Name one the way it appears in the tables — for example “ZETA PHARM*”, " +
+              "“Diabetes” or “A02B2 PROTON PUMP INHIBITORS”. " +
+              "Or ask for a ranking, such as “top 10 corporations”.",
+      };
+    }
+
+    // ---- TOP N -------------------------------------------------------
+    if (intent === "top") {
+      // The dimension asked for ranks; a named entity of a *different*
+      // dimension scopes. "Top molecules in Diabetes" ranks molecules
+      // within the Diabetes TA.
+      var rankDim = ASK_DIMS[0];
+      if (/\bmolecule/i.test(q)) rankDim = ASK_DIMS[3];
+      else if (/\batc4?\b|\bclass(es)?\b/i.test(q)) rankDim = ASK_DIMS[2];
+      else if (/\btherapeutic|\bareas?\b|\btas?\b/i.test(q)) rankDim = ASK_DIMS[1];
+      else if (/\bbrand/i.test(q)) rankDim = ASK_DIMS[4];
+      else if (/\bproduct|\bsku/i.test(q)) rankDim = ASK_DIMS[5];
+      else if (ents.length && !/\bcorporation|\bcompan|\bplayer|\bcompetitor/i.test(q)) {
+        // No dimension word: rank inside whatever the entity is not.
+        rankDim = ents[0].dim.key === "corp" ? ASK_DIMS[3] : ASK_DIMS[0];
+      }
+
+      var scopeEnt = ents.filter(function (e) { return e.dim.key !== rankDim.key; })[0] || null;
+      var scope = scopeEnt ? { field: scopeEnt.dim.field, idx: scopeEnt.idx } : null;
+
+      var rl = askRankList(rankDim, yearSet, scope);
+      var nWanted = (String(q).match(/\btop\s+(\d{1,3})\b/i) || [])[1];
+      var n = nWanted ? Math.min(parseInt(nWanted, 10), 50) : (Fx.topN === 0 ? 10 : Fx.topN);
+      var rnames = CACHE.lookups[rankDim.lookup];
+
+      return {
+        ok: true, question: q, intent: "top",
+        headline: "Top " + Math.min(n, rl.list.length) + " " + rankDim.label.toLowerCase() +
+          "s by value" + (scopeEnt ? " in " + scopeEnt.name : "") + " — " + periodLabel,
+        rows: rl.list.slice(0, n).map(function (x, i) {
+          return { rank: i + 1, name: rnames[x.k], value: x.v,
+                   sharePct: rl.total > 0 ? (x.v / rl.total) * 100 : null };
+        }),
+        formula: "Ranked by LC Value, descending, within the scope stated below",
+        evidence: askEvidence({
+          measure: true, period: periodLabel + "  — " + periodSrc,
+          rows: [
+            ["Ranked across", rl.list.length.toLocaleString() + " " +
+              rankDim.label.toLowerCase() + "s with recorded value"],
+            ["Scope", scopeEnt ? scopeEnt.dim.label + " = " + scopeEnt.name : scopeLabel()],
+            ["Denominator", fmtLC(rl.total) + " LC — the share column is of this total" +
+              (scopeEnt ? ", not of the whole market" : "")],
+          ],
+        }),
+        caveats: askCaveats(yearSet, !!scopeEnt),
+      };
+    }
+
+    // ---- single-entity answers ---------------------------------------
+    var ent = ents[0];
+    var rlCur = askRankList(ent.dim, yearSet);
+    var cur = askAggregate(ent, yearSet);
+    var prev = prevSet ? askAggregate(ent, prevSet) : null;
+    var sharePct = rlCur.total > 0 ? (cur.value / rlCur.total) * 100 : null;
+    var rank = askRankOf(rlCur, ent.idx);
+    var g = prev && prev.value > 0 ? ((cur.value - prev.value) / prev.value) * 100 : null;
+
+    var base = {
+      ok: true, question: q, intent: intent, entity: ent,
+      evidence: askEvidence({
+        measure: true, period: periodLabel + "  — " + periodSrc,
+        rows: [
+          ["Entity", ent.name + "   (" + ent.dim.label + ")"],
+          ["Its value", fmtLC(cur.value) + " LC  ·  " + fmtUnits(cur.units) + " units"],
+          ["Denominator", fmtLC(rlCur.total) + " LC — all " +
+            rlCur.list.length.toLocaleString() + " " + ent.dim.label.toLowerCase() +
+            "s in the current scope"],
+          ["Filter scope", activeFilterCount() > 1 ? scopeLabel() :
+            "Calendar year only — the full market, nothing excluded"],
+          ["Rows aggregated", cur.cells.toLocaleString() + " cells"],
+        ],
+      }),
+      caveats: askCaveats(yearSet, activeFilterCount() > 1),
+    };
+
+    if (intent === "share") {
+      base.headline = ent.name + " holds " + fmtPct(sharePct, 2) + " share";
+      base.detail = fmtLC(cur.value) + " LC out of " + fmtLC(rlCur.total) + " LC across all " +
+        ent.dim.label.toLowerCase() + "s in " + periodLabel +
+        (rank ? " · rank #" + rank + " of " + rlCur.list.length.toLocaleString() : "") + ".";
+      base.formula = "share % = " + ent.name + " LC Value ÷ total LC Value of all " +
+        ent.dim.label.toLowerCase() + "s in scope × 100";
+      return base;
+    }
+
+    if (intent === "growth") {
+      // CAGR IS THE ANSWER, year-on-year is the footnote. Matches the rest
+      // of the page: a rate quoted here must be the rate in the tables
+      // below, or the two contradict each other on the same screen.
+      var gw = growthWindow();
+      var cagr = null, sv = null, ev = null;
+      if (gw.ok) {
+        sv = askAggregate(ent, new Set([gw.base.i])).value;
+        ev = askAggregate(ent, new Set([gw.end.i])).value;
+        cagr = cagrPct(sv, ev, gw.span);
+      }
+      base.headline = cagr === null
+        ? (gw.ok ? "No compound rate available for " + ent.name
+                 : "Needs at least two full years in scope to compute a CAGR")
+        : ent.name + " is " + (cagr >= 0 ? "compounding" : "contracting") + " " +
+          fmtSignedPct(cagr) + " a year";
+      base.detail = cagr === null
+        ? "Widen the Calendar Year filter to at least two full years."
+        : fmtLC(sv) + " LC in " + gw.base.y + " → " + fmtLC(ev) + " LC in " + gw.end.y +
+          " · " + fmtSignedPct(growth(ev, sv)) + " across the whole " + gw.span + "-year window.";
+      base.formula = gw.ok
+        ? "CAGR % = ((" + gw.end.y + " value ÷ " + gw.base.y + " value) ^ (1 ÷ " +
+          gw.span + ")) − 1, × 100"
+        : "CAGR needs at least two full calendar years";
+      if (gw.ok) {
+        base.evidence.push(["Window", gw.base.y + " → " + gw.end.y + " (" + gw.span +
+          " years). Partial years are excluded from every compound rate."]);
+      }
+      // Year-on-year kept as supporting detail, never as the headline: one
+      // step is easily a restock, a tender, or shipment phasing.
+      if (g !== null) {
+        base.evidence.push(["Latest year-on-year", fmtSignedPct(g) + "  (" + prevLabel +
+          " → " + periodLabel + ") — one step, shown for context only"]);
+      }
+      // The question behind the question: did it beat the market? Measured
+      // on the same window and the same basis, or the comparison is noise.
+      if (gw.ok && cagr !== null) {
+        var mBase = askRankList(ent.dim, new Set([gw.base.i])).total;
+        var mEnd = askRankList(ent.dim, new Set([gw.end.i])).total;
+        var mg = cagrPct(mBase, mEnd, gw.span);
+        if (mg !== null) {
+          base.evidence.push(["Its market compounded", fmtSignedPct(mg) + " a year over the same window"]);
+          base.evidence.push(["Versus market", fmtSignedPct(cagr - mg) + " points a year " +
+            (cagr >= mg ? "ahead — gaining share" : "behind — losing share")]);
+        }
+      }
+      return base;
+    }
+
+    if (intent === "rank") {
+      base.headline = rank
+        ? ent.name + " ranks #" + rank + " of " + rlCur.list.length.toLocaleString() + " " +
+          ent.dim.label.toLowerCase() + "s"
+        : ent.name + " has no recorded value in this scope";
+      base.detail = fmtLC(cur.value) + " LC · " + fmtPct(sharePct, 2) + " share in " + periodLabel + ".";
+      base.formula = "Ranked by LC Value, descending, within the current filter scope";
+      if (rank) {
+        var above = rlCur.list[rank - 2], below = rlCur.list[rank];
+        var nm = CACHE.lookups[ent.dim.lookup];
+        if (above) base.evidence.push(["Directly above", nm[above.k] + " — " + fmtLC(above.v) + " LC"]);
+        if (below) base.evidence.push(["Directly below", nm[below.k] + " — " + fmtLC(below.v) + " LC"]);
+      }
+      return base;
+    }
+
+    if (intent === "price") {
+      var p = cur.units > 0 ? cur.value / cur.units : null;
+      var mktP = rlCur.totalUnits > 0 ? rlCur.total / rlCur.totalUnits : null;
+      base.headline = p === null
+        ? "No unit volume recorded for " + ent.name
+        : ent.name + " realises " + fmtPrice(p) + " LC per unit";
+      base.detail = fmtLC(cur.value) + " LC ÷ " + fmtUnits(cur.units) + " units in " + periodLabel + ".";
+      base.formula = "average price = LC Value ÷ units";
+      base.evidence.push(["What this is", "A realised average across the whole pack mix — " +
+        "not a list price, and it moves with pack-size mix as well as with pricing"]);
+      if (mktP !== null && p !== null) {
+        base.evidence.push(["Its market average", fmtPrice(mktP) + " LC per unit"]);
+        base.evidence.push(["Versus market", ((p / mktP - 1) * 100).toFixed(0) + "% " +
+          (p >= mktP ? "above" : "below") + " the " + ent.dim.label.toLowerCase() + " average"]);
+      }
+      return base;
+    }
+
+    if (intent === "compare" && ents.length >= 2) {
+      var e2 = ents[1];
+      var rl2 = askRankList(e2.dim, yearSet);
+      var c2 = askAggregate(e2, yearSet);
+      var p2 = prevSet ? askAggregate(e2, prevSet) : null;
+      base.headline = ent.name + "  vs  " + e2.name + " — " + periodLabel;
+      base.compare = [
+        { name: ent.name, value: cur.value, units: cur.units, sharePct: sharePct,
+          rank: rank, growthPct: g,
+          price: cur.units > 0 ? cur.value / cur.units : null },
+        { name: e2.name, value: c2.value, units: c2.units,
+          sharePct: rl2.total > 0 ? (c2.value / rl2.total) * 100 : null,
+          rank: askRankOf(rl2, e2.idx),
+          growthPct: p2 && p2.value > 0 ? ((c2.value - p2.value) / p2.value) * 100 : null,
+          price: c2.units > 0 ? c2.value / c2.units : null },
+      ];
+      var big = cur.value >= c2.value ? base.compare[0] : base.compare[1];
+      var small = cur.value >= c2.value ? base.compare[1] : base.compare[0];
+      base.detail = small.value > 0
+        ? big.name + " is " + (big.value / small.value).toFixed(1) + "× larger by LC Value."
+        : big.name + " has all of the recorded value between the two.";
+      base.formula = "Both measured on LC Value in " + periodLabel + ", same filter scope, same source";
+      if (ent.dim.key !== e2.dim.key) {
+        base.caveats.push("These are different dimension types (" + ent.dim.label + " vs " +
+          e2.dim.label + "). Their values are comparable; their share percentages are not, " +
+          "because each is measured against a different denominator.");
+      }
+      return base;
+    }
+
+    // ---- SIZE (default) ----------------------------------------------
+    base.headline = ent.name + " — " + fmtLC(cur.value) + " LC in " + periodLabel;
+    base.detail = fmtUnits(cur.units) + " units · " + fmtPct(sharePct, 2) + " share" +
+      (rank ? " · rank #" + rank + " of " + rlCur.list.length.toLocaleString() : "") +
+      (g === null ? "" : " · " + fmtSignedPct(g) + " vs " + prevLabel);
+    base.formula = "Sum of LC Value over every cell where " + ent.dim.label + " = " + ent.name;
+    return base;
+  }
+
+  function askEvidence(o) {
+    var rows = [];
+    if (o.measure) {
+      rows.push(["Measure", "LC Value — local-currency sales value from the IMS retail panel"]);
+    }
+    if (o.period) rows.push(["Period", o.period]);
+    return rows.concat(o.rows || []);
+  }
+
+  function askCaveats(yearSet, filtered) {
+    var out = [];
+    var pi = CACHE.lookups.years.indexOf(PARTIAL_YEAR);
+    if (pi >= 0 && yearSet.has(pi)) {
+      out.push(PARTIAL_YEAR + " covers January–April only. It is not comparable to a full " +
+        "year, and the figure is not annualised — extrapolating it would be a forecast, " +
+        "not an actual.");
+    }
+    if (filtered) {
+      out.push("Filters are narrowing the data, so shares are of the filtered slice rather " +
+        "than of the total market. Clear the filter bar for whole-market figures.");
+    }
+    return out;
+  }
+
+  // ---- rendering ------------------------------------------------------
+  var ASK_EXAMPLES = [
+    "What is Zeta's share?",
+    "How did Zeta grow?",
+    "Top 10 corporations",
+    "Top molecules in Diabetes",
+    "Where does Zeta rank?",
+    "Average price of Zeta",
+  ];
+
+  function renderAsk() {
+    var res = _askQuestion ? answerQuestion(_askQuestion) : null;
+    var body =
+      '<div class="mi-ask-bar">' +
+        '<input type="text" id="mi-ask-input" class="mi-ask-input" autocomplete="off" ' +
+          'placeholder="Ask about any corporation, therapeutic area, ATC4 class, molecule, brand or product…" ' +
+          'value="' + esc(_askQuestion) + '" />' +
+        '<button type="button" class="mi-btn mi-btn-primary" id="mi-ask-go">Ask</button>' +
+        (_askQuestion ? '<button type="button" class="mi-btn" id="mi-ask-clear">Clear</button>' : "") +
+      "</div>" +
+      '<div class="mi-ask-ex">' +
+        ASK_EXAMPLES.map(function (e) {
+          return '<button type="button" class="mi-ask-chip" data-ask="' + esc(e) + '">' + esc(e) + "</button>";
+        }).join("") +
+      "</div>" +
+      '<div class="mi-ask-out">' + askResultHtml(res) + "</div>";
+
+    return section("mi-ask", "Ask the Data",
+      "Answers are computed from the same figures as every chart on this page, and each one " +
+      "shows the formula, the inputs and the denominator behind it.",
+      body);
+  }
+
+  function askResultHtml(r) {
+    if (!r) return "";
+    if (!r.ok) {
+      return '<div class="mi-ask-card mi-ask-fail">' +
+        '<div class="mi-ask-q">' + esc(r.question) + "</div>" +
+        '<div class="mi-ask-headline">I cannot answer that from this data</div>' +
+        '<div class="mi-ask-detail">' + esc(r.message) + "</div>" +
+        (r.hint ? '<div class="mi-ask-hint">' + esc(r.hint) + "</div>" : "") +
+        "</div>";
+    }
+    var h = '<div class="mi-ask-card">' +
+      '<div class="mi-ask-q">' + esc(r.question) + "</div>" +
+      '<div class="mi-ask-headline">' + esc(r.headline) + "</div>" +
+      (r.detail ? '<div class="mi-ask-detail">' + esc(r.detail) + "</div>" : "");
+
+    if (r.rows && r.rows.length) {
+      h += '<div class="mi-ask-tablewrap"><table class="mi-table mi-ask-table"><thead><tr>' +
+        '<th class="mi-th-rank">#</th><th>Name</th>' +
+        '<th class="mi-num">LC Value</th><th class="mi-num">Share</th></tr></thead><tbody>';
+      r.rows.forEach(function (x) {
+        var z = isZetaName(x.name);
+        h += "<tr" + (z ? ' class="mi-row-zeta"' : "") + '><td class="mi-th-rank">' + x.rank + "</td>" +
+          "<td>" + esc(x.name) + (z ? ' <span class="mi-zeta-tag">US</span>' : "") + "</td>" +
+          '<td class="mi-num mi-strong">' + fmtLC(x.value) + "</td>" +
+          '<td class="mi-num">' + fmtPct(x.sharePct, 2) + "</td></tr>";
+      });
+      h += "</tbody></table></div>";
+    }
+
+    if (r.compare) {
+      h += '<div class="mi-ask-tablewrap"><table class="mi-table mi-ask-table"><thead><tr><th></th>' +
+        r.compare.map(function (c) {
+          return "<th" + (isZetaName(c.name) ? ' class="mi-th-zeta"' : "") + ">" + esc(c.name) + "</th>";
+        }).join("") + "</tr></thead><tbody>";
+      [["LC Value",  function (c) { return fmtLC(c.value); }],
+       ["Units",     function (c) { return fmtUnits(c.units); }],
+       ["Share",     function (c) { return fmtPct(c.sharePct, 2); }],
+       ["Rank",      function (c) { return c.rank ? "#" + c.rank : "—"; }],
+       ["Growth",    function (c) { return fmtSignedPct(c.growthPct); }],
+       ["Avg price", function (c) { return fmtPrice(c.price); }],
+      ].forEach(function (row) {
+        h += '<tr><td class="mi-strong">' + esc(row[0]) + "</td>" +
+          r.compare.map(function (c) { return '<td class="mi-num">' + esc(row[1](c)) + "</td>"; }).join("") +
+          "</tr>";
+      });
+      h += "</tbody></table></div>";
+    }
+
+    // THE EVIDENCE. Always shown, never collapsed. A figure without its
+    // basis is exactly what this feature exists to avoid producing.
+    if (r.formula) h += '<div class="mi-ask-formula"><code>' + esc(r.formula) + "</code></div>";
+    if (r.evidence && r.evidence.length) {
+      h += '<div class="mi-ask-ev"><div class="mi-ask-ev-h">Evidence</div><dl>' +
+        r.evidence.map(function (e) {
+          return "<dt>" + esc(e[0]) + "</dt><dd>" + esc(e[1]) + "</dd>";
+        }).join("") + "</dl></div>";
+    }
+    if (r.caveats && r.caveats.length) {
+      h += '<div class="mi-ask-caveat">' +
+        r.caveats.map(function (c) { return "⚠ " + esc(c); }).join("<br>") + "</div>";
+    }
+    h += '<div class="mi-ask-src">Source: ' + esc(CACHE.meta.source) +
+      " · cache built " + esc(CACHE.meta.generatedAt) + "</div>";
+    return h + "</div>";
+  }
+
+  function isZetaName(n) {
+    return ZETA_NAMES.indexOf(String(n)) >= 0;
+  }
+
+  function wireAsk(root) {
+    var input = root.querySelector("#mi-ask-input");
+    var out = root.querySelector(".mi-ask-out");
+    function run(v) {
+      _askQuestion = (v !== undefined ? v : (input ? input.value : "")).trim();
+      if (input) input.value = _askQuestion;
+      if (out) out.innerHTML = askResultHtml(_askQuestion ? answerQuestion(_askQuestion) : null);
+      // Re-render only to add/remove the Clear button; skip it while the
+      // user is typing so focus is never stolen mid-question.
+      var clr = root.querySelector("#mi-ask-clear");
+      if (_askQuestion && !clr) rerender();
+    }
+    var go = root.querySelector("#mi-ask-go");
+    if (go) go.addEventListener("click", function () { run(); });
+    if (input) input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); run(); }
+    });
+    var clear = root.querySelector("#mi-ask-clear");
+    if (clear) clear.addEventListener("click", function () { _askQuestion = ""; rerender(); });
+    root.querySelectorAll("[data-ask]").forEach(function (b) {
+      b.addEventListener("click", function () { run(b.getAttribute("data-ask")); });
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -2332,8 +3308,10 @@
 
     var k = buildKpis();
     var cmp = comparisonYears();
+    var hw = growthWindow();
     var periodLabel = cmp.cur
-      ? (cmp.prev ? cmp.cur.y + " vs " + cmp.prev.y : String(cmp.cur.y))
+      ? (hw.ok ? cmp.cur.y + " · growth as CAGR " + hw.base.y + "–" + hw.end.y
+               : String(cmp.cur.y) + " · no compound rate (needs 2 full years)")
       : "no period in scope";
 
     container.innerHTML =
@@ -2351,6 +3329,7 @@
         "</div>" +
         renderFilterBar() +
         partialBanner() +
+        renderAsk() +
         '<div class="mi-kpis">' + k.cards.map(renderKpiCard).join("") + "</div>" +
         renderZetaPanel() +
         renderOverview() +
@@ -2368,6 +3347,7 @@
       "</div>";
 
     wireFilterBar(container);
+    wireAsk(container);
 
     container.querySelectorAll("[data-share]").forEach(function (b) {
       b.addEventListener("click", function () { _shareDim = b.getAttribute("data-share"); rerender(); });
@@ -2410,6 +3390,7 @@
 
   function destroy() {
     document.body.classList.remove("market-intel-mode");
+    _askQuestion = "";
     destroyCharts();
     document.removeEventListener("click", closeAllMenus);
     _container = null;
@@ -2430,6 +3411,8 @@
         comparisonYears: comparisonYears, totalsForYears: totalsForYears,
         distinctCount: distinctCount, weightedAvgPrice: weightedAvgPrice,
         findDominance: findDominance, launchBucketOf: launchBucketOf,
+        answerQuestion: answerQuestion, askFindEntities: askFindEntities,
+        askRankList: askRankList, askIntent: askIntent,
         LAUNCH_BUCKETS: LAUNCH_BUCKETS,
         fmtLC: fmtLC, fmtUnits: fmtUnits, fmtPct: fmtPct,
         F: { F_YEAR: F_YEAR, F_TA: F_TA, F_ATC: F_ATC, F_CORP: F_CORP,
