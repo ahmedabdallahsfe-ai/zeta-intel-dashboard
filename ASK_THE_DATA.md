@@ -114,7 +114,7 @@ rebuilt only when the cache is reloaded, never when filters change.
 |---|---|
 | `js/market-intel.js` | `answerQuestion()` engine, entity resolver, renderer, `wireAsk()` |
 | `css/market-intel.css` | `.mi-ask-*` block at the end |
-| `dashboard.html` | cache-buster → `?v=20260806_ask` |
+| `dashboard.html` | cache-buster → `?v=20260806_cagr` |
 
 Tested by `test_ask.js` — 73 checks, all expectations computed
 independently from the raw cube rather than from the code under test.

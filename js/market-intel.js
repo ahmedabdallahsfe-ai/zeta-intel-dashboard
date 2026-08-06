@@ -730,7 +730,22 @@
       if (bv === null) return -1;
       return bv - av;
     });
-    return { rows: rows, total: total, cur: cmp.cur, prev: cmp.prev, window: w };
+    // TWO DIFFERENT COUNTS, DELIBERATELY.
+    //
+    // `rows` includes entities that traded in the window's base year but
+    // have since left the market. They belong in the growth bridge and the
+    // decliner lists — a competitor that shut down is a real negative
+    // contribution, and dropping it would leave the bridge unable to
+    // reconcile to its own endpoints.
+    //
+    // They do NOT belong in "ranks #39 of N corporations". That sentence
+    // means "of the companies competing today", and padding it with
+    // companies that no longer exist quietly flatters every rank on the
+    // page. `activeCount` is the denominator for anything phrased that way.
+    var activeCount = 0;
+    rows.forEach(function (r) { if (r.value > 0) activeCount++; });
+    return { rows: rows, total: total, activeCount: activeCount,
+             cur: cmp.cur, prev: cmp.prev, window: w };
   }
 
   function topSlice(rows) {
@@ -923,7 +938,7 @@
         out.push({
           tone: gap === null ? "neutral" : beating ? "positive" : "warning",
           title: "Zeta Pharma ranks #" + (mePos + 1) + " of " +
-                 corpsAll.rows.length.toLocaleString() + " with " + fmtPct(me.sharePct, 2) + " share",
+                 corpsAll.activeCount.toLocaleString() + " with " + fmtPct(me.sharePct, 2) + " share",
           what: "Zeta recorded " + fmtLC(me.value) + " LC in " + curY +
                 (me.baseValue > 0 ? ", from " + fmtLC(me.baseValue) + " in " + baseY : "") + ".",
           where: scopeLabel(),
@@ -1409,7 +1424,7 @@
     var stats =
       zetaStat("LC Value", fmtLC(me.value), (cmp.cur ? cmp.cur.y : "") + " · " + fmtUnits(me.units) + " units") +
       zetaStat("Market Share", fmtPct(me.sharePct, 2), "of " + fmtLC(res.total) + " LC in scope") +
-      zetaStat("Rank", "#" + (meIdx + 1), "of " + res.rows.length.toLocaleString() + " corporations") +
+      zetaStat("Rank", "#" + (meIdx + 1), "of " + res.activeCount.toLocaleString() + " corporations") +
       zetaStat("CAGR", fmtSignedPct(me.growthPct), windowSub,
                me.growthPct === null ? "" : me.growthPct >= 0 ? "mi-up" : "mi-down") +
       zetaStat("Total Growth", fmtSignedPct(me.totalGrowthPct),
@@ -1500,12 +1515,21 @@
   }
 
   function trendBasisNote() {
+    var w = growthWindow();
     return '<div class="mi-note"><strong>Trend basis:</strong> Calendar Year. ' +
       "Values are actual reported annual totals — not annualised, smoothed or " +
       "interpolated. " + PARTIAL_YEAR + " is shown as reported (January–April) " +
       "and is hatched in the charts; it is excluded from every CAGR calculation, " +
       "because a four-month endpoint would understate a compound rate by roughly " +
-      "two thirds.</div>";
+      "two thirds." +
+      (w.ok
+        ? " <strong>Every growth figure on this page is a compound annual rate over " +
+          w.base.y + "–" + w.end.y + "</strong> — the rightmost bar in the CAGR chart " +
+          "is the same number that drives the KPI cards, the table columns and the " +
+          "insights below."
+        : " Growth is measured as a compound annual rate, which needs at least two " +
+          "full calendar years in scope.") +
+      "</div>";
   }
 
   function drawOverview() {

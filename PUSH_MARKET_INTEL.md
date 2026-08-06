@@ -85,7 +85,7 @@ the workbook stays local and is only needed when you rebuild.
 GitHub Pages takes 1–2 minutes. Then **hard-refresh** the live page with
 `Ctrl+Shift+R` — a normal refresh can reuse cached JS/CSS.
 
-Cache-busters on this build: `?v=20260806_ask`.
+Cache-busters on this build: `?v=20260806_cagr`.
 
 Check: the sidebar should show **🌐 Total Market Intelligence**, and opening
 it should land on Total Market Value **292.06B** for 2025 with Zeta at

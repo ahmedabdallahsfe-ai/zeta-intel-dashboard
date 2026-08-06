@@ -213,6 +213,36 @@ if "%GIT_CMD%"=="" (
     echo Skipping automatic GitHub push. You can commit and push the 
     echo files in cache/ using GitHub Desktop or manually.
 ) else (
+    REM --- clear stale git locks ------------------------------------------
+    REM Added 2026-08-06. Git writes .git\index.lock while it works and
+    REM deletes it afterwards. If a git command is interrupted -- Ctrl+C, a
+    REM crash, or a tool reading the repo over a mounted path that refuses
+    REM the delete -- the lock survives, and every `git add` below then
+    REM fails with "Unable to create index.lock: File exists".
+    REM
+    REM This section only ever checked the exit code of `git push`, so a
+    REM failed add and commit scrolled past in silence: caches rebuilt,
+    REM Chrome opened, "SUCCESSFULLY PUSHED" never printed but nothing
+    REM looked broken either, and nothing reached GitHub. That is exactly
+    REM what happened on 2026-08-06 -- a full ETL cycle was spent before
+    REM anyone noticed the site had not moved.
+    REM
+    REM Deleting the lock is only safe when no git process is running;
+    REM removing a live lock is how an index gets corrupted. So check first.
+    tasklist /FI "IMAGENAME eq git.exe" 2>nul | find /I "git.exe" >nul
+    if errorlevel 1 (
+        if exist ".git\index.lock" (
+            echo [FIX] Removing a stale .git\index.lock left by an interrupted git command.
+            del /f /q ".git\index.lock" >nul 2>nul
+        )
+        if exist ".git\HEAD.lock" (
+            echo [FIX] Removing a stale .git\HEAD.lock.
+            del /f /q ".git\HEAD.lock" >nul 2>nul
+        )
+    ) else (
+        echo [WARNING] A git process is already running. Not touching the lock files.
+    )
+
     echo Staging and committing updated data files...
     "%GIT_CMD%" add -f cache/metadata.data.js
     "%GIT_CMD%" add -f cache/dashboard.data.js
@@ -250,19 +280,56 @@ if "%GIT_CMD%"=="" (
     REM same day -- .github_token, test_credentials.json, Sync_Report.txt --
     REM all stay excluded exactly as before).
     "%GIT_CMD%" add -A
+    REM Staging failure must STOP here. Continuing to commit and push after a
+    REM failed add produces the worst outcome available: a run that prints
+    REM "SUCCESSFULLY PUSHED" while the actual changes sit unstaged on disk.
+    if errorlevel 1 (
+        echo.
+        echo ============================================================
+        echo   [ERROR] git add FAILED - nothing has been committed.
+        echo   If the message above mentions index.lock, close any editor,
+        echo   git GUI or antivirus scan touching this folder, then run
+        echo   push_now.bat.
+        echo ============================================================
+        echo.
+        pause
+        exit /b 1
+    )
+
     "%GIT_CMD%" commit -m "Auto-refresh dashboard data"
     echo Pushing to GitHub repository...
     "%GIT_CMD%" push origin main
     if errorlevel 1 (
         echo [WARNING] Git push failed. Verify your network or credentials.
-    ) else (
+    )
+
+    REM VERIFY, don't assume. `git push` exiting 0 is not proof the branch
+    REM moved -- it exits 0 when there was nothing to push, which is exactly
+    REM what a silently-failed commit looks like. Comparing local HEAD to the
+    REM remote is the only statement worth printing.
+    for /f %%i in ('"%GIT_CMD%" rev-parse HEAD') do set "LOCAL_SHA=%%i"
+    for /f %%i in ('"%GIT_CMD%" rev-parse origin/main') do set "REMOTE_SHA=%%i"
+    if "!LOCAL_SHA!"=="!REMOTE_SHA!" (
         echo.
         echo ============================================================
         echo   SUCCESSFULLY PUSHED TO GITHUB PAGES!
+        echo   commit !LOCAL_SHA:~0,7!
         echo   View your online dashboard at:
         echo   https://ahmedabdallahsfe-ai.github.io/zeta-intel-dashboard/dashboard.html
+        echo.
+        echo   Pages takes 1-2 minutes, then hard-refresh with Ctrl+Shift+R.
         echo ============================================================
         echo.
+    ) else (
+        echo.
+        echo ============================================================
+        echo   [ERROR] The site was NOT updated.
+        echo   local  !LOCAL_SHA!
+        echo   remote !REMOTE_SHA!
+        echo   Run push_now.bat to retry.
+        echo ============================================================
+        echo.
+        pause
     )
 )
 
