@@ -402,6 +402,12 @@
     countsInBuRollup: countsInBuRollup,
     CONTEXT_SEGMENTS: CONTEXT_SEGMENTS,
     lineToBU: lineToBU,
+    // Exposed 2026-08-04 so callers can enumerate a BU's full line list
+    // (app.js's tomarketAllowedBU() needs it to tell a BU Manager --
+    // who holds every line in their BU -- from a genuinely line-
+    // restricted account). Read-only by convention: mutate this and you
+    // silently re-map the whole platform's Line -> BU crosswalk.
+    CANONICAL_LINE_TO_BU: CANONICAL_LINE_TO_BU,
     classifyLine: classifyLine,
     normalizeLine: normalizeLine,
     isInScope: isInScope,

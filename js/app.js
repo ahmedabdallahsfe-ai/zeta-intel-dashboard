@@ -405,12 +405,37 @@ function tomarketAllowedBU() {
   const scope = window.AUTH ? window.AUTH.getScope() : null;
   if (!scope) return false;
   if (scope.unrestricted) return true;
-  // No line dimension exists in this dataset -- cannot honestly scope it.
-  if (scope.lines !== null && scope.lines !== undefined) return false;
+
   const bus = scope.bus;
   if (!Array.isArray(bus) || bus.length !== 1) return false; // multi-BU scoping unsupported
+  const bu = bus[0];
+
+  // A BU Manager's account typically lists BOTH the BU and every line
+  // inside it (Kamal Allam: bus=["DIAB"], lines=["DIAB-I".."DIAB-IV"]).
+  // That is still BU-level scope, not a line restriction -- an earlier
+  // version rejected any account with a line list at all and wrongly hid
+  // this workspace from every BU Manager (2026-08-04).
+  //
+  // The real test is whether the account's lines cover the WHOLE BU. If
+  // they do, showing BU-level trade data reveals nothing beyond their
+  // scope. If they cover only part of it, it would -- and this dataset
+  // has no line dimension to narrow by, so those accounts stay excluded.
+  if (scope.lines !== null && scope.lines !== undefined) {
+    if (!Array.isArray(scope.lines) || scope.lines.length === 0) return false;
+    const SEM = window.SEMANTIC;
+    if (!SEM || !SEM.CANONICAL_LINE_TO_BU) return false; // can't verify -> don't risk it
+    const buLines = Object.keys(SEM.CANONICAL_LINE_TO_BU)
+      .filter(l => SEM.CANONICAL_LINE_TO_BU[l] === bu);
+    const held = new Set(scope.lines.map(l => SEM.normalizeLine(l)));
+    // Every line of the BU must be held. CHC is the one BU where a
+    // manager may legitimately hold only "CHC" and not "CHC_SALES" --
+    // that IS a partial scope, so it correctly fails this test.
+    const coversBU = buLines.length > 0 && buLines.every(l => held.has(l));
+    if (!coversBU) return false;
+  }
+
   const EMBEDDED_BU_NAME = { DIAB: "Diabetes", CHC: "CHC", GIT: "GIT", Cluster: "Cluster" };
-  return EMBEDDED_BU_NAME[bus[0]] || bus[0];
+  return EMBEDDED_BU_NAME[bu] || bu;
 }
 
 function renderTomarketTab(container) {
@@ -456,8 +481,19 @@ function renderTomarketTab(container) {
   // itself is untouched; only the platform's own chrome around it changed.
   // Pass the user's BU through so the embedded page opens locked to it.
   // Unrestricted users pass nothing and see the full cross-BU view.
-  const buParam = (allowedBU && allowedBU !== true) ? "?bu=" + encodeURIComponent(allowedBU) : "";
-  container.innerHTML = `<iframe id="tomarket-iframe" src="TO%20MARKET_IN%20MARKET/index.html${buParam}" title="To-Market vs In-Market" style="display:block;border:0;width:100%;height:100%;background:#fff;"></iframe>`;
+  //
+  // CACHE-BUSTER (2026-08-04): the embedded page is a separate HTML file
+  // the browser caches independently of dashboard.html, so edits to it
+  // (the Sales Type lock, the BU lock) kept serving stale from disk cache
+  // with no way for the user to tell. Every other asset on the platform
+  // already carries a ?v= for exactly this reason -- this one was the
+  // only file loading without one. Bump TOMARKET_VERSION whenever
+  // "TO MARKET_IN MARKET/index.html" changes.
+  const TOMARKET_VERSION = "20260804_bulock";
+  const params = ["v=" + TOMARKET_VERSION];
+  if (allowedBU && allowedBU !== true) params.push("bu=" + encodeURIComponent(allowedBU));
+  const src = "TO%20MARKET_IN%20MARKET/index.html?" + params.join("&");
+  container.innerHTML = `<iframe id="tomarket-iframe" src="${src}" title="To-Market vs In-Market" style="display:block;border:0;width:100%;height:100%;background:#fff;"></iframe>`;
   sizeTomarketIframe();
   window.addEventListener("resize", sizeTomarketIframe);
 }
