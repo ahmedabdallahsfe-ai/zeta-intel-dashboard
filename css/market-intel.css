@@ -1,0 +1,441 @@
+/* =====================================================================
+   css/market-intel.css  --  Total Market Intelligence workspace
+   ---------------------------------------------------------------------
+   Scoped entirely under .mi-root so nothing here can leak into the other
+   workspaces. Visual language follows the platform's existing surfaces
+   (white cards, 1px slate borders, soft shadows, Inter) rather than
+   introducing a second design vocabulary on one page.
+   ===================================================================== */
+
+/* The workspace manages its own padding and needs the full width, same
+   convention as .tomarket-mode. */
+body.market-intel-mode #app-root { padding: 0; max-width: none; }
+
+.mi-root {
+  font-family: 'Inter', 'Outfit', system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+  padding: 24px 28px 56px;
+  min-height: calc(100vh - 74px);
+}
+
+/* ---------- header ---------- */
+.mi-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 20px; flex-wrap: wrap; margin-bottom: 18px;
+}
+.mi-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+.mi-sub { font-size: 12.5px; color: #64748b; margin: 5px 0 0; line-height: 1.5; }
+.mi-btn {
+  background: #0f4c81; color: #fff; border: 0; border-radius: 8px;
+  padding: 9px 15px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  transition: background .15s ease;
+}
+.mi-btn:hover { background: #0c3e69; }
+
+/* ---------- filter bar ---------- */
+.mi-filterbar {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+  padding: 14px 16px; margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(15,23,42,.05), 0 8px 24px rgba(15,23,42,.03);
+}
+.mi-f { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 132px; }
+.mi-f-label {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #64748b; display: flex; align-items: center; gap: 5px;
+}
+.mi-f-count {
+  background: #0f4c81; color: #fff; border-radius: 9px; padding: 1px 6px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0;
+}
+.mi-f-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 7px 10px; font-size: 12px; font-weight: 600; color: #0f172a;
+  cursor: pointer; min-width: 132px; max-width: 190px;
+}
+.mi-f-btn:hover { border-color: #cbd5e1; background: #f1f5f9; }
+.mi-f-sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mi-f-caret { color: #94a3b8; font-size: 10px; flex-shrink: 0; }
+.mi-f-menu {
+  position: absolute; top: 100%; left: 0; z-index: 60; margin-top: 4px;
+  width: 290px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15,23,42,.16); padding: 9px;
+}
+.mi-f-search {
+  width: 100%; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 6px;
+  padding: 6px 9px; font-size: 12px; margin-bottom: 7px; background: #f8fafc;
+}
+.mi-f-actions { display: flex; gap: 6px; margin-bottom: 7px; }
+.mi-f-actions button {
+  flex: 1; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px;
+  padding: 4px 7px; font-size: 10.5px; font-weight: 600; color: #475569; cursor: pointer;
+}
+.mi-f-actions button:hover { background: #e2e8f0; }
+.mi-f-list { max-height: 260px; overflow-y: auto; }
+.mi-f-opt {
+  display: flex; align-items: center; gap: 7px; padding: 4px 6px;
+  border-radius: 5px; font-size: 11.5px; cursor: pointer;
+}
+.mi-f-opt:hover { background: #f1f5f9; }
+.mi-f-opt.on { background: #eff6ff; }
+.mi-f-opt input { flex-shrink: 0; }
+.mi-f-opt-lbl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mi-f-opt-val { color: #94a3b8; font-size: 10px; font-variant-numeric: tabular-nums; }
+.mi-topn {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 7px 10px; font-size: 12px; font-weight: 600; cursor: pointer; min-width: 96px;
+}
+.mi-f-topn { margin-left: auto; }
+.mi-reset {
+  background: #fff; border: 1px solid #cbd5e1; border-radius: 8px;
+  padding: 7px 13px; font-size: 11.5px; font-weight: 600; color: #475569;
+  cursor: pointer; align-self: flex-end;
+}
+.mi-reset:hover { background: #f1f5f9; color: #0f172a; }
+
+/* ---------- banners / notes ---------- */
+.mi-banner {
+  border-radius: 10px; padding: 11px 15px; font-size: 12.5px;
+  line-height: 1.55; margin-bottom: 14px;
+}
+.mi-banner-warn { background: #fffbeb; border: 1px solid #fde68a; color: #78350f; }
+.mi-note {
+  font-size: 11px; color: #64748b; line-height: 1.5;
+  margin-top: 10px; padding-left: 2px;
+}
+
+/* ---------- KPI cards ---------- */
+.mi-kpis {
+  display: grid; gap: 12px; margin-bottom: 22px;
+  grid-template-columns: repeat(auto-fill, minmax(214px, 1fr));
+}
+.mi-kpi {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 13px;
+  padding: 14px 15px 12px; display: flex; flex-direction: column; gap: 7px;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04);
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.mi-kpi:hover { box-shadow: 0 4px 14px rgba(15,23,42,.09); transform: translateY(-1px); }
+.mi-kpi-primary { border-left: 3px solid #0f4c81; }
+.mi-kpi-name {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: #64748b;
+}
+.mi-kpi-value {
+  font-size: 27px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1;
+  display: flex; align-items: baseline; gap: 5px;
+}
+.mi-kpi-value-sm {
+  font-size: 14.5px; line-height: 1.35; word-break: break-word;
+  max-height: 40px; overflow: hidden;
+}
+.mi-kpi-unit { font-size: 11px; font-weight: 600; color: #94a3b8; }
+.mi-kpi-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mi-kpi-delta { font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.mi-arrow { font-size: 9px; }
+.mi-kpi-hint { font-size: 10px; color: #94a3b8; line-height: 1.45; }
+.mi-spark { flex-shrink: 0; }
+.mi-up { color: #15803d; }
+.mi-down { color: #b91c1c; }
+.mi-flat { color: #64748b; }
+.mi-muted { color: #94a3b8; font-weight: 500; }
+
+/* ---------- sections ---------- */
+.mi-section {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+  padding: 18px 20px 20px; margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(15,23,42,.04);
+}
+.mi-sec-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.mi-sec-title { font-size: 15.5px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+.mi-sec-sub { font-size: 11.5px; color: #64748b; margin: 3px 0 0; }
+.mi-seg { display: flex; gap: 4px; flex-wrap: wrap; }
+.mi-seg-sort { margin-left: 8px; padding-left: 8px; border-left: 1px solid #e2e8f0; }
+.mi-seg-btn {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px;
+  padding: 5px 11px; font-size: 11.5px; font-weight: 600; color: #475569; cursor: pointer;
+}
+.mi-seg-btn:hover { background: #f1f5f9; color: #0f172a; }
+.mi-seg-btn.on { background: #0f4c81; border-color: #0f4c81; color: #fff; }
+
+.mi-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.mi-grid-share { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .mi-grid-share { grid-template-columns: 1fr; } }
+.mi-chart { position: relative; }
+
+/* ---------- tables ---------- */
+.mi-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.mi-table thead th {
+  text-align: left; font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: #64748b; padding: 7px 9px;
+  border-bottom: 1px solid #e2e8f0; white-space: nowrap; background: #fff;
+  position: sticky; top: 0; z-index: 1;
+}
+.mi-table tbody td { padding: 7px 9px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.mi-table tbody tr:hover { background: #f8fafc; }
+.mi-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mi-strong { font-weight: 700; }
+.mi-th-rank { width: 34px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+.mi-th-drill { width: 22px; color: #cbd5e1; text-align: center; font-size: 15px; }
+.mi-cell-name { position: relative; min-width: 190px; max-width: 340px; }
+/* Value bar sits behind the label -- magnitude readable without a second
+   column, which matters when ten metrics compete for horizontal space. */
+.mi-bar {
+  position: absolute; left: 0; top: 3px; bottom: 3px;
+  background: rgba(15,76,129,.10); border-radius: 3px; z-index: 0;
+}
+.mi-name-txt {
+  position: relative; z-index: 1; display: block; padding-left: 5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;
+}
+.mi-row-drill { cursor: pointer; }
+.mi-row-drill:hover .mi-th-drill { color: #0f4c81; }
+.mi-share-table { max-height: 380px; overflow-y: auto; }
+.mi-empty, .mi-empty-page {
+  padding: 26px; text-align: center; color: #64748b; font-size: 13px;
+}
+.mi-empty-page h2 { font-size: 17px; color: #0f172a; margin: 0 0 8px; }
+.mi-empty-page code {
+  background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px;
+}
+
+/* ---------- heatmap ---------- */
+.mi-heat-wrap { margin-bottom: 20px; }
+.mi-heat-title { font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 8px; }
+.mi-heat { display: grid; gap: 2px; overflow-x: auto; }
+.mi-heat-corner { }
+.mi-heat-colh {
+  font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase;
+  letter-spacing: .03em; padding: 0 3px 5px; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mi-heat-rowh {
+  font-size: 11px; font-weight: 600; color: #334155; padding: 0 8px 0 2px;
+  display: flex; align-items: center; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.mi-heat-cell {
+  min-height: 30px; border-radius: 3px; display: flex; align-items: center;
+  justify-content: center; font-size: 9.5px; font-weight: 600; color: #334155;
+  cursor: default; font-variant-numeric: tabular-nums;
+}
+
+/* ---------- treemap ---------- */
+.mi-tree { display: flex; gap: 3px; align-items: stretch; min-height: 108px; flex-wrap: wrap; }
+.mi-tree-node {
+  min-width: 108px; background: #f8fafc; border: 1px solid #e2e8f0;
+  border-radius: 8px; padding: 9px 10px; display: flex; flex-direction: column;
+  justify-content: space-between; gap: 8px; overflow: hidden;
+}
+.mi-tree-label {
+  font-size: 11px; font-weight: 700; color: #0f172a; line-height: 1.3;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.mi-tree-label span { font-size: 10px; font-weight: 600; color: #64748b; }
+.mi-tree-inner { display: flex; height: 9px; border-radius: 4px; overflow: hidden; background: #e2e8f0; }
+.mi-tree-seg { display: block; height: 100%; }
+
+/* ---------- growth mini-lists ---------- */
+.mi-mini { }
+.mi-mini-title { font-size: 11.5px; font-weight: 700; color: #334155; margin-bottom: 8px; }
+.mi-mini-row {
+  display: grid; grid-template-columns: 1fr 74px 74px 56px;
+  gap: 8px; align-items: center; padding: 4px 0; font-size: 11.5px;
+}
+.mi-mini-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.mi-mini-bar { background: #f1f5f9; border-radius: 3px; height: 7px; overflow: hidden; }
+.mi-mini-bar span { display: block; height: 100%; border-radius: 3px; }
+.mi-mini-val, .mi-mini-pct { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------- insights ---------- */
+.mi-ins-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+.mi-insight {
+  border: 1px solid #e2e8f0; border-radius: 11px; padding: 14px 15px;
+  background: #fff; border-left-width: 3px;
+}
+.mi-ins-positive { border-left-color: #15803d; background: #f6fdf8; }
+.mi-ins-negative { border-left-color: #b91c1c; background: #fef7f7; }
+.mi-ins-warning  { border-left-color: #b45309; background: #fffbeb; }
+.mi-ins-neutral  { border-left-color: #0f4c81; background: #f8fafc; }
+.mi-ins-title { font-size: 13px; font-weight: 700; line-height: 1.4; margin-bottom: 9px; }
+.mi-ins-caveat {
+  font-size: 10.5px; color: #92400e; background: #fef3c7;
+  border-radius: 5px; padding: 5px 8px; margin-bottom: 9px; line-height: 1.45;
+}
+.mi-ins-body { font-size: 12px; color: #475569; line-height: 1.55; }
+.mi-ins-dl { margin: 0; font-size: 11.5px; line-height: 1.55; }
+.mi-ins-dl dt {
+  font-weight: 700; color: #64748b; font-size: 9.5px; text-transform: uppercase;
+  letter-spacing: .05em; margin-top: 7px;
+}
+.mi-ins-dl dt:first-child { margin-top: 0; }
+.mi-ins-dl dd { margin: 1px 0 0; color: #334155; }
+
+/* ---------- drill modal ---------- */
+.mi-drill-kpis {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.mi-drill-stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; padding: 10px 12px; }
+.mi-drill-l {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: #64748b;
+}
+.mi-drill-v { font-size: 19px; font-weight: 700; margin-top: 3px; letter-spacing: -.01em; }
+.mi-drill-s { font-size: 10px; color: #94a3b8; margin-top: 1px; }
+.mi-drill-h { font-size: 12.5px; font-weight: 700; margin: 16px 0 8px; color: #334155; }
+
+/* ---------- footer ---------- */
+.mi-foot {
+  font-size: 10.5px; color: #94a3b8; text-align: center;
+  padding: 18px 0 4px; line-height: 1.6;
+}
+
+/* ---------- methodology explainer ----------
+   Share is only interpretable alongside its denominator, and the
+   denominator here moves with the filter bar -- so it is stated on the
+   page rather than left to a data dictionary nobody opens. */
+.mi-method {
+  margin-top: 14px; background: #f8fafc; border: 1px solid #e2e8f0;
+  border-left: 3px solid #0f4c81; border-radius: 9px;
+  padding: 12px 15px; font-size: 11.5px; color: #475569; line-height: 1.6;
+}
+.mi-method-h {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: #0f4c81; margin-bottom: 7px;
+}
+.mi-method code {
+  display: inline-block; background: #eef2f7; border-radius: 5px;
+  padding: 5px 9px; font-size: 11px; color: #0f172a; margin-bottom: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.mi-method ul { margin: 0; padding-left: 17px; }
+.mi-method li { margin-bottom: 4px; }
+.mi-method strong { color: #334155; }
+.mi-method em { font-style: normal; font-weight: 600; color: #0f4c81; }
+
+/* ---------- Zeta highlighting ----------
+   Our own row in a 1,400-competitor market has to be findable without
+   searching. A single accent colour (#0EA5E9) is reserved for Zeta and
+   used nowhere else, so the eye learns it once and then finds it
+   instantly in tables, charts, heatmaps and the growth bridge. */
+.mi-section#mi-zeta {
+  border-left: 3px solid #0EA5E9;
+  background: linear-gradient(180deg, #f2fbff 0%, #fff 120px);
+}
+.mi-zeta-stats {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+.mi-zeta-stat {
+  background: #fff; border: 1px solid #c9e9fa; border-radius: 10px; padding: 11px 13px;
+}
+.mi-zeta-l {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: #0369a1;
+}
+.mi-zeta-v { font-size: 21px; font-weight: 700; margin-top: 3px; letter-spacing: -.01em; }
+.mi-zeta-s { font-size: 10px; color: #94a3b8; margin-top: 2px; line-height: 1.4; }
+
+/* Row highlight in every ranked table */
+.mi-table tbody tr.mi-row-zeta { background: #eff9ff; }
+.mi-table tbody tr.mi-row-zeta:hover { background: #e0f2fe; }
+.mi-table tbody tr.mi-row-zeta td { border-bottom-color: #cdeafb; }
+.mi-table tbody tr.mi-row-zeta .mi-name-txt { font-weight: 700; color: #075985; }
+.mi-bar-zeta { background: rgba(14,165,233,.18) !important; }
+
+/* "US" tag -- short enough not to disturb column widths */
+.mi-zeta-tag {
+  display: inline-block; margin-left: 6px; background: #0EA5E9; color: #fff;
+  font-size: 8.5px; font-weight: 800; letter-spacing: .06em;
+  padding: 1px 5px; border-radius: 4px; vertical-align: middle;
+}
+.mi-mini-row.mi-mini-zeta .mi-mini-name { font-weight: 700; color: #075985; }
+.mi-heat-rowh.mi-heat-zeta { font-weight: 800; color: #075985; }
+.mi-tree-node.mi-tree-zeta {
+  border: 2px solid #0EA5E9; background: #eff9ff;
+}
+.mi-tree-node.mi-tree-zeta .mi-tree-label { color: #075985; }
+/* Zeta appended below the Top-N cut: separated by a gap so its true rank
+   is never read as "next in the list". */
+.mi-table tbody tr.mi-row-zeta-appended td {
+  border-top: 2px dashed #bfe4f8; padding-top: 10px;
+}
+.mi-gloss-bench {
+  margin-top: 9px; padding: 8px 11px; background: #eef2f7;
+  border-radius: 7px; font-size: 11.5px; line-height: 1.55;
+}
+.mi-gloss-zeta {
+  margin-top: 8px; padding: 9px 11px; background: #eff9ff;
+  border: 1px solid #c9e9fa; border-left: 3px solid #0EA5E9;
+  border-radius: 7px; font-size: 11.5px; line-height: 1.6; color: #075985;
+}
+.mi-gloss-zeta em, .mi-gloss-bench em { font-style: normal; font-weight: 700; }
+
+/* ---------- Zeta portfolio coverage ----------
+   Shows presence AND absence side by side. A heatmap cannot express
+   absence -- an empty cell looks identical to a very small one -- so
+   areas Zeta does not compete in are called out explicitly. */
+.mi-zcov { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.mi-zcov-row {
+  display: grid; grid-template-columns: 190px 1fr 78px 62px;
+  gap: 10px; align-items: center; font-size: 11.5px;
+}
+.mi-zcov-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600; color: #334155;
+}
+.mi-zcov-bar {
+  position: relative; height: 15px; background: #e2e8f0;
+  border-radius: 4px; min-width: 3px;
+}
+/* Our share of the area, drawn inside the market bar -- the visual
+   answers "how much of this is ours" without a second chart. */
+.mi-zcov-mine {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: #0EA5E9; border-radius: 4px;
+}
+.mi-zcov-val, .mi-zcov-share {
+  text-align: right; font-variant-numeric: tabular-nums; color: #475569;
+}
+.mi-zcov-share { font-weight: 700; color: #075985; }
+.mi-zcov-absent .mi-zcov-name { color: #94a3b8; font-weight: 500; }
+.mi-zcov-absent .mi-zcov-bar { background: #f1f5f9; border: 1px dashed #cbd5e1; }
+.mi-zcov-absent .mi-zcov-share { color: #cbd5e1; }
+.mi-zcov-tag {
+  display: inline-block; margin-left: 6px; background: #f1f5f9; color: #94a3b8;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .05em;
+  padding: 1px 5px; border-radius: 4px; text-transform: uppercase;
+}
+
+/* ---------- Zeta in Growth Analysis ----------
+   Placed above the competitor bridge: "did we move with the market"
+   is the question that precedes "who moved it". */
+.mi-zgrow {
+  background: linear-gradient(180deg, #f2fbff 0%, #fff 100%);
+  border: 1px solid #c9e9fa; border-left: 3px solid #0EA5E9;
+  border-radius: 11px; padding: 14px 16px; margin-bottom: 16px;
+}
+.mi-zgrow-head {
+  font-size: 12.5px; font-weight: 700; color: #075985;
+  margin-bottom: 11px; display: flex; align-items: center;
+}
+.mi-zgrow-stats {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.mi-zgrow-stat { background: #fff; border: 1px solid #dcefFA; border-radius: 9px; padding: 10px 12px; }
+.mi-zgrow-l {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: #0369a1;
+}
+.mi-zgrow-v { font-size: 19px; font-weight: 700; margin-top: 3px; color: #0f172a; letter-spacing: -.01em; }
+.mi-zgrow-s { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+.mi-zgrow-note {
+  margin-top: 11px; font-size: 11.5px; line-height: 1.6; color: #075985;
+}

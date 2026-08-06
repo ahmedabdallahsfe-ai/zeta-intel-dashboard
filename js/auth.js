@@ -168,6 +168,30 @@
   // the platform's access model.
   var ALL_BU_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager"];
 
+  // -------------------------------------------------------------------
+  // TOTAL MARKET INTELLIGENCE ACCESS (2026-08-06, Ahmed)
+  // -------------------------------------------------------------------
+  // "make it exclusive to ceo admin vp sfe bex" -- the same five roles as
+  // ALL_BU_ROLES, deliberately declared as its OWN constant rather than
+  // aliased to it. The two happen to coincide today but answer different
+  // questions: one is "may you see company-wide BU totals", the other is
+  // "may you see the entire competitor market including every rival's
+  // sales". Sharing a constant would silently couple them, so a future
+  // change to one would move the other without anyone noticing.
+  //
+  // Unlike the All-BU view, this is NOT additionally gated on scope. A
+  // BU-restricted SFE Manager still sees the whole market here, because
+  // the page contains no Zeta-internal BU/line data -- it is purchased
+  // IMS panel data about the market as a whole. Restricting it by BU
+  // would be meaningless: there is no BU dimension in it to restrict.
+  var MARKET_INTEL_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager"];
+
+  function canViewMarketIntel() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return MARKET_INTEL_ROLES.indexOf(u.role) >= 0;
+  }
+
   function canViewAllBUs() {
     var u = getValidSessionUser();
     if (!u) return false;
@@ -300,6 +324,8 @@
     canToggleScenario: canToggleScenario,
     canViewAllBUs: canViewAllBUs,
     ALL_BU_ROLES: ALL_BU_ROLES,
+    canViewMarketIntel: canViewMarketIntel,
+    MARKET_INTEL_ROLES: MARKET_INTEL_ROLES,
     getActiveScenario: getActiveScenario,
     setActiveScenario: setActiveScenario
   };

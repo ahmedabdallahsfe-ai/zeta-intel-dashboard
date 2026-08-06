@@ -238,6 +238,8 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Market Intelligence";
     } else if (tab === "executive") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Executive Command Center";
+    } else if (tab === "marketintel") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Total Market Intelligence";
     } else if (tab === "tomarket") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - To-Market vs In-Market";
 
@@ -268,6 +270,18 @@ function startAppBody() {
   const tomarketMenuItem = document.getElementById("menu-item-tomarket");
   if (tomarketMenuItem) {
     tomarketMenuItem.style.display = tomarketAllowedBU() === false ? "none" : "";
+  }
+
+  // Total Market Intelligence: CEO / VP / BEX / Admin / SFE Manager only
+  // (2026-08-06). Hidden in the markup by default and revealed here, so a
+  // user without the entitlement never even sees the entry -- and
+  // renderMarketIntelTab() below refuses to render it regardless, so
+  // hand-editing the DOM or deep-linking the tab gains nothing.
+  const marketIntelMenuItem = document.getElementById("menu-item-marketintel");
+  if (marketIntelMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewMarketIntel === "function"
+      ? window.AUTH.canViewMarketIntel() : false;
+    marketIntelMenuItem.style.display = allowed ? "" : "none";
   }
 
 
@@ -302,6 +316,12 @@ function startAppBody() {
       }
       if (currentTab === "tomarket") {
         restoreGlobalFilterBar();
+      }
+      if (currentTab === "marketintel") {
+        // Same teardown as tomarket -- it borrows the same full-bleed body
+        // class -- plus the workspace's own chart/listener cleanup.
+        restoreGlobalFilterBar();
+        if (window.MarketIntelligence) window.MarketIntelligence.destroy();
       }
       currentTab = tab;
       updateTopbarTitle(tab);
@@ -366,6 +386,11 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             renderTomarketTab(document.getElementById("app-root"));
+          } else if (tab === "marketintel") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderMarketIntelTab(document.getElementById("app-root"));
           }
           Loader.hide();
         });
@@ -436,6 +461,36 @@ function tomarketAllowedBU() {
 
   const EMBEDDED_BU_NAME = { DIAB: "Diabetes", CHC: "CHC", GIT: "GIT", Cluster: "Cluster" };
   return EMBEDDED_BU_NAME[bu] || bu;
+}
+
+/**
+ * Total Market Intelligence. Gated independently of the sidebar entry:
+ * hiding a menu item is presentation, not access control, so the render
+ * path checks entitlement itself. This page exposes every competitor's
+ * sales in the Egyptian market -- purchased IMS panel data -- so it is
+ * restricted to CEO / VP / BEX / Admin / SFE Manager.
+ */
+function renderMarketIntelTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewMarketIntel === "function"
+    ? window.AUTH.canViewMarketIntel() : false;
+  if (!allowed) {
+    document.body.classList.add("tomarket-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "Total Market Intelligence contains competitor-level market data and is available to CEO, VP, BEx, Admin and SFE Manager roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  // Borrows the full-bleed body class -- this workspace ships its own,
+  // far richer filter surface and does not want Coverage's filter bar.
+  document.body.classList.add("tomarket-mode");
+  if (window.MarketIntelligence) {
+    window.MarketIntelligence.init("app-root");
+  }
 }
 
 function renderTomarketTab(container) {

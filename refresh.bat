@@ -122,6 +122,33 @@ if not "%CUSTANALYTICS_EXIT%"=="0" (
     exit /b 1
 )
 
+REM --- run the Total Market Intelligence Aggregation ----------------------
+REM Added 2026-08-06. Reads "IMS 2022 to April 2026.xlsx" (the full IMS
+REM competitor panel, 2022-2026) and writes cache/market_intel.data.js --
+REM the data layer behind the Total Market Intelligence workspace
+REM (js/market-intel.js). ~6 seconds; it aggregates 62,065 annual rows into
+REM 62,010 dimensional cells, so it is far quicker than the sales/customer
+REM steps above.
+REM
+REM NOT FATAL IF IT FAILS. Unlike Sales, this workbook is a periodic IMS
+REM delivery that may simply not be present on a given machine. If the file
+REM is missing the script exits non-zero, and blocking the whole refresh --
+REM including the git push of everything already rebuilt above -- over an
+REM optional dataset would be the wrong trade. A warning is printed instead.
+echo.
+echo Reading Market Intelligence workbook...
+%PYTHON_CMD% etl\build_market_intel_cache.py
+set "MARKETINTEL_EXIT=%ERRORLEVEL%"
+
+if not "%MARKETINTEL_EXIT%"=="0" (
+    echo.
+    echo   [WARNING] Market Intelligence refresh did not complete.
+    echo   The Total Market Intelligence page will keep serving its
+    echo   previous cache. Check that "IMS 2022 to April 2026.xlsx"
+    echo   is present in the project root.
+    echo.
+)
+
 REM --- run the To-Market vs In-Market (TMS/IMS) Aggregation ----------------
 REM Revised 2026-07-31: this workspace is embedded as-is via iframe (see
 REM js/app.js's renderTomarketTab()) rather than rebuilt into this app's
@@ -199,6 +226,15 @@ if "%GIT_CMD%"=="" (
     REM customer_analytics.json is 140MB+ (exceeds GitHub 100MB limit)
     REM -- only the compressed .data.js version is pushed
     "%GIT_CMD%" add -f cache/customer_analytics.data.js
+    REM market_intel: -f is REQUIRED. .gitignore line 2 is `cache/`, and the
+    REM `git add -A` further below does NOT override an ignore rule -- it
+    REM only picks up files git already tracks or that aren't ignored. Every
+    REM other cache file above is on the site because it was force-added
+    REM once; this one is newer, so without this line the page deploys and
+    REM then reports "Market Intelligence cache not found". The .json twin
+    REM (4.3MB, uncompressed) is deliberately NOT pushed -- the browser only
+    REM ever reads the gzipped .data.js.
+    "%GIT_CMD%" add -f cache/market_intel.data.js
     "%GIT_CMD%" add "TO MARKET_IN MARKET/index.html"
     "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js

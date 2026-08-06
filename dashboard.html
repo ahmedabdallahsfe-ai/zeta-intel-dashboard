@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="css/layout.css?v=20260726_exec" />
   <link rel="stylesheet" href="css/components.css?v=20260728_cardfix" />
   <link rel="stylesheet" href="css/utilities.css?v=20260726_exec" />
+  <link rel="stylesheet" href="css/market-intel.css?v=20260806_growth" />
 </head>
 <body>
 
@@ -97,6 +98,10 @@
           <span class="menu-icon">🚚</span>
           <span class="menu-label">To-Market vs In-Market</span>
         </li>
+        <li class="menu-item" data-tab="marketintel" id="menu-item-marketintel" style="display:none;">
+          <span class="menu-icon">🌐</span>
+          <span class="menu-label">Total Market Intelligence</span>
+        </li>
 
       </ul>
     </nav>
@@ -164,7 +169,7 @@
        workspace module. Must load after cache/iqvia.data.js (reads
        IQVIA_CACHE.users) and before js/app.js (the boot sequence gates
        on it first). See js/auth.js for the full rationale. -->
-  <script defer src="js/auth.js?v=20260804_allbu"></script>
+  <script defer src="js/auth.js?v=20260806_miroles"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script defer src="js/config.js?v=20260725_v2"></script>
@@ -218,7 +223,9 @@
   <script defer src="js/executive.js?v=20260804_noperiod"></script>
 
 
-  <script defer src="js/app.js?v=20260804_tomarket_bumgr"></script>
+  <script defer src="cache/market_intel.data.js?v=20260806_annual"></script>
+  <script defer src="js/market-intel.js?v=20260806_growth"></script>
+  <script defer src="js/app.js?v=20260806_miroles"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">
