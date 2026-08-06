@@ -3198,27 +3198,58 @@
     "Average price of Zeta",
   ];
 
+  /**
+   * Rendered as a HERO PANEL, not through the shared `section()` helper.
+   *
+   * There are thirteen sections on this page and they all look alike by
+   * design — a consistent rhythm is what makes a long analytical page
+   * readable. But that consistency was burying this one: a reader scrolling
+   * for charts has no reason to notice that one of the identical blocks is
+   * interactive, so the single most useful control on the page went unused.
+   *
+   * So it gets its own treatment: the Zeta accent, a larger heading, an
+   * icon, and a one-off attention ring on first paint. The ring runs twice
+   * and stops — a permanent animation on an executive dashboard reads as a
+   * defect, not an invitation.
+   */
   function renderAsk() {
     var res = _askQuestion ? answerQuestion(_askQuestion) : null;
-    var body =
+    return '<section class="mi-ask-hero' + (_askQuestion ? " is-answered" : "") + '" id="mi-ask">' +
+      askHeadHtml() +
       '<div class="mi-ask-bar">' +
         '<input type="text" id="mi-ask-input" class="mi-ask-input" autocomplete="off" ' +
           'placeholder="Ask about any corporation, therapeutic area, ATC4 class, molecule, brand or product…" ' +
           'value="' + esc(_askQuestion) + '" />' +
-        '<button type="button" class="mi-btn mi-btn-primary" id="mi-ask-go">Ask</button>' +
-        (_askQuestion ? '<button type="button" class="mi-btn" id="mi-ask-clear">Clear</button>' : "") +
+        '<button type="button" class="mi-btn mi-btn-primary mi-ask-go" id="mi-ask-go">Ask</button>' +
+        (_askQuestion ? '<button type="button" class="mi-btn mi-btn-ghost" id="mi-ask-clear">Clear</button>' : "") +
       "</div>" +
       '<div class="mi-ask-ex">' +
+        '<span class="mi-ask-ex-label">Try</span>' +
         ASK_EXAMPLES.map(function (e) {
           return '<button type="button" class="mi-ask-chip" data-ask="' + esc(e) + '">' + esc(e) + "</button>";
         }).join("") +
       "</div>" +
-      '<div class="mi-ask-out">' + askResultHtml(res) + "</div>";
+      '<div class="mi-ask-out">' + askResultHtml(res) + "</div>" +
+    "</section>";
+  }
 
-    return section("mi-ask", "Ask the Data",
-      "Answers are computed from the same figures as every chart on this page, and each one " +
-      "shows the formula, the inputs and the denominator behind it.",
-      body);
+  /** Heading block for the Ask hero. */
+  function askHeadHtml() {
+    return '<div class="mi-ask-head">' +
+      '<span class="mi-ask-icon" aria-hidden="true">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" ' +
+          'stroke-linecap="round" stroke-linejoin="round">' +
+          '<circle cx="11" cy="11" r="7"></circle>' +
+          '<line x1="16.5" y1="16.5" x2="21" y2="21"></line>' +
+        "</svg></span>" +
+      "<div class=\"mi-ask-head-txt\">" +
+        '<h2 class="mi-ask-title">Ask the Data</h2>' +
+        '<p class="mi-ask-sub">Type a question in plain English. Every answer is computed ' +
+          "from the same figures as the charts below, and shows the formula, the inputs " +
+          "and the denominator behind it.</p>" +
+      "</div>" +
+      '<span class="mi-ask-badge">Evidence-backed</span>' +
+    "</div>";
   }
 
   function askResultHtml(r) {
