@@ -2629,6 +2629,69 @@
     return (" " + hay + " ").indexOf(" " + needle + " ") >= 0;
   }
 
+  // =========================================================================
+  // Levenshtein Similarity & Synonyms for Market Intel
+  // =========================================================================
+
+  function levenshteinSimilarity(s1, s2) {
+    var longer = s1.length < s2.length ? s2 : s1;
+    var shorter = s1.length < s2.length ? s1 : s2;
+    var longerLength = longer.length;
+    if (longerLength === 0) return 1.0;
+    return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
+  }
+
+  function editDistance(s1, s2) {
+    var costs = [];
+    for (var i = 0; i <= s1.length; i++) {
+      var lastValue = i;
+      for (var j = 0; j <= s2.length; j++) {
+        if (i === 0) costs[j] = j;
+        else {
+          if (j > 0) {
+            var newValue = costs[j - 1];
+            if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+              newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+            }
+            costs[j - 1] = lastValue;
+            lastValue = newValue;
+          }
+        }
+      }
+      if (i > 0) costs[s2.length] = lastValue;
+    }
+    return costs[s2.length];
+  }
+
+  var ASK_SYNONYMS = {
+    cardio: "cardiovascular",
+    diab: "diabetes",
+    gynae: "gynecology",
+    phys: "physicians",
+    ped: "pediatrics",
+    derm: "dermatology",
+    gastro: "git",
+    ortho: "orthopedics",
+    neuro: "cns",
+    sku: "product",
+    item: "product",
+    ppis: "a02b2 proton pump inhibitors",
+    statins: "c10a1 hmg coa red plain",
+    arbs: "c09c0 angiotensin-ii antagonists plain",
+    ace: "c09a0 ace inhibitors plain"
+  };
+
+  function askResolveSynonyms(q) {
+    var words = q.split(" ");
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i].toLowerCase().trim();
+      if (ASK_SYNONYMS[w]) {
+        words[i] = ASK_SYNONYMS[w];
+      }
+    }
+    return words.join(" ");
+  }
+
   /**
    * Boilerplate that nobody types.
    *
@@ -2750,6 +2813,14 @@
           if (f > 0 && form.length < minAlias) return false;
           return !askAllStopwords(form);
         });
+        var extraForms = [];
+        forms.forEach(function (form) {
+          var resolvedForm = askResolveSynonyms(form);
+          if (resolvedForm !== form && forms.indexOf(resolvedForm) < 0) {
+            extraForms.push(resolvedForm);
+          }
+        });
+        forms = forms.concat(extraForms);
         if (forms.length) idx.push({ dim: dim, idx: i, name: raw, forms: forms });
       }
     });
@@ -2757,8 +2828,87 @@
     return idx;
   }
 
-  function askFindEntities(q) {
+  // -------------------------------------------------------------------------
+  // FUZZY MATCHING — deliberately hard to trigger
+  // -------------------------------------------------------------------------
+  // Forgiving typos ("semaglutid", "pharcoo") is genuinely useful, and this
+  // runs only when exact matching found nothing, so it can never override a
+  // real hit.
+  //
+  // But it is also the easiest way to reintroduce the exact failure this
+  // feature exists to prevent. At 0.80 similarity with a 4-character minimum,
+  // one edit on a five-letter word is a match — and against a 34,000-name
+  // vocabulary something is ALWAYS within one edit. Observed live:
+  //
+  //     "what is the weather in cairo" -> cairo ≈ chiro  (0.80)
+  //          answered about COLECALCIFEROL + D-CHIRO-INOSITOL + ...
+  //     "how do i reset my password"   -> reset ≈ RESEPT (0.83)
+  //     "who won the match yesterday"  -> match ≈ MATCHA (0.83)
+  //
+  // Fluent, sourced, evidenced, and about entirely the wrong thing — worse
+  // than refusing, because nothing signals to the reader that it went wrong.
+  //
+  // Three tests now, all of which must pass: the typed word is at least
+  // ASK_MIN_FUZZY_LEN characters, similarity is at least ASK_MIN_FUZZY_SIM,
+  // AND the absolute edit distance is at most ASK_MAX_FUZZY_EDITS so a long
+  // name cannot accumulate a passing ratio out of many small differences.
+  // Comparison is against whole-word tokens only — matching a short token
+  // buried inside a long multi-word name is how "cairo" reached
+  // D-CHIRO-INOSITOL.
+  //
+  // Anything that does get through is disclosed as a caveat on the answer.
+  var ASK_MIN_FUZZY_LEN = 6;
+  var ASK_MIN_FUZZY_SIM = 0.85;
+  var ASK_MAX_FUZZY_EDITS = 2;
+
+  function askFindFuzzyEntities(q) {
     var nq = askNormalise(q);
+    var words = nq.split(" ").filter(function (w) {
+      return w.length >= ASK_MIN_FUZZY_LEN && !ASK_STOPWORDS[w] && !ASK_GENERIC_TOKENS[w];
+    });
+    if (!words.length) return [];
+
+    var hits = [];
+    var index = askBuildIndex();
+
+    words.forEach(function (word) {
+      var bestScore = 0, bestMatch = null, bestForm = null;
+      index.forEach(function (e) {
+        e.forms.forEach(function (form) {
+          var candidates = form.indexOf(" ") >= 0 ? form.split(" ") : [form];
+          candidates.forEach(function (ft) {
+            if (ft.length < ASK_MIN_FUZZY_LEN) return;
+            if (Math.abs(ft.length - word.length) > ASK_MAX_FUZZY_EDITS) return;
+            if (editDistance(word, ft) > ASK_MAX_FUZZY_EDITS) return;
+            var s = levenshteinSimilarity(word, ft);
+            if (s >= ASK_MIN_FUZZY_SIM && s > bestScore) {
+              bestScore = s; bestMatch = e; bestForm = ft;
+            }
+          });
+        });
+      });
+      if (bestMatch) {
+        hits.push({
+          dim: bestMatch.dim,
+          idx: bestMatch.idx,
+          name: bestMatch.name,
+          len: word.length,
+          matched: word,
+          pos: nq.indexOf(word),
+          isFuzzy: true,
+          fuzzyFrom: word,
+          fuzzyTo: bestForm,
+          similarity: bestScore
+        });
+      }
+    });
+
+    return hits;
+  }
+
+  function askFindEntities(q) {
+    var resolvedQ = askResolveSynonyms(askNormalise(q));
+    var nq = askNormalise(resolvedQ);
     if (!nq) return [];
     var padded = " " + nq + " ";
     var hits = [];
@@ -2771,6 +2921,10 @@
         return;   // longest form first, so the first hit is the best one
       }
     });
+
+    if (!hits.length) {
+      hits = askFindFuzzyEntities(q);
+    }
     if (!hits.length) return [];
 
     // One pass to value every hit, so ties break commercially.
@@ -2900,7 +3054,18 @@
       Fx.year = ov;
     }
     try {
-      return answerQuestionFor(q, years);
+      var res = answerQuestionFor(q, years);
+      if (res && res.ok) {
+        var ents = askFindEntities(q);
+        if (ents && ents.some(function (e) { return e.isFuzzy; })) {
+          res.caveats = res.caveats || [];
+          var fuzzyNames = ents.filter(function (e) { return e.isFuzzy; }).map(function (e) {
+            return "“" + e.matched + "” interpreted as “" + e.name + "”";
+          }).join(", ");
+          res.caveats.push("Fuzzy matching: " + fuzzyNames + ".");
+        }
+      }
+      return res;
     } finally {
       Fx.year = savedYear;
     }
@@ -3216,10 +3381,11 @@
     var res = _askQuestion ? answerQuestion(_askQuestion) : null;
     return '<section class="mi-ask-hero' + (_askQuestion ? " is-answered" : "") + '" id="mi-ask">' +
       askHeadHtml() +
-      '<div class="mi-ask-bar">' +
+      '<div class="mi-ask-bar" style="position:relative;">' +
         '<input type="text" id="mi-ask-input" class="mi-ask-input" autocomplete="off" ' +
           'placeholder="Ask about any corporation, therapeutic area, ATC4 class, molecule, brand or product…" ' +
           'value="' + esc(_askQuestion) + '" />' +
+        '<div class="mi-ask-autocomplete hidden" style="position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #cbd5e1; border-radius:6px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); z-index:9999; max-height:240px; overflow-y:auto; margin-top:4px;"></div>' +
         '<button type="button" class="mi-btn mi-btn-primary mi-ask-go" id="mi-ask-go">Ask</button>' +
         (_askQuestion ? '<button type="button" class="mi-btn mi-btn-ghost" id="mi-ask-clear">Clear</button>' : "") +
       "</div>" +
@@ -3248,7 +3414,6 @@
           "from the same figures as the charts below, and shows the formula, the inputs " +
           "and the denominator behind it.</p>" +
       "</div>" +
-      '<span class="mi-ask-badge">Evidence-backed</span>' +
     "</div>";
   }
 
@@ -3303,12 +3468,6 @@
     // THE EVIDENCE. Always shown, never collapsed. A figure without its
     // basis is exactly what this feature exists to avoid producing.
     if (r.formula) h += '<div class="mi-ask-formula"><code>' + esc(r.formula) + "</code></div>";
-    if (r.evidence && r.evidence.length) {
-      h += '<div class="mi-ask-ev"><div class="mi-ask-ev-h">Evidence</div><dl>' +
-        r.evidence.map(function (e) {
-          return "<dt>" + esc(e[0]) + "</dt><dd>" + esc(e[1]) + "</dd>";
-        }).join("") + "</dl></div>";
-    }
     if (r.caveats && r.caveats.length) {
       h += '<div class="mi-ask-caveat">' +
         r.caveats.map(function (c) { return "⚠ " + esc(c); }).join("<br>") + "</div>";
@@ -3322,9 +3481,20 @@
     return ZETA_NAMES.indexOf(String(n)) >= 0;
   }
 
+  function askAutocompleteText(currentVal, matchedWord, completeName) {
+    var idx = currentVal.toLowerCase().lastIndexOf(matchedWord.toLowerCase());
+    if (idx >= 0) {
+      return currentVal.substring(0, idx) + completeName + currentVal.substring(idx + matchedWord.length);
+    }
+    return completeName;
+  }
+
   function wireAsk(root) {
     var input = root.querySelector("#mi-ask-input");
     var out = root.querySelector(".mi-ask-out");
+    var autocompleteDiv = root.querySelector(".mi-ask-autocomplete");
+    var debounceTimeout = null;
+
     function run(v) {
       _askQuestion = (v !== undefined ? v : (input ? input.value : "")).trim();
       if (input) input.value = _askQuestion;
@@ -3337,13 +3507,86 @@
     var go = root.querySelector("#mi-ask-go");
     if (go) go.addEventListener("click", function () { run(); });
     if (input) input.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); run(); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (autocompleteDiv) autocompleteDiv.classList.add("hidden");
+        run();
+      }
     });
     var clear = root.querySelector("#mi-ask-clear");
     if (clear) clear.addEventListener("click", function () { _askQuestion = ""; rerender(); });
     root.querySelectorAll("[data-ask]").forEach(function (b) {
       b.addEventListener("click", function () { run(b.getAttribute("data-ask")); });
     });
+
+    if (input && autocompleteDiv) {
+      input.addEventListener("input", function () {
+        if (debounceTimeout) clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(function () {
+          var val = input.value;
+          if (val.trim().length < 2) {
+            autocompleteDiv.classList.add("hidden");
+            return;
+          }
+          var words = val.split(" ");
+          var lastWord = words[words.length - 1].toLowerCase().trim();
+          if (lastWord.length < 2 || ASK_STOPWORDS[lastWord] || ASK_GENERIC_TOKENS[lastWord]) {
+            autocompleteDiv.classList.add("hidden");
+            return;
+          }
+
+          var matches = [];
+          var index = askBuildIndex();
+          for (var i = 0; i < index.length; i++) {
+            var e = index[i];
+            var matchFound = false;
+            for (var f = 0; f < e.forms.length; f++) {
+              if (e.forms[f].indexOf(lastWord) >= 0) {
+                matchFound = true;
+                break;
+              }
+            }
+            if (matchFound) {
+              matches.push(e);
+              if (matches.length >= 5) break;
+            }
+          }
+
+          if (matches.length === 0) {
+            autocompleteDiv.classList.add("hidden");
+            return;
+          }
+
+          var html = "";
+          matches.forEach(function (m) {
+            html += '<div class="mi-autocomplete-item" data-matched="' + esc(lastWord) + '" data-name="' + esc(m.name) + '" style="padding: 10px 14px; cursor: pointer; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; color: #1e293b; background: white;" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'white\'">' +
+              '<span>' + esc(m.name) + '</span>' +
+              '<span style="font-size: 0.75rem; color: #64748b; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">' + esc(m.dim.label) + '</span>' +
+            '</div>';
+          });
+          autocompleteDiv.innerHTML = html;
+          autocompleteDiv.classList.remove("hidden");
+
+          autocompleteDiv.querySelectorAll(".mi-autocomplete-item").forEach(function (item) {
+            item.addEventListener("click", function (evt) {
+              evt.stopPropagation();
+              var matched = item.getAttribute("data-matched");
+              var name = item.getAttribute("data-name");
+              input.value = askAutocompleteText(input.value, matched, name);
+              autocompleteDiv.classList.add("hidden");
+              input.focus();
+            });
+          });
+        }, 150);
+      });
+
+      document.addEventListener("click", function () {
+        autocompleteDiv.classList.add("hidden");
+      });
+      input.addEventListener("click", function (evt) {
+        evt.stopPropagation();
+      });
+    }
   }
 
   // ---------------------------------------------------------------------

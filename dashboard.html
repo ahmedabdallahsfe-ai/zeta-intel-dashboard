@@ -125,6 +125,14 @@
     <div id="filter-chips" class="filter-chips hidden"></div>
   </div>
 
+  <!-- Ask the Data mount point (2026-08-07).
+       Deliberately OUTSIDE #app-root. Every workspace rewrites app-root's
+       innerHTML whenever a filter changes, so a panel mounted inside it
+       would vanish the moment the user touched a filter -- and would take
+       their typed question with it. Sitting here it survives every page
+       re-render, and app.js re-mounts it only on a tab change. -->
+  <div id="ask-panel-slot" class="container"></div>
+
       <main id="app-root" class="container"></main>
     </div>
   </div>
@@ -225,7 +233,14 @@
 
   <script defer src="cache/market_intel.data.js?v=20260806_annual"></script>
   <script defer src="js/market-intel.js?v=20260806_cagr"></script>
-  <script defer src="js/app.js?v=20260806_miroles"></script>
+  <!-- Ask the Data (2026-08-07). The engine must load before any adapter;
+       both must load before app.js, which mounts them on tab change. -->
+  <script defer src="js/ask-engine.js?v=20260807_ask"></script>
+  <script defer src="js/ask-sales.js?v=20260807_ask"></script>
+  <script defer src="js/ask-coverage.js?v=20260807_ask"></script>
+  <script defer src="js/ask-sfe.js?v=20260807_ask"></script>
+  <script defer src="js/ask-executive.js?v=20260807_ask"></script>
+  <script defer src="js/app.js?v=20260807_ask"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

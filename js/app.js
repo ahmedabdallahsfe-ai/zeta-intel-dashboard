@@ -293,9 +293,11 @@ function startAppBody() {
   if (currentTab === "executive" && window.ExecutiveDashboard) {
     window.ExecutiveDashboard.init("app-root");
   }
+  mountAskPanel(currentTab);
 
   // Sidebar tab switching
   const menuItems = document.querySelectorAll("#sidebar-nav .menu-item");
+  // (mountAskPanel is defined at module scope below — see ASK THE DATA.)
   menuItems.forEach(item => {
     item.addEventListener("click", (e) => {
       const clickedItem = e.target.closest(".menu-item");
@@ -392,6 +394,7 @@ function startAppBody() {
             }
             renderMarketIntelTab(document.getElementById("app-root"));
           }
+          mountAskPanel(tab);
           Loader.hide();
         });
       });
@@ -470,6 +473,77 @@ function tomarketAllowedBU() {
  * sales in the Egyptian market -- purchased IMS panel data -- so it is
  * restricted to CEO / VP / BEX / Admin / SFE Manager.
  */
+// ===========================================================================
+// ASK THE DATA — panel mounting
+// ===========================================================================
+/**
+ * Which adapter serves which tab.
+ *
+ * Executive and Sales share one adapter because they share one cube and one
+ * semantic layer — the questions worth asking are the same, and two adapters
+ * over the same data would eventually disagree with each other.
+ *
+ * Market Intelligence renders its own panel inside its page (it predates the
+ * shared engine and needs no scoping, being purchased panel data with no BU
+ * dimension), so it is deliberately absent here — mounting a second panel
+ * above it would show the user two question boxes.
+ *
+ * Coverage, SFE and IQVIA are not yet listed: their adapters are still to be
+ * written. An unlisted tab simply gets no panel, which is the correct
+ * behaviour — better a missing feature than one answering from the wrong cube.
+ */
+function askAdapterForTab(tab) {
+  if (tab === "executive") {
+    return window.AskExecutive ? window.AskExecutive.adapter : null;
+  }
+  if (tab === "sales") {
+    return window.AskSales ? window.AskSales.adapter : null;
+  }
+  if (tab === "coverage") {
+    return window.AskCoverage ? window.AskCoverage.adapter : null;
+  }
+  if (tab === "sfe") {
+    return window.AskSFE ? window.AskSFE.adapter : null;
+  }
+  return null;
+}
+
+/**
+ * Render and wire the Ask panel for a tab.
+ *
+ * Mounts into #ask-panel-slot, which lives outside #app-root precisely so a
+ * workspace re-render (any filter change) cannot destroy the panel or discard
+ * a question the user has typed.
+ */
+function mountAskPanel(tab) {
+  const slot = document.getElementById("ask-panel-slot");
+  if (!slot) return;
+  const adapter = askAdapterForTab(tab);
+  if (!adapter || !window.AskEngine) { slot.innerHTML = ""; return; }
+
+  // A question asked on one page should not follow the user to another —
+  // the entities and measures differ, and a stale answer sitting above a
+  // different page's charts invites exactly the mismatch this feature is
+  // meant to prevent.
+  window.AskEngine.setQuestion(adapter.id, "");
+
+  // Named, so the panel can re-render itself (to add or drop the Clear
+  // button) and re-wire the fresh DOM. `arguments.callee` would break here
+  // under strict mode.
+  function paint() {
+    slot.innerHTML = window.AskEngine.render(adapter);
+    window.AskEngine.wire(slot, adapter, paint);
+  }
+
+  try {
+    paint();
+  } catch (e) {
+    // A broken Ask panel must never take the page down with it.
+    console.error("[Ask] mount failed for tab " + tab, e);
+    slot.innerHTML = "";
+  }
+}
+
 function renderMarketIntelTab(container) {
   if (!container) return;
   const allowed = window.AUTH && typeof window.AUTH.canViewMarketIntel === "function"
