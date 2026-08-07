@@ -133,10 +133,10 @@
     // --- 3. People (SFE / Headcount) ---
     var hcSum = SFE().getFilteredHeadcountForLine(bu, null);
     var headcountReport = {
-      total: hcSum && hcSum.ok ? hcSum.total : 0,
-      active: hcSum && hcSum.ok ? hcSum.active : 0,
-      vacant: hcSum && hcSum.ok ? hcSum.vacant : 0,
-      vacancyRate: hcSum && hcSum.ok ? hcSum.vacancyRate : 0
+      total: hcSum && hcSum.ok ? hcSum.headcountTotal : 0,
+      active: hcSum && hcSum.ok ? hcSum.headcountActive : 0,
+      vacant: hcSum && hcSum.ok ? hcSum.headcountVacant : 0,
+      vacancyRate: hcSum && hcSum.ok ? hcSum.vacancyRatePct : 0
     };
 
     // --- Synthesis ---

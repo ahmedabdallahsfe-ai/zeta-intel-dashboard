@@ -124,12 +124,12 @@
     if (key === "bu") {
       var buSum = SFE().getFilteredHeadcountForLine(name, null);
       if (!buSum || !buSum.ok) return null;
-      return { name: name, total: buSum.total, active: buSum.active, vacant: buSum.vacant, vacancyRate: buSum.vacancyRate };
+      return { name: name, total: buSum.headcountTotal, active: buSum.headcountActive, vacant: buSum.headcountVacant, vacancyRate: buSum.vacancyRatePct };
     }
     if (key === "line") {
       var lineSum = SFE().getFilteredHeadcountForLine(lineBU(name), name);
       if (!lineSum || !lineSum.ok) return null;
-      return { name: name, total: lineSum.total, active: lineSum.active, vacant: lineSum.vacant, vacancyRate: lineSum.vacancyRate };
+      return { name: name, total: lineSum.headcountTotal, active: lineSum.headcountActive, vacant: lineSum.headcountVacant, vacancyRate: lineSum.vacancyRatePct };
     }
     return null;
   }
@@ -256,15 +256,15 @@
       var labelName = ctx.line || targetBU;
       return {
         ok: true,
-        headline: labelName + " — Vacancy Rate: " + E.fmtPct(lineSum.vacancyRate),
-        detail: lineSum.vacant + " vacant position(s) out of " + lineSum.total + " budgeted positions.",
+        headline: labelName + " — Vacancy Rate: " + E.fmtPct(lineSum.vacancyRatePct),
+        detail: lineSum.headcountVacant + " vacant position(s) out of " + lineSum.headcountTotal + " budgeted positions.",
         formula: "vacancy rate = vacant positions ÷ total positions × 100",
         evidence: [
           ["BU/Line", labelName],
-          ["Total Positions", lineSum.total],
-          ["Active Headcount", lineSum.active],
-          ["Vacant Positions", lineSum.vacant],
-          ["Vacancy Rate", E.fmtPct(lineSum.vacancyRate)]
+          ["Total Positions", lineSum.headcountTotal],
+          ["Active Headcount", lineSum.headcountActive],
+          ["Vacant Positions", lineSum.headcountVacant],
+          ["Vacancy Rate", E.fmtPct(lineSum.vacancyRatePct)]
         ]
       };
     }
