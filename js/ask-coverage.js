@@ -231,15 +231,22 @@
       });
     } else if (wantLine || (!wantRep && !wantDm && !wantSpecialty && !wantClass && !wantType && ctx.bu)) {
       // Rank lines inside a BU
-      var targetBU2 = ctx.bu || allowedBUs()[0];
-      var lineSum = CD().getFilteredCoverageForLine(targetBU2, null);
-      nameHeader = "Line";
-      scopeTxt = "lines in " + targetBU2;
-      rows = (lineSum.lines || []).map(function (l) {
-        return { name: l.name, sort: l.coveragePct || 0, cells: [
-          E.fmtPct(l.coveragePct), E.fmtPct(l.rightFreqPct), l.repCount
-        ] };
+      var bus = ctx.bu ? [ctx.bu] : allowedBUs();
+      rows = [];
+      bus.forEach(function (bu) {
+        var breakdown = CD().getLineAndTerritoryBreakdown(bu);
+        if (breakdown && breakdown.ok && breakdown.lines) {
+          breakdown.lines.forEach(function (l) {
+            rows.push({
+              name: l.name,
+              sort: l.coveragePct || 0,
+              cells: [E.fmtPct(l.coveragePct), E.fmtPct(l.rightFreqPct), l.headcount]
+            });
+          });
+        }
       });
+      nameHeader = "Line";
+      scopeTxt = "lines in " + bus.join(", ");
     } else if (wantSpecialty || wantClass || wantType) {
       // Specialty / Class / Type breakdown
       var targetBU3 = ctx.bu || allowedBUs()[0];
