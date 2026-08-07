@@ -2450,16 +2450,47 @@
       };
     });
 
+    // Ranked so the serial number and the top/risk highlighting mean
+    // something. The table was previously in whatever order the coverage
+    // layer happened to return, which made a "#" column meaningless.
+    rows.sort(function (a, b) {
+      var av = a.salesAchievementPct, bv = b.salesAchievementPct;
+      if (av === null || av === undefined || isNaN(av)) return 1;
+      if (bv === null || bv === undefined || isNaN(bv)) return -1;
+      return bv - av;
+    });
+    stampSerials(rows);
+
     const dmColumns = [
-      { key: "name", label: "Representative" },
-      { key: "position", label: "Position" },
+      { key: "__sn", label: "#", align: "right" },
+      // Same treatment as the Line Performance table one level up: the
+      // representative's own position sits under their name rather than in
+      // a separate column, which keeps the two views reading alike and
+      // frees a column of width on an already-wide table.
+      { key: "name", label: "Representative", isHtml: true,
+        format: function (v, row) {
+          var h = '<span class="lp-name">' + escapeAttr(v) + "</span>";
+          if (row.position && row.position !== "N/A") {
+            h += '<span class="lp-subline">' + escapeAttr(row.position) + "</span>";
+          }
+          return h;
+        },
+        exportFormat: function (v, row) {
+          return (row.position && row.position !== "N/A") ? v + " (" + row.position + ")" : v;
+        } },
       { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
       { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
-      { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" }
+      { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", isHtml: true,
+        format: v => achCellHtml(v),
+        exportFormat: v => v === null || v === undefined || isNaN(v) ? "" : v.toFixed(1) + "%" }
     ];
-    const table = global.DS.table({ columns: dmColumns, rows: rows });
+    const table = global.DS.table({
+      columns: dmColumns,
+      rows: rows,
+      rowClass: function (row, i) { return perfRowClass(row, i, rows); },
+    });
     const exportBtnHtml = global.DS.button({ label: "Export to Excel (CSV)", variant: "secondary", attrs: 'id="exec-dm-details-export"' });
 
     const overlay = global.DS.openModal({
@@ -2712,7 +2743,27 @@
   function exportTableRowsCSV(filename, columns, rows) {
     const header = columns.map(c => c.label).join(",");
     const csvRows = rows.map(row => columns.map(c => {
-      const raw = typeof c.format === "function" ? c.format(row[c.key], row) : row[c.key];
+      // COLUMNS THAT RENDER HTML MUST NOT EXPORT HTML (2026-08-07).
+      // Several columns now return markup so the on-screen table can show
+      // a manager's territory under their name and band the achievement
+      // figure. Running that same formatter into a CSV would put
+      // `<span class="lp-pill ...">98.3%</span>` in the cell.
+      //
+      // A column may supply `exportFormat` for the plain-text version;
+      // otherwise an isHtml column is tag-stripped as a safety net, so a
+      // future column added without an exportFormat degrades to readable
+      // text rather than leaking markup into someone's spreadsheet.
+      let raw;
+      if (typeof c.exportFormat === "function") {
+        raw = c.exportFormat(row[c.key], row);
+      } else if (typeof c.format === "function") {
+        raw = c.format(row[c.key], row);
+        if (c.isHtml && typeof raw === "string") {
+          raw = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        }
+      } else {
+        raw = row[c.key];
+      }
       const s = raw === undefined || raw === null ? "" : String(raw);
       return '"' + s.replace(/"/g, '""') + '"';
     }).join(","));
@@ -2977,6 +3028,71 @@
     return grid;
   }
 
+  // =====================================================================
+  // PERFORMANCE BANDING (2026-08-07, Ahmed: "best practice to highlight
+  // the results in rows also in pop up")
+  // =====================================================================
+  // Deliberately restrained. The instinct with a performance table is to
+  // colour every cell, and the result is a rainbow no one can read: if
+  // everything is highlighted, nothing is. So two rules:
+  //
+  //   1. Colour the DECISION column only. Achievement % is the number a
+  //      reader acts on; Coverage and Right-Frequency are diagnostics that
+  //      explain it. Banding all three triples the ink and adds nothing.
+  //
+  //   2. Mark only the extremes at row level -- the top performer and
+  //      anyone materially behind. The middle of the distribution is the
+  //      normal case and needs no decoration.
+  //
+  // Thresholds follow how the business already talks about achievement:
+  // 100% is target, 90% is "close", below 70% is a conversation.
+  var ACH_BANDS = [
+    { min: 100, cls: "lp-band-good",  label: "at or above target" },
+    { min: 90,  cls: "lp-band-near",  label: "within 10% of target" },
+    { min: 70,  cls: "lp-band-below", label: "behind target" },
+    { min: -Infinity, cls: "lp-band-risk", label: "materially behind target" },
+  ];
+
+  function achBand(pct) {
+    if (pct === null || pct === undefined || isNaN(pct)) return null;
+    for (var i = 0; i < ACH_BANDS.length; i++) {
+      if (pct >= ACH_BANDS[i].min) return ACH_BANDS[i];
+    }
+    return null;
+  }
+
+  /** Achievement cell: a banded pill, with the band spelled out on hover
+   *  so the colour is never the only carrier of meaning. */
+  function achCellHtml(pct) {
+    if (pct === null || pct === undefined || isNaN(pct)) {
+      return '<span class="lp-pill lp-band-none">—</span>';
+    }
+    var b = achBand(pct);
+    return '<span class="lp-pill ' + b.cls + '" title="' + escapeAttr(b.label) + '">' +
+      pct.toFixed(1) + "%</span>";
+  }
+
+  /**
+   * Row class for a ranked performance table.
+   *
+   * `rows` must already be sorted the way they will be displayed.
+   * Highlights the leader and anyone materially behind; everything else
+   * stays plain.
+   */
+  function perfRowClass(row, i, rows) {
+    var cls = [];
+    var pct = row.salesAchievementPct;
+    if (i === 0 && pct !== null && pct !== undefined && rows.length > 1) cls.push("lp-row-top");
+    if (pct !== null && pct !== undefined && !isNaN(pct) && pct < 70) cls.push("lp-row-risk");
+    return cls.join(" ");
+  }
+
+  /** Stamp display serial numbers onto already-sorted rows. */
+  function stampSerials(rows) {
+    (rows || []).forEach(function (r, i) { r.__sn = i + 1; });
+    return rows;
+  }
+
   function renderLinePerformanceSection(ctx) {
     const monthsInfo = safeCall("sales", "SalesDashboard", "getAvailableMonths");
     const monthsParam = _linePerfMonths === "all" ? null : _linePerfMonths;
@@ -3001,15 +3117,53 @@
       : (activeLine ? "DSM Performance within " + activeLineLabel : "Line Performance within " + activeLineLabel);
     headerRow.appendChild(titleEl);
 
+    // DM positions (2026-08-07): only fetched for the DSM grain, and only
+    // once per render rather than per row -- it scans the whole coverage
+    // record set, so calling it inside the row map would make an O(n) job
+    // O(n·rows).
+    const dmPositions = activeLine
+      ? (safeCall("coverage", "CoverageDashboard", "getDmPositionsMap") || {})
+      : {};
+
     // Shared between the DS.table() render below and the Export-to-Excel
     // button so the exported CSV always matches what's on screen.
+    //
+    // SERIAL NUMBER (2026-08-07). Stamped onto the row objects after
+    // sorting (see below) rather than derived from the render index, so the
+    // number is part of the DATA. That means the CSV export carries the
+    // same numbering the reader sees on screen -- deriving it at render
+    // time would have left the export unnumbered, and a colleague
+    // discussing "row 7" over the phone would be looking at a different
+    // row to the one on screen.
     const lpColumns = [
-      { key: "name", label: allBuView ? "Business Unit" : (activeLine ? "District Manager" : "Line") },
+      { key: "__sn", label: "#", align: "right" },
+      {
+        key: "name",
+        label: allBuView ? "Business Unit" : (activeLine ? "District Manager" : "Line"),
+        isHtml: true,
+        // The DSM grain shows each manager's own position (territory)
+        // beneath their name. Two managers can share a first name and a
+        // line; the territory is what actually identifies them.
+        format: function (v, row) {
+          const nameHtml = '<span class="lp-name">' + escapeAttr(v) + "</span>";
+          if (!activeLine) return nameHtml;
+          const pos = dmPositions[String(v).toUpperCase().trim()];
+          if (!pos) return nameHtml;
+          return nameHtml + '<span class="lp-subline">' + escapeAttr(pos) + "</span>";
+        },
+        exportFormat: function (v) {
+          if (!activeLine) return v;
+          const pos = dmPositions[String(v).toUpperCase().trim()];
+          return pos ? v + " (" + pos + ")" : v;
+        },
+      },
       { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
       { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
-      { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", isHtml: true,
+        format: v => achCellHtml(v),
+        exportFormat: v => v === null || v === undefined || isNaN(v) ? "" : v.toFixed(1) + "%" },
       { key: "contributionPct", label: "Contribution %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       { key: "salesPerPosition", label: "Sales per Position", align: "right", format: v => v === null ? "—" : fmtM(v) },
       // Target per Position (2026-08-04, "add column in this Line
@@ -3064,7 +3218,12 @@
       return wrap;
     }
 
-    const table = global.DS.table({ columns: lpColumns, rows: data.rows });
+    stampSerials(data.rows);
+    const table = global.DS.table({
+      columns: lpColumns,
+      rows: data.rows,
+      rowClass: function (row, i) { return perfRowClass(row, i, data.rows); },
+    });
     const scopeNote = data.scope ? `<div style="font-size:var(--fs-xs,12px);color:var(--color-text-tertiary,#94A3B8);margin-bottom:var(--space-2,8px);">Sales figures: ${escapeAttr(data.scope)}. Contribution % = share of ${escapeAttr(ctx.filters.bu)}'s total Sales Value.${escapeAttr(scenarioFallbackNote(activeLine || ctx.filters.bu))}</div>` : "";
     const bodyWrap = document.createElement("div");
     bodyWrap.innerHTML = scopeNote + table;

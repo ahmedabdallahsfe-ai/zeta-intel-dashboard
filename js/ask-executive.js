@@ -226,6 +226,91 @@
     };
   }
 
+  function runCommercialExecutionCorrelation(bu, q) {
+    var E = global.AskEngine;
+    var lines = allowedLines().filter(function (line) {
+      return !bu || SEM().lineToBU(line) === bu;
+    });
+
+    var rows = [];
+    var unsustainableCount = 0;
+    var effortNoReturnCount = 0;
+    var healthyCount = 0;
+    var criticalCount = 0;
+
+    lines.forEach(function (line) {
+      var targetBU = bu || SEM().lineToBU(line);
+      var salesSum = SD().getSalesAchievementSummary(targetBU, line, false, scenario());
+      var covSum = CD().getFilteredCoverageForLine(targetBU, line);
+
+      if (!salesSum || !salesSum.ok || !covSum || !covSum.ok) return;
+
+      var ach = salesSum.achievementPct || 0;
+      var cov = covSum.coveragePct || 0;
+      var rf = covSum.rightFreqPct || 0;
+
+      var salesHigh = ach >= 95.0;
+      var execHigh = cov >= 90.0;
+
+      var status = "";
+      if (salesHigh && execHigh) {
+        status = "Healthy Core";
+        healthyCount++;
+      } else if (salesHigh && !execHigh) {
+        status = "Unsustainable Growth";
+        unsustainableCount++;
+      } else if (!salesHigh && execHigh) {
+        status = "Effort Without Return";
+        effortNoReturnCount++;
+      } else {
+        status = "Critical Risk";
+        criticalCount++;
+      }
+
+      rows.push({
+        name: line,
+        sort: ach,
+        cells: [
+          E.fmtPct(ach),
+          E.fmtPct(cov),
+          E.fmtPct(rf),
+          status
+        ]
+      });
+    });
+
+    rows.sort(function (a, b) { return b.sort - a.sort; });
+
+    var rankedRows = rows.map(function (r, i) {
+      return { rank: i + 1, name: r.name, cells: r.cells };
+    });
+
+    var scopeName = bu || "All BUs";
+    var headline = scopeName + " Correlation Analysis: " + unsustainableCount + " unsustainable line(s) flagged";
+    var detail = "Commercial-Execution correlation summary for " + scopeName + ":\n" +
+      "• Healthy Core: " + healthyCount + " line(s) meeting both sales & execution targets.\n" +
+      "• Unsustainable Growth: " + unsustainableCount + " line(s) meeting sales but with sub-target coverage (potential distributor loading risk).\n" +
+      "• Effort Without Return: " + effortNoReturnCount + " line(s) with high coverage but failing to meet sales targets.\n" +
+      "• Critical Risk: " + criticalCount + " line(s) failing both sales and coverage.";
+
+    return {
+      ok: true,
+      question: q,
+      headline: headline,
+      detail: detail,
+      nameHeader: "Line / Team",
+      columns: ["Sales Achievement", "Field Coverage", "Right Freq", "Diagnostic Status"],
+      rows: rankedRows,
+      formula: "Status Quadrants = Sales Achievement (Threshold: 95%) vs. Coverage (Threshold: 90%)",
+      evidence: [
+        ["Total Lines Analysed", lines.length],
+        ["Unsustainable Growth Lines", unsustainableCount],
+        ["Effort Without Return Lines", effortNoReturnCount],
+        ["Critical Risk Lines", criticalCount]
+      ]
+    };
+  }
+
   var adapter = {
     id: ID,
     title: "Executive Analysis",
@@ -280,6 +365,12 @@
         return { ok: false, message: "The executive semantic layer is loading..." };
       }
       var ctx = contextFor(parsed.entities);
+
+      // Correlation Intent: Sales vs. Coverage/Execution
+      if (parsed.intent === "correlation") {
+        var correlationBU = ctx.bu || null;
+        return runCommercialExecutionCorrelation(correlationBU, q);
+      }
 
       // LLM-like Intent: Why / Root Cause Diagnosis
       if (parsed.intent === "why") {

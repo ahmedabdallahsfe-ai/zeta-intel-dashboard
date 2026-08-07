@@ -1216,3 +1216,58 @@
 .ds-scrollbar-thin { max-height: 420px; overflow-y: auto; }
 .ds-scrollbar-thin::-webkit-scrollbar { width: 6px; }
 .ds-scrollbar-thin::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+
+/* =====================================================================
+   PERFORMANCE TABLES — serial, name+position, banded results
+   =====================================================================
+   Used by the Executive Line / DSM Performance table and its
+   representative drill-down. Added 2026-08-07.
+
+   The restraint here is deliberate. The instinct with a performance
+   table is to colour every metric; the result is a rainbow nobody can
+   read, because if everything is highlighted nothing is. Colour lands
+   on the decision column (achievement) and on the two row extremes
+   only. Coverage and Right-Frequency stay plain — they are diagnostics
+   that explain the achievement figure, not numbers acted on directly. */
+
+/* ---- serial column ---- */
+.ds-table th:first-child,
+.ds-table td:first-child { white-space: nowrap; }
+.ds-table td:first-child { color: var(--color-text-tertiary, #94A3B8); font-variant-numeric: tabular-nums; }
+
+/* ---- name + position stack ---- */
+.lp-name { display: block; font-weight: 600; line-height: 1.3; }
+.lp-subline {
+  display: block; margin-top: 2px;
+  font-size: 11px; line-height: 1.35; font-weight: 500;
+  color: var(--color-text-tertiary, #94A3B8);
+  letter-spacing: .01em;
+}
+
+/* ---- banded achievement pill ----
+   Colour is never the only carrier of meaning: each pill also has a
+   title attribute spelling the band out, and the number itself is
+   always present. That matters for the ~8% of men with colour vision
+   deficiency, and for anyone printing this to greyscale. */
+.lp-pill {
+  display: inline-block; min-width: 62px; text-align: right;
+  padding: 2px 8px; border-radius: 999px;
+  font-weight: 700; font-variant-numeric: tabular-nums;
+  font-size: 12px; line-height: 1.5;
+}
+.lp-band-good  { background: #dcfce7; color: #166534; }
+.lp-band-near  { background: #fef9c3; color: #854d0e; }
+.lp-band-below { background: #ffedd5; color: #9a3412; }
+.lp-band-risk  { background: #fee2e2; color: #991b1b; }
+.lp-band-none  { background: transparent; color: var(--color-text-tertiary, #94A3B8); font-weight: 500; }
+
+/* ---- row extremes ----
+   A left rail rather than a full-row wash: it survives the zebra
+   striping underneath, reads at a glance down the left edge, and does
+   not fight the pill for attention. */
+.ds-table tbody tr.lp-row-top td { background: rgba(22, 163, 74, .045); }
+.ds-table tbody tr.lp-row-top td:first-child { box-shadow: inset 3px 0 0 #16a34a; }
+.ds-table tbody tr.lp-row-risk td { background: rgba(220, 38, 38, .05); }
+.ds-table tbody tr.lp-row-risk td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
+.ds-table tbody tr.lp-row-top:hover td,
+.ds-table tbody tr.lp-row-risk:hover td { background: var(--color-surface-alt); }

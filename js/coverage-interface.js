@@ -1105,7 +1105,66 @@
     return reps;
   }
 
+  /**
+   * ENTERPRISE SEMANTIC INTERFACE -- getDmPositionsMap()
+   * --------------------------------------------------------------------
+   * Map of District Manager name -> their own position (territory), e.g.
+   * "ORTHO-I DM DELTA B", "CVM-II DM ALEX-BEHIRA".
+   *
+   * Added 2026-08-07 (Ahmed: "when filter line and dsm shown show under
+   * name his position"), for the Executive Line Performance table.
+   *
+   * WHY NOT getRepPositionsMap(). That map is built from the SALES cache's
+   * reps/rep_positions lookups and contains 980 medical representatives.
+   * District Managers are not in it -- measured: 0 of 47 DMs resolved. A
+   * DM's position lives in the COVERAGE records instead, on the DM's own
+   * row, which is the row whose title is "District Manager" and whose
+   * employee IS the manager rather than someone reporting to them.
+   *
+   * Note "position" here means TERRITORY, not job title -- the platform
+   * uses the word the way the source workbooks do ("ORTHO-I FAYOUM"),
+   * matching the Position column already shown in the DM drill-down.
+   *
+   * A handful of DMs (4 of 102 measured) carry two positions because they
+   * cover two districts. Both are returned, joined, rather than silently
+   * dropping one -- a manager covering two districts is a real and
+   * relevant fact about their span.
+   */
+  function getDmPositionsMap() {
+    if (typeof CacheStore === "undefined" || !CacheStore.isReady()) {
+      CacheStore.init();
+    }
+    const records = CacheStore.getRecords();
+    if (!records || !Array.isArray(records.rows)) return {};
+    const dash = CacheStore.getDashboard();
+    const dims = dash && dash.dimensions;
+    if (!dims) return {};
+
+    const F = { employee: 6, title: 18, profile: 20 };
+    const dmTitleIdx = (dims.titles || []).indexOf("District Manager");
+    if (dmTitleIdx < 0) return {};
+
+    const acc = new Map();
+    records.rows.forEach(function (row) {
+      if (row[F.title] !== dmTitleIdx) return;
+      const name = dims.employeeNames[row[F.employee]];
+      if (!name) return;
+      const profile = dims.profiles[row[F.profile]];
+      if (!profile) return;
+      const key = String(name).toUpperCase().trim();
+      if (!acc.has(key)) acc.set(key, new Set());
+      acc.get(key).add(profile);
+    });
+
+    const out = {};
+    acc.forEach(function (set, key) {
+      out[key] = Array.from(set).join(" · ");
+    });
+    return out;
+  }
+
   global.CoverageDashboard = global.CoverageDashboard || {};
+  global.CoverageDashboard.getDmPositionsMap = getDmPositionsMap;
   global.CoverageDashboard.getBusinessSummary = getBusinessSummary;
   global.CoverageDashboard.getFilteredCoverageSummary = getFilteredCoverageSummary;
   global.CoverageDashboard.getFilteredCoverageByType = getFilteredCoverageByType;

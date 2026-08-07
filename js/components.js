@@ -265,7 +265,7 @@
 
     const tbodyHtml = rows.length
       ? rows
-          .map((row) => {
+          .map((row, rowIndex) => {
             const cells = columns
               .map((c) => {
                 const alignStyle = c.align ? ` style="text-align:${c.align}"` : "";
@@ -274,7 +274,11 @@
                 return `<td${alignStyle}>${content}</td>`;
               })
               .join("");
-            return `<tr>${cells}</tr>`;
+            // Optional per-row class, so callers can mark standouts (top
+            // performer, materially behind target) without post-processing
+            // the DOM. Backward compatible: omit rowClass and nothing changes.
+            const rc = typeof opts.rowClass === "function" ? opts.rowClass(row, rowIndex) : "";
+            return `<tr${rc ? ` class="${escapeHtml(rc)}"` : ""}>${cells}</tr>`;
           })
           .join("")
       : `<tr><td colspan="${columns.length}">` +

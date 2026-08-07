@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/design-system.css?v=20260726_exec" />
   <link rel="stylesheet" href="css/animations.css?v=20260726_exec" />
   <link rel="stylesheet" href="css/layout.css?v=20260726_exec" />
-  <link rel="stylesheet" href="css/components.css?v=20260728_cardfix" />
+  <link rel="stylesheet" href="css/components.css?v=20260807_lineperf" />
   <link rel="stylesheet" href="css/utilities.css?v=20260726_exec" />
   <link rel="stylesheet" href="css/market-intel.css?v=20260806_cagr" />
 </head>
@@ -184,7 +184,7 @@
 
   <!-- Design System component library (Phase 3 foundation, self-contained, no cache
        dependency) -- loaded early so every module can consume window.DS. -->
-  <script defer src="js/components.js?v=20260731_skurows"></script>
+  <script defer src="js/components.js?v=20260807_lineperf"></script>
 
   <!-- Enterprise semantic layer (Phase 4-lite): Line -> Business Unit crosswalk.
        Self-contained (no cache dependency) -- shared by every getBusinessSummary(). -->
@@ -209,7 +209,7 @@
        instead of the standard Medical Representative/Contract-Doctor-
        Hospital scope (CHC has two real lines, not one -- see
        semantic-model.js). -->
-  <script defer src="js/coverage-interface.js?v=20260804_noperiod"></script>
+  <script defer src="js/coverage-interface.js?v=20260807_lineperf"></script>
   <script defer src="js/sfe.js?v=20260804_bulinescoping"></script>
   <!-- v20260727_execkpi = getLineSalesSummary() and getItemAchievement() added for
        the Executive KPI cards (Line Performance, CHC Brand-to-Item drill).
@@ -228,7 +228,7 @@
        (not individual-customer) granularity, by the Customer Channel Mix
        card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
   <script defer src="cache/tms_ims.data.js"></script>
-  <script defer src="js/executive.js?v=20260804_noperiod"></script>
+  <script defer src="js/executive.js?v=20260807_lineperf"></script>
 
 
   <script defer src="cache/market_intel.data.js?v=20260806_annual"></script>
