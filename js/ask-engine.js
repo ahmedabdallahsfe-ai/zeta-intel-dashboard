@@ -450,7 +450,7 @@
   // Intent
   // =========================================================================
   var INTENTS = [
-    { id: "correlation", test: /\b(correlation|unsustainable|efficiency|loading|sales vs coverage|sales vs execution)\b/i },
+    { id: "correlation", test: /\b(correlation|unsustainable|efficiency|loading)\b|(?=.*\b(sales|target|achiev|revenue|egp)\b)(?=.*\b(coverage|freq|visit|call ?rate|reach)\b)/i },
     { id: "why",         test: /\b(why|root ?cause|reason|drop|underperform|diagnos(e|is|ing)?|explain(s|ed|ing)?)\b/i },
     { id: "share",       test: /\b(share|percentage|percent)\b|%\s*of/i },
     { id: "achievement", test: /\b(achiev|attain|vs ?target|against target|target)\b/i },
