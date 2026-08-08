@@ -190,6 +190,26 @@ if exist "TO MARKET_IN MARKET\TMS VS IMS.xlsx" (
     echo [SKIP] "TO MARKET_IN MARKET\TMS VS IMS.xlsx" not found -- skipping To-Market vs In-Market refresh.
 )
 
+REM --- record what was built, from what, and when -------------------------
+REM Added 2026-08-07. MUST RUN LAST: it stats the caches, so anything built
+REM after it will not be reflected until the next refresh.
+REM
+REM The dashboard is a static site -- the browser cannot stat a file on disk,
+REM so it has no way to know that a source workbook was updated AFTER the
+REM cache was built. Only this machine can see both sides. It records them
+REM into cache/build_manifest.data.js, which the Control Panel reads.
+REM
+REM Non-fatal by design: a missing manifest degrades the Control Panel to
+REM live-cache inspection, which is still useful. Losing the whole push over
+REM a reporting artefact would be the wrong trade.
+echo.
+echo Recording build manifest...
+%PYTHON_CMD% etl\build_manifest.py
+if errorlevel 1 (
+    echo   [WARNING] Build manifest not written. The Control Panel will fall
+    echo   back to inspecting the caches loaded in the browser.
+)
+
 echo.
 echo ============================================================
 echo   Refresh complete - pushing to GitHub...
@@ -265,6 +285,9 @@ if "%GIT_CMD%"=="" (
     REM (4.3MB, uncompressed) is deliberately NOT pushed -- the browser only
     REM ever reads the gzipped .data.js.
     "%GIT_CMD%" add -f cache/market_intel.data.js
+    REM Same -f reason as every cache above: .gitignore line 2 is `cache/`,
+    REM and this file is new so `git add -A` would skip it entirely.
+    "%GIT_CMD%" add -f cache/build_manifest.data.js
     "%GIT_CMD%" add "TO MARKET_IN MARKET/index.html"
     "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js

@@ -4051,6 +4051,96 @@
       return map;
     },
 
+    getSalesSummaryForDm(bu, line, dmName, scenario) {
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
+        return { ok: false };
+      }
+      scenario = (window.SEMANTIC && window.SEMANTIC.isValidScenario(scenario)) ? scenario : (window.SEMANTIC ? window.SEMANTIC.DEFAULT_SCENARIO : "official");
+      const wantOfficialByLine = window.SEMANTIC ? buildLineScenarioMap(scenario) : [];
+      const linesLk = cache.lookups.lines;
+      const dmsLk = cache.lookups.dms;
+
+      const targetDmUpper = dmName ? dmName.toUpperCase().trim() : "";
+      let actualValue = 0, targetValue = 0;
+      let actualQty = 0, targetQty = 0;
+
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const rawLine = linesLk[r[LINE]];
+        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
+        if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        const canonLine = window.SEMANTIC.normalizeLine(rawLine);
+        if (line && line !== "All" && canonLine !== line) continue;
+
+        const dmRowName = dmsLk[r[DM]];
+        if (!dmRowName || dmRowName.toUpperCase().trim() !== targetDmUpper) continue;
+
+        const isTender = (r[MASK] & 2) > 0;
+        if (isTender) continue;
+
+        actualValue += r[VAL] || 0;
+        actualQty += r[QTY] || 0;
+        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) {
+          targetValue += r[TGT_VAL] || 0;
+          targetQty += r[TGT_QTY] || 0;
+        }
+      }
+
+      return {
+        ok: true,
+        actualValue: actualValue,
+        targetValue: targetValue,
+        achievementPct: targetValue > 0 ? (actualValue / targetValue) * 100 : null,
+        actualQty: actualQty,
+        targetQty: targetQty,
+        qtyAchievementPct: targetQty > 0 ? (actualQty / targetQty) * 100 : null
+      };
+    },
+
+    getCustomerClusterMixForDm(bu, line, dmName) {
+      decompressCache();
+      if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
+        return { ok: false, clusters: [] };
+      }
+      const linesLk = cache.lookups.lines;
+      const subTypesLk = cache.lookups.sub_types;
+      const dmsLk = cache.lookups.dms;
+
+      const targetDmUpper = dmName ? dmName.toUpperCase().trim() : "";
+      const clusterMap = new Map();
+
+      for (let i = 0; i < decodedRows.length; i++) {
+        const r = decodedRows[i];
+        const rawLine = linesLk[r[LINE]];
+        if (window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
+        if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        const canonLine = window.SEMANTIC.normalizeLine(rawLine);
+        if (line && line !== "All" && canonLine !== line) continue;
+
+        const dmRowName = dmsLk[r[DM]];
+        if (!dmRowName || dmRowName.toUpperCase().trim() !== targetDmUpper) continue;
+
+        const isTender = (r[MASK] & 2) > 0;
+        if (isTender) continue;
+
+        const subTypeName = subTypesLk[r[SUB_TYPE]] || "Other";
+        const clusterName = subTypeToCluster(subTypeName);
+        clusterMap.set(clusterName, (clusterMap.get(clusterName) || 0) + (r[VAL] || 0));
+      }
+
+      let total = 0;
+      clusterMap.forEach(v => { total += v; });
+
+      const clusters = Array.from(clusterMap.entries()).map(([name, val]) => ({
+        name: name,
+        actualValue: val,
+        contributionPct: total > 0 ? (val / total) * 100 : 0
+      })).sort((a, b) => b.actualValue - a.actualValue);
+
+      return { ok: true, clusters: clusters };
+    },
+
     // Target Scenario (2026-08-04 same-day fix): lets other modules
     // (executive.js) know whether Official/Working actually differentiate
     // real data yet, so they can show the same "activates after refresh"
@@ -4081,7 +4171,9 @@
     "getItemAchievement",
     "getDmSalesSummary",
     "getRepPositionsMap",
-    "getDmRepsSalesSummary"
+    "getDmRepsSalesSummary",
+    "getSalesSummaryForDm",
+    "getCustomerClusterMixForDm"
   ];
   heavyFns.forEach(fnName => {
     const orig = window.SalesDashboard[fnName];

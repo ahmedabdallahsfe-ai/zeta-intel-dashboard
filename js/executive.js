@@ -467,7 +467,7 @@
   // ---------------------------------------------------------------------
   // Filter state + BU line lists.
   // ---------------------------------------------------------------------
-  let _filters = { bu: "CHC", line: "All", scenario: "official" }; // re-clamped to the signed-in user's scope/role in init(), see clampFiltersToScope()
+  let _filters = { bu: "CHC", line: "All", dm: "All", scenario: "official" }; // re-clamped to the signed-in user's scope/role in init(), see clampFiltersToScope()
   // Local Period state for the Line Performance section ONLY (2026-07-29)
   // -- NOT the platform-wide Period selector in the global filter bar,
   // which stays disabled since Coverage/SFE have no month dimension to
@@ -545,7 +545,7 @@
    * on their own (first) allowed BU instead of the hardcoded "CHC". */
   function defaultFilters() {
     const allowed = getAllowedBUList();
-    return { bu: allowed.length > 0 ? allowed[0] : "CHC", line: "All" };
+    return { bu: allowed.length > 0 ? allowed[0] : "CHC", line: "All", dm: "All" };
   }
 
   /** Re-clamp module-level filter state to the current user's scope.
@@ -553,6 +553,15 @@
    * load, before any session exists) can never leak an out-of-scope BU
    * or line into the very first render. */
   function clampFiltersToScope() {
+    if (_filters.dm && _filters.dm !== "All") {
+      const list = safeCall("sfe", "SFEDashboard", "getHierarchyList") || [];
+      const match = list.find(r => r.dm && r.dm.toUpperCase().trim() === _filters.dm.toUpperCase().trim());
+      if (match) {
+        _filters.line = window.SEMANTIC.normalizeLine(match.line);
+        _filters.bu = window.SEMANTIC.lineToBU(match.line);
+      }
+    }
+
     const allowedBUs = getAllowedBUList();
     if (allowedBUs.length === 0) return; // AUTH not ready yet -- leave as-is, nothing to clamp against
     // ALL_BU is legitimate only for permitted roles. A user who loses the
@@ -575,6 +584,13 @@
         if (allowedLines.indexOf(_filters.line) < 0) _filters.line = "All";
       }
     }
+
+    // Clamp DM selection:
+    const allowedDMs = getDMsForFilters(_filters.bu, _filters.line);
+    if (_filters.dm && _filters.dm !== "All" && allowedDMs.indexOf(_filters.dm) < 0) {
+      _filters.dm = "All";
+    }
+
     // Target Scenario (2026-08-04): seed from the signed-in user's role
     // default / in-session choice, same convention as sales.js's
     // STATE.scenario seeding in init(). Re-run every time init() runs
@@ -593,6 +609,39 @@
    * existing ctx.filters.bu/line convention. */
   function activeScenario() {
     return _filters.scenario || (global.AUTH && typeof global.AUTH.getActiveScenario === "function" ? global.AUTH.getActiveScenario() : "official");
+  }
+
+  function getDMsForFilters(bu, line) {
+    const list = safeCall("sfe", "SFEDashboard", "getHierarchyList") || [];
+    const dmSet = new Set();
+    const cleanLine = line && line !== "All" ? line.toUpperCase().trim() : null;
+
+    list.forEach(row => {
+      if (!row.dm || row.dm === "VACANT") return;
+      
+      const rowBU = global.SEMANTIC.lineToBU(row.line);
+      if (bu && !isAllBU(bu) && rowBU !== bu) return;
+      if (cleanLine && row.line.toUpperCase().trim() !== cleanLine) return;
+
+      dmSet.add(row.dm);
+    });
+
+    return Array.from(dmSet).sort();
+  }
+
+  function getSfeSummaryForDm(dmName) {
+    const data = safeCall("sfe", "SFEDashboard", "getData");
+    if (!data || !data.vacancyByManager) return { ok: false };
+    const clean = dmName.toUpperCase().trim();
+    const match = data.vacancyByManager.find(m => m.manager && m.manager.toUpperCase().trim() === clean);
+    if (!match) return { ok: false, headcountTotal: 0, headcountActive: 0, headcountVacant: 0, vacancyRatePct: 0 };
+    return {
+      ok: true,
+      headcountTotal: match.total,
+      headcountActive: match.active,
+      headcountVacant: match.vacant,
+      vacancyRatePct: match.vacancyRate
+    };
   }
 
   /** Target Scenario fallback note (2026-08-04, made data-driven and
@@ -636,7 +685,9 @@
     // headline and the benchmark can never be computed differently.
     const scoped = isAllBU(bu)
       ? safeCall("coverage", "CoverageDashboard", "getCorporateCoverageTotals")
-      : safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, line === "All" ? null : line);
+      : (filters.dm && filters.dm !== "All")
+        ? safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForDm", bu, line === "All" ? null : line, filters.dm)
+        : safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, line === "All" ? null : line);
     if (!scoped || !scoped.ok) return unavailableCard(kpiId, name, scoped ? scoped.status : "module_unavailable");
 
     // PERIOD BASIS (2026-08-04, Ahmed's decision: "show latest month with
@@ -661,8 +712,8 @@
     // number the card isn't showing.
     const rankKey = usingLatest ? latestKey : metricKey;
     let rankInfo = null, rankUnit = null;
-    if (isAllBU(bu)) {
-      // The company total has nothing to rank against, and "vs Corporate"
+    if (isAllBU(bu) || (filters.dm && filters.dm !== "All")) {
+      // The company total or specific DM has nothing to rank against, and "vs Corporate"
       // would compare the figure to itself. Both suppressed.
       rankInfo = null;
     } else if (line === "All" && !isBuRestricted()) {
@@ -749,6 +800,8 @@
         ? { ok: true, headcountTotal: total, headcountActive: active, headcountVacant: vacant,
             vacancyRatePct: total > 0 ? (vacant / total) * 100 : null }
         : { ok: false, status: "module_unavailable" };
+    } else if (filters.dm && filters.dm !== "All") {
+      scoped = getSfeSummaryForDm(filters.dm);
     } else {
       scoped = safeCall("sfe", "SFEDashboard", "getFilteredHeadcountForLine", bu, line === "All" ? null : line);
     }
@@ -757,7 +810,7 @@
 
     let rankInfo = null, rankUnit = null;
     const activeLine = isAllBU(bu) ? null : ((line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null));
-    if (isAllBU(bu)) {
+    if (isAllBU(bu) || (filters.dm && filters.dm !== "All")) {
       rankInfo = null;
     } else if (!activeLine && !isBuRestricted()) {
       const vals = {};
@@ -816,15 +869,30 @@
     const bu = filters.bu, line = filters.line;
     // CHC Exception: use "CHC" line when BU is CHC and line is "All" or null
     const targetLine = (bu === "CHC" && (line === "All" || !line)) ? "CHC" : (line === "All" ? null : line);
-    const scoped = isAllBU(bu)
-      ? corporateSalesAchievementSummary()
-      : safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLine, undefined, activeScenario());
+    let scoped;
+    if (isAllBU(bu)) {
+      scoped = corporateSalesAchievementSummary();
+    } else if (filters.dm && filters.dm !== "All") {
+      const dmSum = safeCall("sales", "SalesDashboard", "getSalesSummaryForDm", bu, line === "All" ? null : line, filters.dm, activeScenario());
+      if (dmSum && dmSum.ok) {
+        scoped = {
+          ok: true,
+          achievementPct: dmSum.achievementPct,
+          actualYTD: dmSum.actualValue,
+          targetYTD: dmSum.targetValue
+        };
+      } else {
+        scoped = { ok: false, status: "module_unavailable" };
+      }
+    } else {
+      scoped = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", bu, targetLine, undefined, activeScenario());
+    }
     if (!scoped || !scoped.ok) return unavailableCard("salesAchievement", "Sales Achievement", scoped ? scoped.status : "module_unavailable");
 
     let rankInfo = null, rankUnit = null;
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
-    if (isAllBU(bu)) {
-      rankInfo = null; // nothing to rank the company against
+    if (isAllBU(bu) || (filters.dm && filters.dm !== "All")) {
+      rankInfo = null; // nothing to rank the company against or specific DM against peer BUs/lines
     } else if (!activeLine && !isBuRestricted()) {
       const vals = {};
       getAllowedBUList().forEach(b => {
@@ -909,7 +977,20 @@
 
   function buildSalesValueCard(filters) {
     const bu = filters.bu, line = filters.line;
-    const rawT = isAllBU(bu) ? corporateNonTenderTotals(false) : nonTenderTotals(bu, line);
+    let rawT;
+    if (isAllBU(bu)) {
+      rawT = corporateNonTenderTotals(false);
+    } else if (filters.dm && filters.dm !== "All") {
+      const dmSum = safeCall("sales", "SalesDashboard", "getSalesSummaryForDm", bu, line === "All" ? null : line, filters.dm, activeScenario());
+      rawT = (dmSum && dmSum.ok) ? {
+        actualValue: dmSum.actualValue,
+        targetValue: dmSum.targetValue,
+        achievementPct: dmSum.achievementPct,
+        scenario: activeScenario()
+      } : null;
+    } else {
+      rawT = nonTenderTotals(bu, line);
+    }
     if (!rawT) return unavailableCard("salesValue", "Sales Value", "module_unavailable");
     const t = isAllBU(bu)
       ? Object.assign({}, rawT, { achievementPct: rawT.targetValue > 0 ? (rawT.actualValue / rawT.targetValue) * 100 : null })
@@ -917,7 +998,7 @@
 
     let rankInfo = null, rankUnit = null;
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
-    if (isAllBU(bu)) {
+    if (isAllBU(bu) || (filters.dm && filters.dm !== "All")) {
       rankInfo = null;
     } else if (!activeLine && !isBuRestricted()) {
       const vals = {};
@@ -966,7 +1047,20 @@
   // ---------------------------------------------------------------------
   function buildSalesUnitsAchievementCard(filters) {
     const bu = filters.bu, line = filters.line;
-    const rawU = isAllBU(bu) ? corporateNonTenderTotals(true) : nonTenderUnitsTotals(bu, line);
+    let rawU;
+    if (isAllBU(bu)) {
+      rawU = corporateNonTenderTotals(true);
+    } else if (filters.dm && filters.dm !== "All") {
+      const dmSum = safeCall("sales", "SalesDashboard", "getSalesSummaryForDm", bu, line === "All" ? null : line, filters.dm, activeScenario());
+      rawU = (dmSum && dmSum.ok) ? {
+        actualQty: dmSum.actualQty,
+        targetQty: dmSum.targetQty,
+        achievementPct: dmSum.qtyAchievementPct,
+        scenario: activeScenario()
+      } : null;
+    } else {
+      rawU = nonTenderUnitsTotals(bu, line);
+    }
     if (!rawU) return unavailableCard("salesUnitsAchievement", "Sales Units Achievement", "module_unavailable");
     const t = isAllBU(bu)
       ? Object.assign({}, rawU, { achievementPct: rawU.targetQty > 0 ? (rawU.actualQty / rawU.targetQty) * 100 : null })
@@ -974,7 +1068,7 @@
 
     let rankInfo = null, rankUnit = null;
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
-    if (isAllBU(bu)) {
+    if (isAllBU(bu) || (filters.dm && filters.dm !== "All")) {
       rankInfo = null;
     } else if (!activeLine && !isBuRestricted()) {
       const vals = {};
@@ -1060,6 +1154,11 @@
       if (total <= 0) return unavailableCard("customerClusterMix", "Customer Channel Mix", "module_unavailable");
       top = { name: entries[0][0], contributionPct: (entries[0][1] / total) * 100 };
       concentrationPct = top.contributionPct;
+    } else if (filters.dm && filters.dm !== "All") {
+      const data = safeCall("sales", "SalesDashboard", "getCustomerClusterMixForDm", bu, line === "All" ? null : line, filters.dm);
+      if (!data || !data.ok || !data.clusters.length) return unavailableCard("customerClusterMix", "Customer Channel Mix", data ? data.status : "module_unavailable");
+      top = data.clusters[0];
+      concentrationPct = top.contributionPct;
     } else {
       const data = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line === "All" ? null : line, undefined);
       if (!data || !data.ok || !data.clusters.length) return unavailableCard("customerClusterMix", "Customer Channel Mix", data ? data.status : "module_unavailable");
@@ -1076,7 +1175,7 @@
     }
 
     let rankInfo = null, rankUnit = null;
-    if (isAllBU(bu)) {
+    if (isAllBU(bu) || (filters.dm && filters.dm !== "All")) {
       rankInfo = null;
     } else if (line === "All" && !isBuRestricted()) {
       const vals = {};
@@ -1396,7 +1495,19 @@
     let val, platformAvg, targetPerPosition, rankInfo, rankUnit, basisNote, isWholeBuView = false;
     const activeLine = isAllBU(bu) ? null : ((line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null));
 
-    if (isAllBU(bu)) {
+    if (filters.dm && filters.dm !== "All") {
+      const dmSales = safeCall("sales", "SalesDashboard", "getSalesSummaryForDm", bu, line === "All" ? null : line, filters.dm, activeScenario());
+      const dmSfe = getSfeSummaryForDm(filters.dm);
+      if (dmSales && dmSales.ok && dmSfe && dmSfe.ok) {
+        val = dmSfe.headcountActive > 0 ? dmSales.actualValue / dmSfe.headcountActive : null;
+        targetPerPosition = dmSfe.headcountTotal > 0 ? dmSales.targetValue / dmSfe.headcountTotal : null;
+        platformAvg = null;
+        rankInfo = null;
+        basisNote = "DM " + filters.dm + " Productivity. Target = target ÷ budgeted positions.";
+      } else {
+        return unavailableCard("salesProductivity", "Sales Productivity", "module_unavailable");
+      }
+    } else if (isAllBU(bu)) {
       // Company productivity: total non-tender actual over total deployed
       // positions across the four BUs -- the same figure that already
       // serves as every BU card's "vs Corporate" benchmark, so the
@@ -2090,7 +2201,10 @@
         .map(h => h.dm.trim())
         .filter(dm => dm && dm !== "(none)" && dm.toUpperCase() !== "VACANT");
 
-      const allDms = [...new Set(sfeDms)];
+      let allDms = [...new Set(sfeDms)];
+      if (_filters.dm && _filters.dm !== "All") {
+        allDms = allDms.filter(name => name.toUpperCase().trim() === _filters.dm.toUpperCase().trim());
+      }
 
       const salesData = safeCall("sales", "SalesDashboard", "getDmSalesSummary", bu, activeLine, months, scenario);
       const salesByDm = new Map();
@@ -2926,16 +3040,27 @@
       ? [{ value: "All", label: "All Lines" }]
       : [{ value: "All", label: "All Lines" }].concat(getAllowedLinesForBU(ctx.filters.bu).map(l => ({ value: l, label: l })));
 
+    // DM options filtered by selected BU / Line:
+    const dms = getDMsForFilters(ctx.filters.bu, ctx.filters.line);
+    const posMap = safeCall("coverage", "CoverageDashboard", "getDmPositionsMap") || {};
+    const dmOptions = [{ value: "All", label: "All DMs" }].concat(dms.map(name => {
+      const key = name.toUpperCase().trim();
+      const position = posMap[key] || "";
+      return { value: name, label: position ? `${name} (${position})` : name };
+    }));
+
     const wrap = document.createElement("div");
     wrap.className = "ds-exec-filterbar";
 
     const buSelect = global.DS.select({ id: "exec-filter-bu", label: "Business Unit", options: buOptions, value: ctx.filters.bu, disabled: buOptions.length <= 1 });
     const lineSelect = global.DS.select({ id: "exec-filter-line", label: "Line", options: lineOptions, value: allBuActive ? "All" : ctx.filters.line, disabled: allBuActive });
+    const dmSelect = global.DS.select({ id: "exec-filter-dm", label: "District Manager (DM)", options: dmOptions, value: ctx.filters.dm || "All", disabled: dmOptions.length <= 1 });
     const periodSelect = global.DS.select({ id: "exec-filter-period", label: "Period", options: [{ value: "latest", label: "Latest Period" }], value: "latest", disabled: true });
     const cmpSelect = global.DS.select({ id: "exec-filter-cmp", label: "Comparison Period", options: [{ value: "YTD", label: "YTD" }], value: "YTD", disabled: true });
 
     wrap.appendChild(buSelect);
     wrap.appendChild(lineSelect);
+    wrap.appendChild(dmSelect);
     wrap.appendChild(periodSelect);
     wrap.appendChild(cmpSelect);
 
@@ -2981,10 +3106,16 @@
     buSelect.querySelector("select").addEventListener("change", (e) => {
       ctx.filters.bu = e.target.value;
       ctx.filters.line = "All"; // Line is BU-dependent -- reset on BU change
+      ctx.filters.dm = "All";   // Reset DM filter on BU change
       render(ctx.container);
     });
     lineSelect.querySelector("select").addEventListener("change", (e) => {
       ctx.filters.line = e.target.value;
+      ctx.filters.dm = "All";   // Reset DM filter on Line change
+      render(ctx.container);
+    });
+    dmSelect.querySelector("select").addEventListener("change", (e) => {
+      ctx.filters.dm = e.target.value;
       render(ctx.container);
     });
 
