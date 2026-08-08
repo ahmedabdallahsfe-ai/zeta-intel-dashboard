@@ -540,14 +540,38 @@
   var adapter = {
     id: ID,
     title: "Executive Analysis",
-    subtitle: "Type a question about overall performance, or ask a 'why' / 'root cause' question to diagnose underperforming BUs.",
-    placeholder: "Ask 'explain underperformance' or 'diagnose performance'...",
-    notFoundHint: "Name a BU and ask 'explain underperformance' or ask sales questions.",
+    get placeholder() {
+      var v = vocab();
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && v.lines.length) {
+        return "Ask 'explain " + v.lines[0] + " underperformance' or 'diagnose " + v.lines[0] + " performance'...";
+      }
+      return "Ask 'explain underperformance' or 'diagnose performance'...";
+    },
+    get notFoundHint() {
+      var v = vocab();
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && v.lines.length) {
+        return "Name a brand in " + v.lines[0] + " and ask 'explain underperformance' or ask sales questions.";
+      }
+      return "Name a BU and ask 'explain underperformance' or ask sales questions.";
+    },
 
     get examples() {
       var v = vocab();
       var out = [];
-      if (v.bus.length) {
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+
+      if (isLineManager && v.lines.length) {
+        out.push("Diagnose " + v.lines[0] + " performance");
+        out.push("How is " + v.lines[0] + " performing?");
+        if (v.lines.length > 1) {
+          out.push("Explain " + v.lines[1] + " underperformance");
+        }
+      } else if (v.bus.length) {
         out.push("Diagnose " + v.bus[0] + " performance");
         out.push("How is " + v.bus[0] + " performing?");
         if (v.bus.length > 1) {
@@ -592,14 +616,27 @@
       }
       var ctx = contextFor(parsed.entities);
 
+      // If user is a Line Manager, default to their restricted line if none is specified in query context
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && !ctx.line) {
+        var v = vocab();
+        if (v.lines && v.lines.length) {
+          ctx.line = v.lines[0];
+          ctx.bu = lineBU(ctx.line);
+        }
+      }
+
       // Correlation Intent: Sales vs. Coverage/Execution
       if (parsed.intent === "correlation") {
         var correlationBU = ctx.bu || null;
         return runCommercialExecutionCorrelation(correlationBU, q);
       }
 
-      // LLM-like Intent: Why / Root Cause Diagnosis
-      if (parsed.intent === "why") {
+      // LLM-like Intent: Why / Root Cause Diagnosis or performance question
+      var lowerQ = q.toLowerCase();
+      var isPerformanceQuery = lowerQ.indexOf("performing") >= 0 || lowerQ.indexOf("performance") >= 0;
+      if (parsed.intent === "why" || isPerformanceQuery) {
         var targetBU = ctx.bu || (ctx.line ? lineBU(ctx.line) : null) || allowedBUs()[0];
         return runDiagnostics(targetBU, ctx.line || null, q);
       }
