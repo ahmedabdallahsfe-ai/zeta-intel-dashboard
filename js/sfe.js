@@ -489,6 +489,9 @@
             else if (key === 'nsm') { this.filters.asm = 'ALL'; this.filters.dm = 'ALL'; }
             else if (key === 'asm') { this.filters.dm = 'ALL'; }
             
+            if (window.AskEngine && window.AskEngine.AskContext) {
+              window.AskEngine.AskContext.clear();
+            }
             this.render(); // Full re-render to calculate scores, charts, and filter options!
           });
         }
@@ -499,6 +502,9 @@
       if (resetBtn) {
         resetBtn.addEventListener('click', () => {
           this.resetFilters();
+          if (window.AskEngine && window.AskEngine.AskContext) {
+            window.AskEngine.AskContext.clear();
+          }
           this.render();
         });
       }
@@ -1298,6 +1304,32 @@
           }
         }
       });
+    },
+
+    setFilters(newFilters) {
+      if (!newFilters) return;
+      if (newFilters.line !== undefined) {
+        if (newFilters.line === null || newFilters.line === "All" || newFilters.line === "ALL") {
+          this.filters.line = "ALL";
+        } else {
+          this.filters.line = String(newFilters.line).toUpperCase().trim();
+        }
+        // Cascading reset
+        this.filters.bum = 'ALL';
+        this.filters.nsm = 'ALL';
+        this.filters.asm = 'ALL';
+        this.filters.dm = 'ALL';
+      }
+      if (newFilters.dm !== undefined) {
+        if (newFilters.dm === null || newFilters.dm === "All" || newFilters.dm === "ALL") {
+          this.filters.dm = "ALL";
+        } else {
+          this.filters.dm = String(newFilters.dm).toUpperCase().trim();
+        }
+      }
+      if (this.container) {
+        this.render();
+      }
     }
   };
 

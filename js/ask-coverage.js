@@ -129,10 +129,18 @@
       var bu = ctx.bu || allowedBUs()[0];
       var dmSum = CD().getFilteredCoverageForDm(bu, ctx.line || null, ctx.dm);
       if (!dmSum || !dmSum.ok) return { ok: false, message: "No operational data found for District Manager " + ctx.dm };
+      var headline = ctx.dm + " — " + E.fmtPct(dmSum.coveragePct) + " coverage · " + E.fmtPct(dmSum.rightFreqPct) + " right frequency";
+      var detail = dmSum.repCount + " representative(s) overseeing " + dmSum.customerRowCount + " customers in " + bu + (ctx.line ? " / " + ctx.line : "") + ".";
+
       return {
         ok: true,
-        headline: ctx.dm + " — " + E.fmtPct(dmSum.coveragePct) + " coverage · " + E.fmtPct(dmSum.rightFreqPct) + " right frequency",
-        detail: dmSum.repCount + " representative(s) overseeing " + dmSum.customerRowCount + " customers in " + bu + (ctx.line ? " / " + ctx.line : "") + ".",
+        type: "figure",
+        headline: headline,
+        detail: detail,
+        answer: {
+          headline: headline,
+          interpretation: detail
+        },
         formula: "coverage % = active customers seen ÷ total plan customers × 100",
         evidence: [
           ["District Manager", ctx.dm],
@@ -151,10 +159,18 @@
       var lineSum = CD().getFilteredCoverageForLine(targetBU, ctx.line || null);
       if (!lineSum || !lineSum.ok) return { ok: false, message: "No operational data found for " + (ctx.line || targetBU) };
       var labelName = ctx.line || targetBU;
+      var headline = labelName + " — " + E.fmtPct(lineSum.coveragePct) + " coverage · " + E.fmtPct(lineSum.rightFreqPct) + " right frequency";
+      var detail = "Visited " + E.fmtNum(lineSum.visitCount) + " / " + E.fmtNum(lineSum.plannedVisitCount) + " times across " + E.fmtNum(lineSum.customerCount) + " customer(s) with " + lineSum.repCount + " active rep(s).";
+
       return {
         ok: true,
-        headline: labelName + " — " + E.fmtPct(lineSum.coveragePct) + " coverage · " + E.fmtPct(lineSum.rightFreqPct) + " right frequency",
-        detail: "Visited " + E.fmtNum(lineSum.visitCount) + " / " + E.fmtNum(lineSum.plannedVisitCount) + " times across " + E.fmtNum(lineSum.customerCount) + " customer(s) with " + lineSum.repCount + " active rep(s).",
+        type: "figure",
+        headline: headline,
+        detail: detail,
+        answer: {
+          headline: headline,
+          interpretation: detail
+        },
         formula: "coverage % = visited customers ÷ total customer plan × 100",
         evidence: [
           ["Scope Target", labelName],
@@ -172,10 +188,18 @@
     var bus = allowedBUs();
     var covSum = CD().getFilteredCoverageSummary(null, null);
     if (!covSum || !covSum.ok) return { ok: false, message: "Operational coverage cache is loading..." };
+    var headline = E.fmtPct(covSum.coveragePct) + " coverage · " + E.fmtPct(covSum.rightFreqPct) + " right frequency overall";
+    var detail = "Blended across " + bus.length + " Business Unit(s): " + bus.join(", ") + ". Total reps: " + covSum.repCount + ".";
+
     return {
       ok: true,
-      headline: E.fmtPct(covSum.coveragePct) + " coverage · " + E.fmtPct(covSum.rightFreqPct) + " right frequency overall",
-      detail: "Blended across " + bus.length + " Business Unit(s): " + bus.join(", ") + ". Total reps: " + covSum.repCount + ".",
+      type: "figure",
+      headline: headline,
+      detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       formula: "blended coverage = total customers visited ÷ total plan customers across allowed BUs",
       evidence: [
         ["Allowed BUs", bus.join(", ")],
@@ -286,10 +310,18 @@
       return { rank: i + 1, name: r.name, cells: r.cells };
     });
 
+    var headline = (bottom ? "Bottom " : "Top ") + shown.length + " " + nameHeader.toLowerCase() + (shown.length === 1 ? "" : "s") + " by coverage %";
+    var detail = "Within " + scopeTxt + ", ranked by coverage rate.";
+
     return {
       ok: true,
-      headline: (bottom ? "Bottom " : "Top ") + shown.length + " " + nameHeader.toLowerCase() + (shown.length === 1 ? "" : "s") + " by coverage %",
-      detail: "Within " + scopeTxt + ", ranked by coverage rate.",
+      type: "top_n",
+      headline: headline,
+      detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       nameHeader: nameHeader,
       columns: columns,
       rows: shown,
@@ -311,12 +343,20 @@
       if (!got) return null;
       cols.push(got);
     }
+    var headline = cols[0].name + " vs " + cols[1].name + " coverage comparison";
+    var detail = cols[0].coverage >= cols[1].coverage
+      ? cols[0].name + " has higher coverage."
+      : cols[1].name + " has higher coverage.";
+
     return {
       ok: true,
-      headline: cols[0].name + " vs " + cols[1].name + " coverage comparison",
-      detail: cols[0].coverage >= cols[1].coverage
-        ? cols[0].name + " has higher coverage."
-        : cols[1].name + " has higher coverage.",
+      type: "compare",
+      headline: headline,
+      detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       compare: cols,
       compareRows: [
         ["Coverage Rate", function (c) { return E.fmtPct(c.coverage); }],

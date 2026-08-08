@@ -3129,6 +3129,9 @@
       scenarioSelect.querySelector("select").addEventListener("change", (e) => {
         if (global.AUTH && global.AUTH.setActiveScenario(e.target.value)) {
           ctx.filters.scenario = e.target.value;
+          if (window.AskEngine && window.AskEngine.AskContext) {
+            window.AskEngine.AskContext.clear();
+          }
           render(ctx.container);
         }
       });
@@ -3144,16 +3147,25 @@
       ctx.filters.bu = e.target.value;
       ctx.filters.line = "All"; // Line is BU-dependent -- reset on BU change
       ctx.filters.dm = "All";   // Reset DM filter on BU change
+      if (window.AskEngine && window.AskEngine.AskContext) {
+        window.AskEngine.AskContext.clear();
+      }
       render(ctx.container);
     });
     lineSelect.querySelector("select").addEventListener("change", (e) => {
       ctx.filters.line = e.target.value;
       ctx.filters.dm = "All";   // Reset DM filter on Line change
+      if (window.AskEngine && window.AskEngine.AskContext) {
+        window.AskEngine.AskContext.clear();
+      }
       render(ctx.container);
     });
     if (dmSelect) {
       dmSelect.querySelector("select").addEventListener("change", (e) => {
         ctx.filters.dm = e.target.value;
+        if (window.AskEngine && window.AskEngine.AskContext) {
+          window.AskEngine.AskContext.clear();
+        }
         render(ctx.container);
       });
     }
@@ -3456,6 +3468,18 @@
     wireCardEvents(container, ctx);
   }
 
+  function setFilters(newFilters) {
+    if (!newFilters) return;
+    if (newFilters.bu !== undefined) _filters.bu = newFilters.bu;
+    if (newFilters.line !== undefined) _filters.line = newFilters.line;
+    if (newFilters.dm !== undefined) _filters.dm = newFilters.dm;
+    if (newFilters.scenario !== undefined) _filters.scenario = newFilters.scenario;
+    clampFiltersToScope();
+    if (_container) {
+      render(_container);
+    }
+  }
+
   global.ExecutiveDashboard = {
     init(containerId) {
       if (typeof global.SEMANTIC === "undefined" || typeof global.DS === "undefined") {
@@ -3473,6 +3497,7 @@
     destroy() {
       document.body.classList.remove("executive-mode");
     },
+    setFilters: setFilters,
     // Target Scenario governance pin (2026-08-04) -- see the function's
     // own doc comment above. Any future Business Review integration
     // should call this, not collectSummaries()/getActiveScenario(), to

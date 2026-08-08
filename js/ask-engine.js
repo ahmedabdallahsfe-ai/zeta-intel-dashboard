@@ -586,6 +586,124 @@
     "</section>";
   }
 
+  // Lightweight Analytical Context Stack / History
+  var AskContext = (function () {
+    var stack = [];
+
+    function clear() {
+      stack = [];
+    }
+
+    function push(frame) {
+      if (!frame || !frame.entity) return;
+      var top = peek();
+      if (top && top.entity === frame.entity && top.adapter === frame.adapter) {
+        Object.assign(top, frame);
+      } else {
+        stack.push(frame);
+        if (stack.length > 5) stack.shift();
+      }
+    }
+
+    function peek() {
+      return stack.length ? stack[stack.length - 1] : null;
+    }
+
+    function resolveFollowUp(q, currentEntities, adapter) {
+      var nq = normalise(q);
+      var top = peek();
+      if (!top) return null;
+
+      // Check if it is a true follow-up question
+      if (intentOf(q) === "correlation") return null;
+
+      var isFollowUp = /^(why|explain|reason|underperform|drop|diagnose|what about|how about|and|which|tell me about)/i.test(nq) ||
+                       (nq.split(/\s+/).filter(Boolean).length <= 2 && /\b(coverage|covered|reach|vacancy|vacancies|headcount|roster|seats|vacant|span|workload|brick|overload|tenure|stability|sales|achievement|attain|target|actual|performance)\b/i.test(nq));
+      
+      if (!isFollowUp) return null;
+
+      var result = {
+        entity: top.entity,
+        entityType: top.entityType,
+        metric: top.metric,
+        period: top.period || "YTD",
+        adapter: top.adapter,
+        parentEntity: top.parentEntity || null
+      };
+
+      var isWhy = /^(why|explain|reason|underperform|drop|diagnose)/i.test(nq);
+      var isCoverage = /\b(coverage|covered|reach)\b/i.test(nq);
+      var isSfe = /\b(vacancy|vacancies|headcount|roster|seats|vacant|span|workload|brick|overload|tenure|stability)\b/i.test(nq);
+      var isSales = /\b(sales|achievement|attain|target|actual|revenue|egp|performance)\b/i.test(nq);
+
+      if (isWhy) {
+        result.intent = "why";
+        result.adapter = adapter.id;
+        return result;
+      }
+      if (isCoverage) {
+        result.metric = "coverage";
+        result.adapter = "coverage";
+        return result;
+      }
+      if (isSfe) {
+        result.metric = "headcount";
+        result.adapter = "sfe";
+        return result;
+      }
+      if (isSales) {
+        result.metric = "sales";
+        result.adapter = "sales";
+        return result;
+      }
+
+      // Inherit parent context if naming a child entity without its parent context
+      if (currentEntities && currentEntities.length) {
+        var first = currentEntities[0];
+        if (first.dim.key === "line" && top.entityType === "bu") {
+          result.entity = first.name;
+          result.entityType = "line";
+          result.parentEntity = top.entity;
+          return result;
+        }
+        if (first.dim.key === "brand" && (top.entityType === "line" || top.entityType === "bu")) {
+          result.entity = first.name;
+          result.entityType = "brand";
+          result.parentEntity = top.entity;
+          return result;
+        }
+      }
+
+      return null;
+    }
+
+    return {
+      clear: clear,
+      push: push,
+      peek: peek,
+      resolveFollowUp: resolveFollowUp,
+      getHistory: function() { return stack; }
+    };
+  })();
+
+  var _adapters = {};
+  function registerAdapter(id, adapter) {
+    _adapters[id] = adapter;
+  }
+  function getAdapter(id) {
+    if (_adapters[id]) return _adapters[id];
+    if (id === "sales" && global.AskSales) return global.AskSales.adapter;
+    if (id === "coverage" && global.AskCoverage) return global.AskCoverage.adapter;
+    if (id === "sfe" && global.AskSFE) return global.AskSFE.adapter;
+    if (id === "executive" && global.AskExecutive) return global.AskExecutive.adapter;
+    return null;
+  }
+
+  function fmtEGP(v) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    return fmtNum(v) + " EGP";
+  }
+
   function resultHtml(adapter, r) {
     if (!r) return "";
     if (!r.ok) {
@@ -596,6 +714,117 @@
         (r.hint ? '<div class="mi-ask-hint">' + esc(r.hint) + "</div>" : "") +
       "</div>";
     }
+
+    // --- ADDITIVE STORYTELLING CARD PATH ---
+    var isStory = !!(r.answer || r.story || (r.contributions && r.contributions.length));
+    if (isStory) {
+      var h = '<div class="mi-ask-card mi-ask-story-card">' +
+        '<div class="mi-ask-q">' + esc(r.question) + '</div>';
+
+      // 1. ANSWER SECTION
+      h += '<div class="mi-ask-section mi-ask-section-answer">' +
+        '<h3 class="mi-ask-section-h">ANSWER</h3>' +
+        '<div class="mi-ask-headline">' + esc(r.answer ? r.answer.headline : r.headline) + '</div>' +
+        '<div class="mi-ask-interpretation">' + esc(r.answer ? r.answer.interpretation : (r.detail || "")) + '</div>' +
+      '</div>';
+
+      // 2. EVIDENCE SECTION
+      if (r.evidence && r.evidence.length) {
+        h += '<div class="mi-ask-section mi-ask-section-evidence">' +
+          '<h3 class="mi-ask-section-h">EVIDENCE</h3>' +
+          '<div class="mi-ask-scorecard-grid">';
+        r.evidence.forEach(function (ev) {
+          if (ev[0] === "Scope") return; // Render scope centrally in ribbon or footnotes
+          h += '<div class="mi-ask-scorecard-item">' +
+            '<span class="mi-ask-scorecard-label">' + esc(ev[0]) + '</span>' +
+            '<span class="mi-ask-scorecard-value">' + esc(ev[1]) + '</span>' +
+          '</div>';
+        });
+        h += '</div>';
+        if (r.formula) {
+          h += '<div class="mi-ask-formula"><code>' + esc(r.formula) + '</code></div>';
+        }
+        h += '</div>';
+      }
+
+      // 3. CONTRIBUTIONS / DRIVERS SECTION
+      if ((r.contributions && r.contributions.length) || (r.indicators && r.indicators.length)) {
+        h += '<div class="mi-ask-section mi-ask-section-drivers">' +
+          '<h3 class="mi-ask-section-h">DRIVERS OF THE GAP</h3>';
+
+        if (r.contributions && r.contributions.length) {
+          h += '<div class="mi-ask-drivers-list">';
+          r.contributions.forEach(function (c, idx) {
+            h += '<div class="mi-ask-driver-item">' +
+              '<div class="mi-ask-driver-main">' +
+                '<span class="mi-ask-driver-rank">' + (idx + 1) + '. </span>' +
+                '<span class="mi-ask-driver-name">' + esc(c.entity) + '</span>' +
+                '<span class="mi-ask-driver-gap">Gap: ' + fmtEGP(c.gap) + '</span>' +
+                '<span class="mi-ask-driver-pct">Contribution: ' + c.contributionPct.toFixed(1) + '%</span>' +
+              '</div>';
+
+            // Match and render indicators for this entity
+            if (r.indicators && r.indicators.length) {
+              var entIndicators = r.indicators.filter(function (ind) { return ind.entity === c.entity; });
+              if (entIndicators.length) {
+                h += '<div class="mi-ask-driver-indicators">' +
+                  '<div class="mi-ask-indicators-label">Diagnostic Indicators (Observed Associations only):</div>' +
+                  '<ul>';
+                entIndicators.forEach(function (ind) {
+                  var benchStr = ind.benchmark !== undefined ? " (Target: " + ind.actual + (ind.unit || "") + " vs " + ind.benchmark + (ind.unit || "") + ")" : "";
+                  h += '<li>' +
+                    '<span class="mi-ask-ind-metric">' + esc(ind.metric) + ': </span>' +
+                    '<span class="mi-ask-ind-val">' + esc(ind.actual) + (ind.unit || "") + '</span>' +
+                    '<span class="mi-ask-ind-bench">' + esc(benchStr) + '</span>' +
+                  '</li>';
+                });
+                h += '</ul>' +
+                '</div>';
+              }
+            }
+            h += '</div>';
+          });
+          h += '</div>';
+        }
+        h += '</div>';
+      }
+
+      // 4. STORY SECTION
+      if (r.story) {
+        h += '<div class="mi-ask-section mi-ask-section-story">' +
+          '<h3 class="mi-ask-section-h">BUSINESS INTERPRETATION</h3>' +
+          '<div class="mi-ask-story-text">' + esc(r.story) + '</div>' +
+        '</div>';
+      }
+
+      // 5. EXPLORE SECTION
+      if (r.explore && r.explore.length) {
+        h += '<div class="mi-ask-section mi-ask-section-explore">' +
+          '<h3 class="mi-ask-section-h">EXPLORE</h3>' +
+          '<div class="mi-ask-explore-chips">';
+        r.explore.forEach(function (chip) {
+          h += '<button type="button" class="mi-ask-explore-chip" ' +
+            'onclick="if(window.DashboardNavigation && window.DashboardNavigation.applyFilter) { ' +
+              'window.DashboardNavigation.applyFilter(\'' + esc(chip.targetTab) + '\', \'' + esc(chip.filterKey) + '\', \'' + esc(chip.filterValue) + '\'); ' +
+            '}">' + esc(chip.label) + '</button>';
+        });
+        h += '</div>' +
+        '</div>';
+      }
+
+      // CAVEATS & SOURCE
+      if (r.caveats && r.caveats.length) {
+        h += '<div class="mi-ask-caveat">' +
+          r.caveats.map(function (c) { return "⚠ " + esc(c); }).join("<br>") + '</div>';
+      }
+      if (adapter.sourceNote) {
+        h += '<div class="mi-ask-src">Source: ' + esc(adapter.sourceNote()) + '</div>';
+      }
+      h += '</div>';
+      return h;
+    }
+
+    // --- LEGACY FALLBACK CARD PATH ---
     var h = '<div class="mi-ask-card">' +
       '<div class="mi-ask-q">' + esc(r.question) + "</div>" +
       '<div class="mi-ask-headline">' + esc(r.headline) + "</div>" +
@@ -633,8 +862,6 @@
       h += "</tbody></table></div>";
     }
 
-    // THE EVIDENCE. Always shown, never collapsed — a figure without its basis
-    // is exactly what this feature exists to avoid producing.
     if (r.formula) h += '<div class="mi-ask-formula"><code>' + esc(r.formula) + "</code></div>";
     if (r.caveats && r.caveats.length) {
       h += '<div class="mi-ask-caveat">' +
@@ -646,37 +873,89 @@
     return h + "</div>";
   }
 
-  /**
-   * Run a question through an adapter.
-   *
-   * Scope evidence is appended here, centrally, rather than left to each
-   * adapter branch to remember. Every answer a restricted user sees states the
-   * scope it was computed in.
-   */
   function answer(adapter, q) {
     if (!q || !q.trim()) return null;
+
+    var entities = findEntities(adapter, q, adapter.rankHint);
+    var contextResolved = AskContext.resolveFollowUp(q, entities, adapter);
+
+    var resolvedEntities = entities;
+    var resolvedIntent = intentOf(q);
+    var resolvedAdapterId = adapter.id;
+
+    if (contextResolved) {
+      resolvedAdapterId = contextResolved.adapter;
+      resolvedIntent = contextResolved.intent || intentOf(q);
+
+      if (entities.length === 0 && contextResolved.entity) {
+        var dimKey = contextResolved.entityType;
+        var targetAdapter = getAdapter(resolvedAdapterId) || adapter;
+        var dimObj = (targetAdapter.dims || []).filter(function (d) { return d.key === dimKey; })[0];
+        if (dimObj) {
+          resolvedEntities = [{
+            dim: dimObj,
+            name: contextResolved.entity,
+            len: contextResolved.entity.length,
+            matched: contextResolved.entity.toLowerCase(),
+            pos: 0
+          }];
+        }
+      } else {
+        resolvedEntities = entities;
+      }
+    }
+
     var parsed = {
       q: q,
-      intent: intentOf(q),
-      entities: findEntities(adapter, q, adapter.rankHint),
+      intent: resolvedIntent,
+      entities: resolvedEntities,
       n: requestedN(q, 10),
-      bottom: wantsBottom(q)
+      bottom: wantsBottom(q),
+      context: contextResolved
     };
-    var res = adapter.answer(q, parsed, {
+
+    var targetAdapter = adapter;
+    if (resolvedAdapterId !== adapter.id) {
+      var routed = getAdapter(resolvedAdapterId);
+      if (routed) {
+        targetAdapter = routed;
+      }
+    }
+
+    var res = targetAdapter.answer(q, parsed, {
       fmtNum: fmtNum, fmtPct: fmtPct, fmtSignedPct: fmtSignedPct,
       pctGrowth: pctGrowth, normalise: normalise
     });
+
     if (!res) {
       return {
         ok: false, question: q,
         message: "I could not match anything in that question to this page's data.",
-        hint: adapter.notFoundHint || "Try one of the examples below."
+        hint: targetAdapter.notFoundHint || "Try one of the examples below."
       };
     }
+
     res.question = q;
     if (res.ok) {
+      // Save current search to Context Stack
+      if (resolvedEntities && resolvedEntities.length) {
+        var mainEnt = resolvedEntities[0];
+        var frame = {
+          entity: mainEnt.name,
+          entityType: mainEnt.dim.key,
+          metric: res.metric || (targetAdapter.id === "sales" ? "sales" : targetAdapter.id === "coverage" ? "coverage" : "headcount"),
+          period: "YTD",
+          adapter: targetAdapter.id,
+          source: "NEW_QUERY"
+        };
+        if (parsed.context && parsed.context.parentEntity) {
+          frame.parentEntity = parsed.context.parentEntity;
+        }
+        AskContext.push(frame);
+      }
+
       res.evidence = res.evidence || [];
-      var scope = adapter.scopeLabel ? adapter.scopeLabel() : null;
+      var scope = targetAdapter.scopeLabel ? targetAdapter.scopeLabel() : null;
       res.evidence.push(["Scope", scope
         ? scope + " — your access. Figures exclude everything outside it."
         : "Unrestricted — the full company."]);
@@ -855,6 +1134,9 @@
     invalidateIndexes: invalidateIndexes,
     _currentUserKey: currentUserKey,
     STOPWORDS: STOPWORDS,
-    GENERIC_TOKENS: GENERIC_TOKENS
+    GENERIC_TOKENS: GENERIC_TOKENS,
+    registerAdapter: registerAdapter,
+    getAdapter: getAdapter,
+    AskContext: AskContext
   };
 })(typeof window !== "undefined" ? window : this);

@@ -80,31 +80,121 @@
     return global.AskEngine.fmtNum(v) + " EGP";
   }
 
-  /** Run cross-domain diagnostics for a Business Unit */
-  function runDiagnostics(bu, q) {
+  function lineBU(line) {
+    return SEM() && SEM().lineToBU ? SEM().lineToBU(line) : null;
+  }
+
+  function scenarioLabel() {
+    return scenario() === "official" ? "official" : "latest_lbe";
+  }
+
+  /** Run cross-domain diagnostics for a Business Unit or Line */
+  function runDiagnostics(bu, line, q) {
     var E = global.AskEngine;
-    var reports = [];
-
+    
     // --- 1. Commercial (Sales) ---
-    var salesSum = SD().getSalesAchievementSummary(bu, null, false, scenario());
-    var brandSum = SD().getBrandAchievement(bu, null, false, scenario());
-    var dmSum = SD().getDmSalesSummary(bu, null, null, scenario());
+    var actual = 0, target = 0, achPct = null;
+    var name = line || bu;
 
+    var salesSum = SD().getSalesAchievementSummary(bu, line || null, false, scenario());
     var salesOk = salesSum && salesSum.ok;
-    var variance = salesOk ? (salesSum.actualYTD - salesSum.targetYTD) : 0;
-    var achPct = salesOk ? salesSum.achievementPct : 0;
+    if (salesOk) {
+      actual = salesSum.actualYTD;
+      target = salesSum.targetYTD;
+      achPct = salesSum.achievementPct;
+    }
 
+    var netGap = actual - target;
+    var shortfall = Math.max(target - actual, 0);
+
+    // MECE contributions calculations
+    var contribs = [];
+    var sumChildShortfalls = 0;
+
+    if (line) {
+      // Level 3 Brand decomposition within a line
+      var brandSum = SD().getBrandAchievement(bu, line, false, scenario());
+      if (brandSum && brandSum.ok && brandSum.brands) {
+        brandSum.brands.forEach(function (b) {
+          var bActual = b.actualValue || 0;
+          var bTarget = b.targetValue || 0;
+          var bShortfall = Math.max(bTarget - bActual, 0);
+          var bNetGap = bActual - bTarget;
+          contribs.push({
+            name: "Brand: " + b.name,
+            actual: bActual,
+            target: bTarget,
+            shortfall: bShortfall,
+            netGap: bNetGap,
+            achPct: b.achievementPct
+          });
+          sumChildShortfalls += bShortfall;
+        });
+      }
+    } else {
+      // Level 2 Line decomposition within a BU (fallback to brands if getLineSalesSummary is not defined)
+      var lineSum = (typeof SD().getLineSalesSummary === "function")
+        ? SD().getLineSalesSummary(bu, null, false, scenario())
+        : null;
+      if (lineSum && lineSum.ok && lineSum.lines) {
+        lineSum.lines.forEach(function (l) {
+          var lActual = l.actualValue || 0;
+          var lTarget = l.targetValue || 0;
+          var lShortfall = Math.max(lTarget - lActual, 0);
+          var lNetGap = lActual - lTarget;
+          contribs.push({
+            name: "Line: " + l.name,
+            actual: lActual,
+            target: lTarget,
+            shortfall: lShortfall,
+            netGap: lNetGap,
+            achPct: l.achievementPct
+          });
+          sumChildShortfalls += lShortfall;
+        });
+      } else {
+        // Fallback: Level 3 Brand decomposition directly for the BU
+        var brandSum = SD().getBrandAchievement(bu, null, false, scenario());
+        if (brandSum && brandSum.ok && brandSum.brands) {
+          brandSum.brands.forEach(function (b) {
+            var bActual = b.actualValue || 0;
+            var bTarget = b.targetValue || 0;
+            var bShortfall = Math.max(bTarget - bActual, 0);
+            var bNetGap = bActual - bTarget;
+            contribs.push({
+              name: "Brand: " + b.name,
+              actual: bActual,
+              target: bTarget,
+              shortfall: bShortfall,
+              netGap: bNetGap,
+              achPct: b.achievementPct
+            });
+            sumChildShortfalls += bShortfall;
+          });
+        }
+      }
+    }
+
+    // Set contribution %
+    contribs.forEach(function (c) {
+      c.contributionPct = sumChildShortfalls > 0 ? (c.shortfall / sumChildShortfalls) * 100 : 0;
+    });
+
+    // Sort contributions descending by shortfall
+    contribs.sort(function (a, b) { return b.shortfall - a.shortfall; });
+
+    // Legacy sales reports lists for rows
     var salesReport = {
       achPct: achPct,
-      variance: variance,
-      actual: salesOk ? salesSum.actualYTD : 0,
-      target: salesOk ? salesSum.targetYTD : 0,
+      variance: netGap,
+      actual: actual,
+      target: target,
       bottomBrands: [],
       bottomDMs: []
     };
 
+    var brandSum = SD().getBrandAchievement(bu, line || null, false, scenario());
     if (brandSum && brandSum.ok) {
-      // Find bottom 2 brands by negative variance
       var brandList = (brandSum.brands || []).map(function (b) {
         return { name: b.name, variance: (b.actualValue - b.targetValue), achPct: b.achievementPct };
       });
@@ -112,8 +202,8 @@
       salesReport.bottomBrands = brandList.slice(0, 2);
     }
 
+    var dmSum = SD().getDmSalesSummary(bu, line || null, null, scenario());
     if (dmSum && dmSum.ok) {
-      // Find bottom 2 DMs by achievement
       var dmList = (dmSum.dms || []).map(function (d) {
         var ach = d.targetValue > 0 ? (d.actualValue / d.targetValue) * 100 : 0;
         return { name: d.name, achPct: ach, variance: (d.actualValue - d.targetValue) };
@@ -123,7 +213,7 @@
     }
 
     // --- 2. Operational (Coverage) ---
-    var covSum = CD().getFilteredCoverageForLine(bu, null);
+    var covSum = CD().getFilteredCoverageForLine(bu, line || null);
     var coverageReport = {
       coveragePct: covSum && covSum.ok ? covSum.coveragePct : null,
       rightFreqPct: covSum && covSum.ok ? covSum.rightFreqPct : null,
@@ -131,7 +221,7 @@
     };
 
     // --- 3. People (SFE / Headcount) ---
-    var hcSum = SFE().getFilteredHeadcountForLine(bu, null);
+    var hcSum = SFE().getFilteredHeadcountForLine(bu, line || null);
     var headcountReport = {
       total: hcSum && hcSum.ok ? hcSum.headcountTotal : 0,
       active: hcSum && hcSum.ok ? hcSum.headcountActive : 0,
@@ -140,15 +230,11 @@
     };
 
     // --- Synthesis ---
-    var isBehindTarget = variance < 0;
-    var headline = bu + " Depth Analysis: " + (isBehindTarget ? "Commercial Gap Identified" : "Solid Performance Maintained");
-    if (salesOk) {
-      headline = bu + " Diagnostics: Sales at " + E.fmtPct(achPct) + " of target (" + (isBehindTarget ? "" : "+") + fmtEGP(variance) + " variance)";
-    }
-
-    var detail = "Multi-domain root cause summary for " + bu + ":\n";
+    var isBehindTarget = netGap < 0;
+    var headline = name + " Diagnostics: Sales at " + E.fmtPct(achPct) + " of target (" + (isBehindTarget ? "" : "+") + fmtEGP(netGap) + " variance)";
+    var detail = "Multi-domain root cause summary for " + name + ":\n";
     if (isBehindTarget) {
-      detail += "• Sales underperformed target by " + fmtEGP(Math.abs(variance)) + ". ";
+      detail += "• Sales underperformed target by " + fmtEGP(Math.abs(netGap)) + ". ";
       if (salesReport.bottomBrands.length) {
         detail += "Commercial gaps in bottom brands (" + salesReport.bottomBrands.map(function (b) { return b.name + " " + E.fmtPct(b.achPct); }).join(", ") + ") ";
       }
@@ -162,11 +248,10 @@
       detail += "• Overall sales are on track. Commercial execution (coverage: " + E.fmtPct(coverageReport.coveragePct) + ") and people fills (active: " + headcountReport.active + "/" + headcountReport.total + ") are stable.";
     }
 
-    // Build evidence table cells
+    // Build legacy rows
     var rows = [];
     var cellIdx = 1;
 
-    // Sales Drivers
     salesReport.bottomBrands.forEach(function (b) {
       rows.push({
         rank: cellIdx++,
@@ -182,7 +267,6 @@
       });
     });
 
-    // Coverage Drivers
     if (coverageReport.coveragePct !== null) {
       rows.push({
         rank: cellIdx++,
@@ -198,7 +282,6 @@
       });
     }
 
-    // People Drivers
     if (headcountReport.total > 0) {
       rows.push({
         rank: cellIdx++,
@@ -207,22 +290,87 @@
       });
     }
 
+    // Dynamic clean narrative
+    var story = name + " sales achieved " + E.fmtPct(achPct) + " of the YTD target, resulting in a shortfall of " + fmtEGP(shortfall) + " (actual: " + fmtEGP(actual) + " vs target: " + fmtEGP(target) + "). ";
+    if (contribs.length > 0) {
+      var underperforming = contribs.filter(function (c) { return c.shortfall > 0; });
+      if (underperforming.length > 0) {
+        story += "The sales gap is concentrated in: " +
+          underperforming.slice(0, 2).map(function (c) {
+            return c.name + " (" + fmtEGP(c.shortfall) + " shortfall, accounting for " + E.fmtPct(c.contributionPct) + " of the gap)";
+          }).join(", ") + ". ";
+      }
+    }
+    var obsParts = [];
+    if (coverageReport.coveragePct !== null && coverageReport.coveragePct < 90) {
+      obsParts.push("field coverage is below the 90% benchmark at " + E.fmtPct(coverageReport.coveragePct));
+    }
+    if (coverageReport.rightFreqPct !== null && coverageReport.rightFreqPct < 80) {
+      obsParts.push("right frequency stands at " + E.fmtPct(coverageReport.rightFreqPct) + " (benchmark 80%)");
+    }
+    if (headcountReport.vacant > 0) {
+      obsParts.push("team vacancy rate is " + E.fmtPct(headcountReport.vacancyRate) + " (" + headcountReport.vacant + " open seats)");
+    }
+    if (obsParts.length > 0) {
+      story += "These commercial outcomes coincide with the following operational observations: " + obsParts.join(" and ") + ".";
+    } else {
+      story += "Operational execution and SFE headcount indicators are within stable parameters.";
+    }
+
+    // Explore opportunities
+    var explore = [];
+    if (!line && contribs.length > 0 && contribs[0].shortfall > 0) {
+      var cleanLineName = contribs[0].name.replace(/^Line:\s*/, "");
+      explore.push("Explain " + cleanLineName + " underperformance");
+    }
+    explore.push("How is " + bu + " coverage performing?");
+    explore.push("What is " + bu + " vacancy rate?");
+
+    var evidence = [
+      ["Target BU", bu],
+      ["Sales Achievement", E.fmtPct(achPct)],
+      ["Sales Variance", fmtEGP(netGap)],
+      ["Shortfall", fmtEGP(shortfall)],
+      ["Active Reps", headcountReport.active + " reps"],
+      ["As of", "Latest calendar sync period"]
+    ];
+    if (line) {
+      evidence.splice(1, 0, ["Line", line]);
+    }
+
     return {
       ok: true,
+      type: "diagnose",
       question: q,
       headline: headline,
       detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       nameHeader: "Diagnostic Factor",
       columns: ["Domain/Metric", "Current Level", "Variance/Status"],
       rows: rows,
       formula: "Cross-workspace diagnostics = Sales Actuals + Field Coverage + SFE Headcount",
-      evidence: [
-        ["Target BU", bu],
-        ["Sales Achievement", E.fmtPct(achPct)],
-        ["Sales Variance", fmtEGP(variance)],
-        ["Active Reps", headcountReport.active + " reps"],
-        ["As of", "Latest calendar sync period"]
-      ]
+      evidence: evidence,
+      contributions: contribs.map(function (c) {
+        return {
+          name: c.name,
+          actual: c.actual,
+          target: c.target,
+          gap: c.netGap,
+          shortfall: c.shortfall,
+          contributionPct: c.contributionPct
+        };
+      }),
+      indicators: [
+        { metric: "Coverage", value: coverageReport.coveragePct, target: 90.0, status: coverageReport.coveragePct >= 90.0 ? "On Track" : "Below target" },
+        { metric: "Right Frequency", value: coverageReport.rightFreqPct, target: 80.0, status: coverageReport.rightFreqPct >= 80.0 ? "On Track" : "Below target" },
+        { metric: "Vacancy Rate", value: headcountReport.vacancyRate, target: 0.0, status: headcountReport.vacant > 0 ? "Active vacancies (" + headcountReport.vacant + " open)" : "Filled" }
+      ],
+      story: story,
+      explore: explore,
+      caveats: []
     };
   }
 
@@ -293,11 +441,23 @@
       "• Effort Without Return: " + effortNoReturnCount + " line(s) with high coverage but failing to meet sales targets.\n" +
       "• Critical Risk: " + criticalCount + " line(s) failing both sales and coverage.";
 
+    var story = "The commercial-execution correlation across " + scopeName +
+      " segments lines into status quadrants based on a sales achievement threshold of 95% and coverage target of 90%. " +
+      "A total of " + healthyCount + " line(s) are categorized as Healthy Core, meeting both criteria. " +
+      "There are " + unsustainableCount + " line(s) categorized as Unsustainable Growth (high sales achievement coinciding with low operational coverage), and " +
+      effortNoReturnCount + " line(s) in Effort Without Return. " +
+      criticalCount + " line(s) are flagged as Critical Risk, exhibiting below-target performance in both domains.";
+
     return {
       ok: true,
+      type: "correlation",
       question: q,
       headline: headline,
       detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       nameHeader: "Line / Team",
       columns: ["Sales Achievement", "Field Coverage", "Right Freq", "Diagnostic Status"],
       rows: rankedRows,
@@ -307,7 +467,10 @@
         ["Unsustainable Growth Lines", unsustainableCount],
         ["Effort Without Return Lines", effortNoReturnCount],
         ["Critical Risk Lines", criticalCount]
-      ]
+      ],
+      story: story,
+      explore: [],
+      caveats: []
     };
   }
 
@@ -374,8 +537,8 @@
 
       // LLM-like Intent: Why / Root Cause Diagnosis
       if (parsed.intent === "why") {
-        var targetBU = ctx.bu || allowedBUs()[0];
-        return runDiagnostics(targetBU, q);
+        var targetBU = ctx.bu || (ctx.line ? lineBU(ctx.line) : null) || allowedBUs()[0];
+        return runDiagnostics(targetBU, ctx.line || null, q);
       }
 
       // Default: delegate to Sales adapter for other queries

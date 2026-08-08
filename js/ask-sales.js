@@ -151,6 +151,7 @@
   // -------------------------------------------------------------------------
 
   /** Sales / target / achievement for one BU, line or brand. */
+  /** Sales / target / achievement for one BU, line or brand. */
   function answerFigure(q, ctx, parsed) {
     var E = global.AskEngine;
 
@@ -167,13 +168,21 @@
           hint: "It may sit under a different business unit, or outside your access."
         };
       }
+      var headline = ctx.brand + " — " + fmtEGP(row.actualValue) +
+        (row.achievementPct !== null ? " · " + E.fmtPct(row.achievementPct) + " of target" : "");
+      var detail = "Target " + fmtEGP(row.targetValue) + " · " +
+        E.fmtNum(row.actualQty) + " units · " +
+        (row.contributionPct !== null ? E.fmtPct(row.contributionPct) + " of " + bu + "'s value" : "");
+
       return {
         ok: true,
-        headline: ctx.brand + " — " + fmtEGP(row.actualValue) +
-          (row.achievementPct !== null ? " · " + E.fmtPct(row.achievementPct) + " of target" : ""),
-        detail: "Target " + fmtEGP(row.targetValue) + " · " +
-          E.fmtNum(row.actualQty) + " units · " +
-          (row.contributionPct !== null ? E.fmtPct(row.contributionPct) + " of " + bu + "'s value" : ""),
+        type: "figure",
+        headline: headline,
+        detail: detail,
+        answer: {
+          headline: headline,
+          interpretation: detail
+        },
         formula: "achievement % = actual value ÷ target value × 100",
         evidence: [
           ["Brand", ctx.brand],
@@ -191,13 +200,21 @@
       var s = SD().getSalesAchievementSummary(b2, ctx.line || null, false, scenario());
       if (!s || !s.ok) return unavailable(s);
       var who = ctx.line || b2;
+      var headline = who + " — " + fmtEGP(s.actualYTD) +
+        (s.achievementPct !== null ? " · " + E.fmtPct(s.achievementPct) + " of target" : "");
+      var detail = "Target " + fmtEGP(s.targetYTD) +
+        (s.momGrowthPct !== null && s.momGrowthPct !== undefined
+          ? " · " + E.fmtSignedPct(s.momGrowthPct) + " month on month" : "") + ".";
+
       return {
         ok: true,
-        headline: who + " — " + fmtEGP(s.actualYTD) +
-          (s.achievementPct !== null ? " · " + E.fmtPct(s.achievementPct) + " of target" : ""),
-        detail: "Target " + fmtEGP(s.targetYTD) +
-          (s.momGrowthPct !== null && s.momGrowthPct !== undefined
-            ? " · " + E.fmtSignedPct(s.momGrowthPct) + " month on month" : "") + ".",
+        type: "figure",
+        headline: headline,
+        detail: detail,
+        answer: {
+          headline: headline,
+          interpretation: detail
+        },
         formula: "achievement % = actual YTD ÷ target YTD × 100",
         evidence: [
           [ctx.line ? "Line" : "Business unit", who],
@@ -222,11 +239,19 @@
       if (!x) return;
       tot += x.actualYTD || 0; tgt += x.targetYTD || 0;
     });
+    var headline = fmtEGP(tot) + (tgt > 0 ? " · " + E.fmtPct((tot / tgt) * 100) + " of target" : "");
+    var detail = "Across " + bus.length + " business unit" + (bus.length === 1 ? "" : "s") +
+      " you have access to: " + bus.join(", ") + ".";
+
     return {
       ok: true,
-      headline: fmtEGP(tot) + (tgt > 0 ? " · " + E.fmtPct((tot / tgt) * 100) + " of target" : ""),
-      detail: "Across " + bus.length + " business unit" + (bus.length === 1 ? "" : "s") +
-        " you have access to: " + bus.join(", ") + ".",
+      type: "figure",
+      headline: headline,
+      detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       formula: "Sum of actual YTD across your business units ÷ sum of target YTD × 100",
       evidence: [
         ["Business units", bus.join(", ")],
@@ -260,7 +285,7 @@
       last = got.res;
       got.rows.forEach(function (r) {
         // The same brand can appear under two BUs; merge rather than
-        // listing it twice with half its value in each row.
+        // listing it twice with value in each row.
         var k = r.name;
         if (seen[k]) {
           seen[k].sort += r.sort;
@@ -385,11 +410,19 @@
       return { rank: i + 1, name: r.name, cells: r.cells };
     });
 
+    var headline = (bottom ? "Bottom " : "Top ") + shown.length + " " +
+      nameHeader.toLowerCase() + (shown.length === 1 ? "" : "s") + " by sales value";
+    var detail = "Within " + scopeTxt + ", ranked on actual value.";
+
     return {
       ok: true,
-      headline: (bottom ? "Bottom " : "Top ") + shown.length + " " +
-        nameHeader.toLowerCase() + (shown.length === 1 ? "" : "s") + " by sales value",
-      detail: "Within " + scopeTxt + ", ranked on actual value.",
+      type: "top_n",
+      headline: headline,
+      detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       nameHeader: nameHeader,
       columns: columns,
       rows: shown,
@@ -416,12 +449,20 @@
       if (!got) return null;
       cols.push(got);
     }
+    var headline = cols[0].name + "  vs  " + cols[1].name;
+    var detail = cols[0].actual >= cols[1].actual
+      ? cols[0].name + " is larger by value."
+      : cols[1].name + " is larger by value.";
+
     return {
       ok: true,
-      headline: cols[0].name + "  vs  " + cols[1].name,
-      detail: cols[0].actual >= cols[1].actual
-        ? cols[0].name + " is larger by value."
-        : cols[1].name + " is larger by value.",
+      type: "compare",
+      headline: headline,
+      detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       compare: cols,
       compareRows: [
         ["Actual", function (c) { return fmtEGP(c.actual); }],

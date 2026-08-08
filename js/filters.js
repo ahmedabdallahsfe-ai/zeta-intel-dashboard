@@ -244,6 +244,9 @@ const Filters = (() => {
     }
 
     updateBtnLabel(fieldId);
+    if (window.AskEngine && window.AskEngine.AskContext) {
+      window.AskEngine.AskContext.clear();
+    }
     persist(); renderChips(); onChangeCallback(getState());
   }
 
@@ -295,6 +298,9 @@ const Filters = (() => {
           const allCb = panel.querySelector(".ms-selectall-cb");
           if (allCb) allCb.checked = true;
         }
+        if (window.AskEngine && window.AskEngine.AskContext) {
+          window.AskEngine.AskContext.clear();
+        }
         persist(); renderChips(); onChangeCallback(getState());
       },
       () => resetAll()
@@ -338,6 +344,9 @@ const Filters = (() => {
         if (allCb) allCb.checked = true;
       }
     });
+    if (window.AskEngine && window.AskEngine.AskContext) {
+      window.AskEngine.AskContext.clear();
+    }
     renderChips();
     onChangeCallback(getState());
   }
@@ -388,5 +397,38 @@ const Filters = (() => {
     if (anyReset) { persist(); renderChips(); onChangeCallback(getState()); }
   }
 
-  return { init, getState, applyAvailability };
+  function setFilter(fieldId, value) {
+    if (!state) return;
+    const map = { line: "team", bu: "businessUnit" };
+    const fid = map[fieldId] || fieldId;
+    if (!(fid in state)) return;
+
+    if (value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) {
+      state[fid] = [];
+    } else {
+      state[fid] = Array.isArray(value) ? value : [value];
+    }
+
+    if (containerEl) {
+      const panel = containerEl.querySelector(`.ms-panel[data-field="${fid}"]`);
+      if (panel) {
+        const allCb = panel.querySelector(".ms-selectall-cb");
+        const allItemCbs = panel.querySelectorAll(`.ms-list input[type="checkbox"]`);
+        allItemCbs.forEach((cb) => {
+          cb.checked = state[fid].includes(cb.value);
+        });
+        if (allCb) allCb.checked = state[fid].length === 0;
+      }
+      updateBtnLabel(fid);
+    }
+    
+    persist();
+    renderChips();
+    if (typeof onChangeCallback === "function") {
+      onChangeCallback(getState());
+    }
+  }
+
+  return { init, getState, applyAvailability, setFilter };
 })();
+window.Filters = Filters;

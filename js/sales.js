@@ -914,7 +914,6 @@
     });
   }
 
-  // Cascade triggers: resetting child filters if parent changes
   function triggerFilterUpdate(key) {
     // Cascade: BUHEAD -> NSM -> RM -> DM -> REP. CM (Emp6) has no filter, so no cascade entry.
     if (key === "buhead") { STATE.nsm = "all"; STATE.rm = "all"; STATE.dm = "all"; STATE.rep = "all"; }
@@ -924,6 +923,9 @@
     if (key === "line") { STATE.brand = "all"; STATE.prod = "all"; }
     if (key === "brand") { STATE.prod = "all"; }
 
+    if (window.AskEngine && window.AskEngine.AskContext) {
+      window.AskEngine.AskContext.clear();
+    }
     renderLayout();
   }
 
@@ -2818,6 +2820,9 @@
     STATE.isUpa = "all";
     STATE.isMirror = "all";
 
+    if (window.AskEngine && window.AskEngine.AskContext) {
+      window.AskEngine.AskContext.clear();
+    }
     renderLayout();
   }
 
@@ -2887,6 +2892,9 @@
         if (val === "all") STATE.isTender = "all";
         else if (val === "true") STATE.isTender = true;
         else if (val === "false") STATE.isTender = false;
+        if (window.AskEngine && window.AskEngine.AskContext) {
+          window.AskEngine.AskContext.clear();
+        }
         renderLayout();
       });
     }
@@ -2898,6 +2906,9 @@
         if (val === "all") STATE.isBulk = "all";
         else if (val === "true") STATE.isBulk = true;
         else if (val === "false") STATE.isBulk = false;
+        if (window.AskEngine && window.AskEngine.AskContext) {
+          window.AskEngine.AskContext.clear();
+        }
         renderLayout();
       });
     }
@@ -2915,6 +2926,9 @@
         const val = selectScenario.value;
         if (window.AUTH && window.AUTH.setActiveScenario(val)) {
           STATE.scenario = val;
+          if (window.AskEngine && window.AskEngine.AskContext) {
+            window.AskEngine.AskContext.clear();
+          }
           renderLayout();
         }
       });
@@ -2928,6 +2942,9 @@
         const idx = cache.lookups.regions.findIndex(r => r.toLowerCase().includes(name.split(" ")[0]));
         if (idx !== -1) {
           STATE.reg = [idx];
+          if (window.AskEngine && window.AskEngine.AskContext) {
+            window.AskEngine.AskContext.clear();
+          }
           renderLayout();
         }
       });
@@ -4214,6 +4231,44 @@
     isScenarioDataAvailable() {
       decompressCache();
       return scenarioSchemaAvailable();
+    },
+
+    setFilters(newFilters) {
+      if (!newFilters) return;
+      decompressCache();
+      if (!cache || !cache.lookups) return;
+      
+      if (newFilters.line !== undefined) {
+        if (newFilters.line === null || newFilters.line === "All") {
+          STATE.line = "all";
+        } else {
+          const idx = cache.lookups.lines.findIndex(l => window.SEMANTIC.normalizeLine(l) === newFilters.line);
+          if (idx !== -1) STATE.line = [idx];
+        }
+      }
+      if (newFilters.brand !== undefined) {
+        if (newFilters.brand === null || newFilters.brand === "All") {
+          STATE.brand = "all";
+        } else {
+          const idx = cache.lookups.brands.findIndex(b => b.toUpperCase().trim() === newFilters.brand.toUpperCase().trim());
+          if (idx !== -1) STATE.brand = [idx];
+        }
+      }
+      if (newFilters.dm !== undefined) {
+        if (newFilters.dm === null || newFilters.dm === "All") {
+          STATE.dm = "all";
+        } else {
+          const idx = cache.lookups.dms.findIndex(d => d.toUpperCase().trim() === newFilters.dm.toUpperCase().trim());
+          if (idx !== -1) STATE.dm = [idx];
+        }
+      }
+      if (newFilters.scenario !== undefined) {
+        if (window.AUTH && window.AUTH.setActiveScenario(newFilters.scenario)) {
+          STATE.scenario = newFilters.scenario;
+        }
+      }
+      
+      renderLayout();
     },
 
     destroy() {

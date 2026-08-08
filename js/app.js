@@ -314,6 +314,12 @@ function startAppBody() {
     item.addEventListener("click", (e) => {
       const clickedItem = e.target.closest(".menu-item");
       if (!clickedItem || clickedItem.classList.contains("active")) return;
+
+      if (e.isTrusted || !window.__isProgrammaticTabSwitch) {
+        if (window.AskEngine && window.AskEngine.AskContext) {
+          window.AskEngine.AskContext.clear();
+        }
+      }
       
       menuItems.forEach(mi => mi.classList.remove("active"));
       clickedItem.classList.add("active");
@@ -2281,3 +2287,55 @@ function openTeamPerformanceModal(managerName) {
 
   setTimeout(() => { newSearch.focus(); }, 50);
 }
+
+window.DashboardNavigation = {
+  applyFilter: function(targetTab, filterKey, filterValue) {
+    // 1. Security Scope Check
+    if (window.AUTH) {
+      if (filterKey === "line" && filterValue && !window.AUTH.isLineAllowed(filterValue)) {
+        console.warn("[DashboardNavigation] Rejected: Unauthorized Line: " + filterValue);
+        return false;
+      }
+      if (filterKey === "bu" && filterValue && !window.AUTH.isBuAllowed(filterValue)) {
+        console.warn("[DashboardNavigation] Rejected: Unauthorized BU: " + filterValue);
+        return false;
+      }
+    }
+
+    // 2. Tab Switch if necessary
+    const activeTabEl = document.querySelector("#sidebar-nav .menu-item.active");
+    const currentTab = activeTabEl ? activeTabEl.dataset.tab : "";
+    if (currentTab !== targetTab) {
+      const tabBtn = document.querySelector(`#sidebar-nav .menu-item[data-tab="${targetTab}"]`);
+      if (tabBtn) {
+        window.__isProgrammaticTabSwitch = true;
+        tabBtn.click();
+        window.__isProgrammaticTabSwitch = false;
+      }
+    }
+
+    // 3. Delegate to public dashboard setters
+    setTimeout(() => {
+      if (targetTab === "executive" && window.ExecutiveDashboard && typeof window.ExecutiveDashboard.setFilters === "function") {
+        window.ExecutiveDashboard.setFilters({ [filterKey]: filterValue });
+      } else if (targetTab === "sales" && window.SalesDashboard && typeof window.SalesDashboard.setFilters === "function") {
+        window.SalesDashboard.setFilters({ [filterKey]: filterValue });
+      } else if (targetTab === "coverage" && window.Filters && typeof window.Filters.setFilter === "function") {
+        window.Filters.setFilter(filterKey, filterValue);
+      } else if (targetTab === "sfe" && window.SFEDashboard && typeof window.SFEDashboard.setFilters === "function") {
+        window.SFEDashboard.setFilters({ [filterKey]: filterValue });
+      }
+    }, 150);
+    return true;
+  },
+  invalidate: function() {
+    if (window.AskEngine && window.AskEngine.AskContext) {
+      window.AskEngine.AskContext.clear();
+    }
+  },
+  invalidateContext: function() {
+    if (window.AskEngine && window.AskEngine.AskContext) {
+      window.AskEngine.AskContext.clear();
+    }
+  }
+};

@@ -146,10 +146,17 @@
           return s.dm.toLowerCase().trim() === ctx.manager.toLowerCase().trim();
         })[0];
         if (dmMatch) {
+          var headline = ctx.manager + " — Span of Control: " + dmMatch.span + " representatives";
+          var detail = "Oversees " + dmMatch.span + " active representative(s) in line " + dmMatch.line + ".";
           return {
             ok: true,
-            headline: ctx.manager + " — Span of Control: " + dmMatch.span + " representatives",
-            detail: "Oversees " + dmMatch.span + " active representative(s) in line " + dmMatch.line + ".",
+            type: "figure",
+            headline: headline,
+            detail: detail,
+            answer: {
+              headline: headline,
+              interpretation: detail
+            },
             formula: "span = count of active representatives reporting to DM",
             evidence: [
               ["District Manager", ctx.manager],
@@ -162,10 +169,17 @@
           return s.asm.toLowerCase().trim() === ctx.manager.toLowerCase().trim();
         })[0];
         if (asmMatch) {
+          var headline = ctx.manager + " — Span of Control: " + asmMatch.span + " District Managers";
+          var detail = "Oversees " + asmMatch.span + " active DM(s) in line " + asmMatch.line + ".";
           return {
             ok: true,
-            headline: ctx.manager + " — Span of Control: " + asmMatch.span + " District Managers",
-            detail: "Oversees " + asmMatch.span + " active DM(s) in line " + asmMatch.line + ".",
+            type: "figure",
+            headline: headline,
+            detail: detail,
+            answer: {
+              headline: headline,
+              interpretation: detail
+            },
             formula: "span = count of active DMs reporting to ASM",
             evidence: [
               ["Area Sales Manager", ctx.manager],
@@ -176,10 +190,17 @@
         }
         return { ok: false, message: "No span of control record found for manager " + ctx.manager };
       }
+      var headline = "Average Span: " + data.spanOfControl.averageDmSpan.toFixed(1) + " reps/DM · " + data.spanOfControl.averageAsmSpan.toFixed(1) + " DMs/ASM";
+      var detail = "Overall active averages computed across the entire organogram.";
       return {
         ok: true,
-        headline: "Average Span: " + data.spanOfControl.averageDmSpan.toFixed(1) + " reps/DM · " + data.spanOfControl.averageAsmSpan.toFixed(1) + " DMs/ASM",
-        detail: "Overall active averages computed across the entire organogram.",
+        type: "figure",
+        headline: headline,
+        detail: detail,
+        answer: {
+          headline: headline,
+          interpretation: detail
+        },
         formula: "average span = active subordinates ÷ active managers",
         evidence: [
           ["Average DM Span", data.spanOfControl.averageDmSpan.toFixed(1) + " reps"],
@@ -192,10 +213,17 @@
     var wantWorkload = /\bworkload|brick|overload/i.test(q);
     if (wantWorkload) {
       var overloadedCount = (data.brickWorkload.overloadedReps || []).length;
+      var headline = "Average Bricks: " + data.brickWorkload.averageBricksPerRep.toFixed(1) + " per rep (" + overloadedCount + " overloaded rep(s))";
+      var detail = "Workload split: Light: " + data.brickWorkload.buckets.light + " · Balanced: " + data.brickWorkload.buckets.balanced + " · Dense: " + data.brickWorkload.buckets.dense + " · Overloaded: " + data.brickWorkload.buckets.overloaded + ".";
       return {
         ok: true,
-        headline: "Average Bricks: " + data.brickWorkload.averageBricksPerRep.toFixed(1) + " per rep (" + overloadedCount + " overloaded rep(s))",
-        detail: "Workload split: Light: " + data.brickWorkload.buckets.light + " · Balanced: " + data.brickWorkload.buckets.balanced + " · Dense: " + data.brickWorkload.buckets.dense + " · Overloaded: " + data.brickWorkload.buckets.overloaded + ".",
+        type: "figure",
+        headline: headline,
+        detail: detail,
+        answer: {
+          headline: headline,
+          interpretation: detail
+        },
         formula: "average workload = sum of bricks mapped to reps ÷ total active reps",
         evidence: [
           ["Average Workload", data.brickWorkload.averageBricksPerRep.toFixed(1) + " bricks/rep"],
@@ -205,13 +233,20 @@
       };
     }
 
-    // 3. Tenurestability questions
+    // 3. Tenure/stability questions
     var wantTenure = /\btenure|stability|month|probation|turnover|attrition/i.test(q);
     if (wantTenure) {
+      var headline = "Average Tenure: " + data.tenureStability.averageRepTenureMonths.toFixed(1) + " months";
+      var detail = "Active roster: " + data.tenureStability.lifecycleCounts.probation + " reps on probation · " + data.tenureStability.lifecycleCounts.nonProbation + " reps non-probation.";
       return {
         ok: true,
-        headline: "Average Tenure: " + data.tenureStability.averageRepTenureMonths.toFixed(1) + " months",
-        detail: "Active roster: " + data.tenureStability.lifecycleCounts.probation + " reps on probation · " + data.tenureStability.lifecycleCounts.nonProbation + " reps non-probation.",
+        type: "figure",
+        headline: headline,
+        detail: detail,
+        answer: {
+          headline: headline,
+          interpretation: detail
+        },
         formula: "average tenure = sum of employment tenure months ÷ total active reps",
         evidence: [
           ["Average Tenure", data.tenureStability.averageRepTenureMonths.toFixed(1) + " months"],
@@ -234,10 +269,17 @@
           hint: "This manager may have a fully filled team, or sits outside your access scope."
         };
       }
+      var headline = ctx.manager + " — Vacancy Rate: " + E.fmtPct(mgrMatch.vacancyRate);
+      var detail = mgrMatch.vacant + " vacant position(s) out of " + mgrMatch.total + " total budgeted seats.";
       return {
         ok: true,
-        headline: ctx.manager + " — Vacancy Rate: " + E.fmtPct(mgrMatch.vacancyRate),
-        detail: mgrMatch.vacant + " vacant position(s) out of " + mgrMatch.total + " total budgeted seats.",
+        type: "figure",
+        headline: headline,
+        detail: detail,
+        answer: {
+          headline: headline,
+          interpretation: detail
+        },
         formula: "vacancy rate = vacant seats ÷ total seats × 100",
         evidence: [
           ["Manager", ctx.manager],
@@ -254,10 +296,17 @@
       var lineSum = SFE().getFilteredHeadcountForLine(targetBU, ctx.line || null);
       if (!lineSum || !lineSum.ok) return { ok: false, message: "No organogram data found for " + (ctx.line || targetBU) };
       var labelName = ctx.line || targetBU;
+      var headline = labelName + " — Vacancy Rate: " + E.fmtPct(lineSum.vacancyRatePct);
+      var detail = lineSum.headcountVacant + " vacant position(s) out of " + lineSum.headcountTotal + " budgeted positions.";
       return {
         ok: true,
-        headline: labelName + " — Vacancy Rate: " + E.fmtPct(lineSum.vacancyRatePct),
-        detail: lineSum.headcountVacant + " vacant position(s) out of " + lineSum.headcountTotal + " budgeted positions.",
+        type: "figure",
+        headline: headline,
+        detail: detail,
+        answer: {
+          headline: headline,
+          interpretation: detail
+        },
         formula: "vacancy rate = vacant positions ÷ total positions × 100",
         evidence: [
           ["BU/Line", labelName],
@@ -282,10 +331,17 @@
         vac += x.headcountVacant || 0;
       }
     });
+    var headline = E.fmtPct(tot > 0 ? (vac / tot) * 100 : 0) + " vacancy rate overall";
+    var detail = vac + " vacant positions out of " + tot + " budgeted seats across your allowed BUs (" + bus.join(", ") + ").";
     return {
       ok: true,
-      headline: E.fmtPct(tot > 0 ? (vac / tot) * 100 : 0) + " vacancy rate overall",
-      detail: vac + " vacant positions out of " + tot + " budgeted seats across your allowed BUs (" + bus.join(", ") + ").",
+      type: "figure",
+      headline: headline,
+      detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       formula: "blended vacancy rate = sum of vacant seats ÷ sum of budgeted seats × 100",
       evidence: [
         ["Allowed BUs", bus.join(", ")],
@@ -340,10 +396,18 @@
       return { rank: i + 1, name: r.name, cells: r.cells };
     });
 
+    var headline = (bottom ? "Bottom " : "Top ") + shown.length + " " + nameHeader.toLowerCase() + (shown.length === 1 ? "" : "s") + " by vacancy rate";
+    var detail = "Within " + scopeTxt + ", ranked by vacancy rate.";
+
     return {
       ok: true,
-      headline: (bottom ? "Bottom " : "Top ") + shown.length + " " + nameHeader.toLowerCase() + (shown.length === 1 ? "" : "s") + " by vacancy rate",
-      detail: "Within " + scopeTxt + ", ranked by vacancy rate.",
+      type: "top_n",
+      headline: headline,
+      detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       nameHeader: nameHeader,
       columns: columns,
       rows: shown,
@@ -364,12 +428,20 @@
       if (!got) return null;
       cols.push(got);
     }
+    var headline = cols[0].name + " vs " + cols[1].name + " headcount comparison";
+    var detail = cols[0].vacancyRate <= cols[1].vacancyRate
+      ? cols[0].name + " has a healthier fill rate (lower vacancy rate)."
+      : cols[1].name + " has a healthier fill rate (lower vacancy rate).";
+
     return {
       ok: true,
-      headline: cols[0].name + " vs " + cols[1].name + " headcount comparison",
-      detail: cols[0].vacancyRate <= cols[1].vacancyRate
-        ? cols[0].name + " has a healthier fill rate (lower vacancy rate)."
-        : cols[1].name + " has a healthier fill rate (lower vacancy rate).",
+      type: "compare",
+      headline: headline,
+      detail: detail,
+      answer: {
+        headline: headline,
+        interpretation: detail
+      },
       compare: cols,
       compareRows: [
         ["Vacancy Rate", function (c) { return E.fmtPct(c.vacancyRate); }],
