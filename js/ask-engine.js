@@ -759,7 +759,9 @@
               '<div class="mi-ask-driver-main">' +
                 '<span class="mi-ask-driver-rank">' + (idx + 1) + '. </span>' +
                 '<span class="mi-ask-driver-name">' + esc(c.entity) + '</span>' +
-                '<span class="mi-ask-driver-gap">Gap: ' + fmtEGP(c.gap) + '</span>' +
+                (c.gap > 0 
+                  ? '<span class="mi-ask-driver-gap" style="color: #10b981; font-weight: 700;">+Gap: ' + fmtEGP(c.gap) + '</span>'
+                  : '<span class="mi-ask-driver-gap">Gap: ' + fmtEGP(c.gap) + '</span>') +
                 '<span class="mi-ask-driver-pct">Contribution: ' + c.contributionPct.toFixed(1) + '%</span>' +
               '</div>';
 

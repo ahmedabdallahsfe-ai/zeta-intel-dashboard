@@ -321,7 +321,7 @@
     var explore = [];
     if (!line && contribs.length > 0 && contribs[0].shortfall > 0) {
       var cleanLineName = contribs[0].name.replace(/^Line:\s*/, "");
-      explore.push("Explain " + cleanLineName + " underperformance");
+      explore.push("Analyze " + cleanLineName + " target gap");
     }
     explore.push("How is " + bu + " coverage performing?");
     explore.push("What is " + bu + " vacancy rate?");
