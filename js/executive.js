@@ -553,6 +553,12 @@
    * load, before any session exists) can never leak an out-of-scope BU
    * or line into the very first render. */
   function clampFiltersToScope() {
+    const userRole = (global.AUTH && global.AUTH.getValidSessionUser()) ? global.AUTH.getValidSessionUser().role : null;
+    const isDmFilterAllowed = ["SFE Manager", "BU Manager", "Line Manager"].includes(userRole);
+    if (!isDmFilterAllowed) {
+      _filters.dm = "All";
+    }
+
     if (_filters.dm && _filters.dm !== "All") {
       const list = safeCall("sfe", "SFEDashboard", "getHierarchyList") || [];
       const match = list.find(r => r.dm && r.dm.toUpperCase().trim() === _filters.dm.toUpperCase().trim());
@@ -3076,18 +3082,28 @@
       return { value: name, label: position ? `${name} (${position})` : name };
     }));
 
+    const userRole = (global.AUTH && global.AUTH.getValidSessionUser()) ? global.AUTH.getValidSessionUser().role : null;
+    const isDmFilterAllowed = ["SFE Manager", "BU Manager", "Line Manager"].includes(userRole);
+
     const wrap = document.createElement("div");
     wrap.className = "ds-exec-filterbar";
 
     const buSelect = global.DS.select({ id: "exec-filter-bu", label: "Business Unit", options: buOptions, value: ctx.filters.bu, disabled: buOptions.length <= 1 });
     const lineSelect = global.DS.select({ id: "exec-filter-line", label: "Line", options: lineOptions, value: allBuActive ? "All" : ctx.filters.line, disabled: allBuActive });
-    const dmSelect = global.DS.select({ id: "exec-filter-dm", label: "District Manager (DM)", options: dmOptions, value: ctx.filters.dm || "All", disabled: dmOptions.length <= 1 });
+    
+    let dmSelect = null;
+    if (isDmFilterAllowed) {
+      dmSelect = global.DS.select({ id: "exec-filter-dm", label: "District Manager (DM)", options: dmOptions, value: ctx.filters.dm || "All", disabled: dmOptions.length <= 1 });
+    } else {
+      ctx.filters.dm = "All";
+    }
+
     const periodSelect = global.DS.select({ id: "exec-filter-period", label: "Period", options: [{ value: "latest", label: "Latest Period" }], value: "latest", disabled: true });
     const cmpSelect = global.DS.select({ id: "exec-filter-cmp", label: "Comparison Period", options: [{ value: "YTD", label: "YTD" }], value: "YTD", disabled: true });
 
     wrap.appendChild(buSelect);
     wrap.appendChild(lineSelect);
-    wrap.appendChild(dmSelect);
+    if (dmSelect) wrap.appendChild(dmSelect);
     wrap.appendChild(periodSelect);
     wrap.appendChild(cmpSelect);
 
@@ -3141,10 +3157,12 @@
       ctx.filters.dm = "All";   // Reset DM filter on Line change
       render(ctx.container);
     });
-    dmSelect.querySelector("select").addEventListener("change", (e) => {
-      ctx.filters.dm = e.target.value;
-      render(ctx.container);
-    });
+    if (dmSelect) {
+      dmSelect.querySelector("select").addEventListener("change", (e) => {
+        ctx.filters.dm = e.target.value;
+        render(ctx.container);
+      });
+    }
 
     return wrap;
   }
