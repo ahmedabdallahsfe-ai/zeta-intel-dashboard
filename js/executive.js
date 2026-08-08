@@ -2520,7 +2520,9 @@
   // breakdown. Mirrors openBrandAchievementModal()/
   // openItemAchievementModal()'s two-level click pattern exactly.
   function openCustomerClusterMixModal(bu, line) {
-    const data = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line && line !== "All" ? line : null);
+    const data = (_filters.dm && _filters.dm !== "All")
+      ? safeCall("sales", "SalesDashboard", "getCustomerClusterMixForDm", bu, line && line !== "All" ? line : null, _filters.dm)
+      : safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line && line !== "All" ? line : null);
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     if (!data || !data.ok || !data.clusters.length) {
       global.DS.openModal({ title: bu + " — Customer Channel Mix", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No customer-channel data available.</div>" });
@@ -2647,6 +2649,10 @@
   // (openClusterFlatModal, unchanged from the first Customer Channel Mix
   // build) since no customer-grain data exists for it yet.
   function openClusterCustomersModal(bu, line, clusterName) {
+    if (_filters.dm && _filters.dm !== "All") {
+      openClusterFlatModal(bu, line, clusterName);
+      return;
+    }
     // Line-scoped (2026-08-03, "position of chosen line"): forward the
     // Executive filter bar's Line selection through to Customer Health so
     // Status/Frequency/Basket/Distinct SKUs/Value/Position/Brick/Region/
@@ -2660,7 +2666,9 @@
   }
 
   function openClusterFlatModal(bu, line, clusterName) {
-    const data = safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line && line !== "All" ? line : null);
+    const data = (_filters.dm && _filters.dm !== "All")
+      ? safeCall("sales", "SalesDashboard", "getCustomerClusterMixForDm", bu, line && line !== "All" ? line : null, _filters.dm)
+      : safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line && line !== "All" ? line : null);
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     const cluster = data && data.ok ? data.clusters.find(c => c.name === clusterName) : null;
     const labelBuLine = (line && line !== "All") ? line : bu;

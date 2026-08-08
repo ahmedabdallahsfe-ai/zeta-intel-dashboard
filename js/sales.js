@@ -4101,14 +4101,19 @@
     getCustomerClusterMixForDm(bu, line, dmName) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
-        return { ok: false, clusters: [] };
+        return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, line: line || 'All', clusters: [] };
+      }
+      if (typeof window.SEMANTIC === 'undefined') {
+        return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, line: line || 'All', clusters: [] };
       }
       const linesLk = cache.lookups.lines;
       const subTypesLk = cache.lookups.sub_types;
       const dmsLk = cache.lookups.dms;
+      const months = cache.lookups.months;
 
       const targetDmUpper = dmName ? dmName.toUpperCase().trim() : "";
-      const clusterMap = new Map();
+      const clusterAcc = new Map();
+      let totalVal = 0;
 
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
@@ -4124,21 +4129,46 @@
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue;
 
-        const subTypeName = subTypesLk[r[STYPE]] || "Other";
-        const clusterName = subTypeToCluster(subTypeName);
-        clusterMap.set(clusterName, (clusterMap.get(clusterName) || 0) + (r[VAL] || 0));
+        const rawSubType = subTypesLk[r[STYPE]];
+        const cluster = subTypeToCluster(rawSubType);
+        if (cluster === null) continue;
+
+        if (!clusterAcc.has(cluster)) clusterAcc.set(cluster, { val: 0, subTypes: new Map() });
+        const c = clusterAcc.get(cluster);
+        c.val += r[VAL] || 0;
+        c.subTypes.set(rawSubType, (c.subTypes.get(rawSubType) || 0) + (r[VAL] || 0));
+        totalVal += r[VAL] || 0;
       }
 
-      let total = 0;
-      clusterMap.forEach(v => { total += v; });
+      const clusters = Array.from(clusterAcc.entries())
+        .map(([name, c]) => ({
+          name: name,
+          actualValue: c.val,
+          contributionPct: totalVal > 0 ? (c.val / totalVal) * 100 : null,
+          customerCount: c.subTypes.size,
+          customers: Array.from(c.subTypes.entries())
+            .map(([subTypeName, val]) => ({
+              name: subTypeName,
+              actualValue: val,
+              contributionPctOfCluster: c.val > 0 ? (val / c.val) * 100 : null,
+              contributionPctOfTotal: totalVal > 0 ? (val / totalVal) * 100 : null,
+            }))
+            .sort((a, b) => b.actualValue - a.actualValue),
+        }))
+        .sort((a, b) => b.actualValue - a.actualValue);
 
-      const clusters = Array.from(clusterMap.entries()).map(([name, val]) => ({
-        name: name,
-        actualValue: val,
-        contributionPct: total > 0 ? (val / total) * 100 : 0
-      })).sort((a, b) => b.actualValue - a.actualValue);
-
-      return { ok: true, clusters: clusters };
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: months[months.length - 1] || null,
+        source: 'sales',
+        bu: bu,
+        line: line || 'All',
+        unit: 'EGP',
+        scope: 'Non-Tender transactions only, Value basis, filtered for DM ' + dmName,
+        totalActualValue: totalVal,
+        clusters: clusters,
+      };
     },
 
     // Target Scenario (2026-08-04 same-day fix): lets other modules

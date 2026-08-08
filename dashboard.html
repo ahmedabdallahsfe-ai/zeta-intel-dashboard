@@ -151,6 +151,14 @@
   <script defer src="assets/xlsx.core.min.js"></script>
   <script defer src="assets/pako.min.js"></script>
 
+  <!-- Load profiler (2026-08-08). INERT unless the page is opened with
+       ?perf=1 — it patches atob / pako / JSON.parse to time them, and a
+       measurement tool that taxes every user all the time is worse than no
+       measurement. Placed right after pako so it can wrap it, and before the
+       cache scripts so it sees every decode. Open dashboard.html?perf=1, wait
+       for the load to finish, then read the console or run ZetaPerf.copy(). -->
+  <script defer src="js/perf-probe.js?v=20260808_perf2"></script>
+
   <!-- Cache (must load before any module that reads it) -->
   <script defer src="cache/metadata.data.js?v=20260724"></script>
   <script defer src="cache/dashboard.data.js?v=20260724"></script>
