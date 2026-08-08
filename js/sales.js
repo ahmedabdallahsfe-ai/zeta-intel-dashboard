@@ -210,34 +210,15 @@
   let customerAnalyticsCache = null;
   function decompressCustomerAnalyticsCache() {
     if (customerAnalyticsCache !== null) return;
-
-    // NOT-YET-ARRIVED IS NOT THE SAME AS NOT-AVAILABLE (2026-08-08).
-    // This cache is 14.3 MB and is now fetched in the background after boot
-    // rather than as a script tag (see js/cache-loader.js). If someone opens
-    // the drill before it lands, latching the `false` sentinel here would mark
-    // it permanently unavailable for the rest of the session -- the cache
-    // would arrive a second later and never be looked at again.
-    //
-    // So: leave the sentinel null and simply return. The next call retries.
-    // `false` is now reserved for "it arrived and could not be decoded",
-    // which genuinely will not fix itself.
-    if (typeof window.CUSTOMER_ANALYTICS_CACHE === 'undefined' ||
-        !window.CUSTOMER_ANALYTICS_CACHE) {
-      if (window.CacheLoader) window.CacheLoader.ensure('customer_analytics');
+    if (typeof window.CUSTOMER_ANALYTICS_CACHE === 'undefined') {
+      customerAnalyticsCache = false; // sentinel: "checked, not available" (not null = "not yet checked")
       return;
     }
     try {
       const b64 = window.CUSTOMER_ANALYTICS_CACHE.b64Data;
       const strData = atob(b64);
-      // Pre-sized typed array, not `strData.split('').map(...)`. The old form
-      // built an intermediate JavaScript array with one element per byte --
-      // 147 million of them for this cache -- before copying it into the
-      // Uint8Array. Identical output, a fraction of the allocation. Matches
-      // the pattern every other decoder in this codebase already uses.
-      const bytes = new Uint8Array(strData.length);
-      for (let i = 0; i < strData.length; i++) {
-        bytes[i] = strData.charCodeAt(i);
-      }
+      const charData = strData.split('').map(x => x.charCodeAt(0));
+      const bytes = new Uint8Array(charData);
       const decompressed = pako.ungzip(bytes, { to: 'string' });
       customerAnalyticsCache = JSON.parse(decompressed);
     } catch (e) {

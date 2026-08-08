@@ -307,13 +307,6 @@ function startAppBody() {
   }
   mountAskPanel(currentTab);
 
-  // Customer Analytics (14.3 MB) is read only by the Customer Health drill.
-  // Fetch it in the background once the page is idle, so it is already there
-  // when someone clicks -- at no cost to first paint. Deliberately NOT awaited
-  // anywhere: every consumer already handles the cache being absent, which is
-  // what a user who has never run refresh.bat sees.
-  if (window.CacheLoader) window.CacheLoader.preload("customer_analytics");
-
   // Sidebar tab switching
   const menuItems = document.querySelectorAll("#sidebar-nav .menu-item");
   // (mountAskPanel is defined at module scope below — see ASK THE DATA.)
@@ -395,19 +388,6 @@ function startAppBody() {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
-            // cache/iqvia.data.js (4.4 MB) is no longer loaded at boot -- see
-            // js/cache-loader.js. Fetch it now, then init. Loader.hide() is
-            // deferred into the callback so the spinner stays up for the
-            // download instead of the page looking finished and empty.
-            if (window.CacheLoader) {
-              Loader.show("Loading market share data...");
-              window.CacheLoader.ensure("iqvia").then(function () {
-                if (window.IQVIADashboard) window.IQVIADashboard.init("app-root");
-                mountAskPanel(tab);
-                Loader.hide();
-              });
-              return;
-            }
             if (window.IQVIADashboard) {
               window.IQVIADashboard.init("app-root");
             }
@@ -426,16 +406,6 @@ function startAppBody() {
           } else if (tab === "marketintel") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
-            }
-            // cache/market_intel.data.js (1.4 MB) is fetched on demand.
-            if (window.CacheLoader) {
-              Loader.show("Loading market intelligence...");
-              window.CacheLoader.ensure("market_intel").then(function () {
-                renderMarketIntelTab(document.getElementById("app-root"));
-                mountAskPanel(tab);
-                Loader.hide();
-              });
-              return;
             }
             renderMarketIntelTab(document.getElementById("app-root"));
           } else if (tab === "control") {
