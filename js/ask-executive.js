@@ -321,10 +321,29 @@
     var explore = [];
     if (!line && contribs.length > 0 && contribs[0].shortfall > 0) {
       var cleanLineName = contribs[0].name.replace(/^Line:\s*/, "");
-      explore.push("Analyze " + cleanLineName + " target gap");
+      explore.push({
+        label: "Analyze " + cleanLineName + " target gap",
+        targetTab: "executive",
+        filterKey: "line",
+        filterValue: cleanLineName
+      });
     }
-    explore.push("How is " + bu + " coverage performing?");
-    explore.push("What is " + bu + " vacancy rate?");
+
+    var displayFilterKey = line ? "line" : "bu";
+    var displayFilterVal = line || bu;
+
+    explore.push({
+      label: "How is " + displayFilterVal + " coverage performing?",
+      targetTab: "coverage",
+      filterKey: displayFilterKey,
+      filterValue: displayFilterVal
+    });
+    explore.push({
+      label: "What is " + displayFilterVal + " vacancy rate?",
+      targetTab: "sfe",
+      filterKey: displayFilterKey,
+      filterValue: displayFilterVal
+    });
 
     var evidence = [
       ["Target BU", bu],

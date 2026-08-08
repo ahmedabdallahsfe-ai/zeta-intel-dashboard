@@ -545,27 +545,45 @@
     notFoundHint: "Name a business unit, line, brand or district manager you have access to " +
       "— for example “CHC achievement” or “top 10 brands”.",
 
-    /**
-     * Suggestion chips, built from THIS user's vocabulary.
-     *
-     * These were hardcoded ("How is CHC performing?", "Compare CHC and DIAB")
-     * and the scope-leak harness caught it: a Cluster BU Manager was being
-     * shown buttons naming CHC and DIAB — business units they have no access
-     * to. Two problems at once. It discloses names outside their scope, and
-     * every one of those buttons would have returned "outside your access",
-     * which reads as a broken feature rather than a boundary.
-     *
-     * Examples are part of the scope surface, not decoration.
-     */
+    get placeholder() {
+      var v = vocab();
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && v.lines.length) {
+        return "Ask about " + v.lines[0] + ", its brands or its district managers…";
+      }
+      return "Ask about a business unit, line, brand, item or district manager…";
+    },
+    get notFoundHint() {
+      var v = vocab();
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && v.lines.length) {
+        return "Name a brand in " + v.lines[0] + " or a district manager you have access to.";
+      }
+      return "Name a business unit, line, brand or district manager you have access to — for example “CHC achievement” or “top 10 brands”.";
+    },
+
     get examples() {
       var v = vocab();
       var out = [];
-      if (v.bus.length) out.push("How is " + v.bus[0] + " performing?");
-      if (v.brands.length) out.push("Top 10 brands");
-      if (v.lines.length > 1) out.push("Top lines by sales");
-      if (v.dms.length) out.push("Which district managers are behind target?");
-      if (v.bus.length >= 2) out.push("Compare " + v.bus[0] + " and " + v.bus[1]);
-      else if (v.lines.length >= 2) out.push("Compare " + v.lines[0] + " and " + v.lines[1]);
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+
+      if (isLineManager && v.lines.length) {
+        out.push("How is " + v.lines[0] + " performing?");
+        if (v.brands.length) out.push("Top 10 brands");
+        if (v.lines.length > 1) out.push("Top lines by sales");
+        if (v.dms.length) out.push("Which district managers are behind target?");
+        if (v.lines.length >= 2) out.push("Compare " + v.lines[0] + " and " + v.lines[1]);
+      } else {
+        if (v.bus.length) out.push("How is " + v.bus[0] + " performing?");
+        if (v.brands.length) out.push("Top 10 brands");
+        if (v.lines.length > 1) out.push("Top lines by sales");
+        if (v.dms.length) out.push("Which district managers are behind target?");
+        if (v.bus.length >= 2) out.push("Compare " + v.bus[0] + " and " + v.bus[1]);
+        else if (v.lines.length >= 2) out.push("Compare " + v.lines[0] + " and " + v.lines[1]);
+      }
       if (!out.length) out.push("How are we performing?");
       return out;
     },
@@ -580,9 +598,6 @@
       ];
     },
 
-    // Vocabulary is already scope-filtered at source, so nothing further to
-    // exclude here. Declared explicitly rather than omitted so the engine's
-    // contract stays visible at the call site.
     visibleDimValues: function () { return null; },
 
     scopeLabel: function () {
@@ -610,17 +625,62 @@
       }
       var ctx = contextFor(parsed.entities);
 
+      // If user is a Line Manager, default to their restricted line if none is specified in query context
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && !ctx.line && !ctx.brand && !ctx.dm) {
+        var v = vocab();
+        if (v.lines && v.lines.length) {
+          ctx.line = v.lines[0];
+          ctx.bu = lineBU(ctx.line);
+        }
+      }
+
+      var res;
       if (parsed.intent === "compare" && parsed.entities.length >= 2) {
-        var cmp = answerCompare(q, parsed.entities);
-        if (cmp) return cmp;
+        res = answerCompare(q, parsed.entities);
+      } else if (parsed.intent === "top" || parsed.bottom) {
+        res = answerTop(q, ctx, parsed);
+      } else {
+        if (!parsed.entities.length && !/\ball\b|\btotal\b|\boverall\b|\bcompany\b|\bhow are we\b/i.test(q)) {
+          if (/\bbrand|\bline|\bmanager|\bitem|\bsku/i.test(q)) {
+            res = answerTop(q, ctx, parsed);
+          }
+        }
+        if (!res) res = answerFigure(q, ctx, parsed);
       }
-      if (parsed.intent === "top" || parsed.bottom) return answerTop(q, ctx, parsed);
-      if (!parsed.entities.length && !/\ball\b|\btotal\b|\boverall\b|\bcompany\b|\bhow are we\b/i.test(q)) {
-        // Nothing named and no whole-scope phrasing: a ranking is the more
-        // useful reading of a bare "sales" or "achievement" question.
-        if (/\bbrand|\bline|\bmanager|\bitem|\bsku/i.test(q)) return answerTop(q, ctx, parsed);
+
+      // Inject explore navigation chips
+      if (res && res.ok) {
+        var targetLine = ctx.line || null;
+        var targetBU = ctx.bu || (targetLine ? lineBU(targetLine) : null);
+        if (targetLine || targetBU) {
+          var displayFilterKey = targetLine ? "line" : "bu";
+          var displayFilterVal = targetLine || targetBU;
+          res.explore = [
+            {
+              label: "Diagnose " + displayFilterVal + " performance",
+              targetTab: "executive",
+              filterKey: displayFilterKey,
+              filterValue: displayFilterVal
+            },
+            {
+              label: "How is " + displayFilterVal + " coverage performing?",
+              targetTab: "coverage",
+              filterKey: displayFilterKey,
+              filterValue: displayFilterVal
+            },
+            {
+              label: "What is " + displayFilterVal + " vacancy rate?",
+              targetTab: "sfe",
+              filterKey: displayFilterKey,
+              filterValue: displayFilterVal
+            }
+          ];
+        }
       }
-      return answerFigure(q, ctx, parsed);
+
+      return res;
     }
   };
 

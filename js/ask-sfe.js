@@ -370,18 +370,17 @@
         ] };
       });
     } else {
-      // Lines vacancy ranking
       var targetBU = ctx.bu || allowedBUs()[0];
       nameHeader = "Line";
       scopeTxt = "lines in " + targetBU;
       allowedLines().forEach(function (line) {
         if (lineBU(line) !== targetBU) return;
         var lineSum = SFE().getFilteredHeadcountForLine(targetBU, line);
-        if (lineSum && lineSum.ok && lineSum.total > 0) {
+        if (lineSum && lineSum.ok && lineSum.headcountTotal > 0) {
           rows.push({
             name: line,
-            sort: lineSum.vacancyRate || 0,
-            cells: [E.fmtPct(lineSum.vacancyRate), lineSum.vacant, lineSum.active]
+            sort: lineSum.vacancyRatePct || 0,
+            cells: [E.fmtPct(lineSum.vacancyRatePct), lineSum.headcountVacant, lineSum.headcountActive]
           });
         }
       });
@@ -460,17 +459,44 @@
     id: ID,
     title: "Ask the Data",
     subtitle: "Type a question about headcount, vacancy, span of control or workload. Answers respect your access role.",
-    placeholder: "Ask about a BU, line, manager or employee...",
-    notFoundHint: "Name a BU, line, manager or representative you have access to — for example “CHC vacancy rate” or “overloaded reps”.",
+    get placeholder() {
+      var v = vocab();
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && v.lines.length) {
+        return "Ask about " + v.lines[0] + ", its vacancies or its managers…";
+      }
+      return "Ask about a BU, line, manager or employee...";
+    },
+    get notFoundHint() {
+      var v = vocab();
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && v.lines.length) {
+        return "Name a manager or representative in " + v.lines[0] + " you have access to.";
+      }
+      return "Name a BU, line, manager or representative you have access to — for example “CHC vacancy rate” or “overloaded reps”.";
+    },
 
     get examples() {
       var v = vocab();
       var out = [];
-      if (v.bus.length) out.push("What is " + v.bus[0] + " vacancy rate?");
-      if (v.bus.length) out.push("What is average span of control?");
-      if (v.bus.length) out.push("Who are the overloaded reps?");
-      if (v.managers.length) out.push("Vacancies under " + v.managers[0]);
-      if (v.bus.length >= 2) out.push("Compare " + v.bus[0] + " and " + v.bus[1] + " headcount");
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+
+      if (isLineManager && v.lines.length) {
+        out.push("What is " + v.lines[0] + " vacancy rate?");
+        out.push("What is average span of control?");
+        out.push("Who are the overloaded reps?");
+        if (v.managers.length) out.push("Vacancies under " + v.managers[0]);
+        if (v.lines.length >= 2) out.push("Compare " + v.lines[0] + " and " + v.lines[1] + " headcount");
+      } else {
+        if (v.bus.length) out.push("What is " + v.bus[0] + " vacancy rate?");
+        if (v.bus.length) out.push("What is average span of control?");
+        if (v.bus.length) out.push("Who are the overloaded reps?");
+        if (v.managers.length) out.push("Vacancies under " + v.managers[0]);
+        if (v.bus.length >= 2) out.push("Compare " + v.bus[0] + " and " + v.bus[1] + " headcount");
+      }
       return out;
     },
 
@@ -510,20 +536,66 @@
       }
       var ctx = contextFor(parsed.entities);
 
+      // If user is a Line Manager, default to their restricted line if none is specified in query context
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && !ctx.line && !ctx.manager && !ctx.employee) {
+        var v = vocab();
+        if (v.lines && v.lines.length) {
+          ctx.line = v.lines[0];
+          ctx.bu = lineBU(ctx.line);
+        }
+      }
+
+      var res;
       if (parsed.intent === "compare" && parsed.entities.length >= 2) {
-        var cmp = answerCompare(q, parsed.entities);
-        if (cmp) return cmp;
+        res = answerCompare(q, parsed.entities);
+      } else if (parsed.intent === "top" || parsed.bottom) {
+        res = answerTop(q, ctx, parsed);
+      } else {
+        if (/\b(workload|brick|overload|span|control|ratio|tenure|stability|month|probation|turnover|attrition)\b/i.test(q)) {
+          res = answerFigure(q, ctx, parsed);
+        } else {
+          if (!parsed.entities.length && !/\ball\b|\btotal\b|\boverall\b|\bcompany\b|\bhow are we\b/i.test(q)) {
+            if (/\b(line|team|manager|dm|district|asm|nsm|vacancy|vacancies)s?\b/i.test(q)) {
+              res = answerTop(q, ctx, parsed);
+            }
+          }
+          if (!res) res = answerFigure(q, ctx, parsed);
+        }
       }
-      if (parsed.intent === "top" || parsed.bottom) return answerTop(q, ctx, parsed);
 
-      if (/\b(workload|brick|overload|span|control|ratio|tenure|stability|month|probation|turnover|attrition)\b/i.test(q)) {
-        return answerFigure(q, ctx, parsed);
+      // Inject explore navigation chips
+      if (res && res.ok) {
+        var targetLine = ctx.line || null;
+        var targetBU = ctx.bu || (targetLine ? lineBU(targetLine) : null);
+        if (targetLine || targetBU) {
+          var displayFilterKey = targetLine ? "line" : "bu";
+          var displayFilterVal = targetLine || targetBU;
+          res.explore = [
+            {
+              label: "Diagnose " + displayFilterVal + " performance",
+              targetTab: "executive",
+              filterKey: displayFilterKey,
+              filterValue: displayFilterVal
+            },
+            {
+              label: "How is " + displayFilterVal + " sales performing?",
+              targetTab: "sales",
+              filterKey: displayFilterKey,
+              filterValue: displayFilterVal
+            },
+            {
+              label: "How is " + displayFilterVal + " coverage performing?",
+              targetTab: "coverage",
+              filterKey: displayFilterKey,
+              filterValue: displayFilterVal
+            }
+          ];
+        }
       }
 
-      if (!parsed.entities.length && !/\ball\b|\btotal\b|\boverall\b|\bcompany\b|\bhow are we\b/i.test(q)) {
-        if (/\b(line|team|manager|dm|district|asm|nsm|vacancy|vacancies)s?\b/i.test(q)) return answerTop(q, ctx, parsed);
-      }
-      return answerFigure(q, ctx, parsed);
+      return res;
     }
   };
 

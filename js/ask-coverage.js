@@ -375,18 +375,45 @@
   var adapter = {
     id: ID,
     title: "Ask the Data",
-    subtitle: "Type a question about operational coverage, right frequency or planned vs actual visits. Answers respect your access role.",
-    placeholder: "Ask about a BU, line, specialty, class or district manager...",
-    notFoundHint: "Name a BU, line, DM, specialty, or customer class you have access to — for example “CHC coverage” or “top DMs by coverage”.",
+    subtitle: "Type a question about coverage, visiting frequencies or client counts. Answers respect your access role.",
+    get placeholder() {
+      var v = vocab();
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && v.lines.length) {
+        return "Ask about " + v.lines[0] + ", its district managers or its specialties…";
+      }
+      return "Ask about a BU, line, DM, specialty, or customer class…";
+    },
+    get notFoundHint() {
+      var v = vocab();
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && v.lines.length) {
+        return "Name a specialty in " + v.lines[0] + " or a district manager you have access to.";
+      }
+      return "Name a BU, line, DM, specialty, or customer class you have access to — for example “CHC coverage” or “top DMs by coverage”.";
+    },
 
     get examples() {
       var v = vocab();
       var out = [];
-      if (v.bus.length) out.push("How is " + v.bus[0] + " coverage performing?");
-      if (v.bus.length) out.push("Top lines by coverage");
-      if (v.dms.length) out.push("Top DMs by coverage");
-      if (v.specialties.length) out.push("Top specialties by coverage");
-      if (v.bus.length >= 2) out.push("Compare " + v.bus[0] + " and " + v.bus[1] + " coverage");
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+
+      if (isLineManager && v.lines.length) {
+        out.push("How is " + v.lines[0] + " coverage performing?");
+        if (v.lines.length > 1) out.push("Top lines by coverage");
+        if (v.dms.length) out.push("Top DMs by coverage");
+        if (v.specialties.length) out.push("Top specialties by coverage");
+        if (v.lines.length >= 2) out.push("Compare " + v.lines[0] + " and " + v.lines[1] + " coverage");
+      } else {
+        if (v.bus.length) out.push("How is " + v.bus[0] + " coverage performing?");
+        if (v.bus.length) out.push("Top lines by coverage");
+        if (v.dms.length) out.push("Top DMs by coverage");
+        if (v.specialties.length) out.push("Top specialties by coverage");
+        if (v.bus.length >= 2) out.push("Compare " + v.bus[0] + " and " + v.bus[1] + " coverage");
+      }
       return out;
     },
 
@@ -428,15 +455,62 @@
       }
       var ctx = contextFor(parsed.entities);
 
+      // If user is a Line Manager, default to their restricted line if none is specified in query context
+      var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
+      var isLineManager = user && user.role === "Line Manager";
+      if (isLineManager && !ctx.line && !ctx.dm && !ctx.specialty) {
+        var v = vocab();
+        if (v.lines && v.lines.length) {
+          ctx.line = v.lines[0];
+          ctx.bu = lineBU(ctx.line);
+        }
+      }
+
+      var res;
       if (parsed.intent === "compare" && parsed.entities.length >= 2) {
-        var cmp = answerCompare(q, parsed.entities);
-        if (cmp) return cmp;
+        res = answerCompare(q, parsed.entities);
+      } else if (parsed.intent === "top" || parsed.bottom) {
+        res = answerTop(q, ctx, parsed);
+      } else {
+        if (!parsed.entities.length && !/\ball\b|\btotal\b|\boverall\b|\bcompany\b|\bhow are we\b/i.test(q)) {
+          if (/\b(line|team|manager|dm|district|specialty|specialties|class|classes|klass|type|category)s?\b/i.test(q)) {
+            res = answerTop(q, ctx, parsed);
+          }
+        }
+        if (!res) res = answerFigure(q, ctx, parsed);
       }
-      if (parsed.intent === "top" || parsed.bottom) return answerTop(q, ctx, parsed);
-      if (!parsed.entities.length && !/\ball\b|\btotal\b|\boverall\b|\bcompany\b|\bhow are we\b/i.test(q)) {
-        if (/\b(line|team|manager|dm|district|specialty|specialties|class|classes|klass|type|category)s?\b/i.test(q)) return answerTop(q, ctx, parsed);
+
+      // Inject explore navigation chips
+      if (res && res.ok) {
+        var targetLine = ctx.line || null;
+        var targetBU = ctx.bu || (targetLine ? lineBU(targetLine) : null);
+        if (targetLine || targetBU) {
+          var displayFilterKey = targetLine ? "line" : "bu";
+          var displayFilterVal = targetLine || targetBU;
+          res.explore = [
+            {
+              label: "Diagnose " + displayFilterVal + " performance",
+              targetTab: "executive",
+              filterKey: displayFilterKey,
+              filterValue: displayFilterVal
+            },
+            {
+              label: "How is " + displayFilterVal + " sales performing?",
+              targetTab: "sales",
+              filterKey: displayFilterKey,
+              filterValue: displayFilterVal
+            },
+            {
+              label: "What is " + displayFilterVal + " vacancy rate?",
+              targetTab: "sfe",
+              filterKey: displayFilterKey,
+              filterValue: displayFilterVal
+            }
+          ];
+        }
       }
-      return answerFigure(q, ctx, parsed);
+
+      return res;
     }
   };
 
