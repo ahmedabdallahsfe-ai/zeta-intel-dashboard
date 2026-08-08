@@ -747,6 +747,43 @@
         h += '</div>';
       }
 
+      // 2.5 TABLE / COMPARISON RENDERING (For ranked lists or comparisons inside structured responses)
+      if (r.rows && r.rows.length) {
+        var cols = r.columns || ["Value"];
+        h += '<div class="mi-ask-section mi-ask-section-table">' +
+          '<div class="mi-ask-tablewrap"><table class="mi-table mi-ask-table"><thead><tr>' +
+            '<th class="mi-th-rank">#</th><th>' + esc(r.nameHeader || "Name") + "</th>" +
+            cols.map(function (c) { return '<th class="mi-num">' + esc(c) + "</th>"; }).join("") +
+          "</tr></thead><tbody>";
+        r.rows.forEach(function (x) {
+          var hi = !!x.highlight;
+          h += "<tr" + (hi ? ' class="mi-row-zeta"' : "") + '>' +
+            '<td class="mi-th-rank">' + x.rank + "</td>" +
+            "<td>" + esc(x.name) + (hi ? ' <span class="mi-zeta-tag">US</span>' : "") + "</td>" +
+            (x.cells || []).map(function (c, i) {
+              return '<td class="mi-num' + (i === 0 ? " mi-strong" : "") + '">' + esc(c) + "</td>";
+            }).join("") +
+          "</tr>";
+        });
+        h += "</tbody></table></div>" +
+        '</div>';
+      }
+
+      if (r.compare && r.compare.length) {
+        h += '<div class="mi-ask-section mi-ask-section-compare">' +
+          '<div class="mi-ask-tablewrap"><table class="mi-table mi-ask-table"><thead><tr><th></th>' +
+            r.compare.map(function (c) { return "<th>" + esc(c.name) + "</th>"; }).join("") +
+          "</tr></thead><tbody>";
+        (r.compareRows || []).forEach(function (row) {
+          h += '<tr><td class="mi-strong">' + esc(row[0]) + "</td>" +
+            r.compare.map(function (c) {
+              return '<td class="mi-num">' + esc(row[1](c)) + "</td>";
+            }).join("") + "</tr>";
+        });
+        h += "</tbody></table></div>" +
+        '</div>';
+      }
+
       // 3. CONTRIBUTIONS / DRIVERS SECTION
       if ((r.contributions && r.contributions.length) || (r.indicators && r.indicators.length)) {
         h += '<div class="mi-ask-section mi-ask-section-drivers">' +
