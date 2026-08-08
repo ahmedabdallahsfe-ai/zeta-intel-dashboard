@@ -190,6 +190,28 @@ if exist "TO MARKET_IN MARKET\TMS VS IMS.xlsx" (
     echo [SKIP] "TO MARKET_IN MARKET\TMS VS IMS.xlsx" not found -- skipping To-Market vs In-Market refresh.
 )
 
+REM --- extract the sign-in roster ------------------------------------------
+REM Added 2026-08-08. js/auth.js used to read the roster from
+REM IQVIA_CACHE.users, which forced cache/iqvia.data.js (4.4 MB) to download
+REM and be JavaScript-parsed on EVERY page load, by every user, before anyone
+REM could sign in -- 20 KB of roster holding 4.4 MB of market data hostage.
+REM This writes the roster to its own ~6 KB file so the IQVIA cache can be
+REM fetched on demand instead.
+REM
+REM Must run AFTER refresh_iqvia.py, since it reads that script's output.
+REM Non-fatal: auth.js falls back to IQVIA_CACHE.users if this file is absent,
+REM so a failed run degrades to the previous behaviour rather than locking
+REM anyone out. The script also refuses to write a roster missing any password
+REM hash, for the same reason.
+echo.
+echo Extracting sign-in roster...
+%PYTHON_CMD% etl\build_auth_cache.py
+if errorlevel 1 (
+    echo   [WARNING] Auth roster not extracted. Sign-in still works via the
+    echo   IQVIA cache, but that cache cannot be lazily loaded until this
+    echo   succeeds.
+)
+
 REM --- record what was built, from what, and when -------------------------
 REM Added 2026-08-07. MUST RUN LAST: it stats the caches, so anything built
 REM after it will not be reflected until the next refresh.
@@ -288,6 +310,7 @@ if "%GIT_CMD%"=="" (
     REM Same -f reason as every cache above: .gitignore line 2 is `cache/`,
     REM and this file is new so `git add -A` would skip it entirely.
     "%GIT_CMD%" add -f cache/build_manifest.data.js
+    "%GIT_CMD%" add -f cache/auth.data.js
     "%GIT_CMD%" add "TO MARKET_IN MARKET/index.html"
     "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js

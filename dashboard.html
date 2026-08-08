@@ -174,15 +174,6 @@
        june.xlsx only carried 432 sparse TargetIndex=1 rows for June (target value ~45.0M, clearly
        incomplete); this brings June's target total to ~268.2M, in line with other months. -->
   <script defer src="cache/sales.data.js?v=20260729_hossamfix"></script>
-  <!-- Customer Analytics cache (2026-07-28): a SEPARATE cache from a SEPARATE source
-       (TOTAL_SALES_2026.xlsx, via etl/build_customer_analytics_cache.py) -- the main
-       Sales cache above has no customer identity at all. Powers the Customer Channel
-       Mix card's Cluster -> Customer Health drill (bridge, frequency, SKU basket).
-       Currently covers the Retail and Chain Pharmacy clusters only -- see the ETL
-       script's CLUSTERS_TO_BUILD to extend. Optional at load time: sales.js falls
-       back to the existing flat cluster->sub_type list for any cluster not present. -->
-  <script defer src="cache/customer_analytics.data.js?v=20260731_skunocap"></script>
-  <script defer src="cache/iqvia.data.js?v=20260729_dm1fix"></script>
   <!-- Build manifest (2026-08-07): written by etl/build_manifest.py at the end
        of every refresh. The only way the browser can learn that a source
        workbook changed after a cache was built -- nothing else on a static
@@ -195,6 +186,18 @@
        workspace module. Must load after cache/iqvia.data.js (reads
        IQVIA_CACHE.users) and before js/app.js (the boot sequence gates
        on it first). See js/auth.js for the full rationale. -->
+  <!-- Sign-in roster (2026-08-08): ~6 KB, extracted from the IQVIA cache by
+       etl/build_auth_cache.py. auth.js used to read the roster out of
+       cache/iqvia.data.js, which forced 4.4 MB to download and parse on every
+       page load before anyone could sign in. auth.js falls back to the old
+       source if this file is absent, so a missed ETL run cannot lock anyone
+       out. MUST load before js/auth.js. -->
+  <script defer src="cache/auth.data.js?v=20260808_lazy"></script>
+  <!-- On-demand cache loading (2026-08-08): iqvia, customer_analytics and
+       market_intel are no longer script tags above. They are fetched when the
+       page that needs them is opened. Same files, same globals, same decoders
+       — only the timing changes. -->
+  <script defer src="js/cache-loader.js?v=20260808_lazy"></script>
   <script defer src="js/auth.js?v=20260806_miroles"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
@@ -249,7 +252,6 @@
   <script defer src="js/executive.js?v=20260807_lineperf"></script>
 
 
-  <script defer src="cache/market_intel.data.js?v=20260806_annual"></script>
   <script defer src="js/market-intel.js?v=20260806_cagr"></script>
   <!-- Ask the Data (2026-08-07). The engine must load before any adapter;
        both must load before app.js, which mounts them on tab change. -->

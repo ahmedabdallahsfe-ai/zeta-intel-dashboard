@@ -51,7 +51,26 @@
   var SESSION_KEY = "zeta_session";
   var SESSION_TTL_MS = 8 * 3600 * 1000;
 
+  /**
+   * The sign-in roster.
+   *
+   * PREFERS cache/auth.data.js (window.AUTH_USERS), ~6 KB, written by
+   * etl/build_auth_cache.py. It used to come from IQVIA_CACHE.users, which
+   * meant the 4.4 MB IQVIA competitor cache had to download and be parsed on
+   * every page load, by every user, before anyone could sign in — 20 KB of
+   * roster holding 4.4 MB of market data hostage.
+   *
+   * FALLS BACK to the old source, so if auth.data.js has not been generated
+   * yet (or the extraction failed) behaviour is exactly what it was. Never
+   * lock anyone out to save a download.
+   *
+   * Note cache/userAuth.js is NOT usable here: it is the human-readable config
+   * mirror from sync_users.py and carries no password hashes.
+   */
   function users() {
+    if (global.AUTH_USERS && typeof global.AUTH_USERS === "object") {
+      return global.AUTH_USERS;
+    }
     return (global.IQVIA_CACHE && global.IQVIA_CACHE.users) || {};
   }
 
