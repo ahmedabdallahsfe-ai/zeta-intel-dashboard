@@ -446,7 +446,7 @@ ul.issue-list li {
   }
 }
 
-/* Topbar user badge */-- visible on every tab once signed in (replaces the
+/* Topbar user badge -- visible on every tab once signed in (replaces the
    old badge that only appeared inside the IQVIA workspace's own sidebar). */
 .topbar-user-badge {
   display: flex;
