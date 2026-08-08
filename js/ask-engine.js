@@ -771,7 +771,16 @@
                   '<div class="mi-ask-indicators-label">Diagnostic Indicators (Observed Associations only):</div>' +
                   '<ul>';
                 entIndicators.forEach(function (ind) {
-                  var benchStr = ind.benchmark !== undefined ? " (Target: " + ind.actual + (ind.unit || "") + " vs " + ind.benchmark + (ind.unit || "") + ")" : "";
+                  var benchStr = "";
+                  if (ind.metric === "Coverage") {
+                    benchStr = " vs " + ind.benchmark + " benchmark";
+                  } else if (ind.metric === "Right Frequency") {
+                    benchStr = " vs " + ind.benchmark + " benchmark";
+                  } else if (ind.metric === "Vacancy Rate") {
+                    benchStr = ind.vacantCount !== undefined ? " — " + ind.vacantCount + " vacant seats" : "";
+                  } else if (ind.benchmark !== undefined) {
+                    benchStr = " (Benchmark: " + ind.benchmark + ")";
+                  }
                   h += '<li>' +
                     '<span class="mi-ask-ind-metric">' + esc(ind.metric) + ': </span>' +
                     '<span class="mi-ask-ind-val">' + esc(ind.actual) + (ind.unit || "") + '</span>' +

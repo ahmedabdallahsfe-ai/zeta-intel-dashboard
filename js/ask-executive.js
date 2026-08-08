@@ -355,7 +355,7 @@
       evidence: evidence,
       contributions: contribs.map(function (c) {
         return {
-          name: c.name,
+          entity: c.name,
           actual: c.actual,
           target: c.target,
           gap: c.netGap,
@@ -363,11 +363,74 @@
           contributionPct: c.contributionPct
         };
       }),
-      indicators: [
-        { metric: "Coverage", value: coverageReport.coveragePct, target: 90.0, status: coverageReport.coveragePct >= 90.0 ? "On Track" : "Below target" },
-        { metric: "Right Frequency", value: coverageReport.rightFreqPct, target: 80.0, status: coverageReport.rightFreqPct >= 80.0 ? "On Track" : "Below target" },
-        { metric: "Vacancy Rate", value: headcountReport.vacancyRate, target: 0.0, status: headcountReport.vacant > 0 ? "Active vacancies (" + headcountReport.vacant + " open)" : "Filled" }
-      ],
+      indicators: (function () {
+        var list = [];
+        contribs.forEach(function (c) {
+          var entName = c.name;
+          if (entName.indexOf("Line: ") === 0) {
+            var cleanLine = entName.substring(6);
+            var lineCov = CD().getFilteredCoverageForLine(bu, cleanLine);
+            var lineHc = SFE().getFilteredHeadcountForLine(bu, cleanLine);
+            if (lineCov && lineCov.ok) {
+              list.push({
+                entity: entName,
+                metric: "Coverage",
+                actual: lineCov.coveragePct !== null ? lineCov.coveragePct.toFixed(1) + "%" : "—",
+                benchmark: "90%",
+                unit: ""
+              });
+              list.push({
+                entity: entName,
+                metric: "Right Frequency",
+                actual: lineCov.rightFreqPct !== null ? lineCov.rightFreqPct.toFixed(1) + "%" : "—",
+                benchmark: "80%",
+                unit: ""
+              });
+            }
+            if (lineHc && lineHc.ok) {
+              list.push({
+                entity: entName,
+                metric: "Vacancy Rate",
+                actual: lineHc.vacancyRatePct !== null ? lineHc.vacancyRatePct.toFixed(1) + "%" : "—",
+                vacantCount: lineHc.headcountVacant !== undefined ? lineHc.headcountVacant : 0,
+                benchmark: "0%",
+                unit: ""
+              });
+            }
+          } else if (entName.indexOf("Brand: ") === 0) {
+            var targetLine = line || null;
+            var lineCov = CD().getFilteredCoverageForLine(bu, targetLine);
+            var lineHc = SFE().getFilteredHeadcountForLine(bu, targetLine);
+            if (lineCov && lineCov.ok) {
+              list.push({
+                entity: entName,
+                metric: "Coverage",
+                actual: lineCov.coveragePct !== null ? lineCov.coveragePct.toFixed(1) + "%" : "—",
+                benchmark: "90%",
+                unit: ""
+              });
+              list.push({
+                entity: entName,
+                metric: "Right Frequency",
+                actual: lineCov.rightFreqPct !== null ? lineCov.rightFreqPct.toFixed(1) + "%" : "—",
+                benchmark: "80%",
+                unit: ""
+              });
+            }
+            if (lineHc && lineHc.ok) {
+              list.push({
+                entity: entName,
+                metric: "Vacancy Rate",
+                actual: lineHc.vacancyRatePct !== null ? lineHc.vacancyRatePct.toFixed(1) + "%" : "—",
+                vacantCount: lineHc.headcountVacant !== undefined ? lineHc.headcountVacant : 0,
+                benchmark: "0%",
+                unit: ""
+              });
+            }
+          }
+        });
+        return list;
+      })(),
       story: story,
       explore: explore,
       caveats: []
