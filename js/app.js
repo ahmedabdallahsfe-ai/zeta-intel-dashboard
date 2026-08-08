@@ -51,10 +51,13 @@ function wireLoginGate() {
   const errEl = document.getElementById("app-login-error");
   if (!btn || !emailEl || !pwdEl || !errEl || !window.AUTH) return;
 
+  // Initialize Canvas background particle animation
+  initLoginParticles();
+
   async function attemptLogin() {
     errEl.classList.remove("show");
     btn.disabled = true;
-    btn.textContent = "Signing in...";
+    btn.textContent = "Logging In...";
     const result = await window.AUTH.login(emailEl.value, pwdEl.value);
     if (result.ok) {
       hideLoginGate();
@@ -64,7 +67,7 @@ function wireLoginGate() {
       errEl.textContent = result.error;
       errEl.classList.add("show");
       btn.disabled = false;
-      btn.textContent = "Sign In";
+      btn.textContent = "Log In";
     }
   }
 
@@ -74,6 +77,100 @@ function wireLoginGate() {
       if (e.key === "Enter") attemptLogin();
     });
   });
+}
+
+function initLoginParticles() {
+  const container = document.getElementById("app-login-particles");
+  if (!container) return;
+
+  const canvas = document.createElement("canvas");
+  canvas.style.position = "absolute";
+  canvas.style.top = "0";
+  canvas.style.left = "0";
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
+  canvas.style.pointerEvents = "none";
+  container.appendChild(canvas);
+
+  const ctx = canvas.getContext("2d");
+  let width = canvas.width = container.offsetWidth;
+  let height = canvas.height = container.offsetHeight;
+
+  const handleResize = () => {
+    width = canvas.width = container.offsetWidth;
+    height = canvas.height = container.offsetHeight;
+  };
+  window.addEventListener("resize", handleResize);
+
+  const numPoints = 40;
+  const points = [];
+  for (let i = 0; i < numPoints; i++) {
+    points.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      r: Math.random() * 4 + 2
+    });
+  }
+
+  let animationFrameId;
+  function animate() {
+    const gate = document.getElementById("app-login-gate");
+    if (gate && gate.classList.contains("hidden")) {
+      window.removeEventListener("resize", handleResize);
+      cancelAnimationFrame(animationFrameId);
+      return;
+    }
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Deep space dark gradient
+    const grad = ctx.createRadialGradient(width * 0.2, height * 0.2, 0, width * 0.5, height * 0.5, Math.max(width, height));
+    grad.addColorStop(0, '#0c1a30');
+    grad.addColorStop(0.5, '#050c18');
+    grad.addColorStop(1, '#02050a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw connections
+    ctx.lineWidth = 1;
+    for (let i = 0; i < numPoints; i++) {
+      for (let j = i + 1; j < numPoints; j++) {
+        const dx = points[i].x - points[j].x;
+        const dy = points[i].y - points[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 180) {
+          ctx.strokeStyle = `rgba(0, 168, 232, ${0.15 * (1 - dist / 180)})`;
+          ctx.beginPath();
+          ctx.moveTo(points[i].x, points[i].y);
+          ctx.lineTo(points[j].x, points[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Draw points
+    for (let i = 0; i < numPoints; i++) {
+      const p = points[i];
+      p.x += p.vx;
+      p.y += p.vy;
+
+      if (p.x < 0 || p.x > width) p.vx *= -1;
+      if (p.y < 0 || p.y > height) p.vy *= -1;
+
+      ctx.fillStyle = 'rgba(0, 168, 232, 0.4)';
+      ctx.shadowColor = '#00a8e8';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    animationFrameId = requestAnimationFrame(animate);
+  }
+  animate();
 }
 
 function hideLoginGate() {

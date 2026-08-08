@@ -30,29 +30,78 @@
        source of truth is Zeta_Dashboard_User_Config.xlsx via
        refresh_iqvia.py -> cache/iqvia.data.js's IQVIA_CACHE.users. -->
   <div id="app-login-gate" class="app-login-gate">
-    <div class="app-login-card">
-      <div class="app-login-logo">
-        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="48" height="48" rx="12" fill="#0077b6"/>
-          <path d="M10 14h28l-14 10L10 14z" fill="#00a8e8"/>
-          <path d="M24 24l14-10v20H10V14l14 10z" fill="rgba(255,255,255,0.15)"/>
-          <text x="24" y="38" text-anchor="middle" font-family="Arial" font-weight="900" font-size="11" fill="#fff" letter-spacing="1">ZETA</text>
-        </svg>
-        <div class="app-login-logo-text">
-          <h1>Zeta Commercial Excellence</h1>
-          <p>Secure Access</p>
+    <!-- Left panel: form -->
+    <div class="app-login-left">
+      <div class="app-login-left-inner">
+        <!-- Zeta Logo from folder -->
+        <div class="app-login-salesforce-logo">
+          <img src="zeta_logo.png" alt="Zeta Logo" style="width: 160px; height: auto;" />
+        </div>
+        
+        <!-- Login Card -->
+        <div class="app-login-form-card">
+          <!-- Inactivity notice / alert -->
+          <div class="app-login-notice">
+            You've been logged out due to inactivity.
+          </div>
+          
+          <h2 class="app-login-title">Zeta Commercial Excellence Dashboard login</h2>
+          
+          <div class="app-login-field">
+            <label for="app-login-email">Username</label>
+            <input type="email" id="app-login-email" placeholder="your.name@zeta-pharma.com" autocomplete="email" />
+          </div>
+          
+          <div class="app-login-field">
+            <label for="app-login-pwd">Password</label>
+            <input type="password" id="app-login-pwd" placeholder="••••••••••••" autocomplete="current-password" />
+          </div>
+          
+          <button class="app-login-btn" id="app-login-btn" type="button">Log In</button>
+          
+          <div class="app-login-form-extras">
+            <label class="app-login-remember">
+              <input type="checkbox" id="app-login-remember" checked /> Remember me
+            </label>
+            <a href="#" class="app-login-forgot" onclick="alert('Please contact your administrator to reset password.'); return false;">Forgot Your Password?</a>
+          </div>
+
+          <div class="app-login-error" id="app-login-error"></div>
         </div>
       </div>
-      <div class="app-login-field">
-        <label>Email Address</label>
-        <input type="email" id="app-login-email" placeholder="your.name@zeta-pharma.com" autocomplete="email" />
+      
+      <div class="app-login-footer">
+        © 2026 Zeta Pharma. All rights reserved.
       </div>
-      <div class="app-login-field">
-        <label>Password</label>
-        <input type="password" id="app-login-pwd" placeholder="Enter your password" autocomplete="current-password" />
+    </div>
+    
+    <!-- Right panel: marketing/Zeta styling -->
+    <div class="app-login-right">
+      <div class="app-login-right-particles" id="app-login-particles"></div>
+      
+      <!-- Top Zeta Pharma Logo -->
+      <div class="app-login-zeta-logo">
+        <svg viewBox="0 0 240 50" width="200" height="42" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
+          <!-- Stylized abstract 'Z' icon -->
+          <path d="M10 5 L35 5 L18 35 L40 35 L38 43 L10 43 L27 13 L10 13 Z" fill="#ffffff" />
+          <!-- text: ZETA PHARMA -->
+          <text x="50" y="32" font-family="Outfit, Inter, sans-serif" font-weight="900" font-size="20" fill="#ffffff">ZETA PHARMA</text>
+          <!-- small registered mark -->
+          <text x="205" y="20" font-family="Outfit, Inter, sans-serif" font-weight="600" font-size="8" fill="#ffffff">®</text>
+        </svg>
       </div>
-      <button class="app-login-btn" id="app-login-btn" type="button">Sign In</button>
-      <div class="app-login-error" id="app-login-error"></div>
+      
+      <!-- Center message -->
+      <div class="app-login-right-message">
+        <div class="app-login-accent-line"></div>
+        <h2 class="app-login-right-heading" style="font-size: 26px; font-weight: 900; letter-spacing: -0.5px; text-transform: uppercase;">ZETA COMMERCIAL EXCELLENCE</h2>
+        <p class="app-login-right-sub" style="font-weight: 700; margin-bottom: 12px; color: #ffffff;">Your Commercial Copilot. One Connected Ecosystem View.</p>
+        <p class="app-login-right-sub" style="font-size: 14px; letter-spacing: 0.05em; color: #38bdf8; font-weight: 600;">Data • Intelligence • Execution • Decisions</p>
+      </div>
+      
+      <div class="app-login-right-footer">
+        FIELD EXCELLENCE
+      </div>
     </div>
   </div>
 

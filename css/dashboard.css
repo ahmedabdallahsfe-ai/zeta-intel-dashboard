@@ -198,121 +198,255 @@ ul.issue-list li {
   inset: 0;
   z-index: 3000;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at 20% 20%, #132a4a 0%, #0a1220 55%, #060a12 100%);
+  background: #ffffff;
+  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-.app-login-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  padding: 48px 44px;
-  width: 420px;
-  max-width: 90vw;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
-}
-
-.app-login-logo {
+/* Left Panel - White bg */
+.app-login-left {
+  flex: 1 1 50%;
   display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 36px;
+  background: #ffffff;
+  padding: 40px 20px;
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
-.app-login-logo svg {
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
+.app-login-left-inner {
+  width: 100%;
+  max-width: 400px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
 }
 
-.app-login-logo-text h1 {
-  font-size: 20px;
+.app-login-salesforce-logo {
+  margin-bottom: 8px;
+}
+
+.app-login-form-card {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #d8dde6;
+  border-radius: 4px;
+  padding: 30px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.07);
+}
+
+.app-login-notice {
+  background: #fdf6f6;
+  border: 1px solid #f9dede;
+  border-radius: 4px;
+  color: #c23934;
+  font-size: 13px;
+  padding: 12px;
+  margin-bottom: 20px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.app-login-title {
+  font-size: 18px;
   font-weight: 700;
-  color: #fff;
-  margin: 0;
-  letter-spacing: -0.3px;
-}
-
-.app-login-logo-text p {
-  font-size: 12px;
-  color: #5a6a8a;
-  margin: 2px 0 0;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  color: #16325c;
+  margin: 0 0 24px 0;
+  text-align: center;
 }
 
 .app-login-field {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
+  text-align: left;
 }
 
 .app-login-field label {
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #9da8c5;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  margin-bottom: 8px;
+  color: #54698d;
+  margin-bottom: 6px;
 }
 
 .app-login-field input {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  padding: 13px 16px;
-  color: #fff;
+  background: #ffffff;
+  border: 1px solid #d8dde6;
+  border-radius: 4px;
+  padding: 12px 14px;
+  color: #16325c;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.15s ease-in-out;
 }
 
 .app-login-field input:focus {
-  border-color: #00a8e8;
+  border-color: #1589ee;
+  box-shadow: 0 0 3px #0070d2;
 }
 
 .app-login-btn {
   width: 100%;
-  padding: 14px;
-  background: linear-gradient(135deg, #0077b6, #00a8e8);
-  border: none;
-  border-radius: 10px;
-  color: #fff;
-  font-size: 15px;
+  padding: 12px;
+  background: #0070d2;
+  border: 1px solid #0070d2;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  letter-spacing: 0.3px;
   margin-top: 8px;
-  transition: opacity 0.2s;
+  transition: background 0.15s ease-in-out;
 }
 
 .app-login-btn:hover {
-  opacity: 0.9;
+  background: #005fb2;
+  border-color: #005fb2;
 }
 
-.app-login-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.app-login-btn:active {
+  background: #00396b;
+}
+
+.app-login-form-extras {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  font-size: 13px;
+}
+
+.app-login-remember {
+  color: #54698d;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.app-login-remember input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.app-login-forgot {
+  color: #0070d2;
+  text-decoration: none;
+}
+
+.app-login-forgot:hover {
+  text-decoration: underline;
 }
 
 .app-login-error {
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 8px;
-  color: #f87171;
+  background: #fdf6f6;
+  border: 1px solid #f9dede;
+  border-radius: 4px;
+  color: #c23934;
   font-size: 13px;
-  padding: 10px 14px;
-  margin-top: 14px;
+  padding: 12px;
+  margin-top: 16px;
   display: none;
+  text-align: center;
+  font-weight: 500;
 }
 
 .app-login-error.show {
   display: block;
 }
 
-/* Topbar user badge -- visible on every tab once signed in (replaces the
+.app-login-footer {
+  font-size: 12px;
+  color: #706e6b;
+  margin-top: 20px;
+}
+
+/* Right Panel - Dark Connections bg */
+.app-login-right {
+  flex: 1 1 50%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 60px 80px;
+  box-sizing: border-box;
+  background: #050c18;
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.app-login-right-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.app-login-zeta-logo {
+  position: relative;
+  z-index: 2;
+}
+
+.app-login-right-message {
+  position: relative;
+  z-index: 2;
+  max-width: 500px;
+  text-align: left;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.app-login-accent-line {
+  width: 40px;
+  height: 3px;
+  background: #00a8e8;
+  margin-bottom: 24px;
+  border-radius: 2px;
+}
+
+.app-login-right-heading {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #ffffff;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.8px;
+}
+
+.app-login-right-sub {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #9eb4c2;
+  margin: 0;
+}
+
+.app-login-right-footer {
+  position: relative;
+  z-index: 2;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: #9eb4c2;
+  opacity: 0.7;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .app-login-right {
+    display: none;
+  }
+  .app-login-left {
+    flex: 1 1 100%;
+    padding: 20px;
+  }
+}
+
+/* Topbar user badge */-- visible on every tab once signed in (replaces the
    old badge that only appeared inside the IQVIA workspace's own sidebar). */
 .topbar-user-badge {
   display: flex;
