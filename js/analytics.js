@@ -981,7 +981,12 @@ const Analytics = (() => {
    * instead of silently shipping wrong numbers.
    */
   function selfCheck(serverKpis) {
-    const recomputed = run(defaultFilters()).kpis;
+    const filters = defaultFilters();
+    if (latestPeriodIdx !== null && latestPeriodIdx !== undefined && latestPeriodIdx >= 0) {
+      const latestPeriod = dims.periods[latestPeriodIdx];
+      filters.period = [latestPeriod];
+    }
+    const recomputed = run(filters).kpis;
     const mismatches = [];
     const tolerance = 0.002;
     Object.keys(serverKpis).forEach((key) => {
