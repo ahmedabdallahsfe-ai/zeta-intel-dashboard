@@ -2655,15 +2655,9 @@
   // (openClusterFlatModal, unchanged from the first Customer Channel Mix
   // build) since no customer-grain data exists for it yet.
   function openClusterCustomersModal(bu, line, clusterName) {
-    if (_filters.dm && _filters.dm !== "All") {
-      openClusterFlatModal(bu, line, clusterName);
-      return;
-    }
-    // Line-scoped (2026-08-03, "position of chosen line"): forward the
-    // Executive filter bar's Line selection through to Customer Health so
-    // Status/Frequency/Basket/Distinct SKUs/Value/Position/Brick/Region/
-    // Last Purchase all reflect that specific Line, not just the BU.
-    const health = safeCall("sales", "SalesDashboard", "getClusterCustomerHealth", bu, clusterName, line);
+    const health = (_filters.dm && _filters.dm !== "All")
+      ? safeCall("sales", "SalesDashboard", "getClusterCustomerHealth", bu, clusterName, line, _filters.dm)
+      : safeCall("sales", "SalesDashboard", "getClusterCustomerHealth", bu, clusterName, line);
     if (health && health.ok) {
       openClusterHealthModal(bu, clusterName, health);
       return;

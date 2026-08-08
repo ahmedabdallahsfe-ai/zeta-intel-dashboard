@@ -3653,7 +3653,7 @@
      * `skuPenetrationScope` on the result tells the caller which list it
      * actually got ('All' or the BU name) in case of a fallback.
      */
-    getClusterCustomerHealth(bu, cluster, line) {
+    getClusterCustomerHealth(bu, cluster, line, dmName) {
       decompressCustomerAnalyticsCache();
       if (!customerAnalyticsCache) {
         return { ok: false, status: 'cache_unavailable', source: 'customerAnalytics', bu: bu || 'All', cluster: cluster };
@@ -3686,6 +3686,39 @@
         scopedCustomers = scopedCustomers.filter(c =>
           c.byBU && c.byBU[wantBU] && c.byBU[wantBU].byLine && c.byBU[wantBU].byLine[effectiveLine]
         );
+      }
+
+      // DM-scoping: filter to only customers who have positions under the selected DM
+      if (dmName) {
+        if (window.SFEDashboard && typeof window.SFEDashboard.getData === "function") {
+          const sfeData = window.SFEDashboard.getData();
+          if (sfeData) {
+            const positionToDm = new Map();
+            (sfeData.activePositions || []).forEach(p => {
+              if (p.position && p.dm) {
+                positionToDm.set(p.position.toUpperCase().trim(), p.dm.toUpperCase().trim());
+              }
+            });
+            (sfeData.vacantPositions || []).forEach(p => {
+              if (p.position && p.dm) {
+                positionToDm.set(p.position.toUpperCase().trim(), p.dm.toUpperCase().trim());
+              }
+            });
+
+            const targetDmUpper = dmName.toUpperCase().trim();
+            scopedCustomers = scopedCustomers.filter(c => {
+              const custPositions = (effectiveLine && c.byBU && c.byBU[wantBU] && c.byBU[wantBU].byLine && c.byBU[wantBU].byLine[effectiveLine] && c.byBU[wantBU].byLine[effectiveLine].positions)
+                || (wantBU && c.byBU && c.byBU[wantBU] && c.byBU[wantBU].positions)
+                || c.positions
+                || [];
+              return custPositions.some(p => {
+                const cleanPos = p.toUpperCase().trim();
+                const dm = positionToDm.get(cleanPos);
+                return dm === targetDmUpper;
+              });
+            });
+          }
+        }
       }
 
       // LINE-LEVEL FILTERING FOR LINE MANAGERS (Added 2026-08-01):
