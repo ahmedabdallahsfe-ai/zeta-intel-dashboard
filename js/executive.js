@@ -631,17 +631,36 @@
 
   function getSfeSummaryForDm(dmName) {
     const data = safeCall("sfe", "SFEDashboard", "getData");
-    if (!data || !data.vacancyByManager) return { ok: false };
+    if (!data) return { ok: false };
     const clean = dmName.toUpperCase().trim();
-    const match = data.vacancyByManager.find(m => m.manager && m.manager.toUpperCase().trim() === clean);
-    if (!match) return { ok: false, headcountTotal: 0, headcountActive: 0, headcountVacant: 0, vacancyRatePct: 0 };
-    return {
-      ok: true,
-      headcountTotal: match.total,
-      headcountActive: match.active,
-      headcountVacant: match.vacant,
-      vacancyRatePct: match.vacancyRate
-    };
+    
+    if (data.spanOfControl && Array.isArray(data.spanOfControl.dmSpan)) {
+      const match = data.spanOfControl.dmSpan.find(m => m.managerName && m.managerName.toUpperCase().trim() === clean);
+      if (match) {
+        return {
+          ok: true,
+          headcountTotal: match.plannedCount,
+          headcountActive: match.spanCount,
+          headcountVacant: match.vacantCount,
+          vacancyRatePct: match.plannedCount > 0 ? (match.vacantCount / match.plannedCount) * 100 : 0
+        };
+      }
+    }
+    
+    if (data.vacancyByManager && Array.isArray(data.vacancyByManager)) {
+      const match = data.vacancyByManager.find(m => m.manager && m.manager.toUpperCase().trim() === clean);
+      if (match) {
+        return {
+          ok: true,
+          headcountTotal: match.total,
+          headcountActive: match.active,
+          headcountVacant: match.vacant,
+          vacancyRatePct: match.vacancyRate
+        };
+      }
+    }
+    
+    return { ok: false, headcountTotal: 0, headcountActive: 0, headcountVacant: 0, vacancyRatePct: 0 };
   }
 
   /** Target Scenario fallback note (2026-08-04, made data-driven and

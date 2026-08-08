@@ -4124,7 +4124,7 @@
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue;
 
-        const subTypeName = subTypesLk[r[SUB_TYPE]] || "Other";
+        const subTypeName = subTypesLk[r[STYPE]] || "Other";
         const clusterName = subTypeToCluster(subTypeName);
         clusterMap.set(clusterName, (clusterMap.get(clusterName) || 0) + (r[VAL] || 0));
       }
