@@ -176,8 +176,8 @@
           ["Scope Target", labelName],
           ["Coverage", E.fmtPct(lineSum.coveragePct)],
           ["Right Frequency", E.fmtPct(lineSum.rightFreqPct)],
-          ["Visits Completed", E.fmtNum(lineSum.visitCount)],
-          ["Visits Planned", E.fmtNum(lineSum.plannedVisitCount)],
+          ["Actual Visits", E.fmtNum(lineSum.visitCount)],
+          ["Target Visits", E.fmtNum(lineSum.plannedVisitCount)],
           ["Active Representatives", lineSum.repCount],
           ["As of", asOf()]
         ]
@@ -280,7 +280,7 @@
       else if (wantClass) { nameHeader = "Class"; dataset = typeSum.klass || []; }
       else { nameHeader = "Customer Type"; dataset = typeSum.type || []; }
 
-      columns = ["Coverage", "Right Freq", "Planned Visits", "Completed Visits"];
+      columns = ["Coverage", "Right Freq", "Target Visits", "Actual Visits"];
       scopeTxt = nameHeader.toLowerCase() + "s in " + targetBU3;
       rows = dataset.map(function (d) {
         return { name: d.name, sort: d.coveragePct || 0, cells: [

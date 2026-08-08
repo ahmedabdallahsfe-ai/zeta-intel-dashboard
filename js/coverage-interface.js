@@ -178,7 +178,7 @@
 
     const acc = {};
     window.SEMANTIC.BU_LIST.forEach(bu => {
-      acc[bu] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, repSet: new Set() };
+      acc[bu] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, repSet: new Set(), visitCount: 0, plannedVisitCount: 0 };
     });
 
     records.rows.forEach(row => {
@@ -203,10 +203,17 @@
         a.rightFreqSum += row[F.rightFreq] || 0;
         a.rowCount += 1;
         a.repSet.add(row[F.employee]);
+        a.visitCount += row[F.visits] || 0;
+        a.plannedVisitCount += row[F.frequency] || 0;
       }
     });
 
     const buOut = {};
+    let totalVisits = 0;
+    let totalPlannedVisits = 0;
+    let totalReps = 0;
+    const allRepsSet = new Set();
+
     window.SEMANTIC.BU_LIST.forEach(bu => {
       const a = acc[bu];
       buOut[bu] = {
@@ -214,8 +221,13 @@
         rightFreqPct: a.rowCount > 0 ? (a.rightFreqSum / a.rowCount) * 100 : null,
         repCount: a.repSet.size,
         customerRowCount: a.rowCount,
+        visitCount: a.visitCount,
+        plannedVisitCount: a.plannedVisitCount,
         confidence: a.rowCount > 0 ? "high" : "low",
       };
+      totalVisits += a.visitCount;
+      totalPlannedVisits += a.plannedVisitCount;
+      a.repSet.forEach(rep => allRepsSet.add(rep));
     });
 
     return {
@@ -225,6 +237,9 @@
       source: "coverage",
       filterScope: { title: "Medical Representative", experience: "Non-Probation", status: "Active", types: wantTypes },
       bu: buOut,
+      visitCount: totalVisits,
+      plannedVisitCount: totalPlannedVisits,
+      repCount: allRepsSet.size
     };
   }
 
@@ -319,7 +334,7 @@
     }
 
     const acc = {};
-    wantTypes.forEach(t => { acc[t] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, repSet: new Set(), classes: {} }; });
+    wantTypes.forEach(t => { acc[t] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, repSet: new Set(), classes: {}, visitCount: 0, plannedVisitCount: 0 }; });
 
     records.rows.forEach(row => {
       if (row[F.experience] !== expIdx) return;
@@ -346,6 +361,8 @@
         a.rightFreqSum += row[F.rightFreq] || 0;
         a.rowCount += 1;
         a.repSet.add(row[F.employee]);
+        a.visitCount += row[F.visits] || 0;
+        a.plannedVisitCount += row[F.frequency] || 0;
 
         // Class-level aggregation
         const classIdx = row[F.klass];
@@ -401,6 +418,8 @@
         rightFreqPct: a.rowCount > 0 ? (a.rightFreqSum / a.rowCount) * 100 : null,
         repCount: a.repSet.size,
         customerRowCount: a.rowCount,
+        plannedVisits: a.plannedVisitCount,
+        actualVisits: a.visitCount,
         topClassCov: topClassCov ? { name: topClassCov.name, pct: topClassCov.coveragePct } : null,
         bottomClassCov: bottomClassCov ? { name: bottomClassCov.name, pct: bottomClassCov.coveragePct } : null,
         topClassRf: topClassRf ? { name: topClassRf.name, pct: topClassRf.rightFreqPct } : null,
@@ -538,19 +557,11 @@
 
     let coveredSum = 0, rightFreqSum = 0, rowCount = 0;
     const repSet = new Set();
-    // Latest-period accumulators (2026-08-04). Coverage % and RF % are
-    // RATES, not cumulative totals: pooling every month's rows and
-    // averaging produces a blended figure that lags current performance,
-    // which is not what "YTD" means to a reader and not what an
-    // Executive card claiming to show "right now" should lead with.
-    // Measured on DIAB: pooled Feb-Jun gives Coverage 94.1% / RF 71.4%,
-    // while June alone gives 95.8% / 80.5% -- a 9-point RF gap that was
-    // pushing the card to an "At Risk" badge the current month doesn't
-    // warrant. Both are computed in the SAME pass (no second scan) so
-    // callers can lead with the latest period and show the pooled
-    // average as context. See buildCoverageFamilyCard() in executive.js.
+    let visitCount = 0, plannedVisitCount = 0;
+
     let coveredSumLatest = 0, rightFreqSumLatest = 0, rowCountLatest = 0;
     const repSetLatest = new Set();
+    let visitCountLatest = 0, plannedVisitCountLatest = 0;
 
     records.rows.forEach(row => {
       if (row[F.experience] !== expIdx) return;
@@ -575,11 +586,17 @@
         rowCount += 1;
         repSet.add(row[F.employee]);
 
+        visitCount += row[F.visits] || 0;
+        plannedVisitCount += row[F.frequency] || 0;
+
         if (row[F.period] === latestPeriodIdx) {
           coveredSumLatest += row[F.coveredDoctor] || 0;
           rightFreqSumLatest += row[F.rightFreq] || 0;
           rowCountLatest += 1;
           repSetLatest.add(row[F.employee]);
+
+          visitCountLatest += row[F.visits] || 0;
+          plannedVisitCountLatest += row[F.frequency] || 0;
         }
       }
     });
@@ -599,6 +616,8 @@
       rightFreqPct: rowCount > 0 ? (rightFreqSum / rowCount) * 100 : null,
       repCount: repSet.size,
       customerRowCount: rowCount,
+      visitCount: visitCount,
+      plannedVisitCount: plannedVisitCount,
       // Latest period only (2026-08-04) -- see the accumulator comment
       // above for why rates need this. `periodsPooled` lets a caller
       // caption the pooled figure accurately instead of guessing.
@@ -608,6 +627,8 @@
       rightFreqPctLatest: rowCountLatest > 0 ? (rightFreqSumLatest / rowCountLatest) * 100 : null,
       repCountLatest: repSetLatest.size,
       customerRowCountLatest: rowCountLatest,
+      visitCountLatest: visitCountLatest,
+      plannedVisitCountLatest: plannedVisitCountLatest,
       filterScope: {
         title: "Medical Representative", experience: "Non-Probation", status: "Active",
         types: wantTypes,
