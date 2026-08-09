@@ -336,23 +336,41 @@
     const acc = {};
     wantTypes.forEach(t => { acc[t] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, repSet: new Set(), classes: {}, visitCount: 0, plannedVisitCount: 0 }; });
 
+    const specAcc = {};
+    const classAcc = {};
+
+    // Pre-calculate team scoping checks once rather than repeating millions of times in the loop
+    const teamChecks = (dims.teams || []).map(teamName => {
+      const allowed = !window.AUTH || window.AUTH.isLineAllowed(teamName);
+      const rowBu = window.SEMANTIC.lineToBU(teamName);
+      const canonLine = window.SEMANTIC.normalizeLine(teamName);
+      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
+      const expectedTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
+      
+      const applicableTypes = isChcSalesTeam ? pharmacyTypes : standardTypes;
+      const applicableTypeIndices = applicableTypes.map(t => typeIdxByName[t]).filter(idx => idx !== undefined && idx >= 0);
+
+      return {
+        allowed,
+        rowBu,
+        canonLine,
+        expectedTitleIdx,
+        applicableTypeIndices
+      };
+    });
+
     records.rows.forEach(row => {
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
 
-      const teamName = (dims.teams || [])[row[F.team]];
-      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
-      if (window.SEMANTIC.lineToBU(teamName) !== bu) return;
-      const canonLine = window.SEMANTIC.normalizeLine(teamName);
-      if (normLineArg && canonLine !== normLineArg) return;
+      const check = teamChecks[row[F.team]];
+      if (!check || !check.allowed) return;
+      if (check.rowBu !== bu) return;
+      if (normLineArg && check.canonLine !== normLineArg) return;
+      if (row[F.title] !== check.expectedTitleIdx) return;
+      if (check.applicableTypeIndices.indexOf(row[F.type]) < 0) return;
 
-      // Per-row title/type scope -- resolved from which line the row
-      // belongs to, not from the filter selection, so a whole-BU CHC
-      // drill-down measures each of its two teams correctly.
-      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
-      if (row[F.title] !== (isChcSalesTeam ? salesRepTitleIdx : titleIdx)) return;
-      const applicableTypes = isChcSalesTeam ? pharmacyTypes : standardTypes;
-      const typeName = applicableTypes.find(t => typeIdxByName[t] === row[F.type]);
+      const typeName = (dims.types || [])[row[F.type]];
       if (!typeName || !acc[typeName]) return;
 
       if (row[F.isActive]) {
@@ -374,6 +392,35 @@
           c.coveredSum += row[F.coveredDoctor] || 0;
           c.rightFreqSum += row[F.rightFreq] || 0;
           c.rowCount += 1;
+        }
+
+        // Global specialty aggregation
+        const specIdx = row[F.specialty];
+        if (specIdx !== null && specIdx !== undefined && specIdx >= 0) {
+          if (!specAcc[specIdx]) {
+            specAcc[specIdx] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, visitCount: 0, plannedVisitCount: 0, repSet: new Set() };
+          }
+          const s = specAcc[specIdx];
+          s.coveredSum += row[F.coveredDoctor] || 0;
+          s.rightFreqSum += row[F.rightFreq] || 0;
+          s.rowCount += 1;
+          s.visitCount += row[F.visits] || 0;
+          s.plannedVisitCount += row[F.frequency] || 0;
+          s.repSet.add(row[F.employee]);
+        }
+
+        // Global class aggregation
+        if (classIdx !== null && classIdx !== undefined && classIdx >= 0) {
+          if (!classAcc[classIdx]) {
+            classAcc[classIdx] = { coveredSum: 0, rightFreqSum: 0, rowCount: 0, visitCount: 0, plannedVisitCount: 0, repSet: new Set() };
+          }
+          const cl = classAcc[classIdx];
+          cl.coveredSum += row[F.coveredDoctor] || 0;
+          cl.rightFreqSum += row[F.rightFreq] || 0;
+          cl.rowCount += 1;
+          cl.visitCount += row[F.visits] || 0;
+          cl.plannedVisitCount += row[F.frequency] || 0;
+          cl.repSet.add(row[F.employee]);
         }
       }
     });
@@ -427,6 +474,44 @@
       };
     });
 
+    const specialtyList = [];
+    Object.keys(specAcc).forEach(idxKey => {
+      const idx = parseInt(idxKey, 10);
+      const specName = (dims.specialties || [])[idx] || "Unknown";
+      const s = specAcc[idx];
+      if (s.rowCount > 0) {
+        specialtyList.push({
+          name: specName,
+          coveragePct: (s.coveredSum / s.rowCount) * 100,
+          rightFreqPct: (s.rightFreqSum / s.rowCount) * 100,
+          plannedVisits: s.plannedVisitCount,
+          actualVisits: s.visitCount,
+          customerRowCount: s.rowCount,
+          repCount: s.repSet.size
+        });
+      }
+    });
+
+    const classList = [];
+    Object.keys(classAcc).forEach(idxKey => {
+      const idx = parseInt(idxKey, 10);
+      const className = (dims.classes || [])[idx] || "Unknown";
+      const cl = classAcc[idx];
+      if (cl.rowCount > 0) {
+        classList.push({
+          name: className,
+          coveragePct: (cl.coveredSum / cl.rowCount) * 100,
+          rightFreqPct: (cl.rightFreqSum / cl.rowCount) * 100,
+          plannedVisits: cl.plannedVisitCount,
+          actualVisits: cl.visitCount,
+          customerRowCount: cl.rowCount,
+          repCount: cl.repSet.size
+        });
+      }
+    });
+
+    const filteredTypes = types.filter(t => t.customerRowCount > 0);
+
     return {
       ok: true,
       status: "ready",
@@ -447,7 +532,10 @@
       },
       // Drop types with no rows in scope, so a CHC_SALES drill shows one
       // Pharmacy row rather than three empty Contract/Doctor/Hospital ones.
-      types: types.filter(t => t.customerRowCount > 0),
+      types: filteredTypes,
+      type: filteredTypes,
+      specialty: specialtyList,
+      klass: classList
     };
   }
 
@@ -563,22 +651,33 @@
     const repSetLatest = new Set();
     let visitCountLatest = 0, plannedVisitCountLatest = 0;
 
+    const teamChecks = (dims.teams || []).map(teamName => {
+      const allowed = ignoreLineAuth || !window.AUTH || window.AUTH.isLineAllowed(teamName);
+      const rowBU = window.SEMANTIC.lineToBU(teamName);
+      const canonLine = window.SEMANTIC.normalizeLine(teamName);
+      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
+      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
+      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
+
+      return {
+        allowed,
+        rowBU,
+        canonLine,
+        applicableTitleIdx,
+        applicableTypeIdxSet
+      };
+    });
+
     records.rows.forEach(row => {
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
 
-      const teamName = (dims.teams || [])[row[F.team]];
-      if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
-      const rowBU = window.SEMANTIC.lineToBU(teamName);
-      if (rowBU !== bu) return;
-      const canonLine = window.SEMANTIC.normalizeLine(teamName);
-      if (normLineArg && canonLine !== normLineArg) return;
-
-      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
-      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
-      if (row[F.title] !== applicableTitleIdx) return;
-      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
-      if (!applicableTypeIdxSet.has(row[F.type])) return;
+      const check = teamChecks[row[F.team]];
+      if (!check || !check.allowed) return;
+      if (check.rowBU !== bu) return;
+      if (normLineArg && check.canonLine !== normLineArg) return;
+      if (row[F.title] !== check.applicableTitleIdx) return;
+      if (!check.applicableTypeIdxSet.has(row[F.type])) return;
 
       if (row[F.isActive]) {
         coveredSum += row[F.coveredDoctor] || 0;
@@ -705,14 +804,18 @@
       acc[bu] = { onTargetCalls: 0, missedCalls: 0, wastedCalls: 0, rowCount: 0, repSet: new Set() };
     });
 
+    const teamChecks = (dims.teams || []).map(teamName => {
+      const allowed = !window.AUTH || window.AUTH.isLineAllowed(teamName);
+      const bu = window.SEMANTIC.lineToBU(teamName);
+      return { allowed, bu };
+    });
+
     records.rows.forEach(row => {
       if (!row[F.isActive]) return; // same isActive scoping as every other Coverage KPI
-      const teamName = (dims.teams || [])[row[F.team]];
-      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
-      const bu = window.SEMANTIC.lineToBU(teamName);
-      if (!bu) return;
+      const check = teamChecks[row[F.team]];
+      if (!check || !check.allowed || !check.bu) return;
 
-      const a = acc[bu];
+      const a = acc[check.bu];
       const target = row[F.frequency] || 0;
       const visits = row[F.visits] || 0;
       a.onTargetCalls += Math.min(visits, target);
@@ -816,11 +919,17 @@
         };
         const latestPeriodIdx = (dims.periods || []).length - 1;
         const acc = new Map(); // areaIdx -> { coveredSum, rowCount }
+        const teamChecks = (dims.teams || []).map(teamName => {
+          const allowed = !window.AUTH || window.AUTH.isLineAllowed(teamName);
+          const isBu = window.SEMANTIC.lineToBU(teamName) === bu;
+          return { allowed, isBu };
+        });
+
         records.rows.forEach(row => {
           if (!row[F.isActive]) return;
-          const teamName = (dims.teams || [])[row[F.team]];
-          if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
-          if (window.SEMANTIC.lineToBU(teamName) !== bu) return;
+          const check = teamChecks[row[F.team]];
+          if (!check || !check.allowed || !check.isBu) return;
+
           const areaIdx = row[F.area];
           if (areaIdx === undefined || areaIdx === null || areaIdx < 0) return;
           if (!acc.has(areaIdx)) acc.set(areaIdx, { coveredSum: 0, rowCount: 0 });
@@ -924,21 +1033,31 @@
     // sits under would be actively misleading. Same single pass.
     let coveredSumLatest = 0, rightFreqSumLatest = 0, rowCountLatest = 0;
 
+    const teamChecks = (dims.teams || []).map(teamName => {
+      const allowed = !window.AUTH || window.AUTH.isLineAllowed(teamName);
+      const rowBU = window.SEMANTIC.lineToBU(teamName);
+      const canonLine = window.SEMANTIC.normalizeLine(teamName);
+      const isChcSalesTeam = (rowBU === "CHC" && canonLine === "CHC_SALES");
+      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
+      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
+
+      return {
+        allowed,
+        rowBU,
+        canonLine,
+        applicableTitleIdx,
+        applicableTypeIdxSet
+      };
+    });
+
     records.rows.forEach(row => {
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
 
-      const teamName = (dims.teams || [])[row[F.team]];
-      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
-      const rowBU = window.SEMANTIC.lineToBU(teamName);
-      if (!rowBU) return; // Non-Promoted/Other Markets -- out of scope, same as every BU-level call
-
-      const canonLine = window.SEMANTIC.normalizeLine(teamName);
-      const isChcSalesTeam = (rowBU === "CHC" && canonLine === "CHC_SALES");
-      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
-      if (row[F.title] !== applicableTitleIdx) return;
-      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
-      if (!applicableTypeIdxSet.has(row[F.type])) return;
+      const check = teamChecks[row[F.team]];
+      if (!check || !check.allowed || !check.rowBU) return;
+      if (row[F.title] !== check.applicableTitleIdx) return;
+      if (!check.applicableTypeIdxSet.has(row[F.type])) return;
 
       if (row[F.isActive]) {
         coveredSum += row[F.coveredDoctor] || 0;
@@ -1008,23 +1127,34 @@
     let coveredSum = 0, rightFreqSum = 0, rowCount = 0;
     const repSet = new Set();
 
+    const teamChecks = (dims.teams || []).map(teamName => {
+      const allowed = !window.AUTH || window.AUTH.isLineAllowed(teamName);
+      const rowBU = window.SEMANTIC.lineToBU(teamName);
+      const canonLine = window.SEMANTIC.normalizeLine(teamName);
+      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
+      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
+      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
+
+      return {
+        allowed,
+        rowBU,
+        canonLine,
+        applicableTitleIdx,
+        applicableTypeIdxSet
+      };
+    });
+
     records.rows.forEach(row => {
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
       if (row[F.manager] !== dmIdx) return;
 
-      const teamName = (dims.teams || [])[row[F.team]];
-      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
-      const rowBU = window.SEMANTIC.lineToBU(teamName);
-      if (rowBU !== bu) return;
-      const canonLine = window.SEMANTIC.normalizeLine(teamName);
-      if (normLineArg && canonLine !== normLineArg) return;
-
-      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
-      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
-      if (row[F.title] !== applicableTitleIdx) return;
-      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
-      if (!applicableTypeIdxSet.has(row[F.type])) return;
+      const check = teamChecks[row[F.team]];
+      if (!check || !check.allowed) return;
+      if (check.rowBU !== bu) return;
+      if (normLineArg && check.canonLine !== normLineArg) return;
+      if (row[F.title] !== check.applicableTitleIdx) return;
+      if (!check.applicableTypeIdxSet.has(row[F.type])) return;
 
       if (row[F.isActive]) {
         coveredSum += row[F.coveredDoctor] || 0;
@@ -1081,23 +1211,34 @@
 
     const repMap = new Map(); // employeeIdx -> { coveredSum, rightFreqSum, rowCount }
 
+    const teamChecks = (dims.teams || []).map(teamName => {
+      const allowed = !window.AUTH || window.AUTH.isLineAllowed(teamName);
+      const rowBU = window.SEMANTIC.lineToBU(teamName);
+      const canonLine = window.SEMANTIC.normalizeLine(teamName);
+      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
+      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
+      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
+
+      return {
+        allowed,
+        rowBU,
+        canonLine,
+        applicableTitleIdx,
+        applicableTypeIdxSet
+      };
+    });
+
     records.rows.forEach(row => {
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
       if (row[F.manager] !== dmIdx) return;
 
-      const teamName = (dims.teams || [])[row[F.team]];
-      if (window.AUTH && !window.AUTH.isLineAllowed(teamName)) return;
-      const rowBU = window.SEMANTIC.lineToBU(teamName);
-      if (rowBU !== bu) return;
-      const canonLine = window.SEMANTIC.normalizeLine(teamName);
-      if (normLineArg && canonLine !== normLineArg) return;
-
-      const isChcSalesTeam = (bu === "CHC" && canonLine === "CHC_SALES");
-      const applicableTitleIdx = isChcSalesTeam ? salesRepTitleIdx : titleIdx;
-      if (row[F.title] !== applicableTitleIdx) return;
-      const applicableTypeIdxSet = isChcSalesTeam ? pharmacyTypeIdxSet : standardTypeIdxSet;
-      if (!applicableTypeIdxSet.has(row[F.type])) return;
+      const check = teamChecks[row[F.team]];
+      if (!check || !check.allowed) return;
+      if (check.rowBU !== bu) return;
+      if (normLineArg && check.canonLine !== normLineArg) return;
+      if (row[F.title] !== check.applicableTitleIdx) return;
+      if (!check.applicableTypeIdxSet.has(row[F.type])) return;
 
       const empIdx = row[F.employee];
       if (!repMap.has(empIdx)) {

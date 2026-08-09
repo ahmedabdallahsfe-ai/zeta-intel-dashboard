@@ -1,0 +1,4 @@
+﻿Type,SourceValue,CanonicalValue,Resolution,Occurrences,BudgetAffected,Detail
+LINE,NEUROSCIENCE,CNS,AUTO_SYNONYM,36,9000000.00,"Resolved via LINE_SYNONYMS, same rule normalizeLine() applies"
+BU,CLUSTER,Cluster,AUTO_CASE,39,70000000.00,"Case-only difference, resolved automatically"
+LINE,Gyna,Gyna -> BU DIAB,BUSINESS_DECISION,5,15000000.00,Confirmed by Ahmed 2026-08-09. NOT yet in semantic-model.js - Phase B must add it to CANONICAL_LINE_TO_BU

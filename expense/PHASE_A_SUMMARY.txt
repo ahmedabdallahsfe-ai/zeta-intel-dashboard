@@ -1,0 +1,68 @@
+PHASE A — EXPENSE DATA FOUNDATION
+========================================================================
+source      : Market Expenses & FTE (3).xlsx
+months      : 12  (2026-01 .. 2026-12)
+SKU rows    : 118   of which carry budget: 76
+total budget: 267,100,000 EGP
+
+MAPPING COVERAGE
+  status              SKUs         budget EGP  % value
+  MATCHED               35        192,750,000    72.2%
+  NAME_VARIANT           0                  0     0.0%
+  NOT_YET_SELLING        4         10,300,000     3.9%
+  UNMAPPED              37         64,050,000    24.0%
+  TOTAL                 76        267,100,000
+
+ACTIVE vs INACTIVE  (Active column in the source sheet)
+                          SKUs         budget EGP
+  Active = Yes              40        207,990,000
+  Active = No               36         59,110,000
+
+  ACTIVE SKUs only — the population the analysis is about:
+    MATCHED               35        192,750,000    92.7%
+    NAME_VARIANT           0                  0     0.0%
+    NOT_YET_SELLING        2          4,300,000     2.1%
+    UNMAPPED               3         10,940,000     5.3%
+    >> usable             35        192,750,000    92.7%
+
+  Of the 36 INACTIVE budgeted SKUs, 34 are UNMAPPED (53,110,000 EGP).
+  Measured: 0 of 36 inactive budgeted SKUs have any recorded sales.
+  The source defines no meaning for this flag. Ahmed 2026-08-09: excluded
+  from Expense vs Sales KPIs, retained in full in reconciliation, and NOT
+  labelled pre-launch, discontinued or any other status.
+
+  SKU coverage (usable)   : 46.1%  (35 of 76)
+  BUDGET-VALUE coverage   : 72.2%  (192,750,000 of 267,100,000 EGP)
+  ACTIVE-only, ratified   : 92.7%   <-- the gate figure
+  Human-reviewed rows kept: 12
+
+EXCEPTIONS
+  budget reconciliation   : 8 line(s) not reconciled  (4 decided, 4 OPEN)
+  dimension               : 0 unresolved value(s)
+
+TEMPLATE
+  expense/templates/expense_actuals_template.xlsx
+  56 joinable SKUs x 12 months = 672 entry rows
+  (35 of these carry budget; the rest are joinable but unbudgeted)
+
+GATE
+  NO-GO for Phase B. Blockers:
+    - ACTIVE budget-value coverage 92.7% (ratified) is below 95%
+    - 2 classification(s) proposed and unresolved (6,440,000 EGP). All are proposed as NOT joinable, so ratifying them would not change coverage - they are open questions, not pending coverage. Resolution depends on the product master, not on a review of this data
+    - 4 budget reconciliation exception(s) OPEN - DIAB-I, DIAB-II, DIAB-III, DIAB-IV. Requires explicit business confirmation; the build will not choose an authoritative split
+
+RECORDED RULES  (not blockers)
+  Active=No       36 SKUs, 59,110,000 EGP. Excluded from Expense vs Sales KPIs;
+                  retained in full in reconciliation. No status label applied.
+  Reviewed        1 ACTIVE SKU(s) confirmed UNMAPPED by a human (4,500,000 EGP).
+                  NEXICURE PLUS 40/1680 MG 14 SACHETS
+                  Counted against coverage; not awaiting a decision.
+  Gyna -> DIAB    ETL override, pending addition to semantic-model.js in Phase B.
+  Zetagarouh      Confirmed intentional under CHC.
+  Reconciliation  4 of 8 exceptions decided; variances PRESERVED, not fixed.
+                  CHC              5,000,000 EGP  Classification difference, confirmed by Ahmed 2026-08-09
+                  GIT-I             -300,000 EGP  Difference preserved by decision, Ahmed 2026-08-09
+                  GIT-II             300,000 EGP  Difference preserved by decision, Ahmed 2026-08-09
+                  Zetagarouh      -5,000,000 EGP  Classification difference, confirmed by Ahmed 2026-08-09
+                  Company total agrees exactly: both sheets 267,100,000 EGP.
+========================================================================

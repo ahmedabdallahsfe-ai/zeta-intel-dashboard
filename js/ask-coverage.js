@@ -221,8 +221,14 @@
     var wantSpecialty = /\bspecialt/i.test(q) || /\bdoctors?\b/i.test(q);
     var wantClass = /\bclass(es)?\b|\bklass/i.test(q);
     var wantType = /\btype|category/i.test(q);
+    var sortByRF = /\b(right frequency|rf)\b/i.test(q);
 
-    var rows = [], nameHeader = "", columns = ["Coverage", "Right Freq", "Active Reps"], scopeTxt = "";
+    var rows = [], nameHeader = "", columns = [], scopeTxt = "";
+    if (sortByRF) {
+      columns = ["Right Frequency %", "Coverage %", "Active Reps"];
+    } else {
+      columns = ["Coverage", "Right Freq", "Active Reps"];
+    }
     var got;
 
     if (wantRep && ctx.dm) {
@@ -230,10 +236,16 @@
       var bu = ctx.bu || allowedBUs()[0];
       var repList = CD().getDmRepsList(bu, ctx.line || null, ctx.dm);
       nameHeader = "Representative";
-      columns = ["Coverage", "Right Freq", "Plan Customers"];
+      if (sortByRF) {
+        columns = ["Right Frequency %", "Coverage %", "Plan Customers"];
+      } else {
+        columns = ["Coverage", "Right Freq", "Plan Customers"];
+      }
       scopeTxt = "reps under " + ctx.dm;
       rows = repList.map(function (r) {
-        return { name: r.name, sort: r.coveragePct || 0, cells: [
+        return { name: r.name, sort: (sortByRF ? r.rightFreqPct : r.coveragePct) || 0, cells: sortByRF ? [
+          E.fmtPct(r.rightFreqPct), E.fmtPct(r.coveragePct), E.fmtNum(r.rowCount)
+        ] : [
           E.fmtPct(r.coveragePct), E.fmtPct(r.rightFreqPct), E.fmtNum(r.rowCount)
         ] };
       });
@@ -248,8 +260,8 @@
         if (dmSum && dmSum.ok && dmSum.customerRowCount > 0) {
           rows.push({
             name: dm,
-            sort: dmSum.coveragePct || 0,
-            cells: [E.fmtPct(dmSum.coveragePct), E.fmtPct(dmSum.rightFreqPct), dmSum.repCount]
+            sort: (sortByRF ? dmSum.rightFreqPct : dmSum.coveragePct) || 0,
+            cells: sortByRF ? [E.fmtPct(dmSum.rightFreqPct), E.fmtPct(dmSum.coveragePct), dmSum.repCount] : [E.fmtPct(dmSum.coveragePct), E.fmtPct(dmSum.rightFreqPct), dmSum.repCount]
           });
         }
       });
@@ -263,8 +275,8 @@
           breakdown.lines.forEach(function (l) {
             rows.push({
               name: l.name,
-              sort: l.coveragePct || 0,
-              cells: [E.fmtPct(l.coveragePct), E.fmtPct(l.rightFreqPct), l.headcount]
+              sort: (sortByRF ? l.rightFreqPct : l.coveragePct) || 0,
+              cells: sortByRF ? [E.fmtPct(l.rightFreqPct), E.fmtPct(l.coveragePct), l.headcount] : [E.fmtPct(l.coveragePct), E.fmtPct(l.rightFreqPct), l.headcount]
             });
           });
         }
@@ -275,15 +287,24 @@
       // Specialty / Class / Type breakdown
       var targetBU3 = ctx.bu || allowedBUs()[0];
       var typeSum = CD().getFilteredCoverageByType(targetBU3, ctx.line || null);
+      if (!typeSum || !typeSum.ok) {
+        return { ok: false, message: "Coverage ranking is currently unavailable (status: " + (typeSum ? typeSum.status : "unknown") + ")." };
+      }
       var dataset = [];
       if (wantSpecialty) { nameHeader = "Specialty"; dataset = typeSum.specialty || []; }
       else if (wantClass) { nameHeader = "Class"; dataset = typeSum.klass || []; }
-      else { nameHeader = "Customer Type"; dataset = typeSum.type || []; }
+      else { nameHeader = "Customer Type"; dataset = typeSum.types || typeSum.type || []; }
 
-      columns = ["Coverage", "Right Freq", "Target Visits", "Actual Visits"];
+      if (sortByRF) {
+        columns = ["Right Frequency %", "Coverage %", "Target Visits", "Actual Visits"];
+      } else {
+        columns = ["Coverage", "Right Freq", "Target Visits", "Actual Visits"];
+      }
       scopeTxt = nameHeader.toLowerCase() + "s in " + targetBU3;
       rows = dataset.map(function (d) {
-        return { name: d.name, sort: d.coveragePct || 0, cells: [
+        return { name: d.name, sort: (sortByRF ? d.rightFreqPct : d.coveragePct) || 0, cells: sortByRF ? [
+          E.fmtPct(d.rightFreqPct), E.fmtPct(d.coveragePct), E.fmtNum(d.plannedVisits), E.fmtNum(d.actualVisits)
+        ] : [
           E.fmtPct(d.coveragePct), E.fmtPct(d.rightFreqPct), E.fmtNum(d.plannedVisits), E.fmtNum(d.actualVisits)
         ] };
       });
@@ -294,7 +315,9 @@
       allowedBUs().forEach(function (bu) {
         var buSum = CD().getFilteredCoverageForLine(bu, null);
         if (buSum && buSum.ok) {
-          rows.push({ name: bu, sort: buSum.coveragePct || 0, cells: [
+          rows.push({ name: bu, sort: (sortByRF ? buSum.rightFreqPct : buSum.coveragePct) || 0, cells: sortByRF ? [
+            E.fmtPct(buSum.rightFreqPct), E.fmtPct(buSum.coveragePct), buSum.repCount
+          ] : [
             E.fmtPct(buSum.coveragePct), E.fmtPct(buSum.rightFreqPct), buSum.repCount
           ] });
         }
@@ -310,8 +333,8 @@
       return { rank: i + 1, name: r.name, cells: r.cells };
     });
 
-    var headline = (bottom ? "Bottom " : "Top ") + shown.length + " " + nameHeader.toLowerCase() + (shown.length === 1 ? "" : "s") + " by coverage %";
-    var detail = "Within " + scopeTxt + ", ranked by coverage rate.";
+    var headline = (bottom ? "Bottom " : "Top ") + shown.length + " " + nameHeader.toLowerCase() + (shown.length === 1 ? "" : "s") + " by " + (sortByRF ? "right frequency %" : "coverage %");
+    var detail = "Within " + scopeTxt + ", ranked by " + (sortByRF ? "right frequency rate" : "coverage rate") + ".";
 
     return {
       ok: true,
@@ -325,7 +348,7 @@
       nameHeader: nameHeader,
       columns: columns,
       rows: shown,
-      formula: "Ranked by coverage % (seen/total plan), " + (bottom ? "ascending" : "descending"),
+      formula: "Ranked by " + (sortByRF ? "right frequency" : "coverage") + " % (seen/total plan), " + (bottom ? "ascending" : "descending"),
       evidence: [
         ["Total Items Ranked", rows.length],
         ["As of", asOf()]
@@ -452,6 +475,13 @@
     answer: function (q, parsed) {
       if (!CD() || !SEM()) {
         return { ok: false, message: "The coverage layer has not loaded yet." };
+      }
+      if (typeof CacheStore === "undefined" || !CacheStore.isReady()) {
+        try { CacheStore.init(); } catch (e) {}
+      }
+      var records = typeof CacheStore !== "undefined" ? CacheStore.getRecords() : null;
+      if (!records || !Array.isArray(records.rows) || records.rows.length === 0) {
+        return { ok: false, message: "Detailed records cache is unavailable. Please run refresh.bat to rebuild the cache." };
       }
       var ctx = contextFor(parsed.entities);
 
