@@ -103,7 +103,6 @@ const CONFIG = {
     fields: [
       { id: "period", label: "Period", field: "Period" },
       { id: "team", label: "Team", field: "Team" },
-      { id: "businessUnit", label: "Business Unit", field: "Business Unit" },
       { id: "nsm", label: "National Sales Manager", field: "National Sales Manager" },
       { id: "areaManager", label: "Area Manager", field: "Area Manager" },
       { id: "manager", label: "Manager", field: "Manager" },
@@ -113,7 +112,6 @@ const CONFIG = {
       { id: "status", label: "Status", field: "Active" },
       { id: "experience", label: "Experience", field: "Experience" },
       { id: "type", label: "Type", field: "Type" },
-      { id: "title", label: "Title", field: "Title" },
     ],
     // Applied on first load; "latest" is resolved at runtime against
     // metadata.latestPeriod.
@@ -122,7 +120,6 @@ const CONFIG = {
     defaults: {
       period: [],
       team: [],
-      businessUnit: [],
       nsm: [],
       areaManager: [],
       manager: [],
@@ -132,7 +129,6 @@ const CONFIG = {
       status: [],
       experience: [],
       type: [],
-      title: [],
     },
   },
 

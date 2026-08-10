@@ -78,6 +78,22 @@ if not "%SALES_EXIT%"=="0" (
     exit /b 1
 )
 
+REM --- run the Expense vs Sales Aggregation --------------------------------
+echo.
+echo Reading Expense workbook and building cache...
+%PYTHON_CMD% etl\build_expense_foundation.py
+%PYTHON_CMD% etl\build_expense_cache.py
+set "EXPENSE_EXIT=%ERRORLEVEL%"
+
+if not "%EXPENSE_EXIT%"=="0" (
+    echo ============================================================
+    echo   [ERROR] Expense Refresh FAILED
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
 REM --- run the IQVIA Market Share Aggregation ------------------------------
 REM Added 2026-07-28: this step was documented in the header comment above
 REM but was never actually wired in -- IQVIA refreshes had to be run and
@@ -288,6 +304,8 @@ if "%GIT_CMD%"=="" (
     REM Same -f reason as every cache above: .gitignore line 2 is `cache/`,
     REM and this file is new so `git add -A` would skip it entirely.
     "%GIT_CMD%" add -f cache/build_manifest.data.js
+    REM Force-add the expense cache file since cache/ is gitignored.
+    "%GIT_CMD%" add -f cache/expense_budget.data.js
     "%GIT_CMD%" add "TO MARKET_IN MARKET/index.html"
     "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js

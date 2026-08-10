@@ -339,8 +339,6 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Total Market Intelligence";
     } else if (tab === "tomarket") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - To-Market vs In-Market";
-    } else if (tab === "control") {
-      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Control Panel";
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -382,16 +380,12 @@ function startAppBody() {
     marketIntelMenuItem.style.display = allowed ? "" : "none";
   }
 
-  // Control Panel: SFE Manager / Admin only (2026-08-07). Same two-layer
-  // pattern as Market Intelligence above -- hidden in the markup, revealed
-  // here, and ControlPanel.init() refuses to render for anyone else, so
-  // un-hiding the entry in devtools gains nothing.
-  const controlMenuItem = document.getElementById("menu-item-control");
-  if (controlMenuItem) {
-    const cpAllowed = window.ControlPanel && typeof window.ControlPanel.canView === "function"
-      ? window.ControlPanel.canView() : false;
-    controlMenuItem.style.display = cpAllowed ? "" : "none";
-  }
+  // REMOVED 2026-08-09 (Ahmed): the Control Panel and Expense vs Sales tabs
+  // were taken out of the shell. Their modules (js/control-panel.js,
+  // js/expense.js, js/expense-interface.js) are still on disk and unmodified,
+  // so restoring either is a matter of re-adding its <li>, its <script> tags
+  // and the three routing blocks that used to live here, in the teardown
+  // chain and in the tab-switch chain below.
 
 
 
@@ -433,9 +427,6 @@ function startAppBody() {
       }
       if (currentTab === "tomarket") {
         restoreGlobalFilterBar();
-      }
-      if (currentTab === "control" && window.ControlPanel) {
-        window.ControlPanel.destroy();
       }
       if (currentTab === "marketintel") {
         // Same teardown as tomarket -- it borrows the same full-bleed body
@@ -511,13 +502,6 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             renderMarketIntelTab(document.getElementById("app-root"));
-          } else if (tab === "control") {
-            if (window.SFEDashboard) {
-              window.SFEDashboard.destroy();
-            }
-            if (window.ControlPanel) {
-              window.ControlPanel.init("app-root");
-            }
           }
           mountAskPanel(tab);
           Loader.hide();

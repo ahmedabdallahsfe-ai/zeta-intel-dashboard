@@ -51,3 +51,33 @@ Thumbs.db
 push_to_github.bat
 
 cache/customer_analytics.json
+
+# -----------------------------------------------------------------------------
+# Expense vs Sales — Phase A/B artefacts, held local at Ahmed's instruction
+# (2026-08-09) until the data foundation is signed off.
+#
+# expense/ carries the reviewable mapping table and the reconciliation reports.
+# expense_sku_map.csv holds human sign-off decisions, so when this is lifted the
+# folder must be committed, not regenerated -- a rebuild without it would
+# discard every ratified mapping.
+#
+# NOTE FOR WHOEVER LIFTS THIS: cache/ is blanket-ignored above, so
+# cache/expense_budget.data.js will NOT be pushed by a normal commit. The
+# existing caches are only in the repo because they were tracked before that
+# rule was added. Going live needs an explicit  git add -f cache/expense_budget.data.js
+# or the deployed page will request a script that is not there.
+# -----------------------------------------------------------------------------
+expense/
+etl/build_expense_foundation.py
+etl/apply_expense_decisions.py
+etl/build_expense_cache.py
+etl/verify_expense_page.js
+etl/verify_expense_render.js
+
+# Node dev dependencies. The platform ships no npm packages -- these exist only
+# because the Expense verification harness uses jsdom to render the page in a
+# real DOM outside a browser. Ignored so a stray `npm install` can never sweep
+# ~1,800 library files into a commit.
+node_modules/
+package.json
+package-lock.json

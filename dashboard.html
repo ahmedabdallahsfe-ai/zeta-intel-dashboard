@@ -144,10 +144,6 @@
           <span class="menu-icon">🌐</span>
           <span class="menu-label">Total Market Intelligence</span>
         </li>
-        <li class="menu-item" data-tab="control" id="menu-item-control" style="display:none;">
-          <span class="menu-icon">🛠️</span>
-          <span class="menu-label">Control Panel</span>
-        </li>
 
       </ul>
     </nav>
@@ -225,19 +221,13 @@
        back to the existing flat cluster->sub_type list for any cluster not present. -->
   <script defer src="cache/customer_analytics.data.js?v=20260731_skunocap"></script>
   <script defer src="cache/iqvia.data.js?v=20260729_dm1fix"></script>
-  <!-- Build manifest (2026-08-07): written by etl/build_manifest.py at the end
-       of every refresh. The only way the browser can learn that a source
-       workbook changed after a cache was built -- nothing else on a static
-       site can see both sides. Optional: the Control Panel degrades to
-       live-cache inspection if this has never been generated. -->
-  <script defer src="cache/build_manifest.data.js?v=20260807_control"></script>
 
   <!-- App-wide authentication (2026-07-29): self-contained platform asset
        (same pattern as semantic-model.js below), no dependency on any
        workspace module. Must load after cache/iqvia.data.js (reads
        IQVIA_CACHE.users) and before js/app.js (the boot sequence gates
        on it first). See js/auth.js for the full rationale. -->
-  <script defer src="js/auth.js?v=20260806_miroles"></script>
+  <script defer src="js/auth.js?v=20260809_editgate"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script defer src="js/config.js?v=20260725_v2"></script>
@@ -276,7 +266,7 @@
        v20260728_clustermix = SUBTYPE_TO_CLUSTER map + getCustomerClusterMix()
        added for the Customer Channel Mix KPI card (cluster-then-sub_type
        drill -- see sales_subtypes.xlsx for the clustering source of truth). -->
-  <script defer src="js/sales.js?v=20260804_noperiod"></script>
+  <script defer src="js/sales.js?v=20260809_itemgrain"></script>
   <script defer src="js/iqvia.js?v=20260804_corpshare_dedupe"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
@@ -295,7 +285,6 @@
   <script defer src="js/market-intel.js?v=20260806_cagr"></script>
   <!-- Ask the Data (2026-08-07). The engine must load before any adapter;
        both must load before app.js, which mounts them on tab change. -->
-  <script defer src="js/control-panel.js?v=20260807_control"></script>
   <script defer src="js/ask-engine.js?v=20260807_ask"></script>
   <script defer src="js/ask-sales.js?v=20260807_ask"></script>
   <script defer src="js/ask-coverage.js?v=20260807_ask"></script>

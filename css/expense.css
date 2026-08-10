@@ -1,0 +1,190 @@
+/* =====================================================================
+   css/expense.css  --  Expense vs Sales workspace
+   ---------------------------------------------------------------------
+   Scoped entirely under .exp-root so nothing here can leak into the other
+   workspaces. Uses the platform's design tokens rather than fresh hex
+   values, so a change to the palette reaches this page too instead of
+   leaving it stranded on colours nobody remembers hardcoding.
+
+   The page's own identity comes from ONE device: a left accent rule on
+   section headers, tinted by what the section is for -- neutral for
+   analysis, amber for anything the reader must not take as settled. That
+   is enough to make the page recognisable without inventing a second
+   design vocabulary.
+   ===================================================================== */
+
+.exp-root {
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
+}
+
+/* ---------- page header ---------- */
+.exp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.exp-title {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.exp-sub {
+  font-size: var(--fs-sm);
+  color: var(--color-text-secondary);
+  margin: 6px 0 0;
+  line-height: 1.55;
+  max-width: 78ch;
+}
+
+/* ---------- section ---------- */
+.exp-section { margin-top: 30px; }
+
+.exp-section-head {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 12px;
+  margin-bottom: 14px;
+}
+/* Amber accent = "this number is not settled". Used for the reconciliation
+   block while allocation exceptions remain open, so the visual weight tracks
+   the data's reliability rather than the section's importance. */
+.exp-section-head--caution { border-left-color: var(--color-warning); }
+
+.exp-section-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.exp-section-sub {
+  font-size: var(--fs-xs);
+  color: var(--color-text-secondary);
+  margin: 4px 0 0;
+  line-height: 1.55;
+  max-width: 92ch;
+}
+
+/* ---------- disclosure ---------- */
+/* Deliberately quiet rather than alarming. These notes are permanent
+   context, not warnings -- styling them as alerts would train the reader
+   to dismiss them, which is the opposite of the point. */
+.exp-note {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-info);
+  border-radius: 10px;
+  padding: 13px 16px;
+  margin-bottom: 18px;
+}
+.exp-note--risk { border-left-color: var(--color-danger); }
+.exp-note-title {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  margin-bottom: 7px;
+}
+.exp-note-item {
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--color-text-primary);
+}
+.exp-note-item + .exp-note-item { margin-top: 7px; }
+
+/* ---------- footer meta ---------- */
+.exp-meta {
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  font-size: var(--fs-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+/* ---------- table emphasis ---------- */
+/* A row whose budget cannot be joined to sales is dimmed, not hidden. The
+   budget is real and belongs in the total; what is missing is the
+   comparison. Dimming says that without removing the money. */
+.exp-root tr.exp-unjoined td { color: var(--color-text-tertiary); }
+.exp-root tr.exp-unjoined td:nth-child(-n + 3) { color: var(--color-text-secondary); }
+
+/* ---------- actual-expense entry ---------- */
+.exp-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.exp-toolbar-hint {
+  font-size: var(--fs-xs);
+  color: var(--color-text-secondary);
+}
+
+/* The input is styled to read as an editable field without shouting. A cell
+   that looks identical to a read-only one hides the fact that it can be
+   changed; one styled as a heavy form control makes a dense table unreadable. */
+.exp-actual-input {
+  width: 108px;
+  padding: 4px 7px;
+  text-align: right;
+  font-family: var(--font-family-base);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.exp-actual-input::placeholder {
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  font-size: var(--fs-xs);
+}
+.exp-actual-input:hover { border-color: var(--color-primary); }
+.exp-actual-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+/* A rejected value stays visible and marked rather than being silently
+   replaced -- the user must see what they typed to understand the rejection. */
+.exp-actual-input.exp-input-error {
+  border-color: var(--color-danger);
+  background: var(--color-danger-light);
+}
+
+/* Revised budget shares the actual-input styling but reads as secondary --
+   it is an exception, not the norm, and most rows should stay blank. */
+.exp-revised-input {
+  width: 108px;
+  padding: 4px 7px;
+  text-align: right;
+  font-family: var(--font-family-base);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  background: var(--color-surface-alt);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 6px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.exp-revised-input::placeholder {
+  color: var(--color-text-tertiary);
+  font-size: var(--fs-xs);
+}
+.exp-revised-input:hover { border-color: var(--color-primary); }
+.exp-revised-input:focus {
+  outline: none;
+  background: var(--color-surface);
+  border-style: solid;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+.exp-revised-input.exp-input-error {
+  border-color: var(--color-danger);
+  background: var(--color-danger-light);
+}

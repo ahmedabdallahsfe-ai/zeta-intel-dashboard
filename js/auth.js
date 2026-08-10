@@ -192,6 +192,38 @@
     return MARKET_INTEL_ROLES.indexOf(u.role) >= 0;
   }
 
+  // -------------------------------------------------------------------
+  // EXPENSE VS SALES ACCESS (2026-08-09, Ahmed)
+  // -------------------------------------------------------------------
+  // "SFE BEX BU ADMIN CEO VP ONLY CAN SEE IT"
+  // Gated to CEO, VP, Commercial Director, BEx, Admin, SFE Manager, and BU Manager.
+  var EXPENSE_ROLES = ["CEO", "VP", "Commercial Director", "BEX", "Admin", "SFE Manager", "BU Manager"];
+
+  function canViewExpense() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return EXPENSE_ROLES.indexOf(u.role) >= 0;
+  }
+
+  // WHO MAY ENTER ACTUAL EXPENSE (2026-08-09).
+  //
+  // Viewing and editing are deliberately NOT the same right. Actual expense is
+  // a number somebody owns and will be held to; the people who see it for
+  // decisions are a wider group than the people who report it.
+  //
+  // CEO / VP / Commercial Director / BEx read it. They do not type it. An
+  // executive overtyping a BU's reported spend, with no record of who changed
+  // what, is the failure this split exists to prevent.
+  //
+  // Admin is included because someone must be able to correct a bad import.
+  var EXPENSE_EDIT_ROLES = ["SFE Manager", "BU Manager", "Admin"];
+
+  function canEditExpense() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return EXPENSE_EDIT_ROLES.indexOf(u.role) >= 0;
+  }
+
   function canViewAllBUs() {
     var u = getValidSessionUser();
     if (!u) return false;
@@ -326,6 +358,10 @@
     ALL_BU_ROLES: ALL_BU_ROLES,
     canViewMarketIntel: canViewMarketIntel,
     MARKET_INTEL_ROLES: MARKET_INTEL_ROLES,
+    canViewExpense: canViewExpense,
+    EXPENSE_ROLES: EXPENSE_ROLES,
+    canEditExpense: canEditExpense,
+    EXPENSE_EDIT_ROLES: EXPENSE_EDIT_ROLES,
     getActiveScenario: getActiveScenario,
     setActiveScenario: setActiveScenario
   };

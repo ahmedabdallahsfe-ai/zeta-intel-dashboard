@@ -3134,7 +3134,7 @@
      * additionally scopes to one line within the BU -- omit/pass null for
      * the whole-BU figure (identical to the pre-2026-07-27 behavior).
      */
-    getBrandAchievement(bu, line, ignoreLineAuth, scenario) {
+    getBrandAchievement(bu, line, ignoreLineAuth, scenario, maxMonth) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, brands: [] };
@@ -3148,11 +3148,13 @@
       const lines = cache.lookups.lines;
       const brandsLk = cache.lookups.brands || [];
       const months = cache.lookups.months;
+      const maxMonthIdx = maxMonth && maxMonth !== 'YTD' ? months.indexOf(maxMonth) : -1;
 
       const acc = new Map(); // brandIdx -> { val, tgtVal, qty, tgtQty }
       let totalVal = 0;
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
+        if (maxMonthIdx >= 0 && r[MONTH] > maxMonthIdx) continue;
         const rawLine = lines[r[LINE]];
         if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         const rBu = window.SEMANTIC.lineToBU(rawLine);
@@ -3453,9 +3455,25 @@
      * returned scope's total Non-Tender VALUE), and accepts an optional
      * `line` param exactly like getBrandAchievement()'s.
      */
-    getItemAchievement(bu, brandName, line, scenario) {
-      if (bu !== 'CHC') {
-        return { ok: false, status: 'bu_not_supported', asOfDate: null, source: 'sales', bu: bu, brand: brandName || null, items: [] };
+    getItemAchievement(bu, brandName, line, scenario, maxMonth) {
+      // GUARD RELAXED 2026-08-09 (Ahmed: "DEFINE ELIMBOSIS AS 2.5 AND 5").
+      //
+      // This used to hard-refuse anything but CHC. The refusal was a SCOPING
+      // decision, not a technical limit -- the body below is already BU-
+      // agnostic (it filters on SEMANTIC.lineToBU(rawLine) === bu like every
+      // other function here), so it produces correct item-level figures for
+      // any BU.
+      //
+      // The Expense vs Sales page needs SKU-level sales for a non-CHC brand:
+      // ELIMBOSIS carries separate 2.5 MG and 5 MG budgets and Ahmed wants
+      // them reported separately, which is impossible from a brand total.
+      //
+      // SAFE BY CONSTRUCTION: every BU except CHC previously received an
+      // error from this function, so no existing caller can be passing one.
+      // Nothing that works today changes behaviour -- this only turns a
+      // refusal into an answer.
+      if (!bu || bu === 'All') {
+        return { ok: false, status: 'bu_required', asOfDate: null, source: 'sales', bu: bu, brand: brandName || null, items: [] };
       }
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
@@ -3476,6 +3494,7 @@
       const brandsLk = cache.lookups.brands || [];
       const productsLk = cache.lookups.products || [];
       const months = cache.lookups.months;
+      const maxMonthIdx = maxMonth && maxMonth !== 'YTD' ? months.indexOf(maxMonth) : -1;
       let brandIdx = null;
       if (brandName) {
         brandIdx = brandsLk.indexOf(brandName);
@@ -3488,6 +3507,7 @@
       let totalVal = 0;
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
+        if (maxMonthIdx >= 0 && r[MONTH] > maxMonthIdx) continue;
         const rawLine = lines[r[LINE]];
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;

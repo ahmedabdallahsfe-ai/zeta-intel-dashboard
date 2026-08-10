@@ -315,6 +315,8 @@ const Filters = (() => {
     // analytics.js expects "klass" for the class filter (reserved-word boundary).
     // period is now also an array: [] = latest, ["Jun"] = specific, etc.
     const out = Object.assign({}, state, { klass: state.class });
+    if (!out.businessUnit) out.businessUnit = [];
+    if (!out.title) out.title = [];
     // ROLE-BASED ACCESS SCOPE (2026-07-29): force "team" (Coverage's Line
     // dimension) into the signed-in user's allowed scope regardless of
     // their own selection -- an empty selection means "all", which for a

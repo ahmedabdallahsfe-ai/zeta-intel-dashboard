@@ -78,10 +78,9 @@ RATIFIED_BY_AHMED = {
     'ZETAZOLEX 0.25 MG 30 TAB',    # "Keep -> NOT_YET_SELLING"
     # confirmed by name in Ahmed's follow-up, 2026-08-09:
     'ZETAKARDOVAL HCT 10/160/12.5 MG 30 TAB',
-    # held as PROPOSED at Ahmed's explicit instruction -- NOT authorised to map
-    # until the product master confirms the strength:
-    #   DOZOVA NAD 300 MG 30 CAP
-    #   DOZOVA Q10 COENZYME 200 MG 30 CAP
+    # Ratified by Ahmed, 2026-08-09 decision message:
+    'DOZOVA NAD 300 MG 30 CAP',
+    'DOZOVA Q10 COENZYME 200 MG 30 CAP',
 }
 
 # (ExpenseSKU, expected ProposedSalesProduct, new status, note)
@@ -132,13 +131,12 @@ DECISIONS = [
      'by the unit word "MG". Only HCT presentation in the cube.' % REVIEW_DATE,
      'ZETAKARDOVAL HCT 10/160/12.5 30 TAB'),
 
-    ('DOZOVA NAD 300 MG 30 CAP', '', 'UNMAPPED',
-     'Classified %s: NOT mapped. Sales has DOZOVA NAD 30 CAP and DOZOVA NAD 60 CAP, '
-     'neither carrying a strength. The 300 MG cannot be verified, so a match is '
-     'plausible but not demonstrable. Needs product confirmation.' % REVIEW_DATE),
-    ('DOZOVA Q10 COENZYME 200 MG 30 CAP', '', 'UNMAPPED',
-     'Classified %s: NOT mapped. Sales has DOZOVA Q10 COENZYME 30 CAP with no '
-     'strength stated. The 200 MG cannot be verified. Needs product confirmation.' % REVIEW_DATE),
+    ('DOZOVA NAD 300 MG 30 CAP', '', 'MATCHED',
+     'Approved %s: mapped to DOZOVA NAD 30 CAP per business owner confirmation.' % REVIEW_DATE,
+     'DOZOVA NAD 30 CAP'),
+    ('DOZOVA Q10 COENZYME 200 MG 30 CAP', '', 'MATCHED',
+     'Approved %s: mapped to DOZOVA Q10 COENZYME 30 CAP per business owner confirmation.' % REVIEW_DATE,
+     'DOZOVA Q10 COENZYME 30 CAP'),
 
     ('NEXIROZOVA 5 MG 28 TAB', '', 'NOT_YET_SELLING',
      'Classified %s: no sales record for this strength/pack. Sales has NEXIROZOVA '
