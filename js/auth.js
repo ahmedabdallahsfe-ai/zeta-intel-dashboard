@@ -121,6 +121,16 @@
    * Target, no toggle. This table never silently grants Working-Target
    * visibility to a role it doesn't recognize.
    *
+   * GIT/CLUSTER LINE MANAGER EXCEPTION (2026-08-12, Ahmed): the
+   * "Line Managers never see Official" rule above is now scoped, not
+   * blanket. Line Managers whose Allowed BU is GIT or Cluster get the
+   * same Official/Working toggle as BU Manager and above. Every other
+   * Line Manager (DIAB, CHC, ...) stays locked to Working exactly as
+   * before -- see SCENARIO_TOGGLE_LINE_MANAGER_BUS and
+   * getScenarioConfig() below, which checks user.bu BEFORE falling
+   * through to this role table, so the exception can't accidentally
+   * widen to other roles or other BUs.
+   *
    * IMPORTANT: this module only holds the user's CURRENT UI SELECTION
    * (what they clicked in the scenario selector). It is never read
    * directly by any target-aggregation function -- js/sales.js and
@@ -150,6 +160,13 @@
     "Marketing Consultant": { canToggleScenario: false, defaultScenario: "official" }
   };
   var SCENARIO_ROLE_FALLBACK = { canToggleScenario: false, defaultScenario: "official" };
+
+  // GIT/Cluster Line Manager override (2026-08-12) -- see the doc
+  // comment above. Matched against user.bu (the Allowed BU column from
+  // Zeta_Dashboard_User_Config.xlsx, e.g. ["GIT"] or ["Cluster"]), not
+  // user.lines, so it covers a GIT/Cluster Line Manager regardless of
+  // which single line they're restricted to.
+  var SCENARIO_TOGGLE_LINE_MANAGER_BUS = ["GIT", "Cluster"];
 
   // -------------------------------------------------------------------
   // ALL-BUSINESS-UNITS VIEW (2026-08-04, Ahmed)
@@ -240,6 +257,14 @@
   function getScenarioConfig() {
     var u = getValidSessionUser();
     if (!u) return SCENARIO_ROLE_FALLBACK;
+    // GIT/Cluster Line Manager override (2026-08-12) -- checked before
+    // the generic role table so it can grant toggle rights without
+    // touching the locked-Working default every other Line Manager
+    // keeps. See SCENARIO_TOGGLE_LINE_MANAGER_BUS above.
+    if (u.role === "Line Manager" && Array.isArray(u.bu) &&
+        u.bu.some(function (b) { return SCENARIO_TOGGLE_LINE_MANAGER_BUS.indexOf(b) !== -1; })) {
+      return { canToggleScenario: true, defaultScenario: "official" };
+    }
     return SCENARIO_ROLE_CONFIG.hasOwnProperty(u.role) ? SCENARIO_ROLE_CONFIG[u.role] : SCENARIO_ROLE_FALLBACK;
   }
 
