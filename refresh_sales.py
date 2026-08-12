@@ -392,7 +392,7 @@ def get_progress(conn):
 # output-formatting changes). On mismatch the checkpoint is discarded and
 # the run starts clean, which costs one full re-read but guarantees every
 # row in the cache was produced by exactly one version of the rules.
-ETL_RULES_VERSION = '2026-08-04.a'  # June TGT authority + CHC/CHC_SALES working-only + scenario bit 5
+ETL_RULES_VERSION = '2026-08-13.a'  # Fix: case-insensitive bool flags + brand name normalisation (uppercase)
 RULES_VERSION_KEY = 'etl_rules_version'
 
 
@@ -565,8 +565,8 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                         skip_row = True
 
             if not skip_row:
-                brand = str(gv(r, col['Brand'], '')).strip() or '(none)'
-                product = str(gv(r, col['Item'], '')).strip() or '(none)'
+                brand = str(gv(r, col['Brand'], '')).strip().upper() or '(NONE)'
+                product = str(gv(r, col['Item'], '')).strip().upper() or '(NONE)'
 
                 rep = str(gv(r, col['Emp1Name'], '')).strip() or '(none)'
                 dm = str(gv(r, col['Emp2Name'], '')).strip() or '(none)'
@@ -657,10 +657,17 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 # target rows for the same month/line/brand/... naturally
                 # land in two SEPARATE aggregated rows with no extra
                 # grouping logic required.
-                is_bulk = gv(r, col['IsBulk']) in (True, 1, 'True', '1')
-                is_tender = gv(r, col['IsTender']) in (True, 1, 'True', '1')
-                is_offer = gv(r, col['IsOffer']) in (True, 1, 'True', '1')
-                is_upa = gv(r, col['IsUPA']) in (True, 1, 'True', '1')
+                # 2026-08-13: handle both native bool/int (True/1) and the
+                # 'TRUE'/'FALSE' uppercase strings exported by the ERP.
+                # str().strip().upper() normalises all variants; the extra
+                # `or gv(...) in (True,1)` guard keeps native Python bools working.
+                def _flag(col_name):
+                    v = gv(r, col[col_name])
+                    return str(v).strip().upper() in ('TRUE', 'YES', '1') or v in (True, 1)
+                is_bulk   = _flag('IsBulk')
+                is_tender = _flag('IsTender')
+                is_offer  = _flag('IsOffer')
+                is_upa    = _flag('IsUPA')
 
                 mask = 0
                 if is_bulk: mask |= 1
