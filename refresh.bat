@@ -63,20 +63,107 @@ if not "%REFRESH_EXIT%"=="0" (
     exit /b 1
 )
 
-REM --- run the Sales Aggregation ------------------------------------------
-echo.
-echo Reading Sales workbook...
-%PYTHON_CMD% refresh_sales.py
-set "SALES_EXIT=%ERRORLEVEL%"
+REM --- run the Sales Aggregation --------------------------------------------
+REM Rewritten 2026-08-12 (Ahmed: "I made changes and it doesn't update" --
+REM traced to this step, not to anything Ahmed did wrong).
+REM
+REM refresh_sales.py was built chunked/resumable for a 45-second sandbox
+REM cap that does not exist on this machine. Its own design means ONE call
+REM often only finishes part of the job (e.g. just the "main" source) and
+REM still exits 0 -- a real success, just not a FINISHED one. The old
+REM version of this section called it exactly once and trusted that exit
+REM code, so most refreshes silently left cache/sales.data.js on stale
+REM data while the rest of the pipeline (Expense, IQVIA, Customer
+REM Analytics...) carried on and the whole run still ended in
+REM "SUCCESSFULLY PUSHED". Nothing on screen said Sales hadn't actually
+REM finished. This is the single biggest source of "I updated Excel and
+REM the dashboard didn't change" reports to date.
+REM
+REM Fix: loop, calling refresh_sales.py again and again, until its own
+REM output proves the cache was actually written ("Sales Aggregation
+REM Complete!" -- printed only after cache/sales.json and
+REM cache/sales.data.js are both safely on disk, see that script's tail).
+REM A capped loop count guards against looping forever if something is
+REM genuinely broken.
 
-if not "%SALES_EXIT%"=="0" (
+REM A stale checkpoint from an earlier interrupted run can make the next
+REM run silently resume against the WRONG rows if the source file changed
+REM since (exactly what happened 2026-08-11/12). The checkpoint only ever
+REM existed to save time under the sandbox's cap -- on this machine there
+REM is no reason to ever risk it. Always start clean.
+if exist "%TEMP%\zeta_sales_agg_checkpoint.db"     del /f /q "%TEMP%\zeta_sales_agg_checkpoint.db"     >nul 2>nul
+if exist "%TEMP%\zeta_sales_agg_checkpoint.db-wal" del /f /q "%TEMP%\zeta_sales_agg_checkpoint.db-wal" >nul 2>nul
+if exist "%TEMP%\zeta_sales_agg_checkpoint.db-shm" del /f /q "%TEMP%\zeta_sales_agg_checkpoint.db-shm" >nul 2>nul
+if exist "%TEMP%\zeta_sales_recon_checkpoint.pkl"  del /f /q "%TEMP%\zeta_sales_recon_checkpoint.pkl"  >nul 2>nul
+
+REM A file still open in Excel can fail to read cleanly or read a
+REM half-saved state. This is advisory only (the ~$ file can be stale) --
+REM it warns and waits for a keypress rather than blocking the run.
+if exist "~$TOTAL_SALES_2026.xlsx" (
+    echo.
     echo ============================================================
-    echo   [ERROR] Sales Refresh FAILED
+    echo   TOTAL_SALES_2026.xlsx looks like it may still be open in Excel.
+    echo   Please close Excel completely, then press any key to continue.
+    echo   (If it is not actually open, just press a key to continue.)
+    echo ============================================================
+    pause
+)
+
+echo.
+echo Reading Sales workbook (large files need several passes -- this is normal, just wait)...
+set "SALES_PASS=0"
+set "SALES_DONE=0"
+
+:sales_pass
+set /a SALES_PASS+=1
+if !SALES_PASS! GTR 20 (
+    echo ============================================================
+    echo   [ERROR] Sales Refresh did not finish after 20 passes.
+    echo   Something is likely wrong with the source file or the machine
+    echo   ran out of time. Run refresh.bat again -- it picks up cleanly.
     echo ============================================================
     echo.
     pause
     exit /b 1
 )
+
+echo.
+echo   -- Sales pass !SALES_PASS! --
+%PYTHON_CMD% refresh_sales.py > "%TEMP%\zeta_sales_pass_output.txt" 2>&1
+set "SALES_EXIT=!ERRORLEVEL!"
+type "%TEMP%\zeta_sales_pass_output.txt"
+
+if not "!SALES_EXIT!"=="0" (
+    echo ============================================================
+    echo   [ERROR] Sales Refresh FAILED - see the output above.
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Matched without the trailing "!" from the script's own print text --
+REM this file runs under enabledelayedexpansion, where "!" is a special
+REM character; dropping it avoids relying on an unpaired "!" being passed
+REM through literally instead of misparsed.
+findstr /C:"Sales Aggregation Complete" "%TEMP%\zeta_sales_pass_output.txt" >nul
+if errorlevel 1 (
+    goto sales_pass
+) else (
+    set "SALES_DONE=1"
+)
+
+if "!SALES_DONE!"=="0" (
+    echo ============================================================
+    echo   [ERROR] Sales Refresh did not complete.
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+echo.
+echo   Sales cache fully rebuilt after !SALES_PASS! pass(es).
 
 REM --- run the Expense vs Sales Aggregation --------------------------------
 echo.
