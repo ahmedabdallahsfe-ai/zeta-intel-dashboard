@@ -7,10 +7,10 @@ total budget: 267,100,000 EGP
 
 MAPPING COVERAGE
   status              SKUs         budget EGP  % value
-  MATCHED               37        199,190,000    74.6%
+  MATCHED               36        195,890,000    73.3%
   NAME_VARIANT           0                  0     0.0%
-  NOT_YET_SELLING        4         10,300,000     3.9%
-  UNMAPPED              35         57,610,000    21.6%
+  NOT_YET_SELLING        7         10,980,000     4.1%
+  UNMAPPED              33         60,230,000    22.5%
   TOTAL                 76        267,100,000
 
 ACTIVE vs INACTIVE  (Active column in the source sheet)
@@ -19,21 +19,21 @@ ACTIVE vs INACTIVE  (Active column in the source sheet)
   Active = No               36         59,110,000
 
   ACTIVE SKUs only — the population the analysis is about:
-    MATCHED               37        199,190,000    95.8%
+    MATCHED               36        195,890,000    94.2%
     NAME_VARIANT           0                  0     0.0%
-    NOT_YET_SELLING        2          4,300,000     2.1%
+    NOT_YET_SELLING        3          7,600,000     3.7%
     UNMAPPED               1          4,500,000     2.2%
-    >> usable             37        199,190,000    95.8%
+    >> usable             36        195,890,000    94.2%
 
-  Of the 36 INACTIVE budgeted SKUs, 34 are UNMAPPED (53,110,000 EGP).
+  Of the 36 INACTIVE budgeted SKUs, 32 are UNMAPPED (55,730,000 EGP).
   Measured: 0 of 36 inactive budgeted SKUs have any recorded sales.
   The source defines no meaning for this flag. Ahmed 2026-08-09: excluded
   from Expense vs Sales KPIs, retained in full in reconciliation, and NOT
   labelled pre-launch, discontinued or any other status.
 
-  SKU coverage (usable)   : 48.7%  (37 of 76)
-  BUDGET-VALUE coverage   : 74.6%  (199,190,000 of 267,100,000 EGP)
-  ACTIVE-only, ratified   : 95.8%   <-- the gate figure
+  SKU coverage (usable)   : 47.4%  (36 of 76)
+  BUDGET-VALUE coverage   : 73.3%  (195,890,000 of 267,100,000 EGP)
+  ACTIVE-only, ratified   : 94.2%   <-- the gate figure
   Human-reviewed rows kept: 12
 
 EXCEPTIONS
@@ -42,11 +42,13 @@ EXCEPTIONS
 
 TEMPLATE
   expense\templates\expense_actuals_template.xlsx
-  58 joinable SKUs x 12 months = 696 entry rows
-  (37 of these carry budget; the rest are joinable but unbudgeted)
+  61 joinable SKUs x 12 months = 732 entry rows
+  (36 of these carry budget; the rest are joinable but unbudgeted)
 
 GATE
   NO-GO for Phase B. Blockers:
+    - ACTIVE budget-value coverage 94.2% (ratified) is below 95%
+    - 1 ACTIVE SKU(s) NOT_YET_SELLING and not yet reviewed (3,300,000 EGP) - launch or unmapped variant?
     - 4 budget reconciliation exception(s) OPEN - DIAB-I, DIAB-II, DIAB-III, DIAB-IV. Requires explicit business confirmation; the build will not choose an authoritative split
 
 RECORDED RULES  (not blockers)
