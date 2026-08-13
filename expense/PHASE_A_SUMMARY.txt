@@ -7,8 +7,8 @@ total budget: 267,100,000 EGP
 
 MAPPING COVERAGE
   status              SKUs         budget EGP  % value
-  MATCHED               36        195,890,000    73.3%
-  NAME_VARIANT           0                  0     0.0%
+  MATCHED               35        190,140,000    71.2%
+  NAME_VARIANT           1          5,750,000     2.2%
   NOT_YET_SELLING        7         10,980,000     4.1%
   UNMAPPED              33         60,230,000    22.5%
   TOTAL                 76        267,100,000
@@ -19,8 +19,8 @@ ACTIVE vs INACTIVE  (Active column in the source sheet)
   Active = No               36         59,110,000
 
   ACTIVE SKUs only — the population the analysis is about:
-    MATCHED               36        195,890,000    94.2%
-    NAME_VARIANT           0                  0     0.0%
+    MATCHED               35        190,140,000    91.4%
+    NAME_VARIANT           1          5,750,000     2.8%
     NOT_YET_SELLING        3          7,600,000     3.7%
     UNMAPPED               1          4,500,000     2.2%
     >> usable             36        195,890,000    94.2%
@@ -48,6 +48,7 @@ TEMPLATE
 GATE
   NO-GO for Phase B. Blockers:
     - ACTIVE budget-value coverage 94.2% (ratified) is below 95%
+    - 1 active NAME_VARIANT row(s) await human confirmation
     - 1 ACTIVE SKU(s) NOT_YET_SELLING and not yet reviewed (3,300,000 EGP) - launch or unmapped variant?
     - 4 budget reconciliation exception(s) OPEN - DIAB-I, DIAB-II, DIAB-III, DIAB-IV. Requires explicit business confirmation; the build will not choose an authoritative split
 
