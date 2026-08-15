@@ -414,13 +414,21 @@
     if (!rows.length) return '<div class="imsrx-empty">No data matches the current filters.</div>';
     const shown = rows.slice(0, limit || 10);
     const maxV = shown[0] ? shown[0].value : 0;
-    let h = `<table class="imsrx-rank-table"><thead><tr><th class="imsrx-th-rank">#</th><th>${label}</th><th class="imsrx-num">Rx</th></tr></thead><tbody>`;
+    const hasMi = shown.some((r) => r.units !== undefined || r.salesValue !== undefined);
+    let h = `<table class="imsrx-rank-table"><thead><tr>
+      <th class="imsrx-th-rank">#</th>
+      <th>${label}</th>
+      <th class="imsrx-num">IMS Rx</th>
+      ${hasMi ? '<th class="imsrx-num">MI Units</th><th class="imsrx-num">MI Value (EGP)</th>' : ''}
+    </tr></thead><tbody>`;
     shown.forEach((r, i) => {
       const bar = maxV > 0 ? (r.value / maxV) * 100 : 0;
       h += `<tr><td class="imsrx-th-rank">${i + 1}</td>
         <td class="imsrx-cell-name"><span class="imsrx-bar" style="width:${bar.toFixed(1)}%"></span>
           <span class="imsrx-name-txt" title="${escAttr(r.name)}">${escAttr(r.name)}</span></td>
-        <td class="imsrx-num imsrx-strong">${fmtBig(r.value)}</td></tr>`;
+        <td class="imsrx-num imsrx-strong">${fmtBig(r.value)}</td>
+        ${hasMi ? `<td class="imsrx-num">${r.units > 0 ? fmtBig(r.units) : "—"}</td><td class="imsrx-num">${r.salesValue > 0 ? fmtValEGP(r.salesValue) : "—"}</td>` : ''}
+      </tr>`;
     });
     h += "</tbody></table>";
     return h;
@@ -469,7 +477,7 @@
     else corpBadge = `<span class="imsrx-badge imsrx-badge-muted">Not matched</span>`;
 
     const ratioNote = (rx2025 > 0 && units2025 > 0)
-      ? `<div class="imsrx-spotlight-ratio">≈ ${(units2025 / rx2025).toFixed(1)} sell-out units per physician-panel prescription &mdash; a rough scale check only (different measurement methodologies, not a conversion factor).</div>`
+      ? `<div class="imsrx-spotlight-ratio"><span class="imsrx-ratio-icon">⚖️</span><strong>Cross-Intelligence Bridge:</strong> ≈ ${(units2025 / rx2025).toFixed(1)} sell-out units per physician prescription &mdash; comparative benchmark between physician demand and retail distribution.</div>`
       : "";
 
     return `
@@ -478,7 +486,7 @@
           <h3>Product Spotlight — ${escAttr(name)}</h3>
           ${corpBadge}
         </div>
-        <div class="imsrx-spotlight-row">
+        <div class="imsrx-spotlight-row imsrx-spotlight-row-4">
           <div class="imsrx-spotlight-stat">
             <div class="imsrx-spotlight-stat-label">IMS Rx <span>MAT Dec 2025 · physician panel</span></div>
             <div class="imsrx-spotlight-stat-value">${fmtBig(rx2025)}</div>
@@ -488,8 +496,12 @@
             <div class="imsrx-spotlight-stat-value">${units2025 > 0 ? fmtBig(units2025) : "—"}</div>
           </div>
           <div class="imsrx-spotlight-stat">
-            <div class="imsrx-spotlight-stat-label">Market Intel Value <span>Calendar 2025 · LC</span></div>
-            <div class="imsrx-spotlight-stat-value">${value2025 > 0 ? fmtBig(value2025) : "—"}</div>
+            <div class="imsrx-spotlight-stat-label">Market Intel Value <span>Calendar 2025 · LC / EGP</span></div>
+            <div class="imsrx-spotlight-stat-value">${value2025 > 0 ? fmtValEGP(value2025) : "—"}</div>
+          </div>
+          <div class="imsrx-spotlight-stat">
+            <div class="imsrx-spotlight-stat-label">Manufacturer Status <span>Brand Match</span></div>
+            <div class="imsrx-spotlight-stat-value" style="font-size:16px;line-height:1.4;">${conf === 2 ? escAttr(corps[0]) : (conf === 1 ? "Multi-Source Generic" : "Unmatched")}</div>
           </div>
         </div>
         ${ratioNote}
@@ -554,9 +566,27 @@
     const prev = byPeriod.get(1) || 0;
     const growth = prev > 0 ? (cur - prev) / prev * 100 : null;
 
-    function toRows(map, names) {
+    const uArr = cache.lookups.unitsMarketIntel2025 || [];
+    const vArr = cache.lookups.valueMarketIntel2025 || [];
+    let marketIntelUnits = 0;
+    let marketIntelValue = 0;
+    products.forEach((p) => {
+      marketIntelUnits += uArr[p] || 0;
+      marketIntelValue += vArr[p] || 0;
+    });
+
+    function toRows(map, names, isProduct) {
       const rows = [];
-      map.forEach((v, idx) => { if (names[idx] !== undefined) rows.push({ idx, name: String(names[idx]), value: v }); });
+      map.forEach((v, idx) => {
+        if (names[idx] !== undefined) {
+          const r = { idx, name: String(names[idx]), value: v };
+          if (isProduct) {
+            r.units = uArr[idx] || 0;
+            r.salesValue = vArr[idx] || 0;
+          }
+          rows.push(r);
+        }
+      });
       rows.sort((a, b) => b.value - a.value);
       return rows;
     }
@@ -565,37 +595,47 @@
       total, growth,
       trend: [byPeriod.get(0) || 0, byPeriod.get(1) || 0, byPeriod.get(2) || 0],
       productCount: products.size,
-      productRows: toRows(byProduct, cache.lookups.products),
-      moleculeRows: toRows(byMolecule, cache.lookups.molecules),
-      atc4Rows: toRows(byAtc4, cache.lookups.atc4s),
-      specialtyRows: toRows(bySpecialty, cache.lookups.specialties),
-      regionRows: toRows(byRegion, cache.lookups.regions),
-      catRows: toRows(byCat, cache.lookups.dosageFormCategories),
+      marketIntelUnits,
+      marketIntelValue,
+      productRows: toRows(byProduct, cache.lookups.products, true),
+      moleculeRows: toRows(byMolecule, cache.lookups.molecules, false),
+      atc4Rows: toRows(byAtc4, cache.lookups.atc4s, false),
+      specialtyRows: toRows(bySpecialty, cache.lookups.specialties, false),
+      regionRows: toRows(byRegion, cache.lookups.regions, false),
+      catRows: toRows(byCat, cache.lookups.dosageFormCategories, false),
     };
   }
 
   function mdSpotlightShell(title, badge, stats, sectionsHtml) {
     const gCls = stats.growth == null ? "" : (stats.growth >= 0 ? "imsrx-positive" : "imsrx-negative");
+    const ratioNote = (stats.total > 0 && stats.marketIntelUnits > 0)
+      ? `<div class="imsrx-spotlight-ratio"><span class="imsrx-ratio-icon">⚖️</span><strong>Cross-Intelligence Bridge:</strong> ≈ ${(stats.marketIntelUnits / stats.total).toFixed(1)} sell-out units per physician prescription across ${stats.productCount.toLocaleString()} product${stats.productCount === 1 ? "" : "s"} &mdash; comparative benchmark between physician demand and retail distribution.</div>`
+      : "";
     return `
       <div class="imsrx-spotlight">
         <div class="imsrx-spotlight-head">
           <h3>${title}</h3>
           ${badge}
         </div>
-        <div class="imsrx-spotlight-row">
+        <div class="imsrx-spotlight-row imsrx-spotlight-row-4">
           <div class="imsrx-spotlight-stat">
-            <div class="imsrx-spotlight-stat-label">Rx in Scope</div>
+            <div class="imsrx-spotlight-stat-label">IMS Rx in Scope <span>MAT Dec 2025 · panel</span></div>
             <div class="imsrx-spotlight-stat-value">${fmtBig(stats.total)}</div>
           </div>
           <div class="imsrx-spotlight-stat">
-            <div class="imsrx-spotlight-stat-label">YoY Growth <span>MAT 2024 → 2025, ignores Period filter</span></div>
-            <div class="imsrx-spotlight-stat-value ${gCls}">${fmtPct(stats.growth, 1)}</div>
+            <div class="imsrx-spotlight-stat-label">Market Intel Units <span>Calendar 2025 · sell-out</span></div>
+            <div class="imsrx-spotlight-stat-value">${stats.marketIntelUnits > 0 ? fmtBig(stats.marketIntelUnits) : "—"}</div>
           </div>
           <div class="imsrx-spotlight-stat">
-            <div class="imsrx-spotlight-stat-label">3-Yr Trend <span>MAT Dec 2023 · 2024 · 2025</span></div>
-            <div class="imsrx-spotlight-stat-value" style="font-size:16px;">${fmtBig(stats.trend[0])} → ${fmtBig(stats.trend[1])} → ${fmtBig(stats.trend[2])}</div>
+            <div class="imsrx-spotlight-stat-label">Market Intel Value <span>Calendar 2025 · LC / EGP</span></div>
+            <div class="imsrx-spotlight-stat-value">${stats.marketIntelValue > 0 ? fmtValEGP(stats.marketIntelValue) : "—"}</div>
+          </div>
+          <div class="imsrx-spotlight-stat">
+            <div class="imsrx-spotlight-stat-label">YoY Rx Growth <span>MAT 2024 → 2025</span></div>
+            <div class="imsrx-spotlight-stat-value ${gCls}">${fmtPct(stats.growth, 1)}</div>
           </div>
         </div>
+        ${ratioNote}
         ${sectionsHtml}
       </div>`;
   }
@@ -985,6 +1025,13 @@
    * meaningless once the period facet itself has been narrowed to one
    * period; this mirrors the Product Spotlight's "ignore this one filter
    * for this one number" pattern in Market Dynamics. */
+  /** Company leaderboard: Rx (respecting the page's period filter), share
+   * of the attributable market, and YoY growth. Growth is DELIBERATELY
+   * computed independent of the period filter -- always SUM(MAT2025) vs
+   * SUM(MAT2024) under every OTHER active filter -- because a growth% is
+   * meaningless once the period facet itself has been narrowed to one
+   * period; this mirrors the Product Spotlight's "ignore this one filter
+   * for this one number" pattern in Market Dynamics. */
   function cfCompanyLeaderboard() {
     const f = cache.fact;
     const stride = f.stride;
@@ -992,12 +1039,16 @@
     const perField = f.fields.indexOf("period");
 
     const acc = new Map();
+    const companyProducts = new Map();
     for (let i = 0; i < f.rx.length; i++) {
       const base = i * stride;
       if (!cfRowMatches(base, null)) continue;
-      const cIdx = companyOfProduct[f.rows[base + pField]];
+      const pIdx = f.rows[base + pField];
+      const cIdx = companyOfProduct[pIdx];
       if (cIdx < 0) continue;
       acc.set(cIdx, (acc.get(cIdx) || 0) + f.rx[i]);
+      if (!companyProducts.has(cIdx)) companyProducts.set(cIdx, new Set());
+      companyProducts.get(cIdx).add(pIdx);
     }
 
     const growthCur = new Map();
@@ -1016,15 +1067,28 @@
     let attributableTotal = 0;
     acc.forEach((v) => { attributableTotal += v; });
 
+    const uArr = cache.lookups.unitsMarketIntel2025 || [];
+    const vArr = cache.lookups.valueMarketIntel2025 || [];
     const rows = [];
     acc.forEach((val, idx) => {
       const cur = growthCur.get(idx) || 0;
       const prev = growthPrev.get(idx) || 0;
       const growth = prev > 0 ? (cur - prev) / prev * 100 : null;
+      let miUnits = 0;
+      let miValue = 0;
+      const pSet = companyProducts.get(idx);
+      if (pSet) {
+        pSet.forEach((p) => {
+          miUnits += uArr[p] || 0;
+          miValue += vArr[p] || 0;
+        });
+      }
       rows.push({
         idx, name: companyNames[idx], value: val,
         share: attributableTotal > 0 ? (val / attributableTotal) * 100 : 0,
         growth,
+        units: miUnits,
+        salesValue: miValue,
       });
     });
     rows.sort((a, b) => b.value - a.value);
@@ -1037,8 +1101,10 @@
     const maxV = shown[0] ? shown[0].value : 0;
     let h = `<table class="imsrx-rank-table"><thead><tr>
       <th class="imsrx-th-rank">#</th><th>Company</th>
-      <th class="imsrx-num">Rx</th><th class="imsrx-num">Share</th>
-      <th class="imsrx-num">YoY <span class="imsrx-chart-caption">2024→2025</span></th>
+      <th class="imsrx-num">IMS Rx</th><th class="imsrx-num">Rx Share</th>
+      <th class="imsrx-num">Market Intel Units <span class="imsrx-chart-caption">Cal 2025</span></th>
+      <th class="imsrx-num">Market Intel Value <span class="imsrx-chart-caption">LC / EGP</span></th>
+      <th class="imsrx-num">YoY Rx <span class="imsrx-chart-caption">2024→2025</span></th>
     </tr></thead><tbody>`;
     shown.forEach((r, i) => {
       const bar = maxV > 0 ? (r.value / maxV) * 100 : 0;
@@ -1049,6 +1115,8 @@
           <span class="imsrx-name-txt" title="${escAttr(r.name)}">${escAttr(r.name)}</span></td>
         <td class="imsrx-num imsrx-strong">${fmtBig(r.value)}</td>
         <td class="imsrx-num">${r.share.toFixed(1)}%</td>
+        <td class="imsrx-num">${r.units > 0 ? fmtBig(r.units) : "—"}</td>
+        <td class="imsrx-num">${r.salesValue > 0 ? fmtValEGP(r.salesValue) : "—"}</td>
         <td class="imsrx-num ${gCls}">${fmtPct(r.growth, 1)}</td>
       </tr>`;
     });
@@ -1170,18 +1238,40 @@
     const growth = prev > 0 ? (cur - prev) / prev * 100 : null;
     const gCls = growth == null ? "" : (growth >= 0 ? "imsrx-positive" : "imsrx-negative");
 
-    function toRows(map, names) {
+    const uArr = cache.lookups.unitsMarketIntel2025 || [];
+    const vArr = cache.lookups.valueMarketIntel2025 || [];
+    let marketIntelUnits = 0;
+    let marketIntelValue = 0;
+    products.forEach((p) => {
+      marketIntelUnits += uArr[p] || 0;
+      marketIntelValue += vArr[p] || 0;
+    });
+
+    function toRows(map, names, isProduct) {
       const rows = [];
-      map.forEach((v, idx) => { if (names[idx] !== undefined) rows.push({ idx, name: String(names[idx]), value: v }); });
+      map.forEach((v, idx) => {
+        if (names[idx] !== undefined) {
+          const r = { idx, name: String(names[idx]), value: v };
+          if (isProduct) {
+            r.units = uArr[idx] || 0;
+            r.salesValue = vArr[idx] || 0;
+          }
+          rows.push(r);
+        }
+      });
       rows.sort((a, b) => b.value - a.value);
       return rows;
     }
 
-    const productRows = toRows(byProduct, cache.lookups.products);
-    const molRows = toRows(byMolecule, cache.lookups.molecules);
-    const atc4Rows = toRows(byAtc4, cache.lookups.atc4s);
-    const regionRows = toRows(byRegion, cache.lookups.regions);
-    const catRows = toRows(byCat, cache.lookups.dosageFormCategories);
+    const productRows = toRows(byProduct, cache.lookups.products, true);
+    const molRows = toRows(byMolecule, cache.lookups.molecules, false);
+    const atc4Rows = toRows(byAtc4, cache.lookups.atc4s, false);
+    const regionRows = toRows(byRegion, cache.lookups.regions, false);
+    const catRows = toRows(byCat, cache.lookups.dosageFormCategories, false);
+
+    const ratioNote = (total > 0 && marketIntelUnits > 0)
+      ? `<div class="imsrx-spotlight-ratio"><span class="imsrx-ratio-icon">⚖️</span><strong>Cross-Intelligence Bridge:</strong> ≈ ${(marketIntelUnits / total).toFixed(1)} sell-out units per physician prescription across ${products.size.toLocaleString()} product${products.size === 1 ? "" : "s"} &mdash; comparative benchmark between physician demand and retail distribution.</div>`
+      : "";
 
     return `
       <div class="imsrx-spotlight">
@@ -1189,20 +1279,25 @@
           <h3>Company Spotlight — ${escAttr(name)}</h3>
           <span class="imsrx-badge imsrx-badge-ok">${products.size.toLocaleString()} product${products.size === 1 ? "" : "s"} in scope</span>
         </div>
-        <div class="imsrx-spotlight-row">
+        <div class="imsrx-spotlight-row imsrx-spotlight-row-4">
           <div class="imsrx-spotlight-stat">
-            <div class="imsrx-spotlight-stat-label">Rx in Scope</div>
+            <div class="imsrx-spotlight-stat-label">IMS Rx in Scope <span>MAT Dec 2025 · panel</span></div>
             <div class="imsrx-spotlight-stat-value">${fmtBig(total)}</div>
           </div>
           <div class="imsrx-spotlight-stat">
-            <div class="imsrx-spotlight-stat-label">YoY Growth <span>MAT 2024 → 2025, ignores Period filter</span></div>
-            <div class="imsrx-spotlight-stat-value ${gCls}">${fmtPct(growth, 1)}</div>
+            <div class="imsrx-spotlight-stat-label">Market Intel Units <span>Calendar 2025 · sell-out</span></div>
+            <div class="imsrx-spotlight-stat-value">${marketIntelUnits > 0 ? fmtBig(marketIntelUnits) : "—"}</div>
           </div>
           <div class="imsrx-spotlight-stat">
-            <div class="imsrx-spotlight-stat-label">3-Yr Trend <span>MAT Dec 2023 · 2024 · 2025</span></div>
-            <div class="imsrx-spotlight-stat-value" style="font-size:16px;">${fmtBig(byPeriod.get(0) || 0)} → ${fmtBig(byPeriod.get(1) || 0)} → ${fmtBig(byPeriod.get(2) || 0)}</div>
+            <div class="imsrx-spotlight-stat-label">Market Intel Value <span>Calendar 2025 · LC / EGP</span></div>
+            <div class="imsrx-spotlight-stat-value">${marketIntelValue > 0 ? fmtValEGP(marketIntelValue) : "—"}</div>
+          </div>
+          <div class="imsrx-spotlight-stat">
+            <div class="imsrx-spotlight-stat-label">YoY Rx Growth <span>MAT 2024 → 2025</span></div>
+            <div class="imsrx-spotlight-stat-value ${gCls}">${fmtPct(growth, 1)}</div>
           </div>
         </div>
+        ${ratioNote}
         <div class="imsrx-chart-grid-2">
           <div class="imsrx-chart-card">
             <div class="imsrx-chart-card-header"><h3>Top Products <span class="imsrx-chart-caption">by Rx</span></h3></div>
@@ -1347,9 +1442,20 @@
     if (n == null || isNaN(n)) return "—";
     const sign = n < 0 ? "-" : "";
     const abs = Math.abs(n);
+    if (abs >= 1e9) return sign + (abs / 1e9).toFixed(2) + "B";
     if (abs >= 1e6) return sign + (abs / 1e6).toFixed(1) + "M";
     if (abs >= 1e3) return sign + (abs / 1e3).toFixed(1) + "K";
     return sign + Math.round(abs).toLocaleString();
+  }
+
+  function fmtValEGP(n) {
+    if (n == null || isNaN(n) || n === 0) return "—";
+    const sign = n < 0 ? "-" : "";
+    const abs = Math.abs(n);
+    if (abs >= 1e9) return sign + "EGP " + (abs / 1e9).toFixed(2) + "B";
+    if (abs >= 1e6) return sign + "EGP " + (abs / 1e6).toFixed(1) + "M";
+    if (abs >= 1e3) return sign + "EGP " + (abs / 1e3).toFixed(0) + "K";
+    return sign + "EGP " + Math.round(abs).toLocaleString();
   }
 
   function fmtPct(n, digits) {
