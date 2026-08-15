@@ -308,6 +308,25 @@
     return (Math.max.apply(null, values) / total) * 100;
   }
 
+  // CORRECTED convention (2026-08-13, Brand Portfolio Health): "% of
+  // brands >= threshold" is a COUNT ratio, not a value-weighted one --
+  // unlike the Sales Achievement/Value corporate helpers above, this
+  // sums targetedCount/healthyCount across all 4 BUs rather than EGP
+  // actual/target, so one large BU's brand count can't drown out a
+  // smaller BU's. Same CHC_SALES exclusion + CHC item-grain convention
+  // as every other Sales-sourced corporate helper (getBrandPortfolioHealth
+  // itself already resolves CHC to item grain internally -- see sales.js).
+  function corporateBrandPortfolioHealthPct() {
+    let targeted = 0, healthy = 0, any = false;
+    const scenario = activeScenario();
+    global.SEMANTIC.BU_LIST.forEach(b => {
+      const line = (b === "CHC") ? "CHC" : null; // exclude CHC_SALES
+      const d = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", b, line, undefined, scenario);
+      if (d && d.ok) { targeted += d.targetedCount; healthy += d.healthyCount; any = true; }
+    });
+    return (any && targeted > 0) ? (healthy / targeted) * 100 : null;
+  }
+
   // -------------------------------------------------------------------
   // COMPANY AGGREGATES for the All-BU view (2026-08-04)
   // -------------------------------------------------------------------
@@ -452,6 +471,17 @@
       return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
     }
     const v = corporateClusterConcentrationPct();
+    return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
+  }
+
+  function brandPortfolioHealthReferenceEntry(bu, line) {
+    const isLineMgr = global.AUTH && global.AUTH.getScope().lines !== null;
+    if (isLineMgr || (line && line !== "All")) {
+      const d = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", bu, null, true, activeScenario());
+      const v = (d && d.ok) ? d.pct : null;
+      return v !== null ? { label: "vs " + bu, value: fmtPct1(v) } : null;
+    }
+    const v = corporateBrandPortfolioHealthPct();
     return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
   }
 
@@ -1236,6 +1266,96 @@
   }
 
   // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // KPI -- Brand Portfolio Health (2026-08-13, Ahmed-approved preview)
+  // % of an entity's portfolio (brands; items/SKUs for CHC) that is at or
+  // above 60% achievement -- a portfolio-BREADTH check that the headline
+  // Sales Achievement % can't surface (a BU can hit its blended target
+  // while several individual brands are badly behind, propped up by one
+  // or two over-performers). Sourced entirely from
+  // SalesDashboard.getBrandPortfolioHealth() -- see sales.js for the full
+  // grain rule (CHC = item grain; ELIMBOSIS split to item grain
+  // everywhere else). Modeled on buildCustomerClusterMixCard() -- same
+  // shape (pure percentage, performance:null, local status thresholds,
+  // count-based -- not value-weighted -- All-BU rollup).
+  //
+  // No DM-scoped variant exists yet (getBrandPortfolioHealth has no DM
+  // parameter, unlike getCustomerClusterMixForDm) -- rather than
+  // approximate one, a DM filter shows "data unavailable" here, same
+  // no-silent-wrong-number principle the rest of this platform follows.
+  // ---------------------------------------------------------------------
+  function buildBrandPortfolioHealthCard(filters) {
+    const bu = filters.bu, line = filters.line;
+    const scenario = activeScenario();
+
+    if (filters.dm && filters.dm !== "All") {
+      return unavailableCard("brandPortfolioHealth", "Brand Portfolio Health", "not_available_for_dm_filter");
+    }
+
+    let pct = null, targetedCount = null, healthyCount = null, grain = null;
+
+    if (isAllBU(bu)) {
+      let targeted = 0, healthy = 0, any = false;
+      global.SEMANTIC.BU_LIST.forEach(b => {
+        const l = (b === "CHC") ? "CHC" : null; // exclude CHC_SALES, same convention as every other corporate rollup
+        const d = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", b, l, undefined, scenario);
+        if (d && d.ok) { targeted += d.targetedCount; healthy += d.healthyCount; any = true; }
+      });
+      if (!any || targeted === 0) return unavailableCard("brandPortfolioHealth", "Brand Portfolio Health", "module_unavailable");
+      targetedCount = targeted; healthyCount = healthy; pct = (healthy / targeted) * 100;
+    } else {
+      const data = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", bu, line === "All" ? null : line, undefined, scenario);
+      if (!data || !data.ok || data.targetedCount === 0) return unavailableCard("brandPortfolioHealth", "Brand Portfolio Health", data ? data.status : "module_unavailable");
+      targetedCount = data.targetedCount; healthyCount = data.healthyCount; pct = data.pct; grain = data.grain;
+    }
+
+    function statusFromHealth(p) {
+      if (p === null || p === undefined || isNaN(p)) return null;
+      if (p >= 80) return "Excellent";
+      if (p >= 60) return "On Track";
+      if (p >= 40) return "At Risk";
+      return "Critical";
+    }
+
+    let rankInfo = null, rankUnit = null;
+    if (isAllBU(bu)) {
+      rankInfo = null;
+    } else if (line === "All" && !isBuRestricted()) {
+      const vals = {};
+      getAllowedBUList().forEach(b => {
+        const l = (b === "CHC") ? "CHC" : null;
+        const bd = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", b, l, undefined, scenario);
+        vals[b] = (bd && bd.ok && bd.targetedCount > 0) ? bd.pct : null;
+      });
+      rankInfo = rank(vals, "desc")[bu];
+      rankUnit = "Business Units";
+    } else {
+      const lines = getAllowedLinesForBU(bu);
+      const vals = {};
+      lines.forEach(l => {
+        const ld = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", bu, l, undefined, scenario);
+        vals[l] = (ld && ld.ok && ld.targetedCount > 0) ? ld.pct : null;
+      });
+      rankInfo = rank(vals, "desc")[line];
+      rankUnit = "Lines within " + bu;
+    }
+
+    const refEntry = isAllBU(bu) ? null : brandPortfolioHealthReferenceEntry(bu, line);
+    const unitLabel = isAllBU(bu) ? "portfolio entries" : (grain === "item" ? "SKUs" : "brands");
+
+    return {
+      kpiId: "brandPortfolioHealth", name: "Brand Portfolio Health",
+      mainValue: fmtPct1(pct),
+      mainValueSub: healthyCount + " of " + targetedCount + " " + unitLabel + " ≥60% · Non-Tender YTD" + (isAllBU(bu) ? " · All Business Units" : (line !== "All" ? " · " + line : "")),
+      performance: null,
+      comparison: refEntry ? [refEntry] : null,
+      rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
+      status: statusFromHealth(pct),
+      trend: null, trendLabel: null,
+      clickable: true, dblClickable: false,
+    };
+  }
+
   // KPI 8 -- Market Share
   // Source: IQVIA (getDM1DM2MarketIntel -- already excludes Other
   // Markets by construction). YTD, SU basis. Headline = simple average
@@ -2372,14 +2492,71 @@
     });
   }
 
+  // Brands that carry multiple distinct-strength products with SEPARATE
+  // targets (e.g. ELIMBOSIS 2.5MG vs 5MG) -- mirrors sales.js's
+  // BP_HEALTH_ITEM_SPLIT_BRANDS (2026-08-13, Ahmed: "make chc per item
+  // not brand for elimbosis in cluster define 2.5 and 5 separately").
+  // EXTENDED 2026-08-15 (Ahmed, viewing the live Sales Value/Units
+  // "by Brand" popups for Cluster: "make this elimbosis 2.5 and 5") --
+  // every "by Brand" table on the platform now applies the same split,
+  // not just the Brand Portfolio Health card, so a merged ELIMBOSIS row
+  // never appears anywhere a user can see it.
+  const MODAL_ITEM_SPLIT_BRANDS = new Set(["ELIMBOSIS"]);
+
+  /**
+   * Expands any brand in MODAL_ITEM_SPLIT_BRANDS into its item/SKU rows
+   * (via getItemAchievement) inside a getBrandAchievement()-shaped
+   * `brandsData` object, for the "by Brand" detail modals. Each split
+   * item's contributionPct is recomputed against brandsData's own
+   * totalActualValue (the whole BU/line scope) -- NOT against
+   * getItemAchievement()'s own totalActualValue, which is scoped to just
+   * that one brand and would otherwise silently redefine "contribution"
+   * for these two rows only. Falls back to the merged brand row if the
+   * item-level call comes back empty/unavailable (never drops data).
+   * Re-sorts ascending by achievementPct afterward, same convention
+   * getBrandAchievement()/getItemAchievement() already use.
+   */
+  function expandItemSplitBrandsForModal(bu, scopedLine, scenario, brandsData) {
+    const brands = brandsData.brands;
+    if (!brands.some(b => MODAL_ITEM_SPLIT_BRANDS.has(b.name))) return brands;
+    const totalActualValue = brandsData.totalActualValue;
+    const expanded = [];
+    brands.forEach(b => {
+      if (MODAL_ITEM_SPLIT_BRANDS.has(b.name)) {
+        // Grouped by STRENGTH (2.5MG/5MG), not raw SKU -- see
+        // getItemStrengthGroups() in sales.js (2026-08-15 refinement,
+        // Ahmed: "treat all sku of elimbosis 2.5 and elimbosis 5 as
+        // brand for them").
+        const itemData = safeCall("sales", "SalesDashboard", "getItemStrengthGroups", bu, b.name, scopedLine, scenario);
+        if (itemData && itemData.ok && itemData.items.length) {
+          itemData.items.forEach(it => expanded.push({
+            name: it.name,
+            actualValue: it.actualValue,
+            targetValue: it.targetValue,
+            actualQty: it.actualQty,
+            targetQty: it.targetQty,
+            achievementPct: it.achievementPct,
+            contributionPct: totalActualValue > 0 ? (it.actualValue / totalActualValue) * 100 : null,
+          }));
+          return;
+        }
+      }
+      expanded.push(b);
+    });
+    return expanded.sort((x, y) => (x.achievementPct === null ? Infinity : x.achievementPct) - (y.achievementPct === null ? Infinity : y.achievementPct));
+  }
+
   function openBrandAchievementModal(bu, line) {
-    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, line && line !== "All" ? line : null, undefined, activeScenario());
+    const scopedLine = line && line !== "All" ? line : null;
+    const scenario = activeScenario();
+    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine, undefined, scenario);
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     if (!data || !data.ok || !data.brands.length) {
       global.DS.openModal({ title: bu + " — Brand Achievement", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
       return;
     }
-    const rows = data.brands.map(b => ({ name: b.name, actualValue: b.actualValue, targetValue: b.targetValue, achievementPct: b.achievementPct }));
+    const displayBrands = bu === "CHC" ? data.brands : expandItemSplitBrandsForModal(bu, scopedLine, scenario, data);
+    const rows = displayBrands.map(b => ({ name: b.name, actualValue: b.actualValue, targetValue: b.targetValue, achievementPct: b.achievementPct }));
     const table = global.DS.table({
       columns: [
         { key: "name", label: "Brand" },
@@ -2465,7 +2642,8 @@
       global.DS.openModal({ title: bu + " — Sales Value by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
       return;
     }
-    const table = global.DS.table({ columns: columns, rows: data.brands });
+    const displayBrands = expandItemSplitBrandsForModal(bu, scopedLine, scenario, data);
+    const table = global.DS.table({ columns: columns, rows: displayBrands });
     global.DS.openModal({ title: bu + " — Sales Value by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
   }
 
@@ -2517,7 +2695,8 @@
       global.DS.openModal({ title: bu + " — Sales Units by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
       return;
     }
-    const table = global.DS.table({ columns: columns, rows: withUnitsAchievement(data.brands) });
+    const displayBrands = expandItemSplitBrandsForModal(bu, scopedLine, scenario, data);
+    const table = global.DS.table({ columns: columns, rows: withUnitsAchievement(displayBrands) });
     global.DS.openModal({ title: bu + " — Sales Units by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis.${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
   }
 
@@ -2558,6 +2737,38 @@
         tr.addEventListener("click", () => openClusterCustomersModal(bu, line, rows[i].name));
       });
     }, 0);
+  }
+
+  // Brand Portfolio Health detail modal (2026-08-13). Not DM-filterable
+  // (see buildBrandPortfolioHealthCard's comment -- no DM-scoped source
+  // function exists) -- if a DM filter is active the card itself already
+  // shows "data unavailable" and isn't clickable, so this only ever runs
+  // against the BU/line-scoped figure.
+  function openBrandPortfolioHealthModal(bu, line) {
+    const data = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", bu, line && line !== "All" ? line : null, undefined, activeScenario());
+    if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
+    if (!data || !data.ok || !data.entities.length) {
+      global.DS.openModal({ title: bu + " — Brand Portfolio Health", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No portfolio-health data available.</div>" });
+      return;
+    }
+    const rows = data.entities.map(e => ({ name: e.name, actualValue: e.actualValue, targetValue: e.targetValue, achievementPct: e.achievementPct, healthy: e.achievementPct !== null && e.achievementPct >= data.threshold ? "Yes" : "No" }));
+    const table = global.DS.table({
+      columns: [
+        { key: "name", label: data.grain === "item" ? "Item (SKU)" : "Brand" },
+        { key: "actualValue", label: "Actual (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
+        { key: "targetValue", label: "Target (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
+        { key: "achievementPct", label: "Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+        { key: "healthy", label: "≥" + data.threshold + "%", align: "right" },
+      ],
+      rows: rows,
+    });
+    const grainNote = data.grain === "item"
+      ? "CHC is shown at item (SKU) level -- brand grain would collapse to a single meaningless pass/fail."
+      : "ELIMBOSIS is shown split by strength (2.5MG / 5MG) rather than merged -- its two strengths can perform very differently.";
+    global.DS.openModal({
+      title: bu + " — Brand Portfolio Health",
+      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. ${grainNote}${escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>` + table,
+    });
   }
 
   function openDmDetailsModal(bu, line, dmName) {
@@ -3192,6 +3403,7 @@
       buildSalesValueCard(filters),
       buildSalesUnitsAchievementCard(filters),
       buildCustomerClusterMixCard(filters),
+      buildBrandPortfolioHealthCard(filters),
       buildMarketShareCard(filters),
       buildBUGrowthCard(filters),
       buildSalesProductivityCard(summaries, filters)
@@ -3435,6 +3647,7 @@
         else if (kpiId === "salesValue") openSalesValueModal(bu, ctx.filters.line);
         else if (kpiId === "salesUnitsAchievement") openSalesUnitsModal(bu, ctx.filters.line);
         else if (kpiId === "customerClusterMix") openCustomerClusterMixModal(bu, ctx.filters.line);
+        else if (kpiId === "brandPortfolioHealth") openBrandPortfolioHealthModal(bu, ctx.filters.line);
         else if (kpiId === "marketShare") openMarketShareProductModal(bu, ctx.filters.line);
         else if (kpiId === "sfe") switchToTab("sfe");
         else if (kpiId === "pullThroughRate") openTmsImsModal(bu, ctx.filters.line, "pullThrough");

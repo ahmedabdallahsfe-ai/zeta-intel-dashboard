@@ -265,8 +265,18 @@
        the Executive KPI cards (Line Performance, CHC Brand-to-Item drill).
        v20260728_clustermix = SUBTYPE_TO_CLUSTER map + getCustomerClusterMix()
        added for the Customer Channel Mix KPI card (cluster-then-sub_type
-       drill -- see sales_subtypes.xlsx for the clustering source of truth). -->
-  <script defer src="js/sales.js?v=20260809_itemgrain"></script>
+       drill -- see sales_subtypes.xlsx for the clustering source of truth).
+       v20260813_bphealth = getBrandPortfolioHealth() added for the Brand
+       Portfolio Health KPI card (% of brands/items >=60% achievement; CHC
+       uses item grain, ELIMBOSIS split 2.5MG/5MG everywhere -- see
+       BP_HEALTH_THRESHOLD/BP_HEALTH_ITEM_SPLIT_BRANDS above).
+       v20260815_strengthgroups = getItemStrengthGroups() added (Ahmed:
+       "treat all sku of elimbosis 2.5 and elimbosis 5 as brand for
+       them") -- ELIMBOSIS's SKUs are now merged by dosage strength
+       (2.5MG / 5MG combining both pack sizes each) instead of shown as
+       4 separate raw SKU rows; getBrandPortfolioHealth() and every
+       Executive "by Brand" modal both use this now. -->
+  <script defer src="js/sales.js?v=20260815_strengthgroups"></script>
   <script defer src="js/iqvia.js?v=20260811_amr"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
@@ -276,9 +286,23 @@
        refresh_sales.py ETL update (customer x product granularity not yet
        in the cache). KPI 6 (Customer Dynamics) is now served, at cluster
        (not individual-customer) granularity, by the Customer Channel Mix
-       card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map. -->
+       card added 2026-07-28 -- see js/sales.js's SUBTYPE_TO_CLUSTER map.
+       v20260813_bphealth = Brand Portfolio Health KPI card added (Ahmed-
+       approved preview, 2026-08-13) -- see buildBrandPortfolioHealthCard()/
+       openBrandPortfolioHealthModal() below and getBrandPortfolioHealth()
+       in js/sales.js.
+       v20260815_elimbosissplit = expandItemSplitBrandsForModal() added
+       (Ahmed, viewing the live Sales Value/Units "by Brand" popups:
+       "make this elimbosis 2.5 and 5") -- the Brand Achievement, Sales
+       Value, and Sales Units "by Brand" detail modals now split
+       ELIMBOSIS into its 2.5MG/5MG item rows too, same as the Brand
+       Portfolio Health card, so no modal ever shows it merged.
+       v20260815_strengthgroups = expandItemSplitBrandsForModal() now
+       calls sales.js's getItemStrengthGroups() instead of
+       getItemAchievement() -- ELIMBOSIS's two pack sizes per strength
+       are merged into one row per strength, not shown as 4 raw SKUs. -->
   <script defer src="cache/tms_ims.data.js"></script>
-  <script defer src="js/executive.js?v=20260807_lineperf"></script>
+  <script defer src="js/executive.js?v=20260815_strengthgroups"></script>
 
 
   <script defer src="cache/market_intel.data.js?v=20260806_annual"></script>

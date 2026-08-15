@@ -202,6 +202,26 @@
     "POS_Vacant_MR_ORTHO-I",
   ]);
 
+  // =====================================================================
+  // BRAND PORTFOLIO HEALTH (Executive Command Center, 2026-08-13) --
+  // % of an entity's portfolio (brands, or items for CHC) that is at or
+  // above BP_HEALTH_THRESHOLD achievement. Validated against real cache
+  // figures with Ahmed before implementation (see getBrandPortfolioHealth()
+  // below for the full grain rule).
+  // =====================================================================
+  const BP_HEALTH_THRESHOLD = 60; // percent; one-line change if Ahmed wants 70 instead
+
+  // Brands that, despite being one BRAND in the catalogue, actually carry
+  // multiple distinct-strength products with SEPARATE targets (e.g.
+  // ELIMBOSIS 2.5MG vs 5MG) -- per Ahmed (2026-08-13): "make chc per item
+  // not brand for elimbosis in cluster define 2.5 and 5 separately". A
+  // brand-grain achievement figure for these merges two different
+  // performance stories into one number and can hide a genuinely weak
+  // strength behind a strong one (or vice-versa). Any brand in this list
+  // is expanded to item/SKU grain via getItemAchievement() wherever it
+  // appears, even for BUs that otherwise use brand grain.
+  const BP_HEALTH_ITEM_SPLIT_BRANDS = new Set(["ELIMBOSIS"]);
+
   // Customer Analytics cache (2026-07-28) -- SEPARATE from the main Sales
   // cache above, loaded from window.CUSTOMER_ANALYTICS_CACHE (see
   // etl/build_customer_analytics_cache.py + dashboard.html's script tag
@@ -3559,6 +3579,174 @@
     },
 
     /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getItemStrengthGroups(bu, brandName, line, scenario)
+     * ------------------------------------------------------------------
+     * REFINED 2026-08-15 (Ahmed, after seeing the full 4-SKU ELIMBOSIS
+     * breakdown live: "treat all sku of elimbosis 2.5 and elimbosis 5 as
+     * brand for them"): full SKU grain (2.5MG/10TAB vs 2.5MG/30TAB shown
+     * as separate rows) was noisier than useful -- the two pack sizes of
+     * the same strength tell the same performance story. This groups
+     * getItemAchievement()'s item rows by dosage STRENGTH (the "2.5 MG"
+     * / "5 MG" token parsed out of the product name), summing actual/
+     * target value and qty across every pack size within a strength, so
+     * each strength reads as its own pseudo-brand (e.g. "ELIMBOSIS 2.5
+     * MG", "ELIMBOSIS 5 MG") -- coarser than SKU grain, finer than the
+     * single merged ELIMBOSIS brand total.
+     *
+     * Falls back to the item's own full name (no grouping) for any item
+     * whose name doesn't contain a parseable "<number> MG" strength
+     * token, so nothing is silently dropped if this is ever pointed at a
+     * brand with a different naming convention.
+     *
+     * Returns the same shape getItemAchievement() does ({ok, status,
+     * asOfDate, source, bu, brand, line, unit, scope, scenario,
+     * totalActualValue, items }) with `items` replaced by the grouped
+     * rows -- contributionPct is NOT recomputed here (this function's
+     * `totalActualValue`/contributionPct are scoped to just this one
+     * brand's items, same as getItemAchievement()'s own convention);
+     * callers that need contribution against a wider scope (e.g. the
+     * Executive "by Brand" modals, against the whole BU) recompute it
+     * themselves, exactly as they already do for ungrouped item rows.
+     */
+    getItemStrengthGroups(bu, brandName, line, scenario) {
+      const data = this.getItemAchievement(bu, brandName, line, scenario);
+      if (!data || !data.ok) return data;
+      const groups = new Map(); // strengthLabel -> { val, tgtVal, qty, tgtQty }
+      const order = []; // preserve first-seen order for stable output before the final sort
+      data.items.forEach(it => {
+        const m = it.name.match(/(\d+(?:\.\d+)?)\s*MG/i);
+        const label = m ? ((brandName || '') + ' ' + m[1] + ' MG').trim() : it.name;
+        if (!groups.has(label)) { groups.set(label, { val: 0, tgtVal: 0, qty: 0, tgtQty: 0 }); order.push(label); }
+        const g = groups.get(label);
+        g.val += it.actualValue;
+        g.tgtVal += it.targetValue;
+        g.qty += it.actualQty;
+        g.tgtQty += it.targetQty;
+      });
+      const items = order.map(label => {
+        const g = groups.get(label);
+        return {
+          name: label,
+          actualValue: g.val,
+          targetValue: g.tgtVal,
+          actualQty: g.qty,
+          targetQty: g.tgtQty,
+          achievementPct: g.tgtVal > 0 ? (g.val / g.tgtVal) * 100 : null,
+          contributionPct: data.totalActualValue > 0 ? (g.val / data.totalActualValue) * 100 : null,
+        };
+      }).sort((x, y) => (x.achievementPct === null ? Infinity : x.achievementPct) - (y.achievementPct === null ? Infinity : y.achievementPct));
+      return Object.assign({}, data, { items: items });
+    },
+
+    /**
+     * ENTERPRISE SEMANTIC INTERFACE -- getBrandPortfolioHealth(bu, line)
+     * ------------------------------------------------------------------
+     * Executive KPI (2026-08-13, Ahmed-approved preview): "% of brands
+     * >= 60% achievement" -- a portfolio-breadth health check that a
+     * single blended BU/Line Sales Achievement % can't show (a BU can
+     * hit its headline target while several individual brands are badly
+     * behind, propped up by one or two over-performers).
+     *
+     * GRAIN RULE (validated against real cache data before implementation):
+     *   - CHC: uses ITEM (SKU) grain, not brand grain. CHC's catalogue is
+     *     effectively a single brand in this cache, so a brand-grain
+     *     figure is always a meaningless 0-or-1-brand pass/fail (real
+     *     figure: 0/1 = 0.0%). Item grain surfaces the real spread across
+     *     CHC's SKUs (real figure: 5/9 = 55.6%). Sourced via
+     *     getItemAchievement(bu, null, line, scenario) -- brandName=null
+     *     aggregates items across every CHC brand.
+     *   - Every other BU: uses BRAND grain via getBrandAchievement(), EXCEPT
+     *     any brand in BP_HEALTH_ITEM_SPLIT_BRANDS (currently just
+     *     ELIMBOSIS), which is expanded into its own item/SKU rows via a
+     *     targeted getItemAchievement(bu, brandName, line, scenario) call
+     *     and dropped from the brand-grain list, so it never counts twice.
+     *     This keeps the rest of the BU's brands at their natural grain
+     *     (13 targeted brands in Cluster today, not needlessly exploded to
+     *     item level) while still catching a multi-strength brand's hidden
+     *     per-strength risk.
+     *
+     * Items/brands with NO target (targetValue === 0) are excluded from
+     * both the numerator and denominator -- "no target" isn't a health
+     * verdict either way, same convention getBrandAchievement()/
+     * getItemAchievement() already use for achievementPct: null.
+     *
+     * Returns { ok, status, asOfDate, source:'sales', bu, line, unit,
+     * scope, scenario, grain: 'item'|'brand', threshold, targetedCount,
+     * healthyCount, pct, entities:[{name, actualValue, targetValue,
+     * achievementPct, grain}] } -- entities is pre-sorted ascending by
+     * achievementPct (weakest first), matching getBrandAchievement()'s
+     * own sort convention, so a detail modal needs no re-sort.
+     */
+    getBrandPortfolioHealth(bu, line, ignoreLineAuth, scenario) {
+      if (!bu || bu === 'All') {
+        return { ok: false, status: 'bu_required', asOfDate: null, source: 'sales', bu: bu, line: line || 'All', entities: [] };
+      }
+
+      let entities = [];
+      let grain = 'brand';
+      let asOfDate = null;
+      let scope = null;
+      let resolvedScenario = scenario;
+
+      if (bu === 'CHC') {
+        grain = 'item';
+        const data = this.getItemAchievement(bu, null, line, scenario);
+        if (!data || !data.ok) {
+          return { ok: false, status: data ? data.status : 'error', asOfDate: null, source: 'sales', bu: bu, line: line || 'All', entities: [] };
+        }
+        entities = data.items.map(it => ({ name: it.name, actualValue: it.actualValue, targetValue: it.targetValue, achievementPct: it.achievementPct, grain: 'item' }));
+        asOfDate = data.asOfDate;
+        scope = data.scope;
+        resolvedScenario = data.scenario;
+      } else {
+        const data = this.getBrandAchievement(bu, line, ignoreLineAuth, scenario);
+        if (!data || !data.ok) {
+          return { ok: false, status: data ? data.status : 'error', asOfDate: null, source: 'sales', bu: bu, line: line || 'All', entities: [] };
+        }
+        asOfDate = data.asOfDate;
+        scope = data.scope;
+        resolvedScenario = data.scenario;
+        data.brands.forEach(b => {
+          if (BP_HEALTH_ITEM_SPLIT_BRANDS.has(b.name)) {
+            // Grouped by STRENGTH (2.5MG/5MG), not raw SKU -- see
+            // getItemStrengthGroups() (2026-08-15 refinement).
+            const groupData = this.getItemStrengthGroups(bu, b.name, line, resolvedScenario);
+            if (groupData && groupData.ok && groupData.items.length) {
+              groupData.items.forEach(it => entities.push({ name: it.name, actualValue: it.actualValue, targetValue: it.targetValue, achievementPct: it.achievementPct, grain: 'item' }));
+              return;
+            }
+            // Fall through to the merged brand row if the strength-group
+            // split comes back empty/unavailable -- never silently drop data.
+          }
+          entities.push({ name: b.name, actualValue: b.actualValue, targetValue: b.targetValue, achievementPct: b.achievementPct, grain: 'brand' });
+        });
+      }
+
+      const targeted = entities.filter(e => e.targetValue > 0);
+      const healthy = targeted.filter(e => e.achievementPct !== null && e.achievementPct >= BP_HEALTH_THRESHOLD);
+      const pct = targeted.length > 0 ? (healthy.length / targeted.length) * 100 : null;
+      targeted.sort((x, y) => (x.achievementPct === null ? Infinity : x.achievementPct) - (y.achievementPct === null ? Infinity : y.achievementPct));
+
+      return {
+        ok: true,
+        status: 'ready',
+        asOfDate: asOfDate,
+        source: 'sales',
+        bu: bu,
+        line: line || 'All',
+        unit: 'percent',
+        scope: scope,
+        scenario: resolvedScenario,
+        grain: grain,
+        threshold: BP_HEALTH_THRESHOLD,
+        targetedCount: targeted.length,
+        healthyCount: healthy.length,
+        pct: pct,
+        entities: targeted,
+      };
+    },
+
+    /**
      * ENTERPRISE SEMANTIC INTERFACE -- getCustomerClusterMix(bu, line)
      * ------------------------------------------------------------------
      * Executive "Customer Channel Mix" KPI card (2026-07-28). Non-Tender,
@@ -4307,6 +4495,8 @@
     "getCustomerClusterMix",
     "getBrandAchievement",
     "getItemAchievement",
+    "getBrandPortfolioHealth",
+    "getItemStrengthGroups",
     "getDmSalesSummary",
     "getRepPositionsMap",
     "getDmRepsSalesSummary",
