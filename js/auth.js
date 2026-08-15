@@ -210,6 +210,18 @@
   }
 
   // -------------------------------------------------------------------
+  // IMS RX MARKET INTELLIGENCE ACCESS (2026-08-16, Ahmed)
+  // -------------------------------------------------------------------
+  // "show IMS Rx for only sfe vp ceo admin and bex"
+  var IMS_RX_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager"];
+
+  function canViewImsRx() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return IMS_RX_ROLES.indexOf(u.role) >= 0;
+  }
+
+  // -------------------------------------------------------------------
   // EXPENSE VS SALES ACCESS (2026-08-09, Ahmed)
   // -------------------------------------------------------------------
   // "SFE BEX BU ADMIN CEO VP ONLY CAN SEE IT"
@@ -383,6 +395,8 @@
     ALL_BU_ROLES: ALL_BU_ROLES,
     canViewMarketIntel: canViewMarketIntel,
     MARKET_INTEL_ROLES: MARKET_INTEL_ROLES,
+    canViewImsRx: canViewImsRx,
+    IMS_RX_ROLES: IMS_RX_ROLES,
     canViewExpense: canViewExpense,
     EXPENSE_ROLES: EXPENSE_ROLES,
     canEditExpense: canEditExpense,

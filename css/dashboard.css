@@ -2098,6 +2098,29 @@ body {
   transform: scale(1.15);
 }
 
+/* Zeta Sprint 2026 nav icon: checkered flag mounted on a pole, in place of
+   the bare 🏁 emoji (2026-08-15, Ahmed -- wants a clearly "mounted on a
+   pole" flag, not a floating flag glyph, "consistent with the existing
+   Zeta Commercial Excellence Dashboard"). An inline SVG rather than an
+   emoji so the pole + checker pattern render identically across browsers/
+   OSes -- unlike 🏁, which several platforms render as a plain solid flag
+   with no checker pattern at all. Sized/centered to match the other
+   .menu-icon emoji glyphs exactly (~1.2rem box), and still picks up the
+   same :hover scale transform as every other sidebar icon since it lives
+   inside the same .menu-icon span. */
+.menu-icon-svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+}
+.menu-icon-svg svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .main-content-area {
   flex-grow: 1;
   display: flex;
@@ -2410,7 +2433,10 @@ body {
 .tomarket-mode #topbar-export-pdf,
 .expense-mode #filter-bar-container,
 .expense-mode .filter-bar-wrap,
-.expense-mode #topbar-export-pdf {
+.expense-mode #topbar-export-pdf,
+.imsrx-mode #filter-bar-container,
+.imsrx-mode .filter-bar-wrap,
+.imsrx-mode #topbar-export-pdf {
   display: none !important;
 }
 

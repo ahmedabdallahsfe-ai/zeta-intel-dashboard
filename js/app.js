@@ -339,6 +339,8 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Total Market Intelligence";
     } else if (tab === "tomarket") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - To-Market vs In-Market";
+    } else if (tab === "imsrx") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - IMS Rx Market Intelligence";
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -378,6 +380,18 @@ function startAppBody() {
     const allowed = window.AUTH && typeof window.AUTH.canViewMarketIntel === "function"
       ? window.AUTH.canViewMarketIntel() : false;
     marketIntelMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // IMS Rx Market Intelligence: CEO / VP / BEX / Admin / SFE Manager only
+  // (2026-08-16, Ahmed: "show IMS Rx for only sfe vp ceo admin and bex").
+  // Hidden in the markup by default and revealed here, so a user without
+  // the entitlement never even sees the entry -- and renderImsRxTab() below
+  // refuses to render it regardless, matching the Market Intel pattern above.
+  const imsRxMenuItem = document.getElementById("menu-item-imsrx");
+  if (imsRxMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewImsRx === "function"
+      ? window.AUTH.canViewImsRx() : false;
+    imsRxMenuItem.style.display = allowed ? "" : "none";
   }
 
   // REMOVED 2026-08-09 (Ahmed): the Control Panel and Expense vs Sales tabs
@@ -433,6 +447,9 @@ function startAppBody() {
         // class -- plus the workspace's own chart/listener cleanup.
         restoreGlobalFilterBar();
         if (window.MarketIntelligence) window.MarketIntelligence.destroy();
+      }
+      if (currentTab === "imsrx" && window.ImsRxDashboard) {
+        window.ImsRxDashboard.destroy();
       }
       currentTab = tab;
       updateTopbarTitle(tab);
@@ -502,6 +519,11 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             renderMarketIntelTab(document.getElementById("app-root"));
+          } else if (tab === "imsrx") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderImsRxTab(document.getElementById("app-root"));
           }
           mountAskPanel(tab);
           Loader.hide();
@@ -673,6 +695,26 @@ function renderMarketIntelTab(container) {
   document.body.classList.add("tomarket-mode");
   if (window.MarketIntelligence) {
     window.MarketIntelligence.init("app-root");
+  }
+}
+
+function renderImsRxTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewImsRx === "function"
+    ? window.AUTH.canViewImsRx() : false;
+  if (!allowed) {
+    document.body.classList.add("imsrx-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "IMS Rx contains physician-panel market intelligence and is available to CEO, VP, BEx, Admin and SFE Manager roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.ImsRxDashboard) {
+    window.ImsRxDashboard.init("app-root");
   }
 }
 

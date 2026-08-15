@@ -1,0 +1,561 @@
+/* =========================================================================
+   css/imsrx.css  --  IMS Rx workspace
+   -------------------------------------------------------------------------
+   Scoped entirely under .imsrx-page. Reuses .sc-nav-tabs / .sc-tab (already
+   global, see dashboard.css) for the sub-page switcher, and the platform
+   design tokens from design-system.css (--color-*, --space-*, --radius-*,
+   --shadow-*) rather than hardcoded values, so this page ages consistently
+   with the rest of the dashboard.
+   ========================================================================= */
+
+.imsrx-page {
+  padding: var(--space-6, 24px);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.imsrx-header {
+  margin-bottom: var(--space-5, 20px);
+}
+
+.imsrx-header h1 {
+  font-size: var(--fs-2xl, 24px);
+  font-weight: var(--fw-bold, 700);
+  color: var(--color-text-primary, #0F172A);
+  margin: 0 0 4px 0;
+}
+
+.imsrx-subhead {
+  font-size: var(--fs-sm, 13px);
+  color: var(--color-text-secondary, #64748B);
+  margin: 0;
+}
+
+/* ---- Known-limitations banner (dismissible) --------------------------- */
+
+.imsrx-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--color-info-light, #CFFAFE);
+  border: 1px solid var(--color-info, #0891B2);
+  border-radius: var(--radius-lg, 8px);
+  padding: 14px 16px;
+  margin-bottom: var(--space-5, 20px);
+}
+
+.imsrx-banner-icon {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.imsrx-banner-body {
+  flex: 1;
+}
+
+.imsrx-banner-title {
+  font-size: var(--fs-sm, 13px);
+  font-weight: var(--fw-semibold, 600);
+  color: var(--color-text-primary, #0F172A);
+  margin-bottom: 2px;
+}
+
+.imsrx-banner-text {
+  font-size: var(--fs-sm, 13px);
+  color: var(--color-text-secondary, #64748B);
+  line-height: var(--line-height-base, 1.5);
+}
+
+.imsrx-banner-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-text-tertiary, #94A3B8);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.imsrx-banner-close:hover {
+  color: var(--color-text-primary, #0F172A);
+}
+
+/* ---- Stat tiles --------------------------------------------------------
+   Same tile pattern as .sp-stat-tile in sprint.css -- kept visually
+   identical on purpose so the two workspaces read as one platform. */
+
+.imsrx-stats-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: var(--space-5, 20px);
+}
+
+.imsrx-stat-tile {
+  background: var(--color-surface, #FFFFFF);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-lg, 8px);
+  padding: 14px 16px;
+}
+
+.imsrx-stat-tile.imsrx-stat-highlight {
+  border-color: var(--color-primary, #0F4C81);
+  background: var(--color-primary-light, #E8F0F7);
+}
+
+.imsrx-stat-tile.imsrx-stat-positive {
+  border-color: var(--color-success, #15803D);
+  background: var(--color-success-light, #DCFCE7);
+}
+
+.imsrx-stat-tile.imsrx-stat-negative {
+  border-color: var(--color-danger, #DC2626);
+  background: var(--color-danger-light, #FEE2E2);
+}
+
+.imsrx-stat-label {
+  font-size: 11px;
+  color: var(--color-text-tertiary, #94A3B8);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.imsrx-stat-sub {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-tertiary, #94A3B8);
+}
+
+.imsrx-stat-value {
+  font-size: var(--fs-kpi-value, 28px);
+  font-weight: var(--fw-black, 800);
+  color: var(--color-text-primary, #0F172A);
+  margin-top: 3px;
+}
+
+/* ---- Hero chart card ---------------------------------------------------- */
+
+.imsrx-chart-card {
+  background: var(--color-surface, #FFFFFF);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-lg, 8px);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(15, 23, 42, 0.06));
+  padding: 18px 20px;
+}
+
+.imsrx-chart-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 12px;
+}
+
+.imsrx-chart-card-header h3 {
+  font-size: var(--fs-md, 15px);
+  font-weight: var(--fw-semibold, 600);
+  color: var(--color-text-primary, #0F172A);
+  margin: 0;
+}
+
+.imsrx-chart-caption {
+  font-size: 11px;
+  color: var(--color-text-tertiary, #94A3B8);
+  font-style: italic;
+}
+
+.imsrx-chart-wrap {
+  position: relative;
+  height: 340px;
+}
+
+@media (max-width: 1100px) {
+  .imsrx-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.imsrx-stats-row-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* =========================================================================
+   Market Dynamics -- filter bar (popover multi-select + search), styled
+   after Total Market Intelligence's .mi-filterbar/.mi-f pattern but with
+   its own class names -- no cross-file CSS dependency on market-intel.css.
+   ========================================================================= */
+
+.imsrx-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  background: var(--color-surface, #FFFFFF);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-xl, 12px);
+  padding: 14px 16px;
+  margin-bottom: var(--space-4, 16px);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(15, 23, 42, 0.06));
+}
+
+.imsrx-f {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.imsrx-f-label {
+  font-size: 10.5px;
+  font-weight: var(--fw-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary, #64748B);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.imsrx-f-count {
+  background: var(--color-primary, #0F4C81);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.imsrx-f-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--color-surface-alt, #F8FAFC);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-md, 6px);
+  padding: 7px 10px;
+  font-size: var(--fs-sm, 13px);
+  color: var(--color-text-primary, #0F172A);
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.imsrx-f-btn:hover {
+  border-color: var(--color-border-strong, #CBD5E1);
+}
+
+.imsrx-f-sum {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.imsrx-f-caret {
+  color: var(--color-text-tertiary, #94A3B8);
+  font-size: 10px;
+}
+
+.imsrx-f-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: var(--z-dropdown, 100);
+  width: 260px;
+  background: var(--color-surface, #FFFFFF);
+  border: 1px solid var(--color-border-strong, #CBD5E1);
+  border-radius: var(--radius-lg, 8px);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(15, 23, 42, 0.10));
+  padding: 10px;
+}
+
+.imsrx-f-search {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-md, 6px);
+  padding: 6px 8px;
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+
+.imsrx-f-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.imsrx-f-actions button {
+  background: none;
+  border: none;
+  color: var(--color-primary, #0F4C81);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.imsrx-f-actions button:hover {
+  text-decoration: underline;
+}
+
+.imsrx-f-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.imsrx-f-opt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 4px;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.imsrx-f-opt:hover {
+  background: var(--color-surface-alt, #F8FAFC);
+}
+
+.imsrx-f-opt.on {
+  background: var(--color-primary-light, #E8F0F7);
+}
+
+.imsrx-f-opt input {
+  flex: none;
+}
+
+.imsrx-f-opt-lbl {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary, #0F172A);
+}
+
+.imsrx-f-opt-val {
+  font-size: 10.5px;
+  color: var(--color-text-tertiary, #94A3B8);
+  flex: none;
+}
+
+.imsrx-reset {
+  background: var(--color-surface-alt, #F8FAFC);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-md, 6px);
+  padding: 7px 14px;
+  font-size: var(--fs-sm, 13px);
+  font-weight: 600;
+  color: var(--color-text-secondary, #64748B);
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+.imsrx-reset:hover {
+  color: var(--color-danger, #DC2626);
+  border-color: var(--color-danger, #DC2626);
+}
+
+/* ---- Ranked table (bar-behind-name pattern) ----------------------------- */
+
+.imsrx-rank-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.imsrx-rank-table th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary, #94A3B8);
+  border-bottom: 1px solid var(--color-border, #E2E8F0);
+  padding: 6px 8px;
+}
+
+.imsrx-rank-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-surface-alt, #F8FAFC);
+}
+
+.imsrx-th-rank {
+  width: 28px;
+  color: var(--color-text-tertiary, #94A3B8);
+}
+
+.imsrx-num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.imsrx-strong {
+  font-weight: 700;
+  color: var(--color-text-primary, #0F172A);
+}
+
+.imsrx-cell-name {
+  position: relative;
+}
+
+.imsrx-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--color-primary-light, #E8F0F7);
+  border-radius: 3px;
+  z-index: 0;
+}
+
+.imsrx-name-txt {
+  position: relative;
+  z-index: 1;
+  padding-left: 4px;
+}
+
+.imsrx-empty {
+  text-align: center;
+  color: var(--color-text-tertiary, #94A3B8);
+  font-size: 13px;
+  padding: 24px;
+}
+
+/* ---- Product spotlight (Rx vs Units) ------------------------------------ */
+
+.imsrx-spotlight {
+  background: linear-gradient(135deg, var(--color-primary-light, #E8F0F7) 0%, #FFFFFF 55%);
+  border: 1px solid var(--color-primary, #0F4C81);
+  border-radius: var(--radius-lg, 8px);
+  padding: 18px 20px;
+  margin-bottom: var(--space-4, 16px);
+}
+
+.imsrx-spotlight-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.imsrx-spotlight-head h3 {
+  font-size: var(--fs-md, 15px);
+  font-weight: 700;
+  color: var(--color-text-primary, #0F172A);
+  margin: 0;
+}
+
+.imsrx-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.imsrx-badge-ok {
+  background: var(--color-success-light, #DCFCE7);
+  color: var(--color-success, #15803D);
+}
+
+.imsrx-badge-warn {
+  background: var(--color-warning-light, #FEF3C7);
+  color: var(--color-warning, #B45309);
+}
+
+.imsrx-badge-muted {
+  background: var(--color-surface-alt, #F8FAFC);
+  color: var(--color-text-tertiary, #94A3B8);
+}
+
+.imsrx-spotlight-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.imsrx-spotlight-stat-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary, #64748B);
+}
+
+.imsrx-spotlight-stat-label span {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10.5px;
+  color: var(--color-text-tertiary, #94A3B8);
+  margin-top: 1px;
+}
+
+.imsrx-spotlight-stat-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--color-text-primary, #0F172A);
+  margin-top: 2px;
+}
+
+.imsrx-spotlight-ratio {
+  font-size: 11.5px;
+  color: var(--color-text-secondary, #64748B);
+  font-style: italic;
+  margin-bottom: 10px;
+}
+
+.imsrx-spotlight-sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #64748B);
+  margin: 10px 0 6px;
+}
+
+/* ---- Market Dynamics chart grid ----------------------------------------- */
+
+.imsrx-chart-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.imsrx-chart-card-wide {
+  grid-column: 1 / -1;
+}
+
+.imsrx-chart-wrap-sm {
+  position: relative;
+  height: 240px;
+}
+
+@media (max-width: 1100px) {
+  .imsrx-stats-row-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .imsrx-chart-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .imsrx-spotlight-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Text-color-only growth indicators ---------------------------------
+   Distinct from .imsrx-stat-tile.imsrx-stat-positive/negative (which carry
+   a tile background) -- these apply to table cells and inline spotlight
+   values, where only the text should change color. Used by Company
+   Performance's leaderboard YoY column and spotlight growth stat. */
+
+.imsrx-positive {
+  color: var(--color-success, #15803D);
+}
+
+.imsrx-negative {
+  color: var(--color-danger, #DC2626);
+}

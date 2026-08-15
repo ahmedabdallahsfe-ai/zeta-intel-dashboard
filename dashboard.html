@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zeta Commercial Excellence Dashboard</title>
-  <link rel="stylesheet" href="css/dashboard.css?v=20260731_tomarket4" />
+  <link rel="stylesheet" href="css/dashboard.css?v=20260816_imsrx" />
   <!-- Fully scoped under .iqvia-dashboard-wrap (namespaced 2026-07-26) — safe to load
        on every tab; cannot leak into Coverage/Organogram/Sales styling. -->
   <link rel="stylesheet" href="css/iqvia.css?v=20260726_namespaced" />
@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="css/components.css?v=20260807_lineperf" />
   <link rel="stylesheet" href="css/utilities.css?v=20260726_exec" />
   <link rel="stylesheet" href="css/market-intel.css?v=20260806_cagr" />
+  <link rel="stylesheet" href="css/imsrx.css?v=20260816_v1" />
 </head>
 <body>
 
@@ -144,6 +145,10 @@
           <span class="menu-icon">🌐</span>
           <span class="menu-label">Total Market Intelligence</span>
         </li>
+        <li class="menu-item" data-tab="imsrx" id="menu-item-imsrx" style="display:none;">
+          <span class="menu-icon">💊</span>
+          <span class="menu-label">IMS Rx</span>
+        </li>
 
       </ul>
     </nav>
@@ -212,6 +217,13 @@
        june.xlsx only carried 432 sparse TargetIndex=1 rows for June (target value ~45.0M, clearly
        incomplete); this brings June's target total to ~268.2M, in line with other months. -->
   <script defer src="cache/sales.data.js?v=20260729_hossamfix"></script>
+  <!-- IMS Rx cache (2026-08-15): physician-panel Rx-volume audit, via
+       etl/build_ims_rx_cache.py, reading "IMS RX TOTAL YEAR 2025.xlsx" with
+       Corporation joined in from "IMS 2022 to April 2026.xlsx" (same source
+       as cache/market_intel.data.js below). See that script's header for
+       the dedup/data-quality/join-confidence writeup. Re-run it whenever
+       either source workbook is refreshed. -->
+  <script defer src="cache/ims_rx.data.js?v=20260815_v1"></script>
   <!-- Customer Analytics cache (2026-07-28): a SEPARATE cache from a SEPARATE source
        (TOTAL_SALES_2026.xlsx, via etl/build_customer_analytics_cache.py) -- the main
        Sales cache above has no customer identity at all. Powers the Customer Channel
@@ -227,7 +239,7 @@
        workspace module. Must load after cache/iqvia.data.js (reads
        IQVIA_CACHE.users) and before js/app.js (the boot sequence gates
        on it first). See js/auth.js for the full rationale. -->
-  <script defer src="js/auth.js?v=20260809_editgate"></script>
+  <script defer src="js/auth.js?v=20260816_imsrx"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script defer src="js/config.js?v=20260725_v2"></script>
@@ -278,6 +290,7 @@
        Executive "by Brand" modal both use this now. -->
   <script defer src="js/sales.js?v=20260815_strengthgroups"></script>
   <script defer src="js/iqvia.js?v=20260811_amr"></script>
+  <script defer src="js/ims-rx.js?v=20260816_v1"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
        Default landing page. Reads only through SEMANTIC, DS, and the four
