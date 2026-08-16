@@ -146,8 +146,9 @@
  *     missing Sales Achievement (no sales data or zero target that
  *     month) fails the floor (fail-closed) -- can't confirm someone
  *     "actually sold something" without a number. DM/DSM, ASM, and NSM
- *     were not mentioned in this request and are left untouched -- their
- *     WINNER badges and cash tiers still key off rank alone.
+ *     were not mentioned in THIS original request -- see the
+ *     "MANAGER-TIER FLOOR" bullet below for their own extension of the
+ *     same rule, added the same day.
  *   - LINE LEADER REMOVED, per Ahmed 2026-08-16 ("REMOVE 🎖 Line Leader
  *     FLAG"): Medical Rep no longer shows a per-Line 🎖 Line Leader badge
  *     (the top rep of each Line, independent of the company-wide/floor-
@@ -155,9 +156,39 @@
  *     the underlying per-Line top-performer computation (lineLeaders) is
  *     deleted from renderMedicalRep(), not just its badge markup, so
  *     there's nothing dormant to accidentally re-enable. DM/DSM's
- *     analogous 🎖 BU Leader badge was NOT mentioned and stays as-is --
- *     same scoping discipline as every other tier-specific change in
- *     this file.
+ *     analogous 🎖 BU Leader badge was NOT mentioned in THIS request and
+ *     was left as-is at the time -- see "MANAGER-TIER FLOOR" below for
+ *     where it was later gated too.
+ *   - MANAGER-TIER FLOOR, per Ahmed 2026-08-16 ("DM DSM HAS REWARD ALSO
+ *     MAKE SAME FLOOR LOGIC FOR ASM NSM IF NO BODY GET THE FLOOR IN LINE
+ *     BU GET THIS ... I NEED VERY HIGHLIGHTED GAT FLOOR RULE"): extends
+ *     the exact same 70% recognition floor to DM/DSM, ASM, and NSM --
+ *     these tiers don't have a personal Sales Achievement %, so
+ *     meetsTeamSalesFloor(r) tests r.teamSalesAchPct instead of
+ *     r.achPct/bmSalesAch(r). teamSalesAchPct (etl/build_sprint_cache.py)
+ *     is SUM(every eligible rep's raw sales value)/SUM(their raw sales
+ *     target) across the manager's WHOLE reporting subtree, divided
+ *     exactly once -- DM/DSM sums its own reps directly, ASM/NSM sums
+ *     its DM/DSMs' already-team-summed val/tgt, so the ratio always
+ *     traces back to raw rep-level sales no matter how many hierarchy
+ *     levels up (denominator discipline: never average an average).
+ *     Gates: DM/DSM's company-wide-relative 🏆 WINNER/🥈 RUNNER-UP AND
+ *     its per-BU 🎖 BU Leader badge (both cascade to the next-eligible
+ *     manager, same as the rep floor); ASM/NSM's single company-wide 🏆
+ *     WINNER; and the Winners CSV cash row for all three tiers
+ *     (computeMonthlyWinners -- DM/DSM confirmed to carry a real cash
+ *     reward same as reps, ASM/NSM already had MONTHLY_CASH entries
+ *     wired in the CSV before this floor existed). "No Sprinter for the
+ *     month" is explicit, not incidental: if nobody in a BU (DM/DSM) or
+ *     company-wide (ASM/NSM) clears 70%, that scope produces zero rows
+ *     in the CSV and shows emptyWinnerCardHtml() on screen -- never a
+ *     forced badge/payout on the highest scorer who still falls short.
+ *     Also added floorRuleBannerHtml() -- a single bold, high-contrast
+ *     banner (distinct from the smaller per-row "Below floor" note)
+ *     stating the rule itself in plain language, placed at the top of
+ *     all six floor-gated sections (Medical Rep, CHC Sales Rep, Brand
+ *     Manager, DM/DSM, ASM, NSM), per Ahmed's explicit ask for a "very
+ *     highlighted" rule.
  *   - BAND LEGEND, per Ahmed 2026-08-16 ("MAKE EXPLAINATION WHY CHAMPION
  *     PERFROMER ON TRACK BUILDING GUIDENCE"): the Champion/Performer/On
  *     Track/Building pill next to every Total score had no visible
@@ -510,10 +541,22 @@
     }
     const pctDisp = pctText != null ? pctText : (pct != null ? pct.toFixed(1) + "%" : "—");
     const width = Math.min(100, maxpts ? (pts / maxpts * 100) : 0);
+    // A genuine 0.0 pts (curves like Calls per DV only start earning above a
+    // floor, e.g. 90% actual -- see dm_callsperdv_curve in the ETL) renders
+    // a 0%-width fill, i.e. no color at all on top of the already-faint
+    // track -- reads as a broken/empty element rather than "real value,
+    // below this KPI's curve" (Ahmed 2026-08-16, "MAKE THE FONT AND COLOR
+    // APPEAR"). Distinct from the diagonal-striped "pending" state above
+    // (data not filled in yet) -- this is a computed, real zero. A small
+    // red sliver + note makes that legible instead of blank.
+    const isZeroFloor = pts === 0;
+    const visualWidth = isZeroFloor ? 4 : width;
+    const fillClass = isZeroFloor ? "sp-kpi-fill sp-kpi-fill-zero" : "sp-kpi-fill";
+    const zeroNote = isZeroFloor ? ` <span class="sp-kpi-zero-note" title="Below this KPI's scoring curve this period -- 0 pts earned even though the raw % above may be greater than 0">below curve floor</span>` : "";
     return `<div class="sp-kpi-wrap">
         <div class="sp-kpi-label">${label} <span class="sp-kpi-pct">${pctDisp}</span></div>
-        <div class="sp-kpi-track"><div class="sp-kpi-fill" style="width:${width.toFixed(0)}%"></div></div>
-        <div class="sp-kpi-pts">${pts.toFixed(1)} / ${maxpts}</div>
+        <div class="sp-kpi-track"><div class="${fillClass}" style="width:${visualWidth.toFixed(0)}%"></div></div>
+        <div class="sp-kpi-pts">${pts.toFixed(1)} / ${maxpts}${zeroNote}</div>
       </div>`;
   }
 
@@ -607,6 +650,68 @@
     return kpi ? kpi.raw : null;
   }
 
+  // Team-level floor, extended to DM/DSM/ASM/NSM 2026-08-16 per Ahmed
+  // ("DM DSM HAS REWARD ALSO MAKE SAME FLOOR LOGIC FOR ASM NSM"). These
+  // tiers don't have a personal Sales Achievement % -- r.teamSalesAchPct
+  // (etl/build_sprint_cache.py) is SUM(every eligible rep's raw sales
+  // value)/SUM(their raw target) across the WHOLE reporting subtree,
+  // divided exactly once -- never an average of already-divided
+  // percentages at any level. Same WINNER_FLOOR_ACH_PCT constant, same
+  // 70% number, so the rule reads identically everywhere on this page.
+  function meetsTeamSalesFloor(r) {
+    return meetsSalesFloor(r.teamSalesAchPct);
+  }
+
+  // Per Ahmed 2026-08-16 ("FOR ALL DSM ASM NSM MENTION SALES ACHIEVEMENT"):
+  // the row previously only spoke up when a manager was BELOW the floor
+  // (teamFloorNote, now folded in here) -- an eligible manager's own Team
+  // Sales Achievement number was invisible anywhere on their row, only
+  // implied by the absent note. Now every DM/DSM/ASM/NSM row with a scored
+  // team always shows its actual Team Sales Achievement %, colored green
+  // (cleared the floor) or red (didn't), so the number driving eligibility
+  // is never hidden either way.
+  function teamAchNote(r) {
+    const pct = r.teamSalesAchPct;
+    const pctStr = pct != null ? (pct * 100).toFixed(1) + "%" : "—";
+    const ok = meetsTeamSalesFloor(r);
+    const cls = ok ? "sp-team-ach-ok" : "sp-team-ach-below";
+    const title = `Team Sales Achievement = every team member's raw sales value summed beneath this manager, divided by their raw target summed the same way -- one division, never an average of already-divided percentages.`
+      + (ok ? "" : ` Below the ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% recognition floor -- not eligible for the WINNER/BU Leader badge or Monthly Sprint cash this month, regardless of rank or Total Points.`);
+    return ` · <span class="sp-team-ach-note ${cls}" title="${esc(title)}">Team Sales Achievement ${pctStr}${ok ? "" : ` <b>(below ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% floor)</b>`}</span>`;
+  }
+
+  // ---- Highlighted floor-rule banner -----------------------------------
+  // Per Ahmed 2026-08-16 ("I NEED VERY HIGHLIGHTED GAT FLOOR RULE"): the
+  // small inline "Below floor" note on a single row is easy to miss when
+  // the real question is "why did nobody get a badge this month" or
+  // "why is the top scorer unpaid". This banner states the rule itself,
+  // in one bold, unmissable block, at the top of every floor-gated
+  // section (Medical Rep, CHC Sales Rep, Brand Manager, DM/DSM, ASM,
+  // NSM) -- separate from (and louder than) the smaller per-row note and
+  // the section-sub paragraph, which stay as-is for their own detail.
+  // isTeamTier (per Ahmed 2026-08-16, round 2 refinement -- "MENTION
+  // ACHIEVEMENT FOR DM AND DSM AND ASM AND NSM SALES ACHIEVEMENT
+  // ACCORDING TO TEAM MEMBER"): DM/DSM/ASM/NSM don't have a personal
+  // Sales Achievement -- the floor is their TEAM'S, rolled up from every
+  // team member beneath them (see meetsTeamSalesFloor / teamSalesAchPct
+  // in the ETL). Medical Rep, CHC Sales Rep and Brand Manager use their
+  // own individual Sales Achievement instead. Spelling that out here,
+  // in the loud banner itself, avoids "why does a DM with a huge team
+  // fall below floor when my own sales look fine" confusion.
+  function floorRuleBannerHtml(isTeamTier) {
+    const pct = Math.round(WINNER_FLOOR_ACH_PCT * 100);
+    const achClause = isTeamTier
+      ? `For DM/DSM, ASM and NSM, "Sales Achievement" means their TEAM'S Sales Achievement — every team member's raw sales value and raw target summed first, then divided once (a DM/DSM sums its own reps; an ASM/NSM sums its own DM/DSMs' already-team-summed totals) -- never an average of individual percentages.`
+      : `For Medical Rep, CHC Sales Rep and Brand Manager, "Sales Achievement" is that person's own individual Sales Achievement.`;
+    return `<div class="sp-floor-rule-banner">
+      <div class="sp-floor-rule-icon">🚫</div>
+      <div class="sp-floor-rule-body">
+        <div class="sp-floor-rule-title">${pct}% SALES ACHIEVEMENT FLOOR — MONEY RULE</div>
+        <div class="sp-floor-rule-text">No 🏆 WINNER / 🥈 RUNNER-UP badge and <b>no Monthly Sprint cash</b> goes to anyone below ${pct}% Sales Achievement — regardless of rank, Total Points, or any other KPI. ${achClause} If nobody in a BU or Line clears ${pct}% this month, that BU or Line has <b>no Sprinter and no payout at all</b> — the badge is never forced onto the highest scorer who still falls short. Ranking itself always stays honest and unaffected.</div>
+      </div>
+    </div>`;
+  }
+
   // ---- Recognition Winners panel --------------------------------------
   // Per Ahmed 2026-08-16 ("make something explanation to avoid debates
   // and confusion about ranking and also make winners at top"): the
@@ -680,6 +785,30 @@
     return winnersPanelHtml(`🏆 Recognition Winners — ${label}`, cards, note);
   }
 
+  // DM/DSM's own live-recomputed panel, same pattern as
+  // msrWinnersPanelHtml above -- wired to the BU filter (see init()) via
+  // wireRankFilter's isEligible/winnersPanelId/buildPanelHtml args. Reads
+  // hierarchyRow's data-name/data-total/data-team-ach-pct attributes
+  // (the DM/DSM-tier equivalent of repRow's data-rep-name/data-rep-total/
+  // data-ach-pct). Per Ahmed 2026-08-16.
+  function dmWinnersPanelHtml(winnerTr, runnerUpTr, filterVal) {
+    const label = (!filterVal || filterVal === "__ALL__") ? "Company-wide (All BUs)" : `BU: ${filterVal}`;
+    function fromTr(tr, medal, tag) {
+      if (!tr) {
+        return emptyWinnerCardHtml(tag, `No DM/DSM team in ${label} has cleared the ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% Team Sales Achievement floor yet.`);
+      }
+      const name = tr.getAttribute("data-name") || "";
+      const bu = tr.getAttribute("data-bu") || "";
+      const total = tr.getAttribute("data-total") || "";
+      const achRaw = tr.getAttribute("data-team-ach-pct");
+      const achStr = (achRaw !== "" && achRaw != null) ? `${(parseFloat(achRaw) * 100).toFixed(1)}%` : "—";
+      return winnerCardHtml(medal, tag, name, `${bu} · ${total} pts · ${achStr} Team Sales Achievement`);
+    }
+    const cards = fromTr(winnerTr, "🏆", "WINNER") + fromTr(runnerUpTr, "🥈", "RUNNER-UP");
+    const note = `Rank <b>#</b> below reflects Total Points and never changes. Recognition (badge + Monthly Sprint cash) additionally requires the DM/DSM's OWN TEAM clearing ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% Sales Achievement — summed across every rep beneath them, never averaged. A higher-ranked DM/DSM shown without a badge simply hasn't cleared that floor yet. The same rule gates each BU's own 🎖 BU Leader badge — if nobody in a BU clears the floor, that BU has no BU Leader this month.`;
+    return winnersPanelHtml(`🏆 Recognition Winners — ${label}`, cards, note);
+  }
+
   function renderMedicalRep() {
     const all = cache.medicalRepSalesRep.ranked.filter(r => r.role === "Medical Rep").filter(repInScope);
     const lines = [...new Set(all.map(r => r.canonLine))].sort();
@@ -694,6 +823,7 @@
       <div class="sp-section">
         <h2>Medical Rep — ${esc(cache.meta.evalPeriod)} Leaderboard</h2>
         <div class="sp-section-sub">Sales Achievement (50) + Right Frequency (40) + Coverage (10) = 100 pts, this month's activity only. Ranks #1 (🏆 WINNER) and #2 (🥈 WINNER) both carry a winner badge — recomputed live as you filter by Line, and only among reps who clear ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% Sales Achievement (the # rank column itself is unaffected).</div>
+        ${floorRuleBannerHtml(false)}
         <div id="sp-msr-winners-panel"></div>
         <div class="sp-filter-row">
           <label>Line:</label>
@@ -742,6 +872,7 @@
       <div class="sp-section">
         <h2>CHC Sales Rep — ${esc(cache.meta.evalPeriod)} Leaderboard</h2>
         <div class="sp-section-sub">Sales Achievement (60) + Coverage (40) = 100 pts. ${all.length} eligible reps. Ranks #1 (🏆 WINNER) and #2 (🥈 WINNER) both carry a winner badge — only among reps who clear ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% Sales Achievement (the # rank column itself is unaffected).</div>
+        ${floorRuleBannerHtml(false)}
         ${chcWinnersPanel}
         <table>
           <thead><tr><th>#</th><th>Rep</th><th>Sales · 60</th><th>Coverage · 40</th><th style="text-align:right;">Total</th></tr></thead>
@@ -1020,8 +1151,8 @@
     // applicable) rather than only when isWinner/isRunnerUp is true, so the
     // BU filter's dynamic recompute (wireRankFilter) has an element to find
     // and toggle for every row, not just the one scored #1 pre-filter.
-    return `<tr class="sp-row${isWinner || isRunnerUp ? " sp-is-winner" : ""}" data-bu="${esc(r.bu || "")}" data-line="${esc(r.line || "")}">
-      <td class="sp-name">${esc(r.name)}<span class="sp-winner-badge"${isWinner ? "" : ' style="display:none;"'}>🏆 WINNER</span><span class="sp-runnerup-badge"${isRunnerUp ? "" : ' style="display:none;"'}>🥈 WINNER</span>${isBuLeader ? `<span class="sp-leader-badge" title="Top performer for the ${esc(r.bu)} business unit">🎖 BU Leader</span>` : ""}<div class="sp-sub">#${esc(r.code)}${lineBu ? ` · <span class="sp-manager-line-badge">${esc(lineBu)}</span>` : ""} · ${r.teamSize} eligible ${esc(noun)}${r.teamSize === 1 ? "" : "s"} in team · ${probationBadge(r)}</div>${teamDrilldown(r)}</td>
+    return `<tr class="sp-row${isWinner || isRunnerUp ? " sp-is-winner" : ""}" data-bu="${esc(r.bu || "")}" data-line="${esc(r.line || "")}" data-name="${esc(r.name)}" data-total="${r.totalPts != null ? r.totalPts.toFixed(1) : ""}" data-team-ach-pct="${r.teamSalesAchPct != null ? r.teamSalesAchPct : ""}">
+      <td class="sp-name">${esc(r.name)}<span class="sp-winner-badge"${isWinner ? "" : ' style="display:none;"'}>🏆 WINNER</span><span class="sp-runnerup-badge"${isRunnerUp ? "" : ' style="display:none;"'}>🥈 WINNER</span>${isBuLeader ? `<span class="sp-leader-badge" title="Top performer for the ${esc(r.bu)} business unit">🎖 BU Leader</span>` : ""}<div class="sp-sub">#${esc(r.code)}${lineBu ? ` · <span class="sp-manager-line-badge">${esc(lineBu)}</span>` : ""} · ${r.teamSize} eligible ${esc(noun)}${r.teamSize === 1 ? "" : "s"} in team · ${probationBadge(r)}${r.teamSize > 0 && r.teamSalesAchPct != null ? teamAchNote(r) : ""}</div>${teamDrilldown(r)}</td>
       <td>${kpiBar("Team Avg", r.teamAvgRaw, r.teamAvgPts, r.teamAvgWeight)}</td>
       ${r.kpis.map(k => `<td>${kpiSlotCell(k)}</td>`).join("")}
       <td class="sp-total">
@@ -1049,9 +1180,28 @@
     // roster -- never from `scored` (which is filtered to this viewer's own
     // BU/Line scope). See module doc "WINNER badge truth" above. DM/DSM
     // keeps its existing scope-relative top-2-per-BU-filter behavior.
-    const companyWinnerCode = (tierKey === "asm" || tierKey === "nsm")
-      ? ([...data.ranked].filter(r => r.totalPts != null).sort((a, b) => b.totalPts - a.totalPts)[0] || {}).code
+    // Both floor-gated 2026-08-16 (meetsTeamSalesFloor) -- the cascade
+    // drops any manager whose TEAM Sales Achievement falls short of 70%
+    // and moves to the next-eligible one by totalPts; if literally nobody
+    // clears the floor, companyWinnerCode is undefined and the empty-state
+    // card below reports "no winner this month" rather than forcing the
+    // badge onto whoever scored highest. isCompanyWideTier (NOT a
+    // `!== undefined` check on companyWinnerCode) is what distinguishes
+    // "this tier has no company-wide-winner concept" (DM/DSM) from "this
+    // tier has the concept but nobody qualified this month" (ASM/NSM,
+    // floor cleared by nobody) -- both leave companyWinnerCode undefined,
+    // so they'd be indistinguishable without this explicit flag, and a
+    // bug that used the old `!== undefined` shortcut here would silently
+    // fall back to badging the highest BU-scoped scorer even when they
+    // hadn't cleared the floor.
+    const isCompanyWideTier = (tierKey === "asm" || tierKey === "nsm");
+    const companyWinnerCode = isCompanyWideTier
+      ? ([...data.ranked].filter(r => r.totalPts != null).filter(meetsTeamSalesFloor).sort((a, b) => b.totalPts - a.totalPts)[0] || {}).code
       : undefined;
+    // DM/DSM's scope-relative top-2 (see comment above), same floor.
+    const eligibleScoped = sorted.filter(r => r.totalPts != null && meetsTeamSalesFloor(r));
+    const scopedWinnerCode = eligibleScoped[0] ? eligibleScoped[0].code : undefined;
+    const scopedRunnerUpCode = eligibleScoped[1] ? eligibleScoped[1].code : undefined;
 
     const kpiKeys = (data.ranked[0] ? data.ranked[0].kpis : []).map(k => k.key);
     const kpiHeaders = (data.ranked[0] ? data.ranked[0].kpis : []).map(k => `<th title="${esc(kpiHeaderTitle(k.key))}">${esc(kpiShortLabel(k.label))}</th>`).join("");
@@ -1068,7 +1218,12 @@
       buLeaders = new Set();
       const bus = [...new Set(scored.map(r => r.bu).filter(Boolean))].sort();
       bus.forEach(bu => {
-        const top = scored.filter(r => r.bu === bu && r.totalPts != null).sort((a, b) => b.totalPts - a.totalPts)[0];
+        // Floor-gated 2026-08-16: a BU's own top scorer only gets the 🎖
+        // BU Leader badge if THEIR team clears 70% Sales Achievement. If
+        // nobody in that BU does, .add() is simply never called for it --
+        // that BU has no BU Leader this month, same "no forced badge"
+        // rule as everywhere else on this page.
+        const top = scored.filter(r => r.bu === bu && r.totalPts != null).filter(meetsTeamSalesFloor).sort((a, b) => b.totalPts - a.totalPts)[0];
         if (top) buLeaders.add(top.code);
       });
       const buOptions = bus.map(bu => `<option value="${esc(bu)}">${esc(bu)}</option>`).join("");
@@ -1087,23 +1242,47 @@
     // sales rep dsm"); ASM/NSM stay single-winner (not mentioned).
     const winnersCount = opts.winnersCount || 1;
     const winnerCopy = winnersCount >= 2
-      ? "Ranks #1 (🏆 WINNER) and #2 (🥈 WINNER) both carry a winner badge — recomputed live as you filter by BU. "
-      : (companyWinnerCode !== undefined
-          ? "🏆 WINNER marks the single company-wide top performer for this tier — true company-wide, even if you're only viewing your own BU's scope. "
+      ? `Ranks #1 (🏆 WINNER) and #2 (🥈 WINNER) both carry a winner badge — recomputed live as you filter by BU, and only among managers whose TEAM clears ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% Sales Achievement. `
+      : (isCompanyWideTier
+          ? `🏆 WINNER marks the single company-wide top performer for this tier — true company-wide, even if you're only viewing your own BU's scope, and only among managers whose FULL reporting team clears ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% Sales Achievement. `
           : "");
+
+    // Recognition Winners panel -- same "who actually won" podium pattern
+    // as Medical Rep/CHC Sales Rep/Brand Manager, extended to DM/DSM/ASM/
+    // NSM 2026-08-16. DM/DSM is scope-relative and has a live BU filter,
+    // so it gets an empty placeholder wired up by wireRankFilter (see
+    // init(), mirrors msrWinnersPanelHtml exactly). ASM/NSM have no filter
+    // to recompute against, so their single company-wide card is built
+    // once, directly, right here -- always rendered (even with zero
+    // eligible managers, via isCompanyWideTier rather than a
+    // companyWinnerCode null-check), so "nobody cleared the floor" still
+    // shows the empty-state card instead of silently showing nothing.
+    let winnersPanel = "";
+    if (tierKey === "dmDsm") {
+      winnersPanel = `<div id="sp-dm-winners-panel"></div>`;
+    } else if (isCompanyWideTier) {
+      const w = companyWinnerCode ? data.ranked.find(r => r.code === companyWinnerCode) : null;
+      const card = w
+        ? winnerCardHtml("🏆", "WINNER", w.name, `${w.bu || ""} · ${w.totalPts.toFixed(1)} pts · ${(w.teamSalesAchPct * 100).toFixed(1)}% Team Sales Achievement`)
+        : emptyWinnerCardHtml("WINNER", `No ${esc(title)} team has cleared the ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% Team Sales Achievement floor yet.`);
+      const note = `Row order above reflects Total Points and never changes. The single company-wide 🏆 WINNER additionally requires that ${esc(title)}'s FULL reporting team (every rep beneath them, rolled up through their DM/DSMs) clear ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% Sales Achievement, summed once — never averaged. A higher-scoring ${esc(title)} shown without the badge simply hasn't cleared that floor yet.`;
+      winnersPanel = winnersPanelHtml(`🏆 Recognition Winner — Corporate`, card, note);
+    }
 
     return `
       <div class="sp-section">
         <h2>${esc(title)} — Team Avg Rollup${anyPending ? " (Partial)" : ""}</h2>
-        <div class="sp-section-sub">${esc(formula)}. Team Avg is computed only from this team's active, past-probation ${esc(teamNounPlural)} for ${esc(cache.meta.evalPeriod)}. ${winnerCopy}${opts.buFilter ? "Each BU's own top performer carries a 🎖 BU Leader badge alongside the overall winner badge(s). " : ""}${anyPending ? '<span class="sp-tag-partial">SOME PENDING</span> — fill zeta sprint/Sprint_Missing_KPI_Template.xlsx and the next rebuild completes these automatically.' : '<span class="sp-tag-live">FULLY SCORED</span>'}</div>
+        <div class="sp-section-sub">${esc(formula)}. Team Avg is computed only from this team's active, past-probation ${esc(teamNounPlural)} for ${esc(cache.meta.evalPeriod)}. ${winnerCopy}${opts.buFilter ? "Each BU's own top performer carries a 🎖 BU Leader badge alongside the overall winner badge(s), same floor. " : ""}${anyPending ? '<span class="sp-tag-partial">SOME PENDING</span> — fill zeta sprint/Sprint_Missing_KPI_Template.xlsx and the next rebuild completes these automatically.' : '<span class="sp-tag-live">FULLY SCORED</span>'}</div>
+        ${floorRuleBannerHtml(true)}
+        ${winnersPanel}
         ${kpiMethodologyDetailsHtml(kpiKeys)}
         ${buFilterHtml}
         <table>
           <thead><tr><th>${esc(title.split(" ")[0])}</th><th>Team Avg</th>${kpiHeaders}<th style="text-align:right;">Total</th></tr></thead>
           <tbody${opts.bodyId ? ` id="${esc(opts.bodyId)}"` : ""}>${sorted.map((r, i) => hierarchyRow(
             r,
-            companyWinnerCode !== undefined ? r.code === companyWinnerCode : (i === 0 && r.totalPts != null),
-            winnersCount >= 2 && i === 1 && r.totalPts != null,
+            isCompanyWideTier ? r.code === companyWinnerCode : r.code === scopedWinnerCode,
+            winnersCount >= 2 && r.code === scopedRunnerUpCode,
             buLeaders
           )).join("")}</tbody>
         </table>
@@ -1168,6 +1347,7 @@
       <div class="sp-section">
         <h2>Brand Manager — ${esc(cache.meta.evalPeriod)}${anyPending ? " (Partial)" : ""}</h2>
         <div class="sp-section-sub">National Sales (50, auto-calculated from each Brand Manager's assigned Line) + Region Coverage (20) + Tactical Plan Execution (30) = 100 pts. Brand Managers own products, not a rep team, so there's no Team Avg rollup here — Region Coverage and Tactical Plan Execution are sourced from zeta sprint/Sprint_Missing_KPI_Template.xlsx. 🏆 WINNER marks the single company-wide top performer, true company-wide even if you're only viewing your own BU's scope (recognition only — Brand Manager has no Monthly Sprint cash tier in the Recognition &amp; Rewards deck), and only among Brand Managers who clear ${Math.round(WINNER_FLOOR_ACH_PCT * 100)}% National Sales Ach%. ${anyPending ? '<span class="sp-tag-partial">SOME PENDING</span>' : '<span class="sp-tag-live">FULLY SCORED</span>'}</div>
+        ${floorRuleBannerHtml(false)}
         ${bmWinnersPanel}
         <table>
           <thead><tr><th>Brand Manager</th>${kpiHeaders}<th style="text-align:right;">Total</th></tr></thead>
@@ -1203,18 +1383,19 @@
   // the dynamic 🏆 WINNER badge, and cascades the same filter to any
   // linked audit tables (Excluded / Departing Soon) via their id prefixes.
   // isEligible (optional): tr -> boolean, checked before a row is allowed
-  // to carry the winner/runner-up badge. Omitted entirely for DM/DSM
-  // (unchanged, badge always follows filtered rank #1/#2, per Ahmed
-  // 2026-08-15) -- only the Medical Rep Line filter passes one, per the
-  // 2026-08-16 Sales Achievement recognition floor (see module docblock).
-  // The rank shown in the # column is NEVER affected by eligibility --
-  // only which row(s), if any, get the badge.
+  // to carry the winner/runner-up badge. Both the Medical Rep Line filter
+  // AND the DM/DSM BU filter now pass one (as of 2026-08-16 -- DM/DSM's
+  // own team-level 70% Sales Achievement floor, meetsTeamSalesFloor via
+  // data-team-ach-pct; see module docblock "MANAGER-TIER FLOOR"). The rank
+  // shown in the # column is NEVER affected by eligibility -- only which
+  // row(s), if any, get the badge.
   // winnersPanelId / buildPanelHtml (optional, both together): after each
   // recompute, writes a "Recognition Winners" summary into the given
   // element id, built by buildPanelHtml(winnerTr, runnerUpTr, val) -- see
-  // msrWinnersPanelHtml. Only the Medical Rep Line filter passes these
-  // (DM/DSM has no floor gate, so its own #1/#2 are always already the
-  // top two visible rows -- no "buried winner" confusion to explain).
+  // msrWinnersPanelHtml / dmWinnersPanelHtml. Both the Medical Rep Line
+  // filter and the DM/DSM BU filter pass these, since either one can push
+  // the true (floor-eligible) winner out of view or bury it below an
+  // ineligible higher scorer.
   function wireRankFilter(selectEl, bodySelector, filterAttr, cascadePrefixes, isEligible, winnersPanelId, buildPanelHtml) {
     if (!selectEl) return;
     selectEl.addEventListener("change", () => {
@@ -1328,25 +1509,45 @@
   // ASM/NSM, per Ahmed 2026-08-15 "asm and nsm name of manager and bu not
   // present").
   //
-  // Per Ahmed 2026-08-16: Medical Rep and CHC Sales Rep additionally
-  // require Sales Achievement >= WINNER_FLOOR_ACH_PCT (70%) to be a real
-  // cash winner here -- an ineligible top-2-by-rank rep is dropped from
-  // their Line's payout entirely and the next-eligible rep in that Line
-  // takes the slot (topNByGroup re-sorts by totalPts within whatever list
-  // it's given, so filtering the input list first is what makes it
-  // cascade). DM/DSM, ASM, NSM are untouched -- not mentioned in this
-  // request, still cash-eligible by rank alone. Brand Manager was already
-  // excluded from this export (no Monthly Sprint cash tier at all), so
-  // its own floor gate (see renderBrandManager) only affects its on-
-  // screen badge, never this CSV.
+  // Per Ahmed 2026-08-16 (round 1): Medical Rep and CHC Sales Rep
+  // additionally require Sales Achievement >= WINNER_FLOOR_ACH_PCT (70%)
+  // to be a real cash winner here -- an ineligible top-2-by-rank rep is
+  // dropped from their Line's payout entirely and the next-eligible rep
+  // in that Line takes the slot (topNByGroup re-sorts by totalPts within
+  // whatever list it's given, so filtering the input list first is what
+  // makes it cascade).
+  //
+  // Per Ahmed 2026-08-16 (round 2, "DM DSM HAS REWARD ALSO MAKE SAME
+  // FLOOR LOGIC FOR ASM NSM"): DM/DSM, ASM, NSM now carry the exact same
+  // floor, using meetsTeamSalesFloor(r.teamSalesAchPct) instead of
+  // meetsSalesFloor(r.achPct) since these tiers don't have a personal
+  // Sales Achievement % -- teamSalesAchPct is SUM(every eligible rep's
+  // raw sales value)/SUM(their raw target) across the manager's WHOLE
+  // reporting subtree (etl/build_sprint_cache.py), divided exactly once.
+  // Brand Manager remains excluded from this export entirely (no Monthly
+  // Sprint cash tier at all), so its own floor gate (see
+  // renderBrandManager) only ever affects its on-screen badge, never
+  // this CSV.
   function computeMonthlyWinners() {
     const rows = [];
     const msrAll = cache.medicalRepSalesRep.ranked;
     const medicalReps = msrAll.filter(r => r.role === "Medical Rep");
     const salesReps = msrAll.filter(r => r.role === "Sales Rep (CHC)");
-    const dmScored = cache.dmDsm.ranked.filter(r => r.teamSize > 0 && r.totalPts != null);
-    const asmScored = cache.asm.ranked.filter(r => r.teamSize > 0 && r.totalPts != null);
-    const nsmScored = cache.nsm.ranked.filter(r => r.teamSize > 0 && r.totalPts != null);
+    // Floor-gated 2026-08-16 ("DM DSM HAS REWARD ALSO MAKE SAME FLOOR
+    // LOGIC FOR ASM NSM") -- filtering the input list here, before
+    // topNByGroup/sort-and-take-top runs, is what makes the cascade work:
+    // an ineligible manager (their team hasn't cleared 70% Sales
+    // Achievement) is dropped from payout entirely and the next-eligible
+    // manager in that BU/Corporate pool takes the slot. If a BU (DM/DSM)
+    // or the whole company (ASM/NSM) has nobody eligible, it simply
+    // produces zero rows for that group -- no forced payout, matching the
+    // on-screen WINNER/BU Leader badge logic in renderHierarchyTier
+    // exactly (same meetsTeamSalesFloor test, same teamSalesAchPct
+    // field), so the CSV and the screen can never disagree about who got
+    // paid.
+    const dmScored = cache.dmDsm.ranked.filter(r => r.teamSize > 0 && r.totalPts != null).filter(meetsTeamSalesFloor);
+    const asmScored = cache.asm.ranked.filter(r => r.teamSize > 0 && r.totalPts != null).filter(meetsTeamSalesFloor);
+    const nsmScored = cache.nsm.ranked.filter(r => r.teamSize > 0 && r.totalPts != null).filter(meetsTeamSalesFloor);
 
     [["Medical Rep", medicalReps], ["CHC Sales Rep", salesReps]].forEach(([title, records]) => {
       const cashKey = title === "CHC Sales Rep" ? "Sales Rep (CHC)" : title;
@@ -1476,7 +1677,7 @@
             ${periodSelectorHtml()}
           </div>
           ${currentPeriodReady && canDownloadWinnersCsv() ? `<div class="sp-header-actions">
-            <button type="button" id="sp-download-winners" class="sp-download-btn" title="Every Monthly Sprint winner as a CSV -- Medical Rep/CHC Sales Rep: 2 per Line, DM/DSM: 2 per BU, ASM/NSM: 1 Corporate each -- with Direct Manager and Money of Recognition, per the Recognition &amp; Rewards deck">⬇ Download Winners CSV</button>
+            <button type="button" id="sp-download-winners" class="sp-download-btn" title="Every Monthly Sprint winner as a CSV -- Medical Rep/CHC Sales Rep: 2 per Line, DM/DSM: 2 per BU, ASM/NSM: 1 Corporate each -- with Direct Manager and Money of Recognition, per the Recognition &amp; Rewards deck. Every row requires clearing the 70% Sales Achievement floor (team-summed for DM/DSM/ASM/NSM) -- a Line/BU/company with nobody eligible simply has no row here.">⬇ Download Winners CSV</button>
           </div>` : ""}
         </div>
         <div class="sc-nav-tabs">
@@ -1541,11 +1742,18 @@
         return raw !== "" && raw != null && meetsSalesFloor(parseFloat(raw));
       },
       "sp-msr-winners-panel", msrWinnersPanelHtml);
-    // DM/DSM: no isEligible arg -- floor is Medical Rep / CHC Sales Rep /
-    // Brand Manager only, per Ahmed 2026-08-16 (see module docblock).
-    // Unchanged from before this feature.
+    // DM/DSM: floor extended here 2026-08-16 ("DM DSM HAS REWARD ALSO") --
+    // isEligible reads hierarchyRow's data-team-ach-pct (SUM(team
+    // val)/SUM(team tgt), never an average of percentages), and
+    // dmWinnersPanelHtml recomputes the live "who actually won" podium on
+    // every BU filter change, same pattern as Medical Rep above.
     wireRankFilter(document.getElementById("sp-dm-bu-filter"), "#sp-dm-body", "data-bu",
-      ["sp-dm-excl"]);
+      ["sp-dm-excl"],
+      tr => {
+        const raw = tr.getAttribute("data-team-ach-pct");
+        return raw !== "" && raw != null && meetsSalesFloor(parseFloat(raw));
+      },
+      "sp-dm-winners-panel", dmWinnersPanelHtml);
   }
 
   window.SprintDashboard = {

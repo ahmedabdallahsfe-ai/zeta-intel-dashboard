@@ -85,6 +85,13 @@
 .sp-kpi-fill { background: var(--color-primary); height: 100%; border-radius: 4px; }
 .sp-kpi-fill-pending { background: repeating-linear-gradient(45deg, var(--color-border), var(--color-border) 4px, var(--color-surface-alt) 4px, var(--color-surface-alt) 8px); }
 .sp-kpi-pts { font-size: 10px; color: var(--color-text-tertiary); margin-top: 2px; }
+/* A computed, real 0.0 pts (below this KPI's scoring curve floor -- see
+   kpiBar()'s isZeroFloor in sprint.js) needs its own color, not the same
+   blue as an earned score and not the diagonal-striped "pending" gray --
+   otherwise the fill bar is 0%-wide and looks like nothing rendered at
+   all (Ahmed 2026-08-16, "MAKE THE FONT AND COLOR APPEAR"). */
+.sp-kpi-fill-zero { background: #DC2626; }
+.sp-kpi-zero-note { color: #B91C1C; font-weight: 700; cursor: help; }
 
 .sp-total { text-align: right; width: 110px; }
 .sp-total-pts { font-size: 16px; font-weight: 800; }
@@ -103,6 +110,16 @@ tr.sp-row.sp-is-winner:hover { background: linear-gradient(90deg, rgba(180,83,9,
    look top-ranked doesn't carry a WINNER badge this month. Neutral/slate
    tone (not red/error) since it's an eligibility fact, not a data problem. */
 .sp-floor-note { color: var(--color-text-tertiary); font-weight: 600; cursor: help; }
+
+/* DM/DSM, ASM, NSM Team Sales Achievement note (per Ahmed 2026-08-16, "FOR
+   ALL DSM ASM NSM MENTION SALES ACHIEVEMENT") -- unlike reps and Brand
+   Manager, DM/DSM/ASM/NSM have no personal Sales Achievement KPI column,
+   so this is the only place their team's number is visible at all. Shown
+   on every scored row (not just below-floor ones, unlike .sp-floor-note),
+   color-coded so eligibility is legible without opening the tooltip. */
+.sp-team-ach-note { font-weight: 600; cursor: help; }
+.sp-team-ach-ok { color: var(--color-success); }
+.sp-team-ach-below { color: #B91C1C; }
 
 /* Performance Bands legend (per Ahmed 2026-08-16 "MAKE EXPLAINATION WHY
    CHAMPION PERFROMER ON TRACK BUILDING GUIDENCE") -- persistent strip
@@ -242,3 +259,35 @@ tr.sp-row.sp-is-winner:hover { background: linear-gradient(90deg, rgba(180,83,9,
   transition: background 0.15s;
 }
 .sp-my-card-btn:hover { background: rgba(255,255,255,0.26); }
+
+/* =====================================================================
+   Floor Rule banner -- "VERY HIGHLIGHTED" per Ahmed 2026-08-16 ("DM DSM
+   HAS REWARD ALSO ... I NEED VERY HIGHLIGHTED GAT FLOOR RULE"). Deliberately
+   loud/high-contrast (dark charcoal + red accent, not the soft gold of
+   .sp-winners-panel or the neutral slate of .sp-floor-note) because this is
+   a money rule, not an informational aside -- it must be impossible to miss
+   on Medical Rep, CHC Sales Rep, Brand Manager, DM/DSM, ASM and NSM alike.
+   ===================================================================== */
+.sp-floor-rule-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: linear-gradient(135deg, #1F2937, #111827);
+  border: 1px solid #DC2626;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  box-shadow: 0 2px 8px rgba(220,38,38,0.18);
+}
+.sp-floor-rule-icon { font-size: 20px; line-height: 1.3; flex-shrink: 0; }
+.sp-floor-rule-body { flex: 1; min-width: 0; }
+.sp-floor-rule-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: #FCA5A5;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.sp-floor-rule-text { font-size: 12px; color: #E5E7EB; line-height: 1.55; }
+.sp-floor-rule-text b { color: #fff; }

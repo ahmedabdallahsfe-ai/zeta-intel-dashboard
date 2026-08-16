@@ -43,6 +43,22 @@ METHODOLOGY (confirmed with Ahmed, 2026-08-15):
     TEMPLATE_SHEETS). Those KPI slots are emitted as null
     (pendingDataFeed=true), never silently scored as zero.
   - Brand Manager: NOT built yet -- Ahmed will provide data later.
+  - WINNER FLOOR, extended to DM/DSM/ASM/NSM 2026-08-16 (see js/sprint.js
+    module doc for the full rule and UI): every manager tier now carries
+    teamSalesVal/teamSalesTgt/teamSalesAchPct, computed as SUM(each
+    eligible rep's raw sales value)/SUM(their raw sales target) across
+    the WHOLE reporting subtree beneath that manager, divided exactly
+    ONCE at output -- never an average of already-divided percentages at
+    any tier. DM/DSM sums its own reps directly; ASM/NSM sums its DM/DSMs'
+    already-team-summed val/tgt (propagated via the ASM/NSM pool build),
+    so the ratio always traces back to raw rep-level sales no matter how
+    many hierarchy levels up. js/sprint.js gates the 🏆 WINNER/🥈
+    RUNNER-UP and (DM/DSM only) 🎖 BU Leader badges plus the cash payout
+    on teamSalesAchPct >= 70%, cascading to the next eligible manager in
+    rank order exactly like the rep-level floor -- never re-sorting the
+    honest ranking itself. If nobody in a scope (Line for reps, BU for
+    DM/DSM, company-wide for ASM/NSM) clears 70%, that scope has no
+    winner and no payout that month.
 """
 import re
 import os
@@ -65,7 +81,7 @@ OUT_JSON = os.path.join(CACHE_DIR, 'sprint.json')
 HISTORY_DIR = os.path.join(CACHE_DIR, 'sprint_history')
 HISTORY_INDEX_JS = os.path.join(HISTORY_DIR, 'index.js')
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 # ---------------------------------------------------------------------
 # KPI slots not computable from any existing cache -- Ahmed fills these
@@ -587,6 +603,16 @@ def main():
             salesPts=sales_pts, covPts=cov_pts, rfPts=rf_pts, totalPts=total,
             isDepartingSoon=is_departing_soon,
             departingLastDay=last_day.isoformat() if is_departing_soon else None,
+            # Raw sales value/target (not the ach_pct ratio) -- carried up
+            # through DM/DSM -> ASM/NSM so each manager tier's own "team
+            # floor" can be computed as SUM(val)/SUM(tgtVal) across every
+            # rep beneath them, never as an average of already-divided
+            # percentages. Per Ahmed 2026-08-16 ("DM DSM HAS REWARD ALSO,
+            # MAKE SAME FLOOR LOGIC FOR ASM NSM"). 0/0 when a rep has no
+            # matched sales row this month -- contributes nothing to
+            # either side of the team sum, exactly as it should.
+            salesVal=(sales['val'] if sales else 0.0) or 0.0,
+            salesTgt=(sales['tgtVal'] if sales else 0.0) or 0.0,
         )
         results.append(rec)
         empidx_to_result[cov['empIdx']] = rec
@@ -771,6 +797,20 @@ def main():
             team_avg = (sum(team_scores) / len(team_scores)) if team_scores else None
             team_avg_pts = (team_avg / 100 * team_avg_weight) if team_avg is not None else None
 
+            # Team Sales Achievement % -- SUM(val)/SUM(tgtVal) across every
+            # eligible member, divided exactly once (never an average of
+            # per-member percentages). For DM/DSM, members are individual
+            # reps carrying their own raw salesVal/salesTgt. For ASM/NSM,
+            # members are DM/DSMs carrying THEIR team's already-summed
+            # salesVal/salesTgt (set below in the ASM/NSM pool build) --
+            # so this same sum-once logic rolls all the way up from the
+            # rep level with no percentage ever averaged at any tier.
+            # Gates the 70% floor for WINNER/RUNNER-UP + BU Leader badges
+            # and the cash payout -- per Ahmed 2026-08-16.
+            team_sales_val = sum(m.get('salesVal', 0) or 0 for m in team_members)
+            team_sales_tgt = sum(m.get('salesTgt', 0) or 0 for m in team_members)
+            team_sales_ach_pct = (team_sales_val / team_sales_tgt) if team_sales_tgt > 0 else None
+
             provided = provided_by_code.get(code, {})
             kpis = []
             extra_pts_sum = 0.0
@@ -802,6 +842,9 @@ def main():
                 totalPts=total_pts,
                 totalMaxPts=100,
                 isPartial=any_pending,
+                teamSalesVal=team_sales_val,
+                teamSalesTgt=team_sales_tgt,
+                teamSalesAchPct=team_sales_ach_pct,
             ))
         return out, excl
 
@@ -816,7 +859,8 @@ def main():
         mgr_name = emp_to_manager.get(empIdx)
         if mgr_name:
             dm_team_pool[mgr_name].append(dict(name=rec['name'], code=rec['code'], line=rec['canonLine'],
-                                                bu=rec['bu'], role=rec['role'], totalPts=rec['totalPts']))
+                                                bu=rec['bu'], role=rec['role'], totalPts=rec['totalPts'],
+                                                salesVal=rec['salesVal'], salesTgt=rec['salesTgt']))
     dm_results, dm_excluded = score_hierarchy_tier(dims['managers'], dm_team_pool, 70,
                                                      TEMPLATE_SHEETS['DM_DSM'], 'DM/DSM', 'DM_DSM', dm_curves,
                                                      member_noun='rep')
@@ -851,7 +895,8 @@ def main():
         if dm['totalPts'] is None:
             continue
         member = dict(name=dm['name'], code=dm['code'], line=dm['line'], bu=dm['bu'],
-                      role='DM/DSM', totalPts=dm['totalPts'])
+                      role='DM/DSM', totalPts=dm['totalPts'],
+                      salesVal=dm['teamSalesVal'], salesTgt=dm['teamSalesTgt'])
         asm_name = dm_name_to_asm.get(dm['name'])
         if asm_name:
             asm_team_pool[asm_name].append(dict(member))
