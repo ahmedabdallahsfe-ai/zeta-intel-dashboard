@@ -2436,7 +2436,10 @@ body {
 .expense-mode #topbar-export-pdf,
 .imsrx-mode #filter-bar-container,
 .imsrx-mode .filter-bar-wrap,
-.imsrx-mode #topbar-export-pdf {
+.imsrx-mode #topbar-export-pdf,
+.sprint-mode #filter-bar-container,
+.sprint-mode .filter-bar-wrap,
+.sprint-mode #topbar-export-pdf {
   display: none !important;
 }
 

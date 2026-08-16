@@ -212,6 +212,18 @@
   }
 
   // -------------------------------------------------------------------
+  // ZETA SPRINT 2026 ACCESS (2026-08-16, Ahmed)
+  // -------------------------------------------------------------------
+  // "SHOW Zeta Sprint 2026 FOR SFE ADMIN BEX CEO VP"
+  var SPRINT_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager"];
+
+  function canViewSprint() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return SPRINT_ROLES.indexOf(u.role) >= 0;
+  }
+
+  // -------------------------------------------------------------------
   // EXPENSE VS SALES ACCESS (2026-08-09, Ahmed)
   // -------------------------------------------------------------------
   // "SFE BEX BU ADMIN CEO VP ONLY CAN SEE IT"
@@ -387,6 +399,8 @@
     MARKET_INTEL_ROLES: MARKET_INTEL_ROLES,
     canViewImsRx: canViewImsRx,
     IMS_RX_ROLES: IMS_RX_ROLES,
+    canViewSprint: canViewSprint,
+    SPRINT_ROLES: SPRINT_ROLES,
     canViewExpense: canViewExpense,
     EXPENSE_ROLES: EXPENSE_ROLES,
     canEditExpense: canEditExpense,

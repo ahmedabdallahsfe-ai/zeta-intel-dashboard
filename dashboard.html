@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="css/components.css?v=20260807_lineperf" />
   <link rel="stylesheet" href="css/utilities.css?v=20260726_exec" />
   <link rel="stylesheet" href="css/market-intel.css?v=20260806_cagr" />
+  <link rel="stylesheet" href="css/sprint.css?v=20260815_sprint2" />
   <link rel="stylesheet" href="css/imsrx.css?v=20260816_mi_bridge" />
 </head>
 <body>
@@ -145,6 +146,19 @@
           <span class="menu-icon">🌐</span>
           <span class="menu-label">Total Market Intelligence</span>
         </li>
+        <li class="menu-item" data-tab="sprint" id="menu-item-sprint" style="display:none;">
+          <span class="menu-icon menu-icon-svg" aria-hidden="true"><svg class="sp-nav-flag-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="6" y1="2.5" x2="6" y2="21.5" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+            <rect x="6" y="3" width="13" height="7.5" fill="#ffffff" stroke="#1E293B" stroke-width="0.6" stroke-linejoin="round"/>
+            <g fill="#0F172A">
+              <rect x="6" y="3" width="3.25" height="3.75"/>
+              <rect x="12.5" y="3" width="3.25" height="3.75"/>
+              <rect x="9.25" y="6.75" width="3.25" height="3.75"/>
+              <rect x="15.75" y="6.75" width="3.25" height="3.75"/>
+            </g>
+          </svg></span>
+          <span class="menu-label">Zeta Sprint 2026</span>
+        </li>
         <li class="menu-item" data-tab="imsrx" id="menu-item-imsrx" style="display:none;">
           <span class="menu-icon">💊</span>
           <span class="menu-label">IMS Rx</span>
@@ -217,6 +231,13 @@
        june.xlsx only carried 432 sparse TargetIndex=1 rows for June (target value ~45.0M, clearly
        incomplete); this brings June's target total to ~268.2M, in line with other months. -->
   <script defer src="cache/sales.data.js?v=20260729_hossamfix"></script>
+  <!-- Zeta Sprint 2026 cache (2026-08-15): built by etl/build_sprint_cache.py from
+       sprint/scaling scores.xlsx (point curves) + this page's own Coverage/Sales
+       cache sources. Re-linked 2026-08-16 (Ahmed: "add zeta sprint to dashboard") --
+       this script tag, the sidebar entry, and app.js's Sprint wiring were dropped
+       during the same pass that added IMS Rx role-gating; the underlying cache/js/css
+       files were never touched, so no rebuild was needed, only re-wiring. -->
+  <script defer src="cache/sprint.data.js?v=20260815_sprint2"></script>
   <!-- IMS Rx cache (2026-08-15): physician-panel Rx-volume audit, via
        etl/build_ims_rx_cache.py, reading "IMS RX TOTAL YEAR 2025.xlsx" with
        Corporation joined in from "IMS 2022 to April 2026.xlsx" (same source
@@ -290,6 +311,7 @@
        Executive "by Brand" modal both use this now. -->
   <script defer src="js/sales.js?v=20260815_strengthgroups"></script>
   <script defer src="js/iqvia.js?v=20260811_amr"></script>
+  <script defer src="js/sprint.js?v=20260815_sprint2"></script>
   <script defer src="js/ims-rx.js?v=20260816_mi_bridge"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.

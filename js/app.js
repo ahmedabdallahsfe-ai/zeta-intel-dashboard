@@ -341,6 +341,8 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - To-Market vs In-Market";
     } else if (tab === "imsrx") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - IMS Rx Market Intelligence";
+    } else if (tab === "sprint") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Sprint 2026";
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -392,6 +394,31 @@ function startAppBody() {
     const allowed = window.AUTH && typeof window.AUTH.canViewImsRx === "function"
       ? window.AUTH.canViewImsRx() : false;
     imsRxMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // Zeta Sprint 2026: re-linked into the shell 2026-08-16 (Ahmed: "add zeta
+  // sprint to dashboard") after its wiring (this block, the <li>, the
+  // title-bar case, the teardown/init dispatch below) was dropped from
+  // app.js during the same pass that added IMS Rx role-gating -- the
+  // sprint.css/sprint.js/cache/sprint.data.js files themselves were never
+  // touched. Originally gated 2026-08-15 to block Line Manager accounts
+  // entirely (Ahmed: "dont show zeta sprint for line managers only bu see
+  // rheir own"); reopened 2026-08-16 (Ahmed, testing on a Line Manager
+  // account: wanted it scoped to their own BU/Line instead of hidden, same
+  // treatment BU Manager already gets) -- see sprint.js's canViewSprintPage()
+  // and its own updated ACCESS MODEL doc comment. The check still lives in
+  // sprint.js (SprintDashboard.canView), not auth.js -- same reasoning as
+  // WINNERS_CSV_ROLES in sprint.js: a Sprint-specific rule, not a
+  // platform-wide role list other pages should inherit. init() itself
+  // refuses to render past this gate too (see renderSprintAccessRestricted
+  // in sprint.js), so hand-editing the DOM or deep-linking the tab gains
+  // nothing, matching the Market Intel / IMS Rx pattern above.
+  // Zeta Sprint 2026: CEO / VP / BEX / Admin / SFE Manager only (2026-08-16, Ahmed).
+  const sprintMenuItem = document.getElementById("menu-item-sprint");
+  if (sprintMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewSprint === "function"
+      ? window.AUTH.canViewSprint() : false;
+    sprintMenuItem.style.display = allowed ? "" : "none";
   }
 
   // REMOVED 2026-08-09 (Ahmed): the Control Panel and Expense vs Sales tabs
@@ -450,6 +477,9 @@ function startAppBody() {
       }
       if (currentTab === "imsrx" && window.ImsRxDashboard) {
         window.ImsRxDashboard.destroy();
+      }
+      if (currentTab === "sprint" && window.SprintDashboard) {
+        window.SprintDashboard.destroy();
       }
       currentTab = tab;
       updateTopbarTitle(tab);
@@ -524,6 +554,11 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             renderImsRxTab(document.getElementById("app-root"));
+          } else if (tab === "sprint") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderSprintTab(document.getElementById("app-root"));
           }
           mountAskPanel(tab);
           Loader.hide();
@@ -715,6 +750,26 @@ function renderImsRxTab(container) {
   }
   if (window.ImsRxDashboard) {
     window.ImsRxDashboard.init("app-root");
+  }
+}
+
+function renderSprintTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewSprint === "function"
+    ? window.AUTH.canViewSprint() : false;
+  if (!allowed) {
+    document.body.classList.add("sprint-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "Zeta Sprint 2026 is available to SFE, Admin, BEx, CEO and VP roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.SprintDashboard) {
+    window.SprintDashboard.init("app-root");
   }
 }
 

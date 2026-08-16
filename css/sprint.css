@@ -1,0 +1,244 @@
+/* =====================================================================
+   css/sprint.css  --  Zeta Sprint 2026 workspace
+   ---------------------------------------------------------------------
+   Scoped entirely under .sp-page. Reuses .sc-nav-tabs / .sc-tab (already
+   global, see dashboard.css) for the sub-page switcher, exactly like the
+   Sales Performance page -- this file only styles what's unique to
+   Sprint: KPI bars, stat tiles, band pills, probation badges.
+   ===================================================================== */
+
+.sp-page { font-family: var(--font-family-base); color: var(--color-text-primary); display: flex; flex-direction: column; min-height: 100%; }
+
+.sp-header {
+  background: linear-gradient(135deg, var(--color-primary), #1E3A8A);
+  color: #fff;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.sp-header-logo {
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.sp-header-logo img { display: block; height: 42px; width: auto; }
+.sp-header-text { flex: 1; }
+.sp-header-text h1 { margin: 0 0 4px; font-size: 26px; font-weight: 800; letter-spacing: 0.4px; }
+.sp-header-text p { margin: 0; font-size: 13px; opacity: 0.92; }
+
+.sp-header-period { flex-shrink: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #fff; }
+.sp-header-period label { font-weight: 700; opacity: 0.9; }
+.sp-header-period select { padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.12); color: #fff; font-size: 12.5px; }
+.sp-header-period select option { color: #0F172A; }
+
+.sp-header-actions { flex-shrink: 0; }
+.sp-download-btn { padding: 7px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.14); color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.sp-download-btn:hover { background: rgba(255,255,255,0.26); }
+
+.sp-stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 18px; }
+.sp-stat-tile { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 14px 16px; }
+.sp-stat-tile.sp-stat-highlight { border-color: var(--color-success); background: var(--color-success-light); }
+.sp-stat-tile.sp-stat-warn { border-color: var(--color-warning); background: var(--color-warning-light); }
+.sp-stat-label { font-size: 11px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; }
+.sp-stat-tile.sp-stat-highlight .sp-stat-label { color: var(--color-success); }
+.sp-stat-tile.sp-stat-warn .sp-stat-label { color: var(--color-warning); }
+.sp-stat-value { font-size: 24px; font-weight: 800; margin-top: 3px; }
+.sp-stat-tile.sp-stat-highlight .sp-stat-value { color: var(--color-success); }
+.sp-stat-tile.sp-stat-warn .sp-stat-value { color: var(--color-warning); }
+
+.sp-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+.sp-section h2 { margin: 0 0 4px; font-size: 18px; font-weight: 800; }
+.sp-section-sub { font-size: 12.5px; color: var(--color-text-tertiary); margin-bottom: 14px; line-height: 1.5; }
+
+.sp-notes { font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; }
+.sp-notes ul { margin: 6px 0 0; padding-left: 18px; }
+.sp-notes li { margin-bottom: 6px; }
+
+.sp-tag-live { background: var(--color-success-light); color: var(--color-success); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px; letter-spacing: 0.3px; }
+.sp-tag-partial { background: var(--color-warning-light); color: var(--color-warning); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px; letter-spacing: 0.3px; }
+.sp-tag-pending { background: var(--color-surface-alt); color: var(--color-text-tertiary); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px; letter-spacing: 0.3px; }
+
+.sp-page table { width: 100%; border-collapse: collapse; }
+.sp-page th { text-align: left; font-size: 11px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px; border-bottom: 2px solid var(--color-border); }
+.sp-page td { padding: 8px 10px; border-bottom: 1px solid var(--color-border); vertical-align: middle; font-size: 13px; }
+.sp-page details { margin-top: 10px; }
+.sp-page summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--color-primary); padding: 6px 0; }
+
+.sp-filter-row { margin-bottom: 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-text-secondary); }
+.sp-filter-row select { padding: 6px 10px; border-radius: 6px; border: 1px solid var(--color-border); font-size: 13px; }
+
+.sp-row:hover { background: var(--color-surface-alt); }
+.sp-rank { font-weight: 800; font-size: 14px; color: var(--color-text-tertiary); width: 32px; }
+.sp-name { min-width: 220px; font-weight: 600; font-size: 13px; }
+.sp-sub { font-weight: 400; font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+
+.sp-probation-badge { color: var(--color-success); font-weight: 600; cursor: help; }
+
+.sp-kpi-wrap { min-width: 110px; }
+.sp-kpi-label { font-size: 10px; color: var(--color-text-tertiary); display: flex; justify-content: space-between; margin-bottom: 2px; }
+.sp-kpi-track { background: var(--color-border); border-radius: 4px; height: 6px; overflow: hidden; }
+.sp-kpi-fill { background: var(--color-primary); height: 100%; border-radius: 4px; }
+.sp-kpi-fill-pending { background: repeating-linear-gradient(45deg, var(--color-border), var(--color-border) 4px, var(--color-surface-alt) 4px, var(--color-surface-alt) 8px); }
+.sp-kpi-pts { font-size: 10px; color: var(--color-text-tertiary); margin-top: 2px; }
+
+.sp-total { text-align: right; width: 110px; }
+.sp-total-pts { font-size: 16px; font-weight: 800; }
+.sp-partial-note { font-size: 10px; color: var(--color-text-tertiary); margin-top: 2px; }
+.sp-band-pill { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+
+.sp-winner-badge { display: inline-block; background: #FEF3C7; color: #B45309; font-size: 10px; font-weight: 800; padding: 1px 8px; border-radius: 8px; margin-left: 6px; letter-spacing: 0.3px; }
+.sp-runnerup-badge { display: inline-block; background: #F1F5F9; color: #475569; font-size: 10px; font-weight: 800; padding: 1px 8px; border-radius: 8px; margin-left: 6px; letter-spacing: 0.3px; border: 1px solid #CBD5E1; }
+tr.sp-row.sp-is-winner { background: linear-gradient(90deg, rgba(180,83,9,0.07), transparent 65%); }
+tr.sp-row.sp-is-winner:hover { background: linear-gradient(90deg, rgba(180,83,9,0.12), var(--color-surface-alt) 65%); }
+
+.sp-departing-badge { display: inline-block; background: #FEE2E2; color: #B91C1C; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 8px; margin-left: 6px; cursor: help; }
+
+/* Recognition eligibility floor note (Medical Rep / CHC Sales Rep / Brand
+   Manager, per Ahmed 2026-08-16) -- explains why a row that may otherwise
+   look top-ranked doesn't carry a WINNER badge this month. Neutral/slate
+   tone (not red/error) since it's an eligibility fact, not a data problem. */
+.sp-floor-note { color: var(--color-text-tertiary); font-weight: 600; cursor: help; }
+
+/* Performance Bands legend (per Ahmed 2026-08-16 "MAKE EXPLAINATION WHY
+   CHAMPION PERFROMER ON TRACK BUILDING GUIDENCE") -- persistent strip
+   below the sub-tab bar (see renderLayout in sprint.js), shown on every
+   sub-tab since the same thresholds apply to all six tiers. Light
+   surface-alt background keeps it visually part of the page chrome
+   rather than competing with the .sp-winners-panel cards below it. */
+.sp-band-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--color-surface-alt); border-bottom: 1px solid var(--color-border); padding: 9px 24px; font-size: 11.5px; }
+.sp-band-legend-label { font-weight: 700; color: var(--color-text-secondary); white-space: nowrap; }
+.sp-band-legend-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-band-chip { display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 9px; border-radius: 8px; font-weight: 700; letter-spacing: 0.2px; cursor: help; }
+.sp-band-chip b { font-weight: 800; }
+.sp-band-chip-pending { opacity: 0.85; }
+.sp-band-legend-note { color: var(--color-text-tertiary); line-height: 1.4; flex-basis: 100%; }
+@media (min-width: 1100px) { .sp-band-legend-note { flex-basis: auto; max-width: 480px; } }
+
+/* KPI methodology explainer (Field Working Days / DV Coverage / Calls per
+   DV -- DM/DSM, ASM, NSM; per Ahmed 2026-08-16 "MAKE BEST PRACTICE
+   EXPLAINING THE KPI") -- collapsed-by-default detail, matching the
+   existing "Excluded" / "no scoreable team" <details> pattern in this
+   section rather than another persistent panel, since this content is
+   longer/more technical. Light-primary tint (not gold like Winners, not
+   neutral like Excluded) signals "informational", distinct from both. */
+.sp-kpi-methodology { background: var(--color-primary-light); border: 1px solid var(--color-border); border-radius: 8px; padding: 4px 12px; margin: 0 0 14px; }
+.sp-kpi-methodology summary { color: var(--color-primary); font-size: 12px; }
+.sp-kpi-methodology ul { margin: 4px 0 10px; padding-left: 18px; font-size: 12px; color: var(--color-text-secondary); line-height: 1.6; }
+.sp-kpi-methodology li { margin-bottom: 6px; }
+.sp-kpi-methodology li b { color: var(--color-text-primary); }
+
+/* Recognition Winners panel (Medical Rep / CHC Sales Rep / Brand Manager,
+   per Ahmed 2026-08-16 "make something explanation to avoid debates and
+   confusion about ranking and also make winners at top") -- a podium-style
+   callout above the ranked table that surfaces exactly who the real
+   winner(s) are and why, so nobody has to scroll a long table to find a
+   badge that may sit several rows down. Deliberately does not reorder the
+   ranked table itself -- see msrWinnersPanelHtml's comment in sprint.js. */
+.sp-winners-panel { margin: 14px 0 18px; padding: 14px 16px; background: linear-gradient(135deg, rgba(254,243,199,0.55), rgba(241,245,249,0.55)); border: 1px solid #FDE68A; border-radius: 12px; }
+.sp-winners-panel-title { font-size: 13px; font-weight: 800; color: #92400E; margin-bottom: 10px; letter-spacing: 0.2px; }
+.sp-winners-panel-cards { display: flex; flex-wrap: wrap; gap: 10px; }
+.sp-winner-card { display: flex; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #FDE68A; border-radius: 10px; padding: 8px 14px; min-width: 220px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+.sp-winner-card-medal { font-size: 22px; line-height: 1; }
+.sp-winner-card-tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: #92400E; }
+.sp-winner-card-name { font-size: 13px; font-weight: 700; color: var(--color-text-primary); margin-top: 1px; }
+.sp-winner-card-meta { font-size: 11px; color: var(--color-text-tertiary); margin-top: 1px; }
+.sp-winner-card-empty { border-style: dashed; background: var(--color-surface-alt); box-shadow: none; }
+.sp-winner-card-empty .sp-winner-card-meta { max-width: 280px; }
+.sp-winners-panel-note { font-size: 11px; color: var(--color-text-tertiary); margin-top: 10px; line-height: 1.5; }
+.sp-winners-panel-note b { color: var(--color-text-secondary); }
+
+.sp-leader-badge { display: inline-block; background: #EDE9FE; color: #6D28D9; font-size: 10px; font-weight: 800; padding: 1px 8px; border-radius: 8px; margin-left: 6px; letter-spacing: 0.3px; cursor: help; }
+
+.sp-team-drilldown { margin-top: 6px; }
+.sp-team-drilldown summary { font-size: 11px; font-weight: 600; color: var(--color-primary); padding: 2px 0; cursor: pointer; }
+.sp-team-drilldown table { margin-top: 4px; }
+.sp-team-drilldown th, .sp-team-drilldown td { padding: 4px 8px; font-size: 11px; }
+
+.sp-manager-line-badge { font-weight: 600; color: var(--color-text-secondary); }
+
+.sp-member-link { background: none; border: none; padding: 0; margin: 0; font: inherit; font-weight: 600; color: var(--color-text-primary); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.sp-member-link:hover { color: var(--color-primary); }
+
+.sp-member-modal-sub { font-size: 12.5px; color: var(--color-text-tertiary); margin-bottom: 14px; }
+.sp-member-modal-kpis { display: flex; flex-direction: column; gap: 14px; }
+.sp-member-modal-kpis .sp-kpi-wrap { min-width: 0; }
+.sp-member-modal-total { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-border); }
+.sp-member-modal-total .sp-total-pts { font-size: 20px; font-weight: 800; }
+
+/* =====================================================================
+   Access scoping + personal performance card
+   ===================================================================== */
+
+.sp-scope-banner {
+  background: var(--color-warning-light);
+  color: #92400E;
+  border: 1px solid rgba(146,64,14,0.18);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.sp-my-card {
+  background: linear-gradient(135deg, #0F172A, #1E3A8A);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(15,23,42,0.18);
+}
+.sp-my-card-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.75;
+  margin-bottom: 8px;
+}
+.sp-my-card-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sp-my-card-name {
+  font-size: 17px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sp-my-card-tier {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.16);
+  padding: 2px 9px;
+  border-radius: 8px;
+  letter-spacing: 0.3px;
+}
+.sp-my-card-total {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sp-my-card-total .sp-total-pts { font-size: 22px; font-weight: 800; color: #fff; }
+.sp-my-card-btn {
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sp-my-card-btn:hover { background: rgba(255,255,255,0.26); }

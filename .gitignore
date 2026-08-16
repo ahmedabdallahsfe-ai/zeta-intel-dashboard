@@ -82,12 +82,3 @@ node_modules/
 package.json
 package-lock.json
 
-# Zeta Sprint 2026 — held local at Ahmed's instruction (2026-08-16)
-zeta sprint/
-zeta_sprint_logo.png
-css/sprint.css
-js/sprint.js
-etl/build_sprint_cache.py
-cache/sprint.data.js
-cache/sprint.json
-
