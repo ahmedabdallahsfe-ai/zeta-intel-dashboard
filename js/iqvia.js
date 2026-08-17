@@ -3656,8 +3656,25 @@ function applyUserFilter(){
   var visCorp=new Set(), visProd=new Set(), visAtc4=new Set();
   var visDm1=new Set(), visDm2=new Set(), visLine=new Set(), visBu=new Set();
   for(var i=0;i<flat.length;i+=10){
-    if(aDM           && !aDM.has(flat[i+D1I]))           continue; // primary: market scope
-    if(aDM2          && !aDM2.has(flat[i+D2I]))          continue; // secondary: market scope (DM2)
+    // DM1 and DM2 are two INDEPENDENT market taxonomies applied to the same
+    // row -- not a hierarchy. When both aDM and aDM2 come from the line/BU
+    // derivation above, a row must be kept if it belongs to EITHER scoped
+    // market (OR), not both at once (AND). AND was the bug fixed 2026-08-17:
+    // for a line-restricted user whose product has a DIFFERENT DM1 name than
+    // its DM2 name (e.g. ELIMBOSIS: DM1 "ELEMBOSIS 2.5 MKT TOTAL" vs DM2
+    // "APIXPAN LOW DOSE"), requiring both silently threw away every row
+    // whose correct DM1 tag paired with an unrelated DM2 tag (and vice
+    // versa) -- collapsing the DM1 market total down to whatever the DM2
+    // market happened to total, so the Target Achievement page's DM1/DM2
+    // toggle showed the exact same frozen "Actual %" on both tabs instead
+    // of two genuinely different numbers. When only aDM is set (an explicit
+    // dm1s list from user config, no aDM2 counterpart), that single
+    // dimension is still required outright -- unchanged.
+    if (aDM2) {
+      if (!(aDM.has(flat[i+D1I]) || aDM2.has(flat[i+D2I]))) continue; // primary+secondary: market scope (OR)
+    } else if (aDM) {
+      if (!aDM.has(flat[i+D1I])) continue; // primary only: market scope
+    }
     if(aBU_fallback  && !aBU_fallback.has(flat[i+BUCI])) continue; // fallback: bu only
     out.push(flat[i],flat[i+1],flat[i+2],flat[i+3],flat[i+4],flat[i+5],flat[i+6],flat[i+7],flat[i+8],flat[i+9]);
     visCorp.add(flat[i]);
