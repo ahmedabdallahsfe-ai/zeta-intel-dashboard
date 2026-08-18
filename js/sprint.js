@@ -1371,6 +1371,13 @@
     if (STATE.subTab === "asm") return renderHierarchyTier("asm", "ASM", "Team Avg of their DM/DSMs (80) + Field Days (20)");
     if (STATE.subTab === "nsm") return renderHierarchyTier("nsm", "NSM", "Team Avg of their DM/DSMs (80) + Field Days (20)");
     if (STATE.subTab === "bm") return renderBrandManager();
+    if (STATE.subTab === "calculator") {
+      return `
+        <div class="sp-section" style="padding: 0; background: transparent; box-shadow: none; border: none; overflow: hidden; margin-top: 15px;">
+          <iframe src="zeta%20sprint/Zeta%20Sprint%20Points%20Calculator%20-%20FINAL.html" style="width: 100%; height: calc(100vh - 220px); border: none; border-radius: 12px; box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0,0,0,0.05)); background: #ffffff;"></iframe>
+        </div>
+      `;
+    }
     return "";
   }
 
@@ -1685,10 +1692,11 @@
             ["asm", "🗺 ASM"],
             ["nsm", "🧭 NSM"],
             ["bm", "🎯 Brand Manager"],
+            ["calculator", "🧮 Points Calculator"],
           ].filter(([key]) => key !== "sr" || canViewChcSalesRepTab())
             .map(([key, label]) => `<button class="sc-tab ${STATE.subTab === key ? "sc-tab-active" : ""}" data-tab="${key}">${label}</button>`).join("")}
         </div>
-        ${currentPeriodReady ? bandLegendHtml() : ""}
+        ${currentPeriodReady && STATE.subTab !== "calculator" ? bandLegendHtml() : ""}
         <div style="flex:1;padding:24px;overflow-y:auto;">
           <div id="sp-tab-content">${currentPeriodReady ? getPageContentHTML() : renderPeriodPendingState(STATE.period)}</div>
         </div>
