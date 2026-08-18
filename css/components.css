@@ -1261,6 +1261,22 @@
 .lp-band-risk  { background: #fee2e2; color: #991b1b; }
 .lp-band-none  { background: transparent; color: var(--color-text-tertiary, #94A3B8); font-weight: 500; }
 
+/* ---- Target Basis Filter Shortage badge (2026-08-17) ----
+   Passive flag only -- never filters or alters the table it sits in.
+   Shown next to a rep's Target Value when they have real sales on a
+   SKU/month for which no Target was recorded at all (a data-basis gap,
+   not a performance signal), so it deliberately uses a neutral amber
+   rather than the red/green achievement-band vocabulary above -- this
+   is not a "doing badly" flag, it is a "the target itself is missing"
+   flag. Visible only to roles cleared by AUTH.canViewTargetShortage(). */
+.lp-shortage-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 4px; padding: 2px 7px; border-radius: 999px;
+  background: #fef3c7; color: #92400e;
+  font-size: 10.5px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap; cursor: help;
+}
+
 /* ---- row extremes ----
    A left rail rather than a full-row wash: it survives the zebra
    striping underneath, reads at a glance down the left edge, and does

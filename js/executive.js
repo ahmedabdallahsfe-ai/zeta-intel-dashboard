@@ -2786,10 +2786,21 @@
       return;
     }
 
+    // Target Basis Filter Shortage (2026-08-17): a rep-level passive flag
+    // for a SKU/month they sold with no recorded Target at all -- see
+    // getDmRepsSalesSummary()'s doc comment in js/sales.js for the exact
+    // detection rule. Role-gated: only Cluster BU Manager + VP/CEO/BEX/SFE
+    // Manager (AUTH.canViewTargetShortage()) ever see the badge; everyone
+    // else gets the table exactly as before. It never filters the table
+    // or changes salesValue/targetValue/salesAchievementPct -- purely an
+    // annotation next to Target Value so the manager can still see and
+    // reconcile the full table themselves.
+    const showShortageFlag = !!(window.AUTH && typeof window.AUTH.canViewTargetShortage === "function" && window.AUTH.canViewTargetShortage());
+
     // Enrich with position and sales data
     const rows = reps.map(r => {
       const pos = posMap[r.name.toUpperCase().trim()] || "N/A";
-      const s = salesMap[r.name.toUpperCase().trim()] || { val: 0, tgtVal: 0 };
+      const s = salesMap[r.name.toUpperCase().trim()] || { val: 0, tgtVal: 0, hasShortage: false, shortageItems: [] };
       return {
         name: r.name,
         code: r.code,
@@ -2798,7 +2809,9 @@
         rightFreqPct: r.rightFreqPct,
         salesValue: s.val,
         targetValue: s.tgtVal,
-        salesAchievementPct: s.tgtVal > 0 ? (s.val / s.tgtVal) * 100 : null
+        salesAchievementPct: s.tgtVal > 0 ? (s.val / s.tgtVal) * 100 : null,
+        hasShortage: showShortageFlag && !!s.hasShortage,
+        shortageItems: s.shortageItems || []
       };
     });
 
@@ -2833,7 +2846,25 @@
       { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
-      { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
+      { key: "targetValue", label: "Target Value (EGP)", align: "right", isHtml: true,
+        // Target Basis Filter Shortage (2026-08-17): a passive badge next
+        // to Target Value when this rep has real sales for a SKU/month
+        // with no recorded Target at all. Role-gated upstream via
+        // row.hasShortage (already false for anyone AUTH.canViewTargetShortage()
+        // excludes) -- never filters the table, never changes the number
+        // shown, just annotates it.
+        format: function (v, row) {
+          var h = '<span>' + (v === null ? "—" : Math.round(v).toLocaleString()) + '</span>';
+          if (row.hasShortage) {
+            var items = (row.shortageItems || []).map(function (it) {
+              return it.product + " / " + it.month + " (Sales " + Math.round(it.salesValue).toLocaleString() + " EGP, no Target on record)";
+            }).join("; ");
+            h += '<span class="lp-shortage-badge" title="' + escapeAttr(items || "Target basis missing for one or more sold SKU/month items.") +
+              '">&#9888; Target Basis Filter Shortage</span>';
+          }
+          return h;
+        },
+        exportFormat: v => v === null ? "" : Math.round(v).toLocaleString() },
       { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", isHtml: true,
         format: v => achCellHtml(v),
         exportFormat: v => v === null || v === undefined || isNaN(v) ? "" : v.toFixed(1) + "%" }

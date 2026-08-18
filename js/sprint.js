@@ -1172,7 +1172,6 @@
     // entries unchanged.
     const scopeFn = tierKey === "dmDsm" ? dmOrBmInScope : asmNsmInScope;
     const scored = data.ranked.filter(r => r.teamSize > 0).filter(scopeFn);
-    const noTeam = data.ranked.filter(r => r.teamSize === 0).filter(scopeFn);
     const scopedExcluded = data.excluded.filter(scopeFn);
     const sorted = [...scored].sort((a, b) => (b.totalPts || 0) - (a.totalPts || 0));
 
@@ -1286,10 +1285,7 @@
             buLeaders
           )).join("")}</tbody>
         </table>
-        <details style="margin-top:14px;"><summary>${noTeam.length} eligible managers with no scoreable ${esc(teamNounPlural)} this month</summary>
-          <table><thead><tr><th>Code</th><th>Name</th></tr></thead><tbody>${noTeam.map(r => `<tr><td>${esc(r.code)}</td><td>${esc(r.name)}</td></tr>`).join("")}</tbody></table>
-        </details>
-        <details style="margin-top:10px;"><summary${opts.exclSummaryId ? ` id="${esc(opts.exclSummaryId)}" data-label="Excluded"` : ""}>Excluded (${scopedExcluded.length})</summary>${excludedTable(scopedExcluded, opts.exclBodyId)}</details>
+        <details style="margin-top:14px;"><summary${opts.exclSummaryId ? ` id="${esc(opts.exclSummaryId)}" data-label="Excluded"` : ""}>Excluded (${scopedExcluded.length})</summary>${excludedTable(scopedExcluded, opts.exclBodyId)}</details>
       </div>
     `;
   }

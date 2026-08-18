@@ -94,6 +94,50 @@
     return s;
   }
 
+  /**
+   * Target Basis Filter Shortage (2026-08-17) -- maps every product-lookup
+   * index to a single "canonical" index shared by every OTHER
+   * product-lookup index whose name is identical once whitespace is
+   * normalized (collapsed + trimmed + uppercased).
+   *
+   * Why this exists: cache/sales.data.js's lookups.products contains at
+   * least one pair of entries that render as the exact same visible text
+   * ("DUXNORZET 30 MG 30 CAP") but are in fact two DIFFERENT lookup
+   * indices, because one copy has a non-breaking space (U+00A0) before
+   * "CAP" instead of a normal space (U+0020). A source-data defect, not
+   * intentional -- confirmed the only such case among the full 105-item
+   * product catalog via a whitespace-normalization scan. Its effect: June
+   * 2026 actual sales for this SKU landed on one index while June 2026's
+   * real target (1,560,000 EGP) landed on the OTHER index, so a naive
+   * per-index "does this rep have a target for this exact product index"
+   * check reads as "no target" even though a real target exists just one
+   * lookup slot away.
+   *
+   * The Target Basis Filter Shortage feature (flagging reps whose target
+   * is genuinely missing for a SKU/month they sold) must never fire a
+   * false positive off a data-quality artifact like this, so every
+   * shortage-detection aggregation groups by canonicalProductIdx(pIdx)
+   * rather than the raw product index. This is a targeted defensive
+   * workaround for the new feature only -- it does not touch how products
+   * are displayed or filtered anywhere else in the app, and the
+   * underlying duplicate-SKU data defect should still be fixed at the
+   * source (ETL/workbook) separately.
+   */
+  let _canonicalProductIdx = null;
+  function canonicalProductIdx() {
+    if (_canonicalProductIdx) return _canonicalProductIdx;
+    const prods = (cache && cache.lookups && cache.lookups.products) || [];
+    const byNorm = new Map(); // normalized name -> first lookup index seen for it
+    const map = new Array(prods.length);
+    for (let i = 0; i < prods.length; i++) {
+      const norm = (prods[i] || "").replace(/\s+/g, " ").trim().toUpperCase();
+      if (!byNorm.has(norm)) byNorm.set(norm, i);
+      map[i] = byNorm.get(norm);
+    }
+    _canonicalProductIdx = map;
+    return map;
+  }
+
   function buildLineScenarioMap(requestedScenario) {
     const linesLookup = (cache && cache.lookups && cache.lookups.lines) || [];
     const map = new Array(linesLookup.length);
@@ -386,6 +430,7 @@
         window.SEMANTIC.setScenarioCoverage(cache.meta && cache.meta.scenarioCoverage);
       }
       _rollupExcludedIdx = null; // rebuild against this cache's line lookup
+      _canonicalProductIdx = null; // rebuild against this cache's product lookup
 
       console.log(`[Sales] Cache loaded & decompressed in ${(performance.now() - t0).toFixed(1)}ms. Rows: ${decodedRows.length}`);
     } catch (e) {
@@ -4277,10 +4322,13 @@
       const dmsLk = cache.lookups.dms;
       const linesLk = cache.lookups.lines;
       const repsLk = cache.lookups.reps;
+      const prodsLk = cache.lookups.products || [];
+      const monthsLk = cache.lookups.months || [];
       const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
+      const canonProd = canonicalProductIdx();
 
       const targetDmUpper = dmName ? dmName.toUpperCase().trim() : "";
-      const map = {}; // repName (uppercase) -> { val, tgtVal }
+      const map = {}; // repName (uppercase) -> { val, tgtVal, qty, tgtQty, hasShortage, shortageItems, _items }
 
       for (let i = 0; i < decodedRows.length; i++) {
         const r = decodedRows[i];
@@ -4301,11 +4349,66 @@
         if (!repName) continue;
         const key = repName.toUpperCase().trim();
         if (!map[key]) {
-          map[key] = { val: 0, tgtVal: 0 };
+          map[key] = { val: 0, tgtVal: 0, qty: 0, tgtQty: 0, hasShortage: false, shortageItems: [], _items: new Map() };
         }
-        map[key].val += r[VAL] || 0;
-        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) map[key].tgtVal += r[TGT_VAL] || 0;
+        const m = map[key];
+        const isOfficialRow = includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]]);
+        m.val += r[VAL] || 0;
+        m.qty += r[QTY] || 0;
+        if (isOfficialRow) {
+          m.tgtVal += r[TGT_VAL] || 0;
+          m.tgtQty += r[TGT_QTY] || 0;
+        }
+
+        // Target Basis Filter Shortage (2026-08-17): fold every row into a
+        // (canonical product, month) bucket per rep so that, once the main
+        // loop finishes, we can spot any SKU/month this rep actually sold
+        // for which they have no recorded Target at all -- see
+        // canonicalProductIdx()'s doc comment for why product identity
+        // must be whitespace-normalized rather than the raw lookup index
+        // (a real hidden-duplicate-SKU data defect would otherwise cause
+        // false positives, as it did for DUXNORZET 30 MG 30 CAP / June).
+        const cp = canonProd[r[PROD]];
+        const itemKey = cp + "_" + r[MONTH];
+        if (!m._items.has(itemKey)) {
+          m._items.set(itemKey, { product: prodsLk[cp], month: r[MONTH], val: 0, qty: 0, tgtVal: 0, tgtQty: 0 });
+        }
+        const it = m._items.get(itemKey);
+        it.val += r[VAL] || 0;
+        it.qty += r[QTY] || 0;
+        if (isOfficialRow) {
+          it.tgtVal += r[TGT_VAL] || 0;
+          it.tgtQty += r[TGT_QTY] || 0;
+        }
       }
+
+      // Resolve the per-rep shortage flag now that every row has been
+      // folded in. Target Basis Filter Shortage rule: a rep genuinely has
+      // a "shortage" on a SKU/month if they have real sales (Qty and/or
+      // Value) but their recorded Target Qty AND Target Value are both
+      // ~0 for that exact (canonical product, month). TOL absorbs
+      // sub-unit floating-point residue only -- it is not a fuzz factor
+      // for "close to target" (that is a different question, not this
+      // rule; see the DOZOVA FLEXETA/ZETAKARDOVAL/DUXNORZET spec).
+      const TOL = 0.5;
+      Object.keys(map).forEach(key => {
+        const m = map[key];
+        m._items.forEach(it => {
+          const hasSales = it.val > TOL || it.qty > TOL;
+          const missingTarget = it.tgtVal <= TOL && it.tgtQty <= TOL;
+          if (hasSales && missingTarget) {
+            m.hasShortage = true;
+            m.shortageItems.push({
+              product: it.product,
+              month: monthsLk[it.month],
+              salesValue: it.val,
+              salesQty: it.qty
+            });
+          }
+        });
+        delete m._items;
+      });
+
       return map;
     },
 

@@ -203,7 +203,8 @@
   // -------------------------------------------------------------------
   // "show IMS Rx for only sfe vp ceo admin and bex" + 2026-08-16: "let rx and
   // Total Market Intelligence appear to Marketing Consultant".
-  var IMS_RX_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant"];
+  // Gated to CEO, VP, BEX, Admin, SFE Manager, Marketing Consultant, and BU Manager.
+  var IMS_RX_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "BU Manager"];
 
   function canViewImsRx() {
     var u = getValidSessionUser();
@@ -215,7 +216,8 @@
   // ZETA SPRINT 2026 ACCESS (2026-08-16, Ahmed)
   // -------------------------------------------------------------------
   // "SHOW Zeta Sprint 2026 FOR SFE ADMIN BEX CEO VP"
-  var SPRINT_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager"];
+  // Gated to CEO, VP, BEX, Admin, SFE Manager, and BU Manager.
+  var SPRINT_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "BU Manager"];
 
   function canViewSprint() {
     var u = getValidSessionUser();
@@ -253,6 +255,30 @@
     var u = getValidSessionUser();
     if (!u) return false;
     return EXPENSE_EDIT_ROLES.indexOf(u.role) >= 0;
+  }
+
+  // -------------------------------------------------------------------
+  // TARGET BASIS FILTER SHORTAGE ACCESS (2026-08-17, Ahmed)
+  // -------------------------------------------------------------------
+  // "MAKE TARGET BASIS FILTER SHORTAGE APPEAR ONLY FOR CLUSTER BUSINES
+  // UNIT MANAGER AND VP CEO BEX AND SFE" -- narrower than the generic
+  // ALL_BU_ROLES/canToggleScenario audience: only VP/CEO/BEX/SFE Manager
+  // outright, plus a BU Manager whose bu scope includes "Cluster"
+  // specifically (mirrors the GIT/Cluster Line Manager override pattern
+  // above for getScenarioConfig() -- role alone is not enough for BU
+  // Manager, the BU scope must include Cluster).
+  var TARGET_SHORTAGE_ROLES = ["CEO", "VP", "BEX", "SFE Manager"];
+  var TARGET_SHORTAGE_BU_MANAGER_BUS = ["Cluster"];
+
+  function canViewTargetShortage() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    if (TARGET_SHORTAGE_ROLES.indexOf(u.role) >= 0) return true;
+    if (u.role === "BU Manager" && Array.isArray(u.bu) &&
+        u.bu.some(function (b) { return TARGET_SHORTAGE_BU_MANAGER_BUS.indexOf(b) !== -1; })) {
+      return true;
+    }
+    return false;
   }
 
   function canViewAllBUs() {
@@ -405,6 +431,8 @@
     EXPENSE_ROLES: EXPENSE_ROLES,
     canEditExpense: canEditExpense,
     EXPENSE_EDIT_ROLES: EXPENSE_EDIT_ROLES,
+    canViewTargetShortage: canViewTargetShortage,
+    TARGET_SHORTAGE_ROLES: TARGET_SHORTAGE_ROLES,
     getActiveScenario: getActiveScenario,
     setActiveScenario: setActiveScenario
   };
