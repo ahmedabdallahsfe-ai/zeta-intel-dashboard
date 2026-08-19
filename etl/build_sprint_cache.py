@@ -155,8 +155,31 @@ def as_date(v):
     return None
 
 
+# Known Sales-cache spelling typos that break the exact-string name join
+# below (reps_coverage / rep_sales_month / name_to_salesposition are all
+# keyed by norm_name() -- a single wrong character means "no match", which
+# silently reads as salesVal=0/salesTgt=0/achPct=None, i.e. a real rep with
+# real sales looking like he has zero data). Confirmed 2026-08-19 (Ahmed
+# flagged Adel AbdelAzim ElSayed AbdelAziz Asfour, code 1262, CVM-I -- Sales
+# Performance tab shows him at 127% YTD achievement, but the Sprint
+# leaderboard showed achPct=None): Database Shortcut / Coverage source
+# spells him "...AbdelAziz Asfour", the Sales cache's own rep-name column
+# spells him "...AbelAziz Asfour" (missing the "d"). This map corrects
+# KNOWN Sales-cache misspellings to the Coverage-source spelling BEFORE the
+# join, name by name, on purpose -- deliberately not a fuzzy/edit-distance
+# matcher, which risks silently merging two different people with similar
+# names. Add further confirmed cases here (uppercase, exactly as norm_name
+# would produce) if the same class of bug turns up elsewhere; each entry
+# should first be verified the same way this one was (grep the Sales cache
+# for the rep's surname, compare byte-for-byte against Database Shortcut).
+SALES_NAME_ALIASES = {
+    "ADEL ABDELAZIM ELSAYED ABELAZIZ ASFOUR": "ADEL ABDELAZIM ELSAYED ABDELAZIZ ASFOUR",
+}
+
+
 def norm_name(s):
-    return str(s).upper().replace(chr(160), ' ').strip()
+    n = str(s).upper().replace(chr(160), ' ').strip()
+    return SALES_NAME_ALIASES.get(n, n)
 
 
 def probation_passed_date(hire_date):
@@ -508,7 +531,23 @@ def main():
     msr_rf_curve = extract_curve(msr_ws, 4, 5)
     msr_cov_curve = extract_curve(msr_ws, 10, 11)
     sr_sales_curve = extract_curve(sr_ws, 1, 2)
-    sr_cov_curve_raw = extract_curve(sr_ws, 10, 11)
+    # CHC Sales Rep Coverage curve -- FIXED 2026-08-19.
+    # SALES REP sheet cols 10-11 ("sr_cov_curve_raw", removed) turned out to
+    # be a copy of the MSR-style 10pt Coverage curve (starts scoring at 90%,
+    # caps at 10pts @100%), NOT a real CHC-specific curve -- confirmed by
+    # comparing it against the deck (Zeta_Sprint_2026_Complete.pptx, slide 6,
+    # "Points Calculation -- CHC / Sales Rep"), whose Coverage table (Max 40
+    # pts) starts scoring at 60% with breakpoints 60-74%->1-10, 75-89%->11-25,
+    # 90-99%->26-39, 100%->40. That exact shape/domain/max already exists
+    # elsewhere in this same workbook: msr_rf_curve (medical rep points
+    # scheme sheet, cols 4-5, Right Frequency) is numerically identical to
+    # the deck's CHC Coverage table at every checkpoint (e.g. 0.99->38.88,
+    # 1.00->40). The previous "* 4" scaling hack on the wrong curve
+    # undersold Coverage points badly below 100% (e.g. 65% cov scored 0.00
+    # instead of the deck's 4.57; 92% cov scored 9.66 instead of 31.17).
+    # The CHC Sales Achievement curve (sr_sales_curve, cols 1-2 above) was
+    # separately verified correct against the deck and needed no change.
+    sr_cov_curve = msr_rf_curve
 
     # DM/DSM, ASM/NSM, and Brand Manager curves -- found in this same
     # workbook (sheets not read before 2026-08-15: 'dsm points scheme',
@@ -579,8 +618,7 @@ def main():
 
         if is_sales_rep:
             sales_pts = interp(sr_sales_curve, ach_pct) if ach_pct is not None else None
-            cov_pts_raw = interp(sr_cov_curve_raw, cov['coveragePct'] / 100)
-            cov_pts = cov_pts_raw * 4 if cov_pts_raw is not None else None
+            cov_pts = interp(sr_cov_curve, cov['coveragePct'] / 100)
             rf_pts = None
             total = (sales_pts or 0) + (cov_pts or 0)
             role = 'Sales Rep (CHC)'
@@ -1045,8 +1083,12 @@ def main():
                 'activeRule': 'Excluded if Last Day of Work (Database Shortcut.xlsx) is on/before the period end; '
                               'Status field used only when no Last Day is on file.',
                 'curveSheet': 'medical rep points scheme / SALES REP',
-                'chcCoverageScaling': 'x4 on the raw 10pt Coverage curve to hit the deck\'s 40pt weight (flagged, unconfirmed with workbook author)',
-                'confirmedWithAhmed': '2026-08-15',
+                'chcCoverageScaling': 'CHC Sales Rep Coverage points read directly off the msr_rf_curve (medical rep points scheme sheet, cols 4-5), '
+                                       'confirmed numerically identical to the deck\'s CHC Coverage table (slide 6, Max 40 pts, 60-74%->1-10, '
+                                       '75-89%->11-25, 90-99%->26-39, 100%->40) at every checkpoint. Replaces the prior "x4 on SALES REP sheet '
+                                       'cols 10-11" hack, which was actually a copy of the MSR 10pt Coverage curve and undersold Coverage points '
+                                       'badly below 100% achievement.',
+                'confirmedWithAhmed': '2026-08-19',
             },
             'tiersBuilt': ['Medical Rep', 'Sales Rep (CHC)', 'DM/DSM', 'ASM', 'NSM', 'Brand Manager'],
             'tiersPending': [],

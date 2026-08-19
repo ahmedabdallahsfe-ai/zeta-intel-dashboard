@@ -291,3 +291,123 @@ tr.sp-row.sp-is-winner:hover { background: linear-gradient(90deg, rgba(180,83,9,
 }
 .sp-floor-rule-text { font-size: 12px; color: #E5E7EB; line-height: 1.55; }
 .sp-floor-rule-text b { color: #fff; }
+
+/* =====================================================================
+   Winner Page rule banner -- LINE MEDIAN RULE (Medical Rep + CHC Sales
+   Rep), per Ahmed 2026-08-18. Reuses .sp-floor-rule-banner's layout/shape but with
+   its own gold/trophy accent (not the red "money floor" accent still
+   used by floorRuleBannerHtml() on the other tabs) so the two rules read
+   as visibly different, never confused with one another. Stacks multiple
+   .sp-floor-rule-text lines (EN, AR, EN points clarification, AR points
+   clarification) inside the same body.
+   ===================================================================== */
+.sp-median-rule-banner {
+  background: linear-gradient(135deg, #1F2937, #111827);
+  border-color: #D4A72C;
+  box-shadow: 0 2px 8px rgba(212,167,44,0.22);
+}
+.sp-median-rule-banner .sp-floor-rule-title { color: #FCD34D; }
+.sp-median-rule-banner .sp-floor-rule-text + .sp-floor-rule-text { margin-top: 6px; }
+.sp-median-rule-ar { font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
+.sp-median-rule-points { opacity: 0.9; font-style: italic; }
+.sp-median-rule-points b { font-style: normal; }
+
+/* Line Median readout, under the Recognition Winners cards -- recomputed
+   live on every Line filter change alongside msrWinnersPanelHtml. */
+.sp-line-median-panel { margin: 10px 0 18px; padding: 10px 14px; background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: 10px; }
+.sp-line-median-title { font-size: 11px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px; }
+.sp-line-median-values { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12.5px; color: var(--color-text-secondary); }
+.sp-line-median-values b { color: var(--color-text-primary); }
+.sp-line-median-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sp-line-median-table th { text-align: left; padding: 4px 8px; color: var(--color-text-tertiary); font-weight: 700; border-bottom: 1px solid var(--color-border); }
+.sp-line-median-table td { padding: 4px 8px; border-bottom: 1px solid var(--color-border); color: var(--color-text-secondary); }
+.sp-line-median-table tr:last-child td { border-bottom: none; }
+
+/* =====================================================================
+   FULL WINNER PAGE / PERFORMANCE SCALING MODEL -- per Ahmed 2026-08-18
+   17-section spec. Replaces the old single eligibility pill/KPI-chip
+   readout above with: a 6-tier recognition badge, a visible Total Points
+   header, an expandable "How were points calculated?" panel, and a
+   Sales/RF/Coverage-vs-Line-Median block per KPI with its own bar +
+   fixed median marker. Deliberately reuses this file's existing color
+   language (green=cleared, red=below, gold=winner-tier, slate=neutral)
+   rather than inventing a new palette, per the "keep existing colors"
+   constraint.
+   ===================================================================== */
+
+/* ---- Recognition tier badge (sections 3/8) -------------------------- */
+.sp-tier-row { margin-top: 3px; }
+.sp-tier-badge { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.2px; padding: 2px 9px; border-radius: 999px; text-transform: uppercase; white-space: nowrap; }
+.sp-tier-winner { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
+.sp-tier-runnerup { background: #E0E7FF; color: #3730A3; border: 1px solid #A5B4FC; }
+.sp-tier-nearwinner { background: #DBEAFE; color: #1E40AF; border: 1px solid #93C5FD; }
+.sp-tier-strong { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+.sp-tier-developing { background: #E0F2FE; color: #075985; border: 1px solid #7DD3FC; }
+.sp-tier-building { background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; }
+.sp-tier-dataissue { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+.sp-tie-flag { font-size: 10.5px; font-weight: 800; color: #B45309; margin-left: 4px; }
+.sp-pool-rank-note { font-size: 10.5px; font-weight: 700; color: var(--color-text-tertiary); margin-left: 4px; }
+.sp-no-winner { color: var(--color-text-tertiary); font-style: italic; }
+.sp-dataissue-note { font-size: 10.5px; font-weight: 600; color: #991B1B; margin-left: 4px; }
+
+/* ---- Total Points header (sections 3/4/8) --------------------------- */
+.sp-total-points-header { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.sp-total-points-label { font-size: 9px; font-weight: 700; letter-spacing: 0.4px; color: var(--color-text-tertiary); text-transform: uppercase; }
+.sp-total-points-val { font-size: 16px; font-weight: 800; color: var(--color-text-primary); }
+
+/* ---- Expandable "How were points calculated?" (section 5) ----------- */
+.sp-calc-details { margin-top: 6px; font-size: 11px; }
+.sp-calc-details > summary { cursor: pointer; color: var(--color-text-tertiary); font-weight: 600; list-style: none; }
+.sp-calc-details > summary::-webkit-details-marker { display: none; }
+.sp-calc-details > summary:hover { color: var(--color-text-secondary); }
+.sp-calc-body { margin-top: 6px; padding: 8px 10px; background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: 8px; }
+.sp-calc-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.sp-calc-table th { text-align: left; padding: 3px 6px; color: var(--color-text-tertiary); font-weight: 700; border-bottom: 1px solid var(--color-border); }
+.sp-calc-table td { padding: 3px 6px; border-bottom: 1px solid var(--color-border); color: var(--color-text-secondary); }
+.sp-calc-table tr:last-child td { border-bottom: none; }
+.sp-calc-total { margin-top: 6px; font-size: 12px; text-align: right; color: var(--color-text-primary); }
+
+/* ---- Sales/RF/Coverage-vs-Line-Median KPI block (sections 8/9) ------ */
+.sp-kpi-median-block { min-width: 150px; }
+.sp-kpi-median-label { font-size: 10px; font-weight: 700; letter-spacing: 0.3px; color: var(--color-text-tertiary); text-transform: uppercase; }
+.sp-kpi-median-val { font-size: 15px; font-weight: 800; color: var(--color-text-primary); margin-top: 1px; }
+.sp-kpi-median-vsmed { font-size: 10.5px; color: var(--color-text-tertiary); margin-top: 1px; }
+.sp-median-bar-track { position: relative; height: 8px; border-radius: 5px; background: var(--color-surface-alt); border: 1px solid var(--color-border); margin-top: 4px; overflow: visible; }
+.sp-median-bar-fill { position: absolute; top: 0; left: 0; bottom: 0; border-radius: 5px; }
+.sp-median-bar-above { background: #22C55E; }
+.sp-median-bar-below { background: #EF4444; }
+.sp-median-bar-marker { position: absolute; top: -3px; left: 50%; width: 2px; height: 14px; background: #1F2937; transform: translateX(-1px); }
+.sp-median-bar-na { display: flex; align-items: center; font-size: 10px; color: var(--color-text-tertiary); font-style: italic; height: auto; border-style: dashed; }
+.sp-kpi-median-pctofmed { font-size: 11px; font-weight: 700; color: var(--color-text-secondary); margin-top: 4px; }
+.sp-kpi-median-pts { font-size: 10.5px; color: var(--color-text-tertiary); margin-top: 2px; }
+.sp-kpi-median-nopts { font-style: italic; }
+.sp-median-floor-status { font-size: 10px; font-weight: 600; margin-top: 3px; }
+.sp-floor-above { color: #166534; }
+.sp-floor-below { color: #991B1B; }
+
+/* ---- Manager Audit View (section 13) --------------------------------- */
+.sp-manager-audit { margin: 10px 0 18px; padding: 10px 14px; background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: 10px; font-size: 12px; }
+.sp-manager-audit > summary { cursor: pointer; font-weight: 700; color: var(--color-text-secondary); list-style: none; }
+.sp-manager-audit > summary::-webkit-details-marker { display: none; }
+.sp-manager-audit-body { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; color: var(--color-text-secondary); line-height: 1.5; }
+.sp-manager-audit-body b { color: var(--color-text-primary); }
+
+/* ---- "RECOGNITION -- every Line" table (All Lines scope) -- collapsed
+   by default per Ahmed 2026-08-18 ("make it autohide"). Same collapsible
+   shape/spacing as .sp-manager-audit above, its own summary row so it
+   reads as a distinct control from the Manager Audit View. The inner
+   .sp-line-median-panel keeps its own look unchanged, just nested. */
+.sp-alllines-summary { margin: 10px 0 18px; }
+.sp-alllines-summary > summary { cursor: pointer; font-size: 13px; font-weight: 800; color: var(--color-text-secondary); list-style: none; padding: 8px 2px; }
+.sp-alllines-summary > summary:hover { color: var(--color-text-primary); }
+.sp-alllines-summary > summary::-webkit-details-marker { display: none; }
+.sp-alllines-summary .sp-line-median-panel { margin-top: 4px; }
+
+/* ADDED 2026-08-19 ("i need to see median and average to cmpare 2 scenario",
+   confirmed "Median-gate vs Average-gate") -- mirrors .sp-alllines-summary's
+   autohide <details> pattern so this reads as part of the same visual family. */
+.sp-scenario-compare { margin: 10px 0 18px; }
+.sp-scenario-compare > summary { cursor: pointer; font-size: 13px; font-weight: 800; color: var(--color-text-secondary); list-style: none; padding: 8px 2px; }
+.sp-scenario-compare > summary:hover { color: var(--color-text-primary); }
+.sp-scenario-compare > summary::-webkit-details-marker { display: none; }
+.sp-scenario-compare .sp-line-median-panel { margin-top: 4px; }

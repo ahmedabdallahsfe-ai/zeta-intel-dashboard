@@ -419,6 +419,26 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
   color:#15803d;font-size:13px;font-weight:600;margin-top:8px}
 .copy-toast.show{display:flex}
 
+/* ── WINNER POOL AVERAGE QUALIFIER ── added 2026-08-19 per Ahmed
+   ("apply qualyfying average rule to bm ... Points Calculator makure
+   that the average winner pool qualifier is present in it"). Visually
+   matches the existing .kc/.res design language (same tokens), new
+   because this concept didn't exist anywhere in this file before. */
+.wpq{background:var(--bxp);border-radius:var(--rs);padding:12px 14px;margin-top:4px;margin-bottom:10px;border:1px solid rgba(25,118,210,.15)}
+.wpq-title{font-family:"Rajdhani",sans-serif;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t2);margin-bottom:7px}
+.wpq-row{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--t2);padding:3px 0;border-bottom:1px dashed rgba(25,118,210,.12)}
+.wpq-row:last-of-type{border-bottom:none}
+.wpq-row b{color:var(--tx)}
+.wpq-pass{color:#1b8a3d;font-weight:700;white-space:nowrap}
+.wpq-fail{color:#c62828;font-weight:700;white-space:nowrap}
+.wpq-na{color:var(--t3);font-style:italic;white-space:nowrap}
+.wpq-status{font-family:"Rajdhani",sans-serif;font-size:14px;font-weight:700;letter-spacing:.03em;padding:7px 12px;border-radius:8px;display:inline-block;margin-top:8px}
+.wpq-status.ok{background:#e6f7ea;color:#1b8a3d}
+.wpq-status.no{background:#fdecea;color:#c62828}
+.wpq-note{font-size:11px;color:var(--t3);margin-top:7px;font-style:italic;line-height:1.5}
+.wpq-bu{font-size:12.5px;color:var(--t2);margin-bottom:8px}
+.wpq-bu select{margin-left:6px;font-family:inherit;font-size:12.5px;padding:3px 7px;border-radius:6px;border:1px solid rgba(25,118,210,.25);background:#fff;color:var(--tx)}
+
 </style>
 </head>
 <body>
@@ -440,6 +460,7 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
   <button class="tb" onclick="sw('dm',this)">District Manager</button>
   <button class="tb" onclick="sw('asm',this)">Area Sales Mgr</button>
   <button class="tb" onclick="sw('nsm',this)">NSM</button>
+  <button class="tb" onclick="sw('bm',this)">Brand Manager</button>
   <button class="tb" onclick="sw('tracker',this)">&#128202; My Tracker</button>
 </div>
 
@@ -531,6 +552,24 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
       <div class="bi"><div class="bl2">Coverage</div><div class="bv" id="msr-bc">—</div></div>
     </div>
     <div id="msr-badge"></div><div class="ft" id="msr-feed"></div><div class="hb" id="msr-hint"></div>
+    <div class="wpq-bu">Compare against Line average: <select id="msr-line" onchange="cMSR()">
+      <option value="CHC">CHC</option>
+      <option value="CNS">CNS</option>
+      <option value="CVM-I">CVM-I</option>
+      <option value="CVM-II">CVM-II</option>
+      <option value="DIAB-I">DIAB-I</option>
+      <option value="DIAB-II">DIAB-II</option>
+      <option value="DIAB-III">DIAB-III</option>
+      <option value="DIAB-IV">DIAB-IV</option>
+      <option value="Derma">Derma</option>
+      <option value="GIT-I" selected>GIT-I</option>
+      <option value="GIT-II">GIT-II</option>
+      <option value="GIT-III">GIT-III</option>
+      <option value="ORTHO-I">ORTHO-I</option>
+      <option value="ORTHO-II">ORTHO-II</option>
+      <option value="PEDIA">PEDIA</option>
+    </select></div>
+    <div id="msr-wpq"></div>
   </div>
 </div>
 
@@ -560,6 +599,7 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
       <div class="bi"><div class="bl2">Coverage</div><div class="bv" id="chc-bc">—</div></div>
     </div>
     <div id="chc-badge"></div><div class="ft" id="chc-feed"></div><div class="hb" id="chc-hint"></div>
+    <div id="chc-wpq"></div>
   </div>
 </div>
 
@@ -601,6 +641,13 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
       <div class="bi"><div class="bl2">Calls/DV</div><div class="bv" id="dm-bk2">—</div></div>
     </div>
     <div id="dm-badge"></div><div class="ft" id="dm-feed"></div><div class="hb" id="dm-hint"></div>
+    <div class="wpq-bu">Compare against BU average: <select id="dm-bu" onchange="cDM()">
+      <option value="CHC">CHC</option>
+      <option value="Cluster" selected>Cluster</option>
+      <option value="DIAB">DIAB</option>
+      <option value="GIT">GIT</option>
+    </select></div>
+    <div id="dm-wpq"></div>
   </div>
 </div>
 
@@ -630,6 +677,7 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
       <div class="bi"><div class="bl2">Field Days</div><div class="bv" id="asm-bf2">—</div></div>
     </div>
     <div id="asm-badge"></div><div class="ft" id="asm-feed"></div><div class="hb" id="asm-hint"></div>
+    <div id="asm-wpq"></div>
   </div>
 </div>
 
@@ -659,6 +707,53 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
       <div class="bi"><div class="bl2">Field Days</div><div class="bv" id="nsm-bf2">—</div></div>
     </div>
     <div id="nsm-badge"></div><div class="ft" id="nsm-feed"></div><div class="hb" id="nsm-hint"></div>
+    <div id="nsm-wpq"></div>
+  </div>
+</div>
+
+<!-- BM -- added 2026-08-19 per Ahmed ("apply qualyfying average rule to
+     bm ... Points Calculator makure that the average winner pool
+     qualifier is present in it"). Brand Manager has no team rollup (see
+     renderBrandManager in dashboard.html's js/sprint.js) -- all 3 KPIs
+     are the Brand Manager's own individual achievement, scored via the
+     real 'Brand Managers' curve sheet in zeta sprint/scaling scores.xlsx
+     (LU_BM_SALES/LU_BM_REGION/LU_BM_TACTICAL below), not a linear
+     team-avg formula like DM/ASM/NSM. Recognition-only tier -- no
+     Monthly Sprint cash. Intentionally NOT wired into My Tracker /
+     Simulator / Share below -- those were not part of what Ahmed asked
+     for this pass; only the points calculator + qualifier. -->
+<div class="panel" id="panel-bm">
+  <div class="rc">
+    <div class="rt">Brand Manager (BM)</div>
+    <div class="rm"><span>National Sales / 50 pts</span><span>Regions Covered / 20 pts</span><span>Tactical Plan / 30 pts</span>&nbsp; Recognition only &mdash; no Monthly Sprint cash tier</div>
+  </div>
+  <div class="kg g3">
+    <div class="kc">
+      <div class="kl">National Sales &mdash; Ach%</div><div class="km">50 pts max &mdash; from 70% (auto-calculated from assigned Line)</div>
+      <div class="kr"><input type="range" min="0" max="130" step="1" value="90" id="bm-s" oninput="cBM()"><span class="kv" id="bm-sv">90%</span></div>
+      <div class="kp" id="bm-sp">— pts</div><div class="zn" id="bm-sn" style="display:none">Below 70% = 0 pts</div>
+    </div>
+    <div class="kc">
+      <div class="kl">Regions Covered</div><div class="km">20 pts max &mdash; actual count, 1&ndash;5 regions</div>
+      <div class="kr"><input type="range" min="1" max="5" step="1" value="3" id="bm-r" oninput="cBM()"><span class="kv" id="bm-rv">3</span></div>
+      <div class="kp" id="bm-rp">— pts</div>
+    </div>
+    <div class="kc">
+      <div class="kl">Tactical Plan Execution</div><div class="km">30 pts max &mdash; from 70%</div>
+      <div class="kr"><input type="range" min="0" max="100" step="1" value="85" id="bm-p" oninput="cBM()"><span class="kv" id="bm-pv">85%</span></div>
+      <div class="kp" id="bm-pp">— pts</div><div class="zn" id="bm-pn" style="display:none">Below 70% = 0 pts</div>
+    </div>
+  </div>
+  <div class="res">
+    <div class="sr"><span class="sn" id="bm-t2">—</span><span class="sd">/ 100 pts</span></div>
+    <div class="bt"><div class="bf" id="bm-b" style="width:0%"></div></div>
+    <div class="bg g3">
+      <div class="bi"><div class="bl2">National Sales</div><div class="bv" id="bm-bs2">—</div></div>
+      <div class="bi"><div class="bl2">Regions Covered</div><div class="bv" id="bm-br2">—</div></div>
+      <div class="bi"><div class="bl2">Tactical Plan</div><div class="bv" id="bm-bp2">—</div></div>
+    </div>
+    <div id="bm-badge"></div><div class="ft" id="bm-feed"></div><div class="hb" id="bm-hint"></div>
+    <div id="bm-wpq"></div>
   </div>
 </div>
 
@@ -836,6 +931,18 @@ const LU_DM_FWD=[[60,1],[61,1.155588],[62,1.333511],[63,1.520967],[64,1.714895],
 const LU_DM_DVC=[[80,1],[81,1.333511],[82,1.714895],[83,2.116716],[84,2.532412],[85,2.958739],[86,3.393734],[87,3.836073],[88,4.284797],[89,4.739179],[90,5.198648],[91,5.662743],[92,6.131081],[93,6.603343],[94,7.079255],[95,7.558581],[96,8.041116],[97,8.526678],[98,9.015106],[99,9.506257],[100,10]];
 const LU_DM_CALLS=[[90,6.131081],[91,6.50859],[92,6.888468],[93,7.270588],[94,7.654838],[95,8.041116],[96,8.429331],[97,8.8194],[98,9.211247],[99,9.604802],[100,10]];
 const LU_ASM_FWD=[[60,1],[61,1.328464],[62,1.704078],[63,2.099818],[64,2.509224],[65,2.929099],[66,3.357512],[67,3.793158],[68,4.235092],[69,4.682598],[70,5.135115],[71,5.592187],[72,6.053438],[73,6.518554],[74,6.987265],[75,7.459338],[76,7.934571],[77,8.412785],[78,8.893823],[79,9.377541],[80,9.863813],[81,10.352524],[82,10.843568],[83,11.33685],[84,11.832282],[85,12.329784],[86,12.829279],[87,13.330701],[88,13.833983],[89,14.339066],[90,14.845894],[91,15.354414],[92,15.864578],[93,16.376339],[94,16.889653],[95,17.40448],[96,17.920779],[97,18.438515],[98,18.957653],[99,19.478158],[100,20]];
+// Brand Manager curves, added 2026-08-19 -- extracted straight from the
+// 'Brand Managers' sheet in zeta sprint/scaling scores.xlsx (columns A/B,
+// D/E, H/I) via the same extract_curve()+interp() logic etl/build_sprint_
+// cache.py already uses for every other tier's curve, at 1% integer
+// granularity to match this file's existing vlu()-table convention.
+// LU_BM_SALES domain 70-130% -> 1-50 pts (below 70% = 0, matches the "70%
+// floor affects points only" rule). LU_BM_REGION is a raw COUNT (1-5
+// regions), not a %, -> 4-20 pts, pure linear (count*4). LU_BM_TACTICAL
+// domain 70-100% -> 21-30 pts.
+const LU_BM_SALES=[[70,1],[71,1.48031],[72,2.06588],[73,2.69907],[74,3.36532],[75,4.05729],[76,4.77047],[77,5.50178],[78,6.24898],[79,7.01036],[80,7.78456],[81,8.57048],[82,9.3672],[83,10.174],[84,10.9901],[85,11.815],[86,12.6482],[87,13.4893],[88,14.3378],[89,15.1935],[90,16.0559],[91,16.9248],[92,17.7999],[93,18.6811],[94,19.568],[95,20.4604],[96,21.3583],[97,22.2613],[98,23.1694],[99,24.0823],[100,25],[101,25.5003],[102,26.1103],[103,26.7699],[104,27.4639],[105,28.1847],[106,28.9276],[107,29.6894],[108,30.4677],[109,31.2608],[110,32.0673],[111,32.8859],[112,33.7158],[113,34.5562],[114,35.4063],[115,36.2656],[116,37.1336],[117,38.0097],[118,38.8936],[119,39.7849],[120,40.6832],[121,41.5883],[122,42.4999],[123,43.4178],[124,44.3416],[125,45.2713],[126,46.2065],[127,47.1472],[128,48.0931],[129,49.0441],[130,50]];
+const LU_BM_REGION=[[1,4],[2,8],[3,12],[4,16],[5,20]];
+const LU_BM_TACTICAL=[[70,21],[71,21.3],[72,21.6],[73,21.9],[74,22.2],[75,22.5],[76,22.8],[77,23.1],[78,23.4],[79,23.7],[80,24],[81,24.3],[82,24.6],[83,24.9],[84,25.2],[85,25.5],[86,25.8],[87,26.1],[88,26.4],[89,26.7],[90,27],[91,27.3],[92,27.6],[93,27.9],[94,28.2],[95,28.5],[96,28.8],[97,29.1],[98,29.4],[99,29.7],[100,30]];
 
 // ── VLOOKUP (largest match) ───────────────────────────────────────────────
 function vlu(pct, tbl) {
@@ -893,6 +1000,92 @@ function rrS(id, total, bks, tier) {
 }
 function sn(id, show) { const e=document.getElementById(id); if(e) e.style.display=show?"block":"none"; }
 
+// ── WINNER POOL AVERAGE QUALIFIER ── added 2026-08-19 per Ahmed
+// ("apply qualyfying average rule to bm ... Points Calculator makure
+// that the average winner pool qualifier is present in it"). The live
+// dashboard's Winner Pool eligibility for DM/DSM, ASM, NSM and Brand
+// Manager is NOT the 70% floor shown above -- it's "clear the peer-group
+// Average on EVERY scored KPI at once" (dashboard.html's js/sprint.js,
+// computeHierarchyGateData/hierarchyGateNote -- see also
+// HIERARCHY_BANNER_TEXT for the exact rule wording shown on each tier's
+// live page). This calculator is a static, offline what-if tool with no
+// live data connection, so the peer averages below are a SNAPSHOT
+// hardcoded from the live August 2026 cache -- they WILL drift as real
+// scores change and are NOT auto-updated. To refresh: open each tier's
+// tab on the live dashboard, read its "📊 PEER AVERAGES" panel, and
+// update the numbers below by hand.
+const WPQ_AVERAGES = {
+  // Medical Rep -- one entry per real Line (Winner Pool eligibility is
+  // "own Line Average", not national/BU, same as the live dashboard's
+  // Line Average gate, msrLineMedians/computeLineMedians). Added
+  // 2026-08-19 per Ahmed ("in zeta sprint points calcualtor can you add
+  // the winner pool qualifying rule") -- extends the qualifier already
+  // shipped for DM/DSM/ASM/NSM/Brand Manager to Medical Rep/CHC Sales
+  // Rep too, the last two tiers that didn't have it yet.
+  msr: {
+    CHC:      { s: 44.1,  r: 65.9, c: 93.7 },
+    CNS:      { s: 47.7,  r: 80.8, c: 95.9 },
+    "CVM-I":  { s: 122.9, r: 78.3, c: 95.7 },
+    "CVM-II": { s: 134.3, r: 76.7, c: 96.4 },
+    "DIAB-I": { s: 115.5, r: 87.7, c: 98.5 },
+    "DIAB-II": { s: 129.2, r: 64.4, c: 90.2 },
+    "DIAB-III": { s: 129.0, r: 85.9, c: 97.3 },
+    "DIAB-IV": { s: 177.0, r: 84.9, c: 97.6 },
+    Derma:    { s: 89.2,  r: 32.0, c: 68.5 },
+    "GIT-I":  { s: 123.3, r: 74.0, c: 94.0 },
+    "GIT-II": { s: 124.7, r: 69.0, c: 95.1 },
+    "GIT-III": { s: 137.5, r: 64.1, c: 92.0 },
+    "ORTHO-I": { s: 85.5, r: 70.7, c: 93.5 },
+    "ORTHO-II": { s: 134.4, r: 71.6, c: 94.1 },
+    PEDIA:    { s: 86.7,  r: 76.8, c: 95.5 },
+  },
+  // CHC Sales Rep -- a single Line (CHC_SALES), no Line selector needed.
+  // No Right Frequency KPI at all for this role (removed from both
+  // scoring and eligibility, "CHC Sales Rep remove right frequency from
+  // sales sprint") -- only Sales + Coverage gate it.
+  chc: { s: 45.5, c: 92.1 },
+  dm: {
+    // percentage scale (0-100+), one entry per real BU with scored DM/DSMs
+    CHC:     { t: 28.6, f: 39.6,  d: 77.4, k: 60.8 },
+    Cluster: { t: 47.2, f: 98.2,  d: 82.1, k: 72.3 },
+    DIAB:    { t: 68.4, f: 110.2, d: 94.7, k: 84.2 },
+    GIT:     { t: 44.6, f: 61.6,  d: 74.5, k: 77.0 },
+  },
+  asm: { t: 50.2, f: 61.7 },
+  nsm: { t: 46.3, f: 49.9 },
+  // Regions Covered / Tactical Plan Execution have no real company-wide
+  // data yet (still pending in zeta sprint/Sprint_Missing_KPI_Template.xlsx)
+  // -- no peer average exists to compare against yet, so those two KPIs
+  // auto-pass the qualifier below until Ahmed fills them in, same
+  // "whichever KPIs have real data" rule as computeHierarchyGateData.
+  bm: { s: 109.4 },
+};
+
+// vals/avgs/labels are parallel objects keyed by the same KPI keys --
+// callers only include keys that actually have a real peer average in
+// WPQ_AVERAGES (mirrors computeHierarchyGateData: a KPI with no real
+// comparable data is simply never in the `checks` array, not shown as a
+// forced N/A row). The avg==null branch below is a defensive fallback
+// only, kept in case a caller ever passes a not-yet-populated key.
+function wpqBuild(vals, avgs, labels) {
+  const rows = Object.keys(labels).map(k => {
+    const avg = avgs[k];
+    const val = vals[k];
+    if (avg == null) {
+      return { pass: true, html: `<div class="wpq-row"><span>${labels[k]}</span><span class="wpq-na">no peer avg yet</span></div>` };
+    }
+    const pass = val >= avg;
+    return { pass, html: `<div class="wpq-row"><span>${labels[k]} <b>${val.toFixed(1)}%</b> vs peer avg <b>${avg.toFixed(1)}%</b></span><span class="${pass ? "wpq-pass" : "wpq-fail"}">${pass ? "✓ Above" : "✗ Below"}</span></div>` };
+  });
+  const allPass = rows.every(r => r.pass);
+  return `<div class="wpq">
+    <div class="wpq-title">🏆 Winner Pool Average Qualifier</div>
+    ${rows.map(r => r.html).join("")}
+    <div class="wpq-status ${allPass ? "ok" : "no"}">${allPass ? "✅ Qualifies for Winner Pool" : "❌ Does not qualify for Winner Pool"}</div>
+    <div class="wpq-note">Winner Pool eligibility (the 🏆 WINNER badge on the live dashboard) requires clearing the peer-group Average on every scored KPI at once — separate from the points above, which are unaffected by this gate. Peer averages are a snapshot from the live August cache and will drift as real scores change.</div>
+  </div>`;
+}
+
 // ── CALCS ─────────────────────────────────────────────────────────────────
 function cMSR(){
   const s=+document.getElementById("msr-s").value, r=+document.getElementById("msr-r").value, c=+document.getElementById("msr-c").value;
@@ -901,6 +1094,10 @@ function cMSR(){
   document.getElementById("msr-sp").textContent=ps.toFixed(1)+" pts"; document.getElementById("msr-rp").textContent=pr.toFixed(1)+" pts"; document.getElementById("msr-cp").textContent=pc.toFixed(1)+" pts";
   sn("msr-sn",s<70); sn("msr-rn",r<60); sn("msr-cn",c<90);
   rrS("msr",ps+pr+pc,[{k:"s",v:ps},{k:"r",v:pr},{k:"c",v:pc}],gt(ps+pr+pc));
+  const lineSel = document.getElementById("msr-line");
+  const line = (lineSel && lineSel.value) || "GIT-I";
+  const wpqEl = document.getElementById("msr-wpq");
+  if (wpqEl) wpqEl.innerHTML = wpqBuild({s,r,c}, WPQ_AVERAGES.msr[line] || {}, {s:"Sales", r:"Right Frequency", c:"Coverage"});
 }
 function cCHC(){
   const s=+document.getElementById("chc-s").value, c=+document.getElementById("chc-c").value;
@@ -909,6 +1106,8 @@ function cCHC(){
   document.getElementById("chc-sp").textContent=ps.toFixed(1)+" pts"; document.getElementById("chc-cp").textContent=pc.toFixed(1)+" pts";
   sn("chc-sn",s<70); sn("chc-cn",c<60);
   rrS("chc",ps+pc,[{k:"s",v:ps},{k:"c",v:pc}],gt(ps+pc));
+  const wpqEl = document.getElementById("chc-wpq");
+  if (wpqEl) wpqEl.innerHTML = wpqBuild({s,c}, WPQ_AVERAGES.chc, {s:"Sales", c:"Coverage"});
 }
 function cDM(){
   const t=+document.getElementById("dm-t").value, f=+document.getElementById("dm-f").value, d=+document.getElementById("dm-d").value, k=+document.getElementById("dm-k").value;
@@ -918,6 +1117,10 @@ function cDM(){
   sn("dm-fn",f<60); sn("dm-dn",d<80); sn("dm-kn",k<90);
   const tot=pt+pf+pd+pk;
   rr("dm",tot,[{k:"t2",v:pt},{k:"f2",v:pf},{k:"d2",v:pd},{k:"k2",v:pk}],gt(tot),100);
+  const buSel = document.getElementById("dm-bu");
+  const bu = (buSel && buSel.value) || "Cluster";
+  const wpqEl = document.getElementById("dm-wpq");
+  if (wpqEl) wpqEl.innerHTML = wpqBuild({t,f,d,k}, WPQ_AVERAGES.dm[bu] || {}, {t:"Team Avg", f:"Field Working Days", d:"DV Coverage", k:"Calls per DV"});
 }
 function cASM(){
   const t=+document.getElementById("asm-t").value, f=+document.getElementById("asm-f").value;
@@ -926,6 +1129,8 @@ function cASM(){
   document.getElementById("asm-tp").textContent=pt.toFixed(1)+" pts"; document.getElementById("asm-fp").textContent=pf.toFixed(1)+" pts";
   sn("asm-fn",f<60);
   const tot=pt+pf; rr("asm",tot,[{k:"t2",v:pt},{k:"f2",v:pf}],gt(tot),100);
+  const wpqEl = document.getElementById("asm-wpq");
+  if (wpqEl) wpqEl.innerHTML = wpqBuild({t,f}, WPQ_AVERAGES.asm, {t:"Team Avg", f:"Field Working Days"});
 }
 function cNSM(){
   const t=+document.getElementById("nsm-t").value, f=+document.getElementById("nsm-f").value;
@@ -934,6 +1139,23 @@ function cNSM(){
   document.getElementById("nsm-tp").textContent=pt.toFixed(1)+" pts"; document.getElementById("nsm-fp").textContent=pf.toFixed(1)+" pts";
   sn("nsm-fn",f<60);
   const tot=pt+pf; rr("nsm",tot,[{k:"t2",v:pt},{k:"f2",v:pf}],gt(tot),100);
+  const wpqEl = document.getElementById("nsm-wpq");
+  if (wpqEl) wpqEl.innerHTML = wpqBuild({t,f}, WPQ_AVERAGES.nsm, {t:"Team Avg", f:"Field Working Days"});
+}
+// Brand Manager -- added 2026-08-19, see the panel-bm HTML comment above
+// for full context. No linear team-avg formula (no team rollup) -- all 3
+// KPIs go through vlu() against the real Brand Managers curve, same
+// "lookup table" pattern as every other tier's non-linear KPIs.
+function cBM(){
+  const s=+document.getElementById("bm-s").value, r=+document.getElementById("bm-r").value, p=+document.getElementById("bm-p").value;
+  document.getElementById("bm-sv").textContent=s+"%"; document.getElementById("bm-rv").textContent=r; document.getElementById("bm-pv").textContent=p+"%";
+  const ps=vlu(s,LU_BM_SALES), pr=vlu(r,LU_BM_REGION), pp=vlu(p,LU_BM_TACTICAL);
+  document.getElementById("bm-sp").textContent=ps.toFixed(1)+" pts"; document.getElementById("bm-rp").textContent=pr.toFixed(1)+" pts"; document.getElementById("bm-pp").textContent=pp.toFixed(1)+" pts";
+  sn("bm-sn",s<70); sn("bm-pn",p<70);
+  const tot=ps+pr+pp;
+  rr("bm",tot,[{k:"s2",v:ps},{k:"r2",v:pr},{k:"p2",v:pp}],gt(tot),100);
+  const wpqEl = document.getElementById("bm-wpq");
+  if (wpqEl) wpqEl.innerHTML = wpqBuild({s}, {s: WPQ_AVERAGES.bm.s}, {s:"National Sales"});
 }
 function sw(role, btn) {
   document.querySelectorAll(".tb").forEach(b=>b.classList.remove("active"));
@@ -942,7 +1164,7 @@ function sw(role, btn) {
   document.getElementById("panel-"+role).classList.add("active");
   if(role==="tracker") trkInit();
 }
-cMSR(); cCHC(); cDM(); cASM(); cNSM();
+cMSR(); cCHC(); cDM(); cASM(); cNSM(); cBM();
 
 // ═══════════════════════════════════════════════════════════════
 // MY POINTS TRACKER — fixed & enhanced
