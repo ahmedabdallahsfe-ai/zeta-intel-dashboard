@@ -48,6 +48,7 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+~$*
 push_to_github.bat
 
 cache/customer_analytics.json

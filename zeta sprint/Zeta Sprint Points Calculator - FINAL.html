@@ -432,12 +432,31 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
 .wpq-pass{color:#1b8a3d;font-weight:700;white-space:nowrap}
 .wpq-fail{color:#c62828;font-weight:700;white-space:nowrap}
 .wpq-na{color:var(--t3);font-style:italic;white-space:nowrap}
-.wpq-status{font-family:"Rajdhani",sans-serif;font-size:14px;font-weight:700;letter-spacing:.03em;padding:7px 12px;border-radius:8px;display:inline-block;margin-top:8px}
-.wpq-status.ok{background:#e6f7ea;color:#1b8a3d}
-.wpq-status.no{background:#fdecea;color:#c62828}
+/* Per Ahmed 2026-08-19 ("only make highlighted winner pool eligibilty")
+   -- the eligibility verdict itself is the one thing that should jump
+   off the page; the per-KPI rows above stay small/quiet by design. */
+.wpq-status{font-family:"Rajdhani",sans-serif;font-size:19px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:13px 16px;border-radius:10px;display:block;text-align:center;margin-top:10px;border:2px solid transparent;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.wpq-status.ok{background:#e6f7ea;color:#0f6b28;border-color:#34a853}
+.wpq-status.no{background:#fdecea;color:#a61b1b;border-color:#e53935}
 .wpq-note{font-size:11px;color:var(--t3);margin-top:7px;font-style:italic;line-height:1.5}
 .wpq-bu{font-size:12.5px;color:var(--t2);margin-bottom:8px}
 .wpq-bu select{margin-left:6px;font-family:inherit;font-size:12.5px;padding:3px 7px;border-radius:6px;border:1px solid rgba(25,118,210,.25);background:#fff;color:var(--tx)}
+
+/* ── STATIC WINNER POOL RULE BANNER ── replaces the interactive
+   Line/BU-selector qualifier above, per Ahmed 2026-08-19 ("no show
+   filter for any line achievement just pot rule like this ... for all
+   layrs"). Mirrors the live dashboard's .sp-floor-rule-banner /
+   .sp-median-rule-banner visual language (css/sprint.css) verbatim --
+   same dark charcoal/gold gradient, same title/EN/EN/AR/AR shape -- so
+   the rule reads identically on both tools. No live pass/fail, no
+   selector: just the explanatory text. */
+.crb{display:flex;align-items:flex-start;gap:12px;background:linear-gradient(135deg,#1F2937,#111827);border:1px solid #D4A72C;border-radius:10px;padding:12px 16px;margin-top:4px;margin-bottom:10px;box-shadow:0 2px 8px rgba(212,167,44,.22)}
+.crb-icon{font-size:20px;line-height:1.3;flex-shrink:0}
+.crb-body{flex:1;min-width:0}
+.crb-title{font-size:12.5px;font-weight:800;letter-spacing:.4px;color:#FCD34D;margin-bottom:4px;text-transform:uppercase}
+.crb-text{font-size:12px;color:#E5E7EB;line-height:1.55}
+.crb-text+.crb-text{margin-top:6px}
+.crb-ar{font-family:"Segoe UI",Tahoma,Arial,sans-serif}
 
 </style>
 </head>
@@ -552,23 +571,6 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
       <div class="bi"><div class="bl2">Coverage</div><div class="bv" id="msr-bc">—</div></div>
     </div>
     <div id="msr-badge"></div><div class="ft" id="msr-feed"></div><div class="hb" id="msr-hint"></div>
-    <div class="wpq-bu">Compare against Line average: <select id="msr-line" onchange="cMSR()">
-      <option value="CHC">CHC</option>
-      <option value="CNS">CNS</option>
-      <option value="CVM-I">CVM-I</option>
-      <option value="CVM-II">CVM-II</option>
-      <option value="DIAB-I">DIAB-I</option>
-      <option value="DIAB-II">DIAB-II</option>
-      <option value="DIAB-III">DIAB-III</option>
-      <option value="DIAB-IV">DIAB-IV</option>
-      <option value="Derma">Derma</option>
-      <option value="GIT-I" selected>GIT-I</option>
-      <option value="GIT-II">GIT-II</option>
-      <option value="GIT-III">GIT-III</option>
-      <option value="ORTHO-I">ORTHO-I</option>
-      <option value="ORTHO-II">ORTHO-II</option>
-      <option value="PEDIA">PEDIA</option>
-    </select></div>
     <div id="msr-wpq"></div>
   </div>
 </div>
@@ -641,12 +643,6 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
       <div class="bi"><div class="bl2">Calls/DV</div><div class="bv" id="dm-bk2">—</div></div>
     </div>
     <div id="dm-badge"></div><div class="ft" id="dm-feed"></div><div class="hb" id="dm-hint"></div>
-    <div class="wpq-bu">Compare against BU average: <select id="dm-bu" onchange="cDM()">
-      <option value="CHC">CHC</option>
-      <option value="Cluster" selected>Cluster</option>
-      <option value="DIAB">DIAB</option>
-      <option value="GIT">GIT</option>
-    </select></div>
     <div id="dm-wpq"></div>
   </div>
 </div>
@@ -1061,6 +1057,15 @@ const WPQ_AVERAGES = {
   bm: { s: 109.4 },
 };
 
+// UNUSED as of 2026-08-19 ("no show filter for any line achievement just
+// pot rule ... for all layrs") -- Ahmed asked to remove the interactive
+// Line/BU-selector comparison (the #msr-line/#dm-bu <select>s, now
+// deleted from the HTML above) entirely and show a plain static rule
+// banner per tier instead (see CALC_RULE_TEXT/calcRuleBannerHtml below).
+// wpqBuild()/WPQ_AVERAGES are left defined, not deleted, per this
+// project's standing "flag dead code, don't delete it" convention -- in
+// case Ahmed ever wants the live per-KPI pass/fail comparison back.
+//
 // vals/avgs/labels are parallel objects keyed by the same KPI keys --
 // callers only include keys that actually have a real peer average in
 // WPQ_AVERAGES (mirrors computeHierarchyGateData: a KPI with no real
@@ -1086,6 +1091,81 @@ function wpqBuild(vals, avgs, labels) {
   </div>`;
 }
 
+// ── STATIC WINNER POOL RULE BANNER ── added 2026-08-19 per Ahmed, in
+// place of the interactive comparison above. Per-tier bilingual copy
+// mirrors HIERARCHY_BANNER_TEXT / lineMedianRuleBannerHtml in the live
+// dashboard's js/sprint.js verbatim (same titles, same EN/AR sentences)
+// so the rule reads identically on both tools -- MSR/CHC text is exactly
+// what Ahmed pasted; DM/ASM/NSM/BM text is copied from the dashboard's
+// own HIERARCHY_BANNER_TEXT object.
+const CALC_RULE_TEXT = {
+  msr: {
+    title: "WINNER PAGE — LINE AVERAGE PERFORMANCE MODEL",
+    en1: "Winner Pool eligibility is based only on performance versus the Rep's own Line Average across Sales Achievement, Right Frequency, and Coverage.",
+    en2: "Absolute floors affect Points Calculation only and do not determine Winner Pool eligibility.",
+    ar1: "أهلية الدخول إلى مجموعة الفائزين تعتمد فقط على مقارنة أداء المندوب بمتوسط (Average) الـ Line في تحقيق المبيعات والتكرار الصحيح للزيارات والتغطية.",
+    ar2: "الحدود الدنيا المطلقة تؤثر على حساب النقاط فقط ولا تحدد أهلية الدخول إلى مجموعة الفائزين.",
+  },
+  chc: {
+    title: "WINNER PAGE — LINE AVERAGE PERFORMANCE MODEL",
+    en1: "Winner Pool eligibility is based only on performance versus the Rep's own Line Average across Sales Achievement and Coverage.",
+    en2: "Absolute floors affect Points Calculation only and do not determine Winner Pool eligibility.",
+    ar1: "أهلية الدخول إلى مجموعة الفائزين تعتمد فقط على مقارنة أداء المندوب بمتوسط (Average) الـ Line في تحقيق المبيعات والتغطية.",
+    ar2: "الحدود الدنيا المطلقة تؤثر على حساب النقاط فقط ولا تحدد أهلية الدخول إلى مجموعة الفائزين.",
+  },
+  dm: {
+    title: "WINNER PAGE — BU AVERAGE PERFORMANCE MODEL",
+    en1: "Winner Pool eligibility is based only on performance versus the DM/DSM's own BU Average across Team Avg Score, Field Working Days, DV Coverage, and Calls per DV.",
+    en2: "Absolute floors affect Points Calculation only and do not determine Winner Pool eligibility.",
+    ar1: "أهلية الدخول إلى مجموعة الفائزين تعتمد فقط على مقارنة أداء مدير المنطقة (DM/DSM) بمتوسط (Average) الـ BU الخاص به في متوسط أداء الفريق، أيام العمل الميداني، تغطية الزيارات المزدوجة، وعدد الزيارات لكل زيارة مزدوجة.",
+    ar2: "الحدود الدنيا المطلقة تؤثر على حساب النقاط فقط ولا تحدد أهلية الدخول إلى مجموعة الفائزين.",
+  },
+  asm: {
+    title: "WINNER PAGE — NATIONAL ASM AVERAGE PERFORMANCE MODEL",
+    en1: "Winner Pool eligibility is based only on performance versus the national ASM Average (every other ASM across the company) across Team Avg Score and Field Working Days.",
+    en2: "Absolute floors affect Points Calculation only and do not determine Winner Pool eligibility.",
+    ar1: "أهلية الدخول إلى مجموعة الفائزين تعتمد فقط على مقارنة أداء مدير المبيعات الإقليمي (ASM) بالمتوسط (Average) الوطني لجميع مديري المبيعات الإقليميين في الشركة، في متوسط أداء الفريق وأيام العمل الميداني.",
+    ar2: "الحدود الدنيا المطلقة تؤثر على حساب النقاط فقط ولا تحدد أهلية الدخول إلى مجموعة الفائزين.",
+  },
+  nsm: {
+    title: "WINNER PAGE — NATIONAL NSM AVERAGE PERFORMANCE MODEL",
+    en1: "Winner Pool eligibility is based only on performance versus the national NSM Average (every other NSM across the company) across Team Avg Score and Field Working Days.",
+    en2: "Absolute floors affect Points Calculation only and do not determine Winner Pool eligibility.",
+    ar1: "أهلية الدخول إلى مجموعة الفائزين تعتمد فقط على مقارنة أداء مدير المبيعات الوطني (NSM) بالمتوسط (Average) الوطني لجميع مديري المبيعات الوطنيين في الشركة، في متوسط أداء الفريق وأيام العمل الميداني.",
+    ar2: "الحدود الدنيا المطلقة تؤثر على حساب النقاط فقط ولا تحدد أهلية الدخول إلى مجموعة الفائزين.",
+  },
+  bm: {
+    title: "WINNER PAGE — NATIONAL BM AVERAGE PERFORMANCE MODEL",
+    en1: "Winner Pool eligibility is based only on performance versus the national Brand Manager Average (every other Brand Manager across the company) across National Sales, Regions Covered, and Tactical Plan Execution.",
+    en2: "Absolute floors affect Points Calculation only and do not determine Winner Pool eligibility.",
+    ar1: "أهلية الدخول إلى مجموعة الفائزين تعتمد فقط على مقارنة أداء مدير المنتج (Brand Manager) بالمتوسط (Average) الوطني لجميع مديري المنتجات في الشركة، في المبيعات الوطنية، عدد المناطق المغطاة، وتنفيذ الخطة التكتيكية.",
+    ar2: "الحدود الدنيا المطلقة تؤثر على حساب النقاط فقط ولا تحدد أهلية الدخول إلى مجموعة الفائزين.",
+  },
+};
+function calcRuleBannerHtml(t) {
+  return `<div class="crb">
+    <div class="crb-icon">🏆</div>
+    <div class="crb-body">
+      <div class="crb-title">${t.title}</div>
+      <div class="crb-text">${t.en1}</div>
+      <div class="crb-text">${t.en2}</div>
+      <div class="crb-text crb-ar" dir="rtl" lang="ar">${t.ar1}</div>
+      <div class="crb-text crb-ar" dir="rtl" lang="ar">${t.ar2}</div>
+    </div>
+  </div>`;
+}
+// Precomputed once -- the banner text never changes with the sliders, so
+// there's no need to rebuild the HTML string on every input event the way
+// the old live wpqBuild() comparison did.
+const CALC_RULE_HTML = {
+  msr: calcRuleBannerHtml(CALC_RULE_TEXT.msr),
+  chc: calcRuleBannerHtml(CALC_RULE_TEXT.chc),
+  dm: calcRuleBannerHtml(CALC_RULE_TEXT.dm),
+  asm: calcRuleBannerHtml(CALC_RULE_TEXT.asm),
+  nsm: calcRuleBannerHtml(CALC_RULE_TEXT.nsm),
+  bm: calcRuleBannerHtml(CALC_RULE_TEXT.bm),
+};
+
 // ── CALCS ─────────────────────────────────────────────────────────────────
 function cMSR(){
   const s=+document.getElementById("msr-s").value, r=+document.getElementById("msr-r").value, c=+document.getElementById("msr-c").value;
@@ -1094,10 +1174,8 @@ function cMSR(){
   document.getElementById("msr-sp").textContent=ps.toFixed(1)+" pts"; document.getElementById("msr-rp").textContent=pr.toFixed(1)+" pts"; document.getElementById("msr-cp").textContent=pc.toFixed(1)+" pts";
   sn("msr-sn",s<70); sn("msr-rn",r<60); sn("msr-cn",c<90);
   rrS("msr",ps+pr+pc,[{k:"s",v:ps},{k:"r",v:pr},{k:"c",v:pc}],gt(ps+pr+pc));
-  const lineSel = document.getElementById("msr-line");
-  const line = (lineSel && lineSel.value) || "GIT-I";
   const wpqEl = document.getElementById("msr-wpq");
-  if (wpqEl) wpqEl.innerHTML = wpqBuild({s,r,c}, WPQ_AVERAGES.msr[line] || {}, {s:"Sales", r:"Right Frequency", c:"Coverage"});
+  if (wpqEl) wpqEl.innerHTML = CALC_RULE_HTML.msr;
 }
 function cCHC(){
   const s=+document.getElementById("chc-s").value, c=+document.getElementById("chc-c").value;
@@ -1107,7 +1185,7 @@ function cCHC(){
   sn("chc-sn",s<70); sn("chc-cn",c<60);
   rrS("chc",ps+pc,[{k:"s",v:ps},{k:"c",v:pc}],gt(ps+pc));
   const wpqEl = document.getElementById("chc-wpq");
-  if (wpqEl) wpqEl.innerHTML = wpqBuild({s,c}, WPQ_AVERAGES.chc, {s:"Sales", c:"Coverage"});
+  if (wpqEl) wpqEl.innerHTML = CALC_RULE_HTML.chc;
 }
 function cDM(){
   const t=+document.getElementById("dm-t").value, f=+document.getElementById("dm-f").value, d=+document.getElementById("dm-d").value, k=+document.getElementById("dm-k").value;
@@ -1117,10 +1195,8 @@ function cDM(){
   sn("dm-fn",f<60); sn("dm-dn",d<80); sn("dm-kn",k<90);
   const tot=pt+pf+pd+pk;
   rr("dm",tot,[{k:"t2",v:pt},{k:"f2",v:pf},{k:"d2",v:pd},{k:"k2",v:pk}],gt(tot),100);
-  const buSel = document.getElementById("dm-bu");
-  const bu = (buSel && buSel.value) || "Cluster";
   const wpqEl = document.getElementById("dm-wpq");
-  if (wpqEl) wpqEl.innerHTML = wpqBuild({t,f,d,k}, WPQ_AVERAGES.dm[bu] || {}, {t:"Team Avg", f:"Field Working Days", d:"DV Coverage", k:"Calls per DV"});
+  if (wpqEl) wpqEl.innerHTML = CALC_RULE_HTML.dm;
 }
 function cASM(){
   const t=+document.getElementById("asm-t").value, f=+document.getElementById("asm-f").value;
@@ -1130,7 +1206,7 @@ function cASM(){
   sn("asm-fn",f<60);
   const tot=pt+pf; rr("asm",tot,[{k:"t2",v:pt},{k:"f2",v:pf}],gt(tot),100);
   const wpqEl = document.getElementById("asm-wpq");
-  if (wpqEl) wpqEl.innerHTML = wpqBuild({t,f}, WPQ_AVERAGES.asm, {t:"Team Avg", f:"Field Working Days"});
+  if (wpqEl) wpqEl.innerHTML = CALC_RULE_HTML.asm;
 }
 function cNSM(){
   const t=+document.getElementById("nsm-t").value, f=+document.getElementById("nsm-f").value;
@@ -1140,7 +1216,7 @@ function cNSM(){
   sn("nsm-fn",f<60);
   const tot=pt+pf; rr("nsm",tot,[{k:"t2",v:pt},{k:"f2",v:pf}],gt(tot),100);
   const wpqEl = document.getElementById("nsm-wpq");
-  if (wpqEl) wpqEl.innerHTML = wpqBuild({t,f}, WPQ_AVERAGES.nsm, {t:"Team Avg", f:"Field Working Days"});
+  if (wpqEl) wpqEl.innerHTML = CALC_RULE_HTML.nsm;
 }
 // Brand Manager -- added 2026-08-19, see the panel-bm HTML comment above
 // for full context. No linear team-avg formula (no team rollup) -- all 3
@@ -1155,7 +1231,7 @@ function cBM(){
   const tot=ps+pr+pp;
   rr("bm",tot,[{k:"s2",v:ps},{k:"r2",v:pr},{k:"p2",v:pp}],gt(tot),100);
   const wpqEl = document.getElementById("bm-wpq");
-  if (wpqEl) wpqEl.innerHTML = wpqBuild({s}, {s: WPQ_AVERAGES.bm.s}, {s:"National Sales"});
+  if (wpqEl) wpqEl.innerHTML = CALC_RULE_HTML.bm;
 }
 function sw(role, btn) {
   document.querySelectorAll(".tb").forEach(b=>b.classList.remove("active"));

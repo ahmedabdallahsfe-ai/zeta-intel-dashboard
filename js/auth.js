@@ -213,11 +213,11 @@
   }
 
   // -------------------------------------------------------------------
-  // ZETA SPRINT 2026 ACCESS (2026-08-19, Ahmed)
+  // ZETA SPRINT 2026 ACCESS (2026-08-20, Ahmed)
   // -------------------------------------------------------------------
-  // "push uodate to geithub for bex and sfe only"
-  // Gated strictly to BEX and SFE Manager.
-  var SPRINT_ROLES = ["BEX", "SFE Manager"];
+  // "push updates to github zeta sprint should show to bu bex vp sfe admin ceo"
+  // Gated to CEO, VP, BEX, Admin, SFE Manager, and BU Manager.
+  var SPRINT_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "BU Manager"];
 
   function canViewSprint() {
     var u = getValidSessionUser();

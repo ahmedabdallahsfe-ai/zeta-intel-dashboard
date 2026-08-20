@@ -763,7 +763,7 @@ function renderSprintTab(container) {
       ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
           icon: "\u{1F512}",
           title: "Access restricted",
-          hint: "Zeta Sprint 2026 is available to BEx and SFE Manager roles only.",
+          hint: "Zeta Sprint 2026 is available to BU Manager, BEx, VP, SFE Manager, Admin and CEO roles only.",
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;
