@@ -259,6 +259,52 @@ def interp(curve, x):
     return curve[-1][1]
 
 
+def _rescaled_power_curve(x0_pct, span_pct, lo=1.0, hi=10.0, exp=1.1, x_max_pct=100):
+    """Ahmed's rule (2026-08-27): DM/DSM Double Visit Coverage and Avg Calls
+    per DV Day starting thresholds lowered (80%->75%, 90%->70%). The
+    original 'dsm points scheme' table values are exactly reproduced by
+    y = lo + (hi-lo) * ((x-x0)/span)^exp (fit confirmed to ~1e-6 against the
+    real table). That formula is undefined (negative base, non-integer
+    exponent) below its own anchor (x0), so a straight downward extension
+    of the ORIGINAL x0/span is mathematically impossible for either KPI at
+    the new thresholds. Per Ahmed's explicit choice (2026-08-26/27,
+    confirmed for this live cache too via follow-up question): reuse the
+    identical formula/exponent, rescaled over the new wider domain -- same
+    treatment already applied to the standalone calculator
+    ("Zeta Sprint Points Calculator - FINAL.html"). This deliberately
+    shifts the existing 80-100%/90-100% point values slightly (a longer
+    span raises the fraction-of-progress at any given %) -- an informed,
+    explicit tradeoff, not an oversight. Returns (fraction, points) pairs
+    at 1%-point granularity, same shape `extract_curve()` returns, so
+    `interp()` itself is completely unchanged -- only the curve DATA is
+    replaced for these two KPIs.
+
+    Boundary fix (Ahmed 2026-08-27): interp()'s untouched `x <= curve[0][0]`
+    check means landing EXACTLY on the round-number threshold (raw
+    achievement typed as literally 0.75/0.70 in Ahmed's KPI template) fell
+    into the "at or below the curve" branch and scored 0, not the intended
+    starting value -- the SAME pre-existing edge case that already zeroed
+    anyone landing exactly on the OLD anchor (80.0%/90.0%) too, just newly
+    visible now that real people (5 DM/DSMs this month) sit exactly at the
+    new 75.0% DVC threshold. Fixed by nudging only this curve's own
+    leftmost x-coordinate a hair (1e-9) below the literal threshold, so an
+    exact hit falls into interp()'s normal interpolation branch instead of
+    its zero branch. interp() itself, and every other KPI's curve
+    (Field Working Days, ASM/NSM, Brand Manager, Medical Rep, CHC), are
+    completely untouched -- this only changes how these two curves
+    represent their own first data point.
+    """
+    curve = []
+    for pct in range(x0_pct, x_max_pct + 1):
+        frac = (pct - x0_pct) / span_pct
+        y = lo + (hi - lo) * (frac ** exp)
+        x = pct / 100.0
+        if pct == x0_pct:
+            x -= 1e-9
+        curve.append((x, round(y, 6)))
+    return curve
+
+
 def main():
     t0 = time.time()
 
@@ -562,8 +608,11 @@ def main():
     asmnsm_ws = wb_curves['ASM&NSM SCHEME']
     bm_ws = wb_curves['Brand Managers']
     dm_fielddays_curve = extract_curve(dsm_ws, 4, 5)     # Field Working Days, domain 0.6-1.0 -> 1-10 pts
-    dm_dvcoverage_curve = extract_curve(dsm_ws, 7, 8)    # Double Visit Coverage, domain 0.8-1.0 -> 1-10 pts
-    dm_callsperdv_curve = extract_curve(dsm_ws, 10, 11)  # Avg Calls per DV Day, domain 0.9-1.0 -> 6.1-10 pts
+    # DV Coverage / Calls per DV: thresholds lowered 80%->75% / 90%->70%
+    # (Ahmed, 2026-08-27). Was: extract_curve(dsm_ws, 7, 8) / (dsm_ws, 10, 11)
+    # -- see _rescaled_power_curve() docstring above for the exact rule.
+    dm_dvcoverage_curve = _rescaled_power_curve(75, 25)  # was 0.8-1.0 -> 1-10 pts
+    dm_callsperdv_curve = _rescaled_power_curve(70, 30)  # was 0.9-1.0 -> 6.1-10 pts
     asmnsm_fielddays_curve = extract_curve(asmnsm_ws, 4, 5)  # Field Working Days, domain 0.6-1.0 -> 1-20 pts
     bm_ach_curve = extract_curve(bm_ws, 1, 2)            # National Sales Ach%, domain 0.7-1.3 -> 1-50 pts
     bm_region_curve = extract_curve(bm_ws, 4, 5)         # Regions Covered (count), domain 1-5 -> 4-20 pts
@@ -687,9 +736,17 @@ def main():
                 continue
             ws_t = wb_t[sheet_name]
             header = [c.value for c in next(ws_t.iter_rows(min_row=1, max_row=1))]
-            if 'Code' not in header:
+            # NSM tab was replaced with a raw activity-log layout (Ahmed,
+            # 2026-08-26) that uses 'Employee Code' instead of the standard
+            # 'Code' header -- accept either so this sheet isn't silently
+            # skipped.
+            if 'Code' in header:
+                code_header = 'Code'
+            elif 'Employee Code' in header:
+                code_header = 'Employee Code'
+            else:
                 continue
-            code_col = header.index('Code')
+            code_col = header.index(code_header)
             sheet_data = {}
             for row in ws_t.iter_rows(min_row=2, values_only=True):
                 code = row[code_col]

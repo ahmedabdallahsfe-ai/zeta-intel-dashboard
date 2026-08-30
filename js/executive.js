@@ -3358,13 +3358,27 @@
     // includeTargetRow()). Surface that here too rather than let a
     // toggle that isn't differentiating anything yet look broken.
     const scenarioDataReady = !!(global.SalesDashboard && typeof global.SalesDashboard.isScenarioDataAvailable === "function" && global.SalesDashboard.isScenarioDataAvailable());
+    // Shortage Target (2026-08-26): only offered once the loaded cache is
+    // v4+ -- mirrors js/sales.js's renderLayout gating its own <option>
+    // on shortageScenarioAvailable(). Filtered out of scenarioOptions
+    // entirely (not shown-then-disabled) so a locked-out choice never
+    // appears selectable, same "no control" convention used for
+    // canToggleScenario itself above.
+    const shortageDataReady = !!(global.SalesDashboard && typeof global.SalesDashboard.isShortageDataAvailable === "function" && global.SalesDashboard.isShortageDataAvailable());
     if (canToggleScenario) {
-      const scenarioOptions = Object.keys(global.SEMANTIC.TARGET_SCENARIOS).map(key => ({ value: key, label: global.SEMANTIC.TARGET_SCENARIOS[key].label }));
+      const scenarioOptions = Object.keys(global.SEMANTIC.TARGET_SCENARIOS)
+        .filter(key => key !== "shortage" || shortageDataReady)
+        .map(key => ({ value: key, label: global.SEMANTIC.TARGET_SCENARIOS[key].label }));
       const scenarioSelect = global.DS.select({ id: "exec-filter-scenario", label: "Target Basis", options: scenarioOptions, value: ctx.filters.scenario });
       if (!scenarioDataReady) {
         const note = document.createElement("div");
         note.style.cssText = "font-size:9px;color:#b45309;margin-top:3px;max-width:170px;line-height:1.35;";
         note.textContent = "Working Target activates after the next cache refresh";
+        scenarioSelect.appendChild(note);
+      } else if (!shortageDataReady) {
+        const note = document.createElement("div");
+        note.style.cssText = "font-size:9px;color:#b45309;margin-top:3px;max-width:170px;line-height:1.35;";
+        note.textContent = "Shortage Target activates after the next cache refresh";
         scenarioSelect.appendChild(note);
       }
       wrap.appendChild(scenarioSelect);

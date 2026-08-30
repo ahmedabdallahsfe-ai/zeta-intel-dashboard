@@ -1275,8 +1275,26 @@ def write_cache_pair(data: dict, json_path: Path, js_path: Path, js_var_name: st
 def run_organogram_aggregation(organogram_path: Path, df_coverage: pd.DataFrame, logger: logging.Logger) -> dict:
     t0 = time.time()
     logger.info("Parsing organogram workbook...")
-    df_org = pd.read_excel(organogram_path, sheet_name="Details")
+    xl_org = pd.ExcelFile(organogram_path)
+    org_sheet = "Details" if "Details" in xl_org.sheet_names else organogram_path.stem
+    if org_sheet not in xl_org.sheet_names:
+        raise ValueError(
+            f"Organogram workbook {organogram_path.name} has no 'Details' sheet and no sheet "
+            f"matching its filename ('{organogram_path.stem}'). Available sheets: {xl_org.sheet_names}"
+        )
+    df_org = xl_org.parse(org_sheet)
     df_org = df_org.loc[:, ~df_org.columns.str.contains('^Unnamed')]
+
+    # Some source exports rename ASM -> "Area Manager" (e.g. the July 2026 workbook).
+    # Normalize back to ASM/ASM ID so every downstream reference below keeps working.
+    rename_map = {}
+    if "ASM" not in df_org.columns and "Area Manager" in df_org.columns:
+        rename_map["Area Manager"] = "ASM"
+    if "ASM ID" not in df_org.columns and "Area Manager ID" in df_org.columns:
+        rename_map["Area Manager ID"] = "ASM ID"
+    if rename_map:
+        logger.info("Organogram column aliasing applied: %s", rename_map)
+        df_org = df_org.rename(columns=rename_map)
 
     # Standardize columns
     df_org["Line"] = df_org["Line"].astype(str).str.strip().str.upper()
@@ -1663,7 +1681,7 @@ def main() -> int:
         write_cache_pair(dashboard_cache, DASHBOARD_JSON, DASHBOARD_JS, "DASHBOARD_CACHE", logger, compress=True)
         write_cache_pair(records_cache, RECORDS_JSON, RECORDS_JS, "DASHBOARD_RECORDS", logger, compress=True)
 
-        organogram_path = SCRIPT_DIR / "Zeta's Total Organogram 2026.xlsx"
+        organogram_path = SCRIPT_DIR / "Total Organogram July 2026.xlsx"
         if organogram_path.exists():
             logger.info("--- Organogram Aggregation ---")
             organogram_cache = run_organogram_aggregation(organogram_path, df_transformed, logger)

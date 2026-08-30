@@ -509,8 +509,8 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
     <div class="sg-item"><div class="sg-dot"></div><div class="sg-text">Right Freq: min <strong>60%</strong></div></div>
     <div class="sg-item"><div class="sg-dot"></div><div class="sg-text">Coverage: min <strong>90%</strong></div></div>
     <div class="sg-item"><div class="sg-dot"></div><div class="sg-text">Field Days: min <strong>60%</strong></div></div>
-    <div class="sg-item"><div class="sg-dot"></div><div class="sg-text">DV Coverage: min <strong>80%</strong></div></div>
-    <div class="sg-item"><div class="sg-dot"></div><div class="sg-text">Calls/DV: min <strong>90%</strong></div></div>
+    <div class="sg-item"><div class="sg-dot"></div><div class="sg-text">DV Coverage: min <strong>75%</strong></div></div>
+    <div class="sg-item"><div class="sg-dot"></div><div class="sg-text">Calls/DV: min <strong>70%</strong></div></div>
   </div>
 
   <div class="sg-divider"></div>
@@ -623,14 +623,14 @@ footer{text-align:center;padding:18px 0 6px;font-family:"Rajdhani",sans-serif;fo
       <div class="kp" id="dm-fp">— pts</div><div class="zn" id="dm-fn" style="display:none">Below 60% = 0 pts</div>
     </div>
     <div class="kc">
-      <div class="kl">DV Coverage</div><div class="km">10 pts max &mdash; from 80%</div>
+      <div class="kl">DV Coverage</div><div class="km">10 pts max &mdash; from 75%</div>
       <div class="kr"><input type="range" min="0" max="100" step="1" value="90" id="dm-d" oninput="cDM()"><span class="kv" id="dm-dv">90%</span></div>
-      <div class="kp" id="dm-dp">— pts</div><div class="zn" id="dm-dn" style="display:none">Below 80% = 0 pts</div>
+      <div class="kp" id="dm-dp">— pts</div><div class="zn" id="dm-dn" style="display:none">Below 75% = 0 pts</div>
     </div>
     <div class="kc">
-      <div class="kl">Avg Calls per DV</div><div class="km">10 pts max &mdash; from 90%</div>
+      <div class="kl">Avg Calls per DV</div><div class="km">10 pts max &mdash; from 70%</div>
       <div class="kr"><input type="range" min="0" max="100" step="1" value="95" id="dm-k" oninput="cDM()"><span class="kv" id="dm-kv">95%</span></div>
-      <div class="kp" id="dm-kp">— pts</div><div class="zn" id="dm-kn" style="display:none">Below 90% = 0 pts</div>
+      <div class="kp" id="dm-kp">— pts</div><div class="zn" id="dm-kn" style="display:none">Below 70% = 0 pts</div>
     </div>
   </div>
   <div class="res">
@@ -924,8 +924,8 @@ const LU_MSR_COV=[[90,1],[91,1.637151],[92,2.413927],[93,3.253886],[94,4.137701]
 const LU_CHC_SALES=[[70,1],[71,1.580375],[72,2.287932],[73,3.053043],[74,3.858101],[75,4.694231],[76,5.555987],[77,6.439654],[78,7.342523],[79,8.262522],[80,9.198012],[81,10.147663],[82,11.110369],[83,12.085197],[84,13.071349],[85,14.068132],[86,15.074939],[87,16.091236],[88,17.116545],[89,18.150437],[90,19.192528],[91,20.242467],[92,21.299935],[93,22.364639],[94,23.436313],[95,24.514707],[96,25.599592],[97,26.690756],[98,27.788],[99,28.891139],[100,30],[101,30.600388],[102,31.332344],[103,32.123837],[104,32.956656],[105,33.821618],[106,34.71309],[107,35.627229],[108,36.561231],[109,37.512953],[110,38.480702],[111,39.463099],[112,40.459002],[113,41.467445],[114,42.487602],[115,43.518757],[116,44.560282],[117,45.611624],[118,46.672288],[119,47.741832],[120,48.819845],[121,49.905936],[122,50.999731],[123,52.10086],[124,53.20895],[125,54.323632],[126,55.444535],[127,56.571289],[128,57.703522],[129,58.840864],[130,59.982944]];
 const LU_CHC_COV=[[60,1],[61,1.560655],[62,2.244171],[63,2.983285],[64,3.760989],[65,4.568709],[66,5.401184],[67,6.254826],[68,7.127017],[69,8.015756],[70,8.919461],[71,9.836844],[72,10.766839],[73,11.708545],[74,12.66119],[75,13.624104],[76,14.596703],[77,15.578468],[78,16.568938],[79,17.567701],[80,18.574384],[81,19.588648],[82,20.610185],[83,21.638714],[84,22.673974],[85,23.715726],[86,24.76375],[87,25.817838],[88,26.8778],[89,27.943457],[90,29.014641],[91,30.091195],[92,31.172972],[93,32.259833],[94,33.351645],[95,34.448286],[96,35.549637],[97,36.655588],[98,37.766031],[99,38.880867],[100,40]];
 const LU_DM_FWD=[[60,1],[61,1.155588],[62,1.333511],[63,1.520967],[64,1.714895],[65,1.913784],[66,2.116716],[67,2.323075],[68,2.532412],[69,2.744389],[70,2.958739],[71,3.175246],[72,3.393734],[73,3.614052],[74,3.836073],[75,4.059686],[76,4.284797],[77,4.511319],[78,4.739179],[79,4.968309],[80,5.198648],[81,5.430143],[82,5.662743],[83,5.896403],[84,6.131081],[85,6.36674],[86,6.603343],[87,6.840858],[88,7.079255],[89,7.318505],[90,7.558581],[91,7.799459],[92,8.041116],[93,8.283529],[94,8.526678],[95,8.770543],[96,9.015106],[97,9.260349],[98,9.506257],[99,9.752812],[100,10]];
-const LU_DM_DVC=[[80,1],[81,1.333511],[82,1.714895],[83,2.116716],[84,2.532412],[85,2.958739],[86,3.393734],[87,3.836073],[88,4.284797],[89,4.739179],[90,5.198648],[91,5.662743],[92,6.131081],[93,6.603343],[94,7.079255],[95,7.558581],[96,8.041116],[97,8.526678],[98,9.015106],[99,9.506257],[100,10]];
-const LU_DM_CALLS=[[90,6.131081],[91,6.50859],[92,6.888468],[93,7.270588],[94,7.654838],[95,8.041116],[96,8.429331],[97,8.8194],[98,9.211247],[99,9.604802],[100,10]];
+const LU_DM_DVC=[[75,1],[76,1.260921],[77,1.559296],[78,1.873659],[79,2.198877],[80,2.532412],[81,2.872729],[82,3.218791],[83,3.569848],[84,3.925333],[85,4.284797],[86,4.647879],[87,5.014282],[88,5.383754],[89,5.756082],[90,6.131081],[91,6.50859],[92,6.888468],[93,7.270588],[94,7.654838],[95,8.041116],[96,8.429331],[97,8.8194],[98,9.211247],[99,9.604802],[100,10]];
+const LU_DM_CALLS=[[70,1],[71,1.213506],[72,1.457659],[73,1.714895],[74,1.981014],[75,2.253938],[76,2.532412],[77,2.815587],[78,3.102849],[79,3.393734],[80,3.687875],[81,3.984978],[82,4.284797],[83,4.587128],[84,4.891795],[85,5.198648],[86,5.507556],[87,5.818401],[88,6.131081],[89,6.445504],[90,6.761587],[91,7.079255],[92,7.39844],[93,7.719079],[94,8.041116],[95,8.364498],[96,8.689176],[97,9.015106],[98,9.342245],[99,9.670556],[100,10]];
 const LU_ASM_FWD=[[60,1],[61,1.328464],[62,1.704078],[63,2.099818],[64,2.509224],[65,2.929099],[66,3.357512],[67,3.793158],[68,4.235092],[69,4.682598],[70,5.135115],[71,5.592187],[72,6.053438],[73,6.518554],[74,6.987265],[75,7.459338],[76,7.934571],[77,8.412785],[78,8.893823],[79,9.377541],[80,9.863813],[81,10.352524],[82,10.843568],[83,11.33685],[84,11.832282],[85,12.329784],[86,12.829279],[87,13.330701],[88,13.833983],[89,14.339066],[90,14.845894],[91,15.354414],[92,15.864578],[93,16.376339],[94,16.889653],[95,17.40448],[96,17.920779],[97,18.438515],[98,18.957653],[99,19.478158],[100,20]];
 // Brand Manager curves, added 2026-08-19 -- extracted straight from the
 // 'Brand Managers' sheet in zeta sprint/scaling scores.xlsx (columns A/B,
@@ -1192,7 +1192,7 @@ function cDM(){
   document.getElementById("dm-tv").textContent=t+"%"; document.getElementById("dm-fv").textContent=f+"%"; document.getElementById("dm-dv").textContent=d+"%"; document.getElementById("dm-kv").textContent=k+"%";
   const pt=dmTeam(t), pf=vlu(f,LU_DM_FWD), pd=vlu(d,LU_DM_DVC), pk=vlu(k,LU_DM_CALLS);
   document.getElementById("dm-tp").textContent=pt.toFixed(1)+" pts"; document.getElementById("dm-fp").textContent=pf.toFixed(1)+" pts"; document.getElementById("dm-dp").textContent=pd.toFixed(1)+" pts"; document.getElementById("dm-kp").textContent=pk.toFixed(1)+" pts";
-  sn("dm-fn",f<60); sn("dm-dn",d<80); sn("dm-kn",k<90);
+  sn("dm-fn",f<60); sn("dm-dn",d<75); sn("dm-kn",k<70);
   const tot=pt+pf+pd+pk;
   rr("dm",tot,[{k:"t2",v:pt},{k:"f2",v:pf},{k:"d2",v:pd},{k:"k2",v:pk}],gt(tot),100);
   const wpqEl = document.getElementById("dm-wpq");
@@ -1266,8 +1266,8 @@ const ROLE_KPIS = {
   dm:[
     {id:'t',label:'Team Avg Score',unit:'%',max:70,fn:'dmTeam',min:0,isTeam:true},
     {id:'f',label:'Field Working Days',unit:'%',max:10,lu:'LU_DM_FWD',fn:'vlu',min:60},
-    {id:'d',label:'DV Coverage',unit:'%',max:10,lu:'LU_DM_DVC',fn:'vlu',min:80},
-    {id:'k',label:'Avg Calls per DV',unit:'%',max:10,lu:'LU_DM_CALLS',fn:'vlu',min:90}
+    {id:'d',label:'DV Coverage',unit:'%',max:10,lu:'LU_DM_DVC',fn:'vlu',min:75},
+    {id:'k',label:'Avg Calls per DV',unit:'%',max:10,lu:'LU_DM_CALLS',fn:'vlu',min:70}
   ],
   asm:[
     {id:'t',label:'DM Team Avg Score',unit:'%',max:80,fn:'asmTeam',min:0,isTeam:true},
@@ -2333,8 +2333,8 @@ function trkInit(){
         <li>MSR Right Frequency: minimum <strong>60%</strong></li>
         <li>MSR Coverage: minimum <strong>90%</strong></li>
         <li>Field Working Days: minimum <strong>60%</strong></li>
-        <li>DV Coverage: minimum <strong>80%</strong></li>
-        <li>Avg Calls/DV: minimum <strong>90%</strong></li>
+        <li>DV Coverage: minimum <strong>75%</strong></li>
+        <li>Avg Calls/DV: minimum <strong>70%</strong></li>
       </ul>
       <p style="font-style:italic;color:#718096;font-size:13px">Use the sliders above to simulate your score and find where to focus your effort this month.</p>
     </div>

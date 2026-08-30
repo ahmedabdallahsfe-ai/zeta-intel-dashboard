@@ -28,34 +28,57 @@
   function rowIsOfficialScenario(mask) { return (mask & 32) > 0; }
 
   /**
+   * Which target scenario does THIS mirror row represent? Only meaningful
+   * when Bit 4 (IsMirror, 16) is set. Bit 6 (64, 2026-08-26) = Shortage --
+   * an ETL-synthesized row (see refresh_sales.py's shortage post-
+   * processing pass) whose TGT_VAL/TGT_QTY were set to that exact
+   * dimensional group's own Actual Sales for a shortage-flagged
+   * Line/SKU/Month, or copied straight from the matching Working row
+   * otherwise -- so every Working row has a 1:1 Shortage counterpart and
+   * the per-LINE fallback machinery below needs no special case for it.
+   * Bit 6 takes priority over Bit 5 (a shortage row's Bit 5 is not
+   * meaningful and should not be inspected).
+   */
+  function rowMirrorScenario(mask) {
+    if ((mask & 64) > 0) return "shortage";
+    return rowIsOfficialScenario(mask) ? "official" : "working";
+  }
+
+  /**
    * Should THIS row's TGT_VAL/TGT_QTY be added to a sum being built for
-   * `wantOfficial` (true = Official Target, false = Working Target)?
-   * Non-mirror (actual transaction) rows always pass through -- their
-   * TGT_VAL/TGT_QTY are already 0 by the ETL's row convention (a row is
-   * EITHER a real transaction OR a mirror/target row, never both), so
-   * including them unconditionally is harmless and keeps every
-   * accumulation loop's actual-value summation (r[VAL]) exactly as it
-   * was before this feature, with zero special-casing needed there.
+   * `wantScenario` ("official" | "working" | "shortage")? Non-mirror
+   * (actual transaction) rows always pass through -- their TGT_VAL/
+   * TGT_QTY are already 0 by the ETL's row convention (a row is EITHER a
+   * real transaction OR a mirror/target row, never both), so including
+   * them unconditionally is harmless and keeps every accumulation loop's
+   * actual-value summation (r[VAL]) exactly as it was before this
+   * feature, with zero special-casing needed there.
    *
-   * Graceful-degradation fix (2026-08-04, same day as the feature
-   * shipped): a cache produced by the pre-v3 ETL never set mask Bit 5
-   * at all (it didn't exist yet). Every one of ITS mirror rows is 100%
-   * real Official Target data, but under the Bit-5 convention it would
-   * read as Bit5=0, i.e. "Working". Filtering it by wantOfficial would
-   * make "Official Target" return zero/N/A (nothing has Bit5=1 yet)
-   * while "Working Target" quietly showed the real Official numbers
+   * Graceful-degradation fix (2026-08-04, same day the Official/Working
+   * feature shipped): a cache produced by the pre-v3 ETL never set mask
+   * Bit 5 at all (it didn't exist yet). Every one of ITS mirror rows is
+   * 100% real Official Target data, but under the Bit-5 convention it
+   * would read as Bit5=0, i.e. "Working". Filtering it by wantScenario
+   * would make "Official Target" return zero/N/A (nothing has Bit5=1
+   * yet) while "Working Target" quietly showed the real Official numbers
    * mislabeled -- exactly backwards, and exactly what was observed in
    * production against the live (still pre-v3) cache. When the loaded
-   * cache predates v3, skip the Bit-5 discrimination entirely and treat
-   * every mirror row as valid for whichever scenario was requested --
-   * this matches exactly how this function behaved before the Target
-   * Scenario feature existed. Real differentiation activates
-   * automatically the moment cache.meta.schemaVersion reaches 3.
+   * cache predates v3, skip the Bit-5/Bit-6 discrimination entirely and
+   * treat every mirror row as valid for whichever scenario was
+   * requested -- this matches exactly how this function behaved before
+   * the Target Scenario feature existed. Real differentiation activates
+   * automatically the moment cache.meta.schemaVersion reaches 3 (for
+   * Official/Working) or 4 (for Shortage -- see shortageScenarioAvailable()).
+   * A wantScenario of "shortage" against a pre-v4 cache is never actually
+   * requested in practice: resolveScenario() already falls back to
+   * "working"/"official" per the line's cache.meta.scenarioCoverage
+   * before this function is ever called, since a pre-v4 cache reports no
+   * shortage coverage for any line.
    */
-  function includeTargetRow(mask, wantOfficial) {
+  function includeTargetRow(mask, wantScenario) {
     if ((mask & 16) === 0) return true;
     if (!scenarioSchemaAvailable()) return true;
-    return rowIsOfficialScenario(mask) === wantOfficial;
+    return rowMirrorScenario(mask) === wantScenario;
   }
 
   /**
@@ -65,9 +88,16 @@
    * CHC/CHC_SALES fallback per line. Returns a plain array indexed by
    * the same line-lookup index every row already carries at r[LINE], so
    * the hot per-row loop only ever does an O(1) array read
-   * (`wantOfficialByLine[r[LINE]]`), never a function call or string
-   * compare -- this is what keeps the added scenario-awareness from
-   * having a measurable performance cost on ~1M-row aggregation passes.
+   * (`wantScenarioByLine[r[LINE]]`), never a repeated resolveScenario()
+   * call -- this is what keeps the added scenario-awareness from having
+   * a measurable performance cost on ~1M-row aggregation passes.
+   *
+   * Returns the RESOLVED SCENARIO STRING per line ("official" | "working"
+   * | "shortage"), not a boolean (2026-08-26, widened from a boolean
+   * wantOfficial/wantWorking pair to accommodate the third Shortage
+   * scenario without duplicating this per-line resolution logic a second
+   * time). Every call site just forwards the string straight into
+   * includeTargetRow(mask, wantScenarioByLine[r[LINE]]) unchanged.
    *
    * Per-LINE (not per-BU) resolution matters because a single
    * aggregation pass (e.g. getBusinessSummary's BU loop) can blend rows
@@ -143,7 +173,7 @@
     const map = new Array(linesLookup.length);
     for (let i = 0; i < linesLookup.length; i++) {
       const resolved = window.SEMANTIC.resolveScenario(linesLookup[i], requestedScenario);
-      map[i] = (resolved.scenario === "official");
+      map[i] = resolved.scenario;
     }
     return map;
   }
@@ -339,6 +369,24 @@
   // really differentiating anything yet is broken.
   function scenarioSchemaAvailable() {
     return !!(cache && cache.meta && typeof cache.meta.schemaVersion === 'number' && cache.meta.schemaVersion >= 3);
+  }
+
+  // Shortage Target scenario (2026-08-26) -- a THIRD scenario, additive to
+  // the v3 Official/Working pair above. Requires schemaVersion >= 4 (see
+  // refresh_sales.py's SCHEMA_VERSION comment: v4 adds mask Bit 6 /
+  // sourceManifest). NOTE ON NAMING: this is UNRELATED to the pre-existing
+  // "Target Basis Filter Shortage" feature elsewhere in this file
+  // (hasShortage/shortageItems -- a rep having NO recorded target at all
+  // for a SKU/month they sold). That is a DATA-COVERAGE GAP flag. THIS is
+  // a business SCENARIO -- Line/SKU/Month periods Ahmed's team has marked
+  // as having a genuine product shortage, where target is retroactively
+  // set equal to actual sales (see Shortage_Target_Override.xlsx / the ETL's
+  // shortage post-processing pass) so achievement isn't penalized for
+  // stock that was never available to sell. Two different "shortage"
+  // words, two different concepts -- do not conflate them when reading or
+  // extending this file.
+  function shortageScenarioAvailable() {
+    return !!(cache && cache.meta && typeof cache.meta.schemaVersion === 'number' && cache.meta.schemaVersion >= 4);
   }
 
   const STATE = {
@@ -640,14 +688,14 @@
     // distData, repData, txData, positionData, clusterData) reads tqty/
     // tval AFTER this gate, so they all become scenario-aware for free
     // with no changes needed anywhere else in this function.
-    const wantOfficialByLine = buildLineScenarioMap(STATE.scenario);
+    const wantScenarioByLine = buildLineScenarioMap(STATE.scenario);
 
     for (let i = 0; i < len; i++) {
       const r = rows[i];
       if (!isRowAllowed(r)) continue;
 
       const mask = r[MASK];
-      const includeTgt = includeTargetRow(mask, wantOfficialByLine[r[LINE]]);
+      const includeTgt = includeTargetRow(mask, wantScenarioByLine[r[LINE]]);
       const qty = r[QTY];
       const val = r[VAL];
       const tqty = includeTgt ? r[TGT_QTY] : 0;
@@ -1272,14 +1320,27 @@
     const scenarioNoteHtml = !scenarioSchemaAvailable() ? `
         <div style="font-size:9px; color:#b45309; margin-top:3px; max-width:170px; line-height:1.35;">Working Target activates after the next cache refresh</div>
       ` : '';
+    // Shortage Target option (2026-08-26): only offered once the loaded
+    // cache is v4+ (shortageScenarioAvailable()) -- otherwise selecting it
+    // would silently resolve to Working via resolveScenario()'s fallback
+    // with no visible reason why, which reads as broken rather than
+    // "not refreshed yet". Same pattern as scenarioNoteHtml above.
+    const shortageOptionHtml = shortageScenarioAvailable()
+      ? `<option value="shortage" ${STATE.scenario==='shortage'?'selected':''}>Shortage Target</option>`
+      : '';
+    const shortagePendingNoteHtml = (!shortageScenarioAvailable() && STATE.scenario === 'shortage') ? `
+        <div style="font-size:9px; color:#b45309; margin-top:3px; max-width:170px; line-height:1.35;">Shortage Target activates after the next cache refresh</div>
+      ` : '';
     const scenarioControlHtml = canToggleScenario ? `
       <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
         <span style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#64748b;">Target Basis</span>
         <select id="select-scenario" class="sc-select" style="width:auto; min-width:150px; height:28px; padding:2px 8px;">
           <option value="official" ${STATE.scenario==='official'?'selected':''}>Official Target</option>
           <option value="working" ${STATE.scenario==='working'?'selected':''}>Working Target</option>
+          ${shortageOptionHtml}
         </select>
         ${scenarioNoteHtml}
+        ${shortagePendingNoteHtml}
       </div>
     ` : `
       <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px; background:#f1f5f9; border-radius:8px; padding:5px 12px;">
@@ -2774,12 +2835,12 @@
     // look like a phantom empty row) -- this is a raw-row read, so it
     // goes through the same includeTargetRow()/buildLineScenarioMap()
     // gate as every other accumulation site rather than a parallel check.
-    const wantOfficialByLine = buildLineScenarioMap(STATE.scenario);
+    const wantScenarioByLine = buildLineScenarioMap(STATE.scenario);
     let csv = "Month,Line,Brand,Product,RepName,DMName,ActualQty,ActualValue,TargetQty,TargetValue\n";
     decodedRows.forEach(r => {
       if (!isRowAllowed(r)) return;
       const mask = r[MASK];
-      if ((mask & 16) > 0 && !includeTargetRow(mask, wantOfficialByLine[r[LINE]])) return;
+      if ((mask & 16) > 0 && !includeTargetRow(mask, wantScenarioByLine[r[LINE]])) return;
       const m = cache.lookups.months[r[MONTH]];
       const l = cache.lookups.lines[r[LINE]];
       const b = cache.lookups.brands[r[BRAND]];
@@ -3098,7 +3159,7 @@
       // so any pre-existing caller that doesn't pass scenario is 100%
       // backward compatible -- identical output to before this feature.
       scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
-      const wantOfficialByLine = buildLineScenarioMap(scenario);
+      const wantScenarioByLine = buildLineScenarioMap(scenario);
       const lines = cache.lookups.lines;
       const months = cache.lookups.months;
       const lastIdx = months.length - 1;
@@ -3127,7 +3188,7 @@
         if (!window.SEMANTIC.countsInBuRollup(rawLineName)) continue;
         const t = totals[bu];
         t.actualYTD += r[VAL];
-        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) t.targetYTD += r[TGT_VAL];
+        if (includeTargetRow(r[MASK], wantScenarioByLine[r[LINE]])) t.targetYTD += r[TGT_VAL];
         const m = r[MONTH];
         byMonth[bu][m] = (byMonth[bu][m] || 0) + r[VAL];
         // Deployed-territory count, same convention as the Sales tab's own
@@ -3209,7 +3270,7 @@
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, brands: [] };
       }
       scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
-      const wantOfficialByLine = buildLineScenarioMap(scenario);
+      const wantScenarioByLine = buildLineScenarioMap(scenario);
       const lines = cache.lookups.lines;
       const brandsLk = cache.lookups.brands || [];
       const months = cache.lookups.months;
@@ -3236,7 +3297,7 @@
         const a = acc.get(bIdx);
         a.val += r[VAL];
         a.qty += r[QTY];
-        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) {
+        if (includeTargetRow(r[MASK], wantScenarioByLine[r[LINE]])) {
           a.tgtVal += r[TGT_VAL];
           a.tgtQty += r[TGT_QTY];
         }
@@ -3331,7 +3392,7 @@
         return { ok: false, status: 'access_denied', asOfDate: null, source: 'sales', bu: bu, lines: [] };
       }
       scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
-      const wantOfficialByLine = buildLineScenarioMap(scenario);
+      const wantScenarioByLine = buildLineScenarioMap(scenario);
       const linesLk = cache.lookups.lines;
       const monthsLk = cache.lookups.months;
       const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
@@ -3358,7 +3419,7 @@
         if (!acc.has(canon)) acc.set(canon, { val: 0, tgtVal: 0 });
         const a = acc.get(canon);
         a.val += r[VAL];
-        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) a.tgtVal += r[TGT_VAL];
+        if (includeTargetRow(r[MASK], wantScenarioByLine[r[LINE]])) a.tgtVal += r[TGT_VAL];
       }
 
       const lines = Array.from(acc.entries())
@@ -3452,7 +3513,7 @@
         return { ok: false, status: 'semantic_model_missing', asOfDate: null, source: 'sales', bu: bu, line: line || 'All' };
       }
       scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
-      const wantOfficialByLine = buildLineScenarioMap(scenario);
+      const wantScenarioByLine = buildLineScenarioMap(scenario);
       const linesLk = cache.lookups.lines;
       const months = cache.lookups.months;
       const lastIdx = months.length - 1;
@@ -3473,7 +3534,7 @@
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only -- see header comment
         actualYTD += r[VAL];
-        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) targetYTD += r[TGT_VAL];
+        if (includeTargetRow(r[MASK], wantScenarioByLine[r[LINE]])) targetYTD += r[TGT_VAL];
         const m = r[MONTH];
         byMonth[m] = (byMonth[m] || 0) + r[VAL];
       }
@@ -3554,7 +3615,7 @@
       // hardcoded) so this function needs no changes if CHC ever gains a
       // real Working Target.
       scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
-      const wantOfficialByLine = buildLineScenarioMap(scenario);
+      const wantScenarioByLine = buildLineScenarioMap(scenario);
       const lines = cache.lookups.lines;
       const brandsLk = cache.lookups.brands || [];
       const productsLk = cache.lookups.products || [];
@@ -3587,7 +3648,7 @@
         const a = acc.get(pIdx);
         a.val += r[VAL];
         a.qty += r[QTY];
-        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) {
+        if (includeTargetRow(r[MASK], wantScenarioByLine[r[LINE]])) {
           a.tgtVal += r[TGT_VAL];
           a.tgtQty += r[TGT_QTY];
         }
@@ -4239,7 +4300,7 @@
         return { ok: false, status: 'access_denied', asOfDate: null, source: 'sales', bu: bu, dms: [] };
       }
       scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
-      const wantOfficialByLine = buildLineScenarioMap(scenario);
+      const wantScenarioByLine = buildLineScenarioMap(scenario);
       const linesLk = cache.lookups.lines;
       const dmsLk = cache.lookups.dms;
       const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
@@ -4268,7 +4329,7 @@
         if (!acc.has(dmName)) acc.set(dmName, { val: 0, tgtVal: 0 });
         const a = acc.get(dmName);
         a.val += r[VAL];
-        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) a.tgtVal += r[TGT_VAL];
+        if (includeTargetRow(r[MASK], wantScenarioByLine[r[LINE]])) a.tgtVal += r[TGT_VAL];
       }
 
       const dms = Array.from(acc.entries())
@@ -4318,7 +4379,7 @@
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) return {};
       scenario = (window.SEMANTIC && window.SEMANTIC.isValidScenario(scenario)) ? scenario : (window.SEMANTIC ? window.SEMANTIC.DEFAULT_SCENARIO : "official");
-      const wantOfficialByLine = window.SEMANTIC ? buildLineScenarioMap(scenario) : [];
+      const wantScenarioByLine = window.SEMANTIC ? buildLineScenarioMap(scenario) : [];
       const dmsLk = cache.lookups.dms;
       const linesLk = cache.lookups.lines;
       const repsLk = cache.lookups.reps;
@@ -4352,7 +4413,7 @@
           map[key] = { val: 0, tgtVal: 0, qty: 0, tgtQty: 0, hasShortage: false, shortageItems: [], _items: new Map() };
         }
         const m = map[key];
-        const isOfficialRow = includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]]);
+        const isOfficialRow = includeTargetRow(r[MASK], wantScenarioByLine[r[LINE]]);
         m.val += r[VAL] || 0;
         m.qty += r[QTY] || 0;
         if (isOfficialRow) {
@@ -4418,7 +4479,7 @@
         return { ok: false };
       }
       scenario = (window.SEMANTIC && window.SEMANTIC.isValidScenario(scenario)) ? scenario : (window.SEMANTIC ? window.SEMANTIC.DEFAULT_SCENARIO : "official");
-      const wantOfficialByLine = window.SEMANTIC ? buildLineScenarioMap(scenario) : [];
+      const wantScenarioByLine = window.SEMANTIC ? buildLineScenarioMap(scenario) : [];
       const linesLk = cache.lookups.lines;
       const dmsLk = cache.lookups.dms;
 
@@ -4442,7 +4503,7 @@
 
         actualValue += r[VAL] || 0;
         actualQty += r[QTY] || 0;
-        if (includeTargetRow(r[MASK], wantOfficialByLine[r[LINE]])) {
+        if (includeTargetRow(r[MASK], wantScenarioByLine[r[LINE]])) {
           targetValue += r[TGT_VAL] || 0;
           targetQty += r[TGT_QTY] || 0;
         }
@@ -4542,6 +4603,15 @@
     isScenarioDataAvailable() {
       decompressCache();
       return scenarioSchemaAvailable();
+    },
+    // Shortage Target counterpart (2026-08-26) -- same convention, gates
+    // on schemaVersion >= 4 instead of >= 3. Used by executive.js to
+    // decide whether to even offer "Shortage Target" in its Target Basis
+    // selector, same as js/sales.js's own renderLayout does for its
+    // in-page selector via shortageScenarioAvailable().
+    isShortageDataAvailable() {
+      decompressCache();
+      return shortageScenarioAvailable();
     },
 
     setFilters(newFilters) {

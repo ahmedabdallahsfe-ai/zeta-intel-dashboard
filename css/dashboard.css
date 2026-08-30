@@ -2439,7 +2439,10 @@ body {
 .imsrx-mode #topbar-export-pdf,
 .sprint-mode #filter-bar-container,
 .sprint-mode .filter-bar-wrap,
-.sprint-mode #topbar-export-pdf {
+.sprint-mode #topbar-export-pdf,
+.businessreview-mode #filter-bar-container,
+.businessreview-mode .filter-bar-wrap,
+.businessreview-mode #topbar-export-pdf {
   display: none !important;
 }
 

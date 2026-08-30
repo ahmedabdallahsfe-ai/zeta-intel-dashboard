@@ -163,6 +163,10 @@
           <span class="menu-icon">💊</span>
           <span class="menu-label">IMS Rx</span>
         </li>
+        <li class="menu-item" data-tab="businessreview" id="menu-item-businessreview" style="display:none;">
+          <span class="menu-icon">📊</span>
+          <span class="menu-label">Business Review</span>
+        </li>
 
       </ul>
     </nav>
@@ -229,8 +233,26 @@
        996,720 -> 1,190,934, months lookup now runs 2026-01 through 2026-06.
        v20260729_junetgt = June position-level targets merged in (ZETA SALES_2026/June TGT 2026.xlsx) --
        june.xlsx only carried 432 sparse TargetIndex=1 rows for June (target value ~45.0M, clearly
-       incomplete); this brings June's target total to ~268.2M, in line with other months. -->
-  <script defer src="cache/sales.data.js?v=20260729_hossamfix"></script>
+       incomplete); this brings June's target total to ~268.2M, in line with other months.
+       v20260826_authoritative_sources = ETL re-pointed at the 6 authoritative source files (Q1_Sales,
+       Q2_Sales, TGT, june, June TGT 2026, CHC_BU_YTD_PERFROMANCE) -- TOTAL_SALES_2026.xlsx is no longer
+       read at all (cache.meta.schemaVersion 3 -> 4). Adds the Shortage Target scenario (cache.meta.
+       shortageOverride, mask bit 6) via ZETA SALES_2026/Shortage_Conditions.xlsx and cache.meta.
+       sourceManifest for per-source validation provenance. Validated against production via a 79-metric
+       reconciliation before cutover; only expected/explained differences remain (CHC actuals -11.19M EGP
+       from the CHC_BU_YTD_PERFROMANCE source switch, Non-Promoted +1.68M EGP new source coverage) -- see
+       IMPLEMENTATION_REPORT_2026-08-26.md.
+       v20260826_shortagefinal = Shortage Target's non-flagged fallback changed from Working Target to
+       Official Target, per Ahmed's final rule (Shortage=Y -> Actual Sales, Shortage=N -> Official Target,
+       never Working). Official/Working totals themselves untouched (verified byte-identical:
+       1,170,155,500.99 / 1,593,239,552.12). CHC/CHC_SALES (no Official coverage) now correctly fall out of
+       Shortage coverage and resolve via the existing chain to Working instead of showing false zeros.
+       v20260827_zetacolestnontender = ZETACOLEST / ZETACOLEST PLUS sales always classified Non-Tender
+       (mask bit 1 forced 0) regardless of the source row's own IsTender value -- Ahmed's directive, so
+       these two brands' sales count toward Sales Achievement instead of being excluded by the existing
+       Non-Tender convention. All other brands/products unchanged. 191,352.00 EGP moved Tender->Non-Tender;
+       Total Actual Sales Value unchanged to the cent (1,426,495,032.60). -->
+  <script defer src="cache/sales.data.js?v=20260827_zetacolestnontender"></script>
   <!-- Zeta Sprint 2026 cache (2026-08-15): built by etl/build_sprint_cache.py from
        sprint/scaling scores.xlsx (point curves) + this page's own Coverage/Sales
        cache sources. Re-linked 2026-08-16 (Ahmed: "add zeta sprint to dashboard") --
@@ -313,6 +335,7 @@
   <script defer src="js/iqvia.js?v=20260811_amr"></script>
   <script defer src="js/sprint.js?v=20260819_bmgate"></script>
   <script defer src="js/ims-rx.js?v=20260816_mi_bridge"></script>
+  <script defer src="js/business-review-download.js?v=20260827_v1"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
        Default landing page. Reads only through SEMANTIC, DS, and the four

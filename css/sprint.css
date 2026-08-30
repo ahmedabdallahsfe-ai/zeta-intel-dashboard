@@ -69,8 +69,13 @@
 .sp-page details { margin-top: 10px; }
 .sp-page summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--color-primary); padding: 6px 0; }
 
-.sp-filter-row { margin-bottom: 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-text-secondary); }
+.sp-filter-row { margin-bottom: 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-text-secondary); flex-wrap: wrap; }
 .sp-filter-row select { padding: 6px 10px; border-radius: 6px; border: 1px solid var(--color-border); font-size: 13px; }
+.sp-search-wrap { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.sp-search-input { padding: 6px 10px 6px 28px; border-radius: 6px; border: 1px solid var(--color-border); font-size: 13px; width: 220px; max-width: 100%; background: var(--color-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 8px center; }
+.sp-search-input:focus { outline: none; border-color: var(--color-primary); }
+.sp-search-clear { border: none; background: none; cursor: pointer; color: var(--color-text-tertiary); font-size: 13px; padding: 4px 6px; border-radius: 4px; }
+.sp-search-clear:hover { color: var(--color-text-secondary); background: var(--color-surface-alt); }
 
 .sp-row:hover { background: var(--color-surface-alt); }
 .sp-rank { font-weight: 800; font-size: 14px; color: var(--color-text-tertiary); width: 32px; }

@@ -281,6 +281,46 @@
     return false;
   }
 
+  // -------------------------------------------------------------------
+  // BUSINESS REVIEW & PPTX DOWNLOAD ACCESS (2026-08-27)
+  // -------------------------------------------------------------------
+  // CEO / VP / BEX / Admin / SFE Manager (Corporate + all 4 BU decks)
+  // BU Manager (own BU deck only)
+  // Commercial Director & Marketing Consultant (Configurable flags)
+  var BUSINESS_REVIEW_INCLUDE_COMMERCIAL_DIR = false; // Configurable pending confirmation
+  var BUSINESS_REVIEW_INCLUDE_MARKETING_CONSULTANT = false; // Configurable pending confirmation
+
+  var BUSINESS_REVIEW_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "BU Manager"];
+  if (BUSINESS_REVIEW_INCLUDE_COMMERCIAL_DIR) BUSINESS_REVIEW_ROLES.push("Commercial Director");
+  if (BUSINESS_REVIEW_INCLUDE_MARKETING_CONSULTANT) BUSINESS_REVIEW_ROLES.push("Marketing Consultant");
+
+  var BUSINESS_REVIEW_TEMPLATE_ROLES = BUSINESS_REVIEW_ROLES.slice();
+
+  function canViewBusinessReview() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return BUSINESS_REVIEW_ROLES.indexOf(u.role) >= 0;
+  }
+
+  function canDownloadBusinessReviewTemplate() {
+    return canViewBusinessReview();
+  }
+
+  function canDownloadCorporateBusinessReview() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    if (!canViewBusinessReview()) return false;
+    return canViewAllBUs();
+  }
+
+  function canDownloadBuBusinessReview(bu) {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    if (!canViewBusinessReview()) return false;
+    if (canViewAllBUs()) return true;
+    return isBuAllowed(bu);
+  }
+
   function canViewAllBUs() {
     var u = getValidSessionUser();
     if (!u) return false;
@@ -433,6 +473,12 @@
     EXPENSE_EDIT_ROLES: EXPENSE_EDIT_ROLES,
     canViewTargetShortage: canViewTargetShortage,
     TARGET_SHORTAGE_ROLES: TARGET_SHORTAGE_ROLES,
+    canViewBusinessReview: canViewBusinessReview,
+    BUSINESS_REVIEW_ROLES: BUSINESS_REVIEW_ROLES,
+    canDownloadBusinessReviewTemplate: canDownloadBusinessReviewTemplate,
+    BUSINESS_REVIEW_TEMPLATE_ROLES: BUSINESS_REVIEW_TEMPLATE_ROLES,
+    canDownloadCorporateBusinessReview: canDownloadCorporateBusinessReview,
+    canDownloadBuBusinessReview: canDownloadBuBusinessReview,
     getActiveScenario: getActiveScenario,
     setActiveScenario: setActiveScenario
   };

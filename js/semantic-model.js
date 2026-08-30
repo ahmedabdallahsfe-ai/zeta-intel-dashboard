@@ -274,11 +274,54 @@
   // the agreed business label (NOT "Buffer" -- the data shows Working >=
   // Official on every line that has both, the opposite of what "buffer"
   // implies).
+  // shortage (2026-08-26, Ahmed's source-consolidation directive) -- a
+  // THIRD scenario, additive to the two above. Unlike Official/Working,
+  // it is not sourced from a raw TargetIndex value (index: null) -- it is
+  // synthesized by refresh_sales.py's shortage post-processing pass:
+  // Shortage Target = Actual Sales for a Line/SKU/Month flagged in
+  // Shortage_Conditions.xlsx, else = Official Target (Ahmed's FINAL rule,
+  // 2026-08-26 -- supersedes an earlier same-day Working-fallback
+  // wording; NOT Working). Official/Working themselves are never
+  // modified -- Shortage is purely additive. A line with no Official
+  // coverage at all (CHC/CHC_SALES, Working-only by design) has no
+  // Official figure for its non-flagged periods to fall back to; those
+  // resolve to 0, not a silent Working substitution.
+  //
+  // ROW EXISTENCE still derives from Working, unrelated to the fallback
+  // VALUE above: the ETL decides WHICH Line/SKU/Month combinations get a
+  // Shortage row by walking the existing Working row set 1:1 (Working
+  // coverage is simply the widest/safest set of dims to enumerate from --
+  // every line with any target coverage has Working rows), so in practice
+  // cov.shortage === cov.working for every line on a v4+ cache even
+  // though Working's own VALUES are no longer read for the non-flagged
+  // case. NOTE: unrelated to js/sales.js's pre-existing
+  // "Target Basis Filter Shortage" (hasShortage/shortageItems) -- that is
+  // a data-coverage-gap flag (rep sold a SKU/month with no target on
+  // record at all), not a business scenario. Same English word, two
+  // different concepts -- see that file's doc comment for the full
+  // disambiguation.
   var TARGET_SCENARIOS = {
     official: { index: 1, label: "Official Target", isDefault: true },
-    working:  { index: 0, label: "Working Target", isDefault: false }
+    working:  { index: 0, label: "Working Target", isDefault: false },
+    shortage: { index: null, label: "Shortage Target", isDefault: false }
   };
   var DEFAULT_SCENARIO = "official";
+
+  // Fallback preference order per requested scenario, used by
+  // resolveScenario() below. official/working keep their EXACT original
+  // bidirectional pairing (index 0/1 of their own chain) -- this is a
+  // generalization of the pre-existing 2-way logic, not a behavior
+  // change for either of them. shortage tries itself, then Working, then
+  // Official as a last resort -- this LINE-LEVEL chain only fires when a
+  // line has NO shortage row coverage at all (e.g. a pre-v4 cache queried
+  // with 'shortage'), an edge case unrelated to the per-row Shortage=Y/N
+  // VALUE rule above (which now falls back to Official, baked in by the
+  // ETL) -- better than returning nothing for that edge case.
+  var SCENARIO_FALLBACK_CHAIN = {
+    official: ["official", "working"],
+    working:  ["working", "official"],
+    shortage: ["shortage", "working", "official"]
+  };
 
   // ---------------------------------------------------------------------
   // DATA-DRIVEN SCENARIO COVERAGE (2026-08-04)
@@ -380,18 +423,24 @@
     // grounds for silently substituting a different number.
     if (!cov) return { scenario: requested, requestedScenario: requested, isFallback: false };
 
-    // The line has what was asked for.
-    if (cov[requested]) return { scenario: requested, requestedScenario: requested, isFallback: false };
+    // Walk the requested scenario's fallback chain (see
+    // SCENARIO_FALLBACK_CHAIN above) and use the first one the line
+    // actually has data for. chain[0] is always `requested` itself, so
+    // this is a pure generalization of the original two-scenario
+    // official<->working logic -- identical outcome for those two,
+    // extended with a third link for shortage. A scenario absent from
+    // `cov` (e.g. "shortage" on a pre-v4 cache) reads as falsy here,
+    // exactly like an explicit false, so it's skipped the same way.
+    var chain = SCENARIO_FALLBACK_CHAIN[requested] || [requested];
+    for (var i = 0; i < chain.length; i++) {
+      if (cov[chain[i]]) {
+        return { scenario: chain[i], requestedScenario: requested, isFallback: i > 0 };
+      }
+    }
 
-    // It doesn't -- fall back to the other scenario if that one has data.
-    // Bidirectional: Working->Official for an Official-only line,
-    // Official->Working for a Working-only line (CHC/CHC_SALES today).
-    var other = requested === "official" ? "working" : "official";
-    if (cov[other]) return { scenario: other, requestedScenario: requested, isFallback: true };
-
-    // Line has neither -- nothing to fall back to. Return the request
-    // unchanged so the caller surfaces an honest empty figure rather than
-    // a borrowed one.
+    // Line has none of the chain's scenarios -- nothing to fall back to.
+    // Return the request unchanged so the caller surfaces an honest empty
+    // figure rather than a borrowed one.
     return { scenario: requested, requestedScenario: requested, isFallback: false };
   }
 

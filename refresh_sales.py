@@ -38,24 +38,53 @@ from datetime import datetime
 
 # Path setup
 ROOT_DIR      = os.path.dirname(os.path.abspath(__file__))
-SOURCE_XLSX   = os.path.join(ROOT_DIR, 'TOTAL_SALES_2026.xlsx')
 OUTPUT_JSON   = os.path.join(ROOT_DIR, 'cache', 'sales.json')
 OUTPUT_JS     = os.path.join(ROOT_DIR, 'cache', 'sales.data.js')
 
-SHEET_NAME    = 'Tota_SALES_2026'
+# ═══════════════════════════════════════════════════════════════════════════
+# AUTHORITATIVE SALES SOURCES  (2026-08-26 — Ahmed's source consolidation)
+# ═══════════════════════════════════════════════════════════════════════════
+# This block is the single place a future developer edits to change what
+# the ETL reads. If a filename is not listed under AUTHORITATIVE below, it
+# is not read by this script, full stop — there is no fallback path that
+# reaches an unlisted file.
+#
+# AUTHORITATIVE (the only files this ETL reads):
+#   Q1_XLSX        -- ZETA SALES_2026\Q1_Sales.xlsx        (Jan-Mar actuals, no CHC, no targets)
+#   Q2_XLSX        -- ZETA SALES_2026\Q2_Sales.xlsx        (Apr-May actuals, no CHC, no targets)
+#   Q_TGT_XLSX     -- ZETA SALES_2026\TGT.xlsx              (Jan-May targets, non-CHC lines, both TargetIndex 0/1)
+#   JUNE_XLSX      -- ZETA SALES_2026\june.xlsx             (June actuals, all lines incl. CHC)
+#   JUNE_TGT_XLSX  -- ZETA SALES_2026\June TGT 2026.xlsx    (June targets, all lines incl. CHC)
+#   CHC_YTD_XLSX   -- ZETA SALES_2026\CHC_BU_YTD_PERFROMANCE.xlsx (CHC/CHC_SALES actuals+targets, Jan-<latest>, self-contained)
+#
+# ARCHIVED / NON-AUTHORITATIVE (never read by this script — do not add back
+# without a deliberate, reviewed code change to this block and a re-run of
+# the parallel-validation process that retired them):
+#   TOTAL_SALES_2026.xlsx, TOTAL_SALES_2026_OLD.xlsx, and any hand-merged
+#   annual workbook. These existed as 2-3 drifting copies across two
+#   folders — the exact ambiguity this consolidation eliminates. If one is
+#   ever regenerated, it stays inert unless someone explicitly re-adds an
+#   entry to SOURCES below.
+#
+# QUARTER ONBOARDING PATTERN: when Q3 arrives, do NOT hand-merge it into a
+# growing annual file. Add Q3_Sales.xlsx (+ its own target file, or extend
+# Q_TGT_XLSX's role) as a new SOURCES entry below, following the exact
+# shape of the Q1/Q2 entries. Never rebuild TOTAL_SALES_2026.xlsx.
+# ═══════════════════════════════════════════════════════════════════════════
 
-# June 2026 update (2026-07-28): TOTAL_SALES_2026.xlsx itself only goes
-# through May -- June arrived as a separate export with a different sheet
-# name and 2 fewer trailing columns (ItemClientCode, Emp1Code, neither of
-# which is referenced anywhere in this script's `expected_cols` below, so
-# they're safe to omit). Rather than hand-merging a new giant .xlsx (slow
-# to write, easy to get subtly wrong), this script reads both sources and
-# concatenates their rows in memory -- column lookup below is by NAME via
-# header.index(), and every June row shares the same column order/position
-# for every field this script actually touches, so no per-row remapping is
-# needed. Re-run whenever a new month's export needs adding: point
-# JUNE_XLSX at the new file (or fold it into TOTAL_SALES_2026.xlsx directly
-# once that becomes the established monthly habit).
+Q1_XLSX      = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'Q1_Sales.xlsx')
+Q1_SHEET     = 'SalesPerDistributor'
+Q2_XLSX      = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'Q2_Sales.xlsx')
+Q2_SHEET     = 'SalesPerDistributor'
+
+# Jan-May position-level targets for the 14-15 non-CHC lines (45-col
+# Q1_Sales.xlsx/Q2_Sales.xlsx carry actuals only, zero TargetIndex data --
+# verified directly, 2026-08-26 audit). Same 27-col shape and role as
+# JUNE_TGT_XLSX below, just for the earlier months -- not "orphaned" as an
+# earlier pass of this project's documentation once assumed.
+Q_TGT_XLSX   = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'TGT.xlsx')
+Q_TGT_SHEET  = 'SalesPositionTargets'
+
 JUNE_XLSX       = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'june.xlsx')
 JUNE_SHEET_NAME = 'SalesPerDistributor'
 
@@ -73,6 +102,29 @@ JUNE_SHEET_NAME = 'SalesPerDistributor'
 # and the column-resolution comment below.
 JUNE_TGT_XLSX   = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'June TGT 2026.xlsx')
 JUNE_TGT_SHEET  = 'SalesPositionTargets'
+
+# CHC/CHC_SALES — self-contained actuals + targets, sole authoritative
+# source for these two lines (2026-08-26). Re-exported by Ahmed as a
+# rolling Jan-<latest closed month> YTD snapshot; the ETL trusts whatever
+# period range is actually present in the file (see CHC exclusion rule and
+# source validation below) rather than assuming a fixed month range.
+CHC_YTD_XLSX  = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'CHC_BU_YTD_PERFROMANCE.xlsx')
+CHC_YTD_SHEET = 'CHC_YTD_PERFROMANCE'
+
+# Shortage Target scenario override file (2026-08-26) -- Ahmed's own real
+# file, already present in ZETA SALES_2026\ before any placeholder of
+# Claude's own design was finalized (discovered 2026-08-26 while staging
+# source files for the parallel ETL run -- see the SHORTAGE TARGET
+# SCENARIO module comment below for the full schema discovery). NOT one
+# of the six authoritative sales sources above (it carries no sales/target
+# figures of its own, only a Line+SKU/Brand+Month-range shortage flag), so
+# it is exempt from REQUIRED_SOURCE_LABELS / fail-loud STOP-ETL treatment:
+# absent, it just means Shortage Target has zero flagged periods (100%
+# parity with Official Target -- see apply_shortage_scenario() below),
+# which is a safe, sane default, not a data-integrity failure. See
+# load_shortage_overrides().
+SHORTAGE_OVERRIDE_XLSX  = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'Shortage_Conditions.xlsx')
+SHORTAGE_OVERRIDE_SHEET = 'Shortage_Adjustments_Input'
 
 # ---------------------------------------------------------------------------
 # JUNE TARGET DE-DUPLICATION (2026-08-04)
@@ -179,6 +231,578 @@ def check_working_only_lines():
         if kept or dropped:
             log(f'  Working-only lines: kept {kept:,} TargetIndex={WORKING_ONLY_KEEP_INDEX} '
                 f'target rows, dropped {dropped:,} duplicate TargetIndex=0 rows.')
+
+# ---------------------------------------------------------------------------
+# CHC EXCLUSIVE SOURCE (2026-08-26 — source consolidation)
+# ---------------------------------------------------------------------------
+# CHC_YTD_XLSX is now the sole authoritative source for CHC/CHC_SALES --
+# both actuals AND targets. Audited directly, 2026-08-26:
+#   - june.xlsx (JUNE_XLSX) DOES carry CHC (15,473 rows) and CHC_SALES
+#     (10,136 rows) June ACTUAL-sales rows.
+#   - June TGT 2026.xlsx (JUNE_TGT_XLSX) DOES carry CHC/CHC_SALES June
+#     TARGET rows (270 + 162, all TargetIndex=1).
+#   - CHC_YTD_XLSX's own Jan-June span already includes June for both
+#     lines (verified: its TargetIndex=1 sum for CHC is 131,457,052 --
+#     exactly the previously-documented 105,737,194 Jan-May + 25,719,858
+#     June total, to the digit).
+# Without this exclusion, wiring in CHC_YTD_XLSX as a new source while
+# leaving june.xlsx/June TGT 2026.xlsx unchanged would silently DOUBLE
+# COUNT June's CHC actuals and targets. Q1_Sales.xlsx/Q2_Sales.xlsx/
+# TGT.xlsx were also checked and confirmed to carry ZERO CHC/CHC_SALES
+# rows of any kind, so no equivalent risk exists for Jan-May.
+#
+# This check applies to a row regardless of mirror/actual status (unlike
+# JUNE_TARGET_AUTHORITY_LABEL above, which only ever gated target rows),
+# and applies uniformly to every source except CHC_AUTHORITY_LABEL -- so
+# if a future Q3/Q4 export or any other source ever accidentally includes
+# a CHC/CHC_SALES row, it is silently dropped here rather than silently
+# double-counted. See check_chc_authority_seen() for a loud warning if the
+# opposite happens (CHC_YTD_XLSX itself turns up empty/missing a line).
+CHC_LINES = {'CHC', 'CHC_SALES'}
+CHC_AUTHORITY_LABEL = 'chc_ytd'
+
+# Forced non-Tender brands (2026-08-27, Ahmed's directive). Ahmed: "consider
+# all sales of zetacolest and zetacolest plus is tender false ... Both
+# Tender=TRUE and Tender=FALSE source records must be treated as FALSE."
+# Applies ONLY to these two brands, both raw source values of IsTender
+# forced to False (never read for these rows) -- every other product's
+# IsTender is read from source unchanged. This does NOT exclude these
+# sales from anything: quite the opposite -- Tender=TRUE rows are what get
+# excluded from Achievement-family KPIs (see the "Non-Tender convention"
+# comment near _TENDER_BIT below), so forcing these two brands to
+# Non-Tender means their sales now COUNT toward Sales Achievement instead
+# of being excluded from it.
+FORCE_NON_TENDER_BRANDS = {'ZETACOLEST', 'ZETACOLEST PLUS'}
+
+_chc_seen_elsewhere = collections.Counter()  # {source_label: dropped-row-count}
+_chc_seen_in_authority = collections.Counter()  # {line: row-count}, from CHC_YTD_XLSX itself
+
+
+def check_chc_authority_coverage():
+    """Warn if CHC_YTD_XLSX itself turned up with zero rows for CHC or
+    CHC_SALES (the file exists but one line's data is unexpectedly
+    missing -- a real gap, not just 'this line has no target', since it
+    would silently zero out that line's ACTUALS too, not only its
+    target). Also reports how many rows were dropped elsewhere for being
+    CHC/CHC_SALES rows arriving from a non-authoritative source, so a
+    future silent-drop is visible in the log rather than invisible."""
+    missing = sorted(l for l in CHC_LINES if _chc_seen_in_authority.get(l, 0) == 0)
+    if missing:
+        log(f'  *** WARNING: CHC_YTD_XLSX ({CHC_YTD_XLSX}) has ZERO rows for '
+            f'{", ".join(missing)} -- this line\'s actuals AND target will be empty. '
+            f'Check the file before trusting these lines\' numbers. ***')
+    if _chc_seen_elsewhere:
+        for label, n in sorted(_chc_seen_elsewhere.items()):
+            log(f'  CHC exclusive-source rule: dropped {n:,} CHC/CHC_SALES row(s) from '
+                f'source "{label}" (non-authoritative for these lines -- see CHC_LINES).')
+
+# ---------------------------------------------------------------------------
+# SHORTAGE TARGET SCENARIO (2026-08-26 — Ahmed's directive)
+# ---------------------------------------------------------------------------
+# Rule, FINAL as confirmed by Ahmed 2026-08-26 ("FINAL DECISION — IMPLEMENT
+# NOW", supersedes an earlier same-day Working-fallback wording):
+#
+#     IF Line + SKU/Brand + Month is flagged Shortage:
+#         Shortage Target = that exact group's own Actual Sales
+#     ELSE:
+#         Shortage Target = that exact group's own Official Target
+#         (never Working)
+#
+# Official Target itself is never modified -- Shortage is purely an
+# additional, additive mirror-row family read from Official's own already-
+# aggregated totals. Lines with no Official coverage at all (CHC/CHC_SALES,
+# Working-only by design) have no Official figure to fall back to for their
+# non-flagged periods; those resolve to 0 rather than silently substituting
+# Working -- see apply_shortage_scenario() below.
+#
+# Implemented as a THIRD mirror-row family, additive to the existing
+# Official(mask bit5=1)/Working(mask bit5=0) pair, both only meaningful
+# when mask bit4 (IsMirror, 16) is set. New mask bit6 (64) = IsShortage --
+# see refresh_sales.py's mask-bitfield comment and js/sales.js's
+# rowMirrorScenario(). Built as a POST-PROCESSING pass over the fully
+# reconstructed `aggregated` dict (see apply_shortage_scenario() below),
+# run exactly once per final cache build (never per-source, never
+# persisted into the resumable SQLite checkpoint) so it always reflects
+# whatever Shortage_Conditions.xlsx currently contains -- editing that
+# file and re-running never requires a checkpoint wipe.
+#
+# SOURCE FILE (2026-08-26, superseding an earlier draft): Ahmed had
+# already placed a real file in ZETA SALES_2026\ -- Shortage_Conditions.xlsx,
+# sheet "Shortage_Adjustments_Input" -- with 6 real entries at the time
+# this was discovered, BEFORE any placeholder template of Claude's own
+# design was finalized. That real file's schema is authoritative and is
+# what load_shortage_overrides() below parses. Its columns:
+#   Line, Brand, Item, ItemCode, From_Month, To_Month,
+#   Is_Shortage_Confirmed_YN, Sales_Target_Adjustment_Rule, Approved_By, Notes
+# Differences from the earlier draft design (corrected to match reality,
+# not guessed): (1) EVERY real row fills both Brand and Item together --
+# Item (SKU) is the actual matching key, Brand is descriptive context, not
+# an alternate/exclusive flagging level -- so there is no Brand-vs-SKU
+# choice to make; a row with Item blank but Brand filled is still
+# supported as a blanket fallback for robustness, but is not how the real
+# file is used today. (2) A MONTH RANGE (From_Month/To_Month, inclusive),
+# not one row per month -- expanded into individual YYYY-MM flags here.
+# (3) Sales_Target_Adjustment_Rule -- today only "Target Equals Sales" is
+# implemented; any other value is rejected rather than silently guessed
+# at, since applying an unknown rule as if it were this one would move
+# real numbers on unverified logic.
+#
+# KNOWN SKU-MATCHING HAZARD (2026-08-26): one of the 6 real rows is
+# "DUXNORZET 30 MG 30 CAP" -- the EXACT SKU js/sales.js's
+# canonicalProductIdx() documents as having a duplicate-lookup-index data
+# defect in the product catalog (one copy has a non-breaking space before
+# "CAP" instead of a normal space, so June's actual sales and June's real
+# target already landed on two DIFFERENT raw product strings for this
+# SKU). Matching Item names by exact string equality against the raw
+# product catalog would therefore risk this shortage flag missing the
+# actual-sales rows it's meant to apply to. _canon_sku() below applies the
+# SAME whitespace-normalization canonicalProductIdx() uses (collapse all
+# whitespace incl. NBSP, trim, uppercase) on BOTH sides of every SKU
+# comparison -- in load_shortage_overrides() (validating the override
+# file's Item names) AND in apply_shortage_scenario() (matching aggregated
+# rows' raw product dim) -- so this known defect can never cause a
+# mismatch for a real flagged SKU, whichever raw spelling a given
+# aggregated row happens to carry.
+def _canon_sku(s):
+    # U+00A0 = non-breaking space -- the exact character behind the
+    # documented DUXNORZET 30 MG 30 CAP duplicate-lookup-index defect
+    # (see the module comment above and js/sales.js's canonicalProductIdx()).
+    # Replaced with a normal space BEFORE the \s+ collapse so both spacing
+    # variants of the same visible SKU name canonicalize identically.
+    return re.sub(r'\s+', ' ', str(s).replace(' ', ' ')).strip().upper()
+
+# Bit 6 (64): IsShortage. Only meaningful when bit 4 (IsMirror, 16) is
+# set; takes priority over bit 5 (Official/Working) when both happen to
+# be set on a synthesized row (bit 5 is not meaningfully set on shortage
+# rows -- see apply_shortage_scenario()).
+_SHORTAGE_BIT = 64
+
+SHORTAGE_RULES_IMPLEMENTED = {'TARGET EQUALS SALES'}  # normalized-case set; see rule check below
+
+
+def _expand_month_range(from_raw, to_raw):
+    """From_Month/To_Month (each e.g. 202602.0, parsed via the same
+    parse_month() every sales source uses) -> an inclusive list of
+    'YYYY-MM' strings. Returns None if either end fails to parse or the
+    range is inverted (to < from) -- caller treats that as a row-level
+    rejection, never a guess at what was meant."""
+    fm = parse_month(from_raw)
+    tm = parse_month(to_raw)
+    if fm == '2026-Unknown' or tm == '2026-Unknown':
+        return None
+    try:
+        fy, fmo = int(fm[:4]), int(fm[5:7])
+        ty, tmo = int(tm[:4]), int(tm[5:7])
+    except Exception:
+        return None
+    f_idx = fy * 12 + fmo
+    t_idx = ty * 12 + tmo
+    if t_idx < f_idx:
+        return None
+    out = []
+    for idx in range(f_idx, t_idx + 1):
+        y, mo = divmod(idx, 12)
+        if mo == 0:
+            y -= 1
+            mo = 12
+        out.append(f'{y:04d}-{mo:02d}')
+    return out
+
+
+def load_shortage_overrides(xlsx_path, valid_lines, valid_brands, valid_products, valid_months):
+    """Reads and validates Shortage_Conditions.xlsx (sheet
+    Shortage_Adjustments_Input -- Ahmed's real, already-in-use schema, see
+    the module comment above). Returns a dict:
+      {
+        'bySku':   {(line, canon_sku, month): notes},
+        'byBrand': {(line, brand, month): notes},   # fallback path only, see above
+        'rowsRead': int, 'rowsApplied': int, 'monthsExpanded': int,
+        'warnings': [...], 'rejectedRows': [...],
+        'schemaValidationStatus': 'PASS'|'PASS_WITH_WARNINGS'|'NOT_PRESENT',
+        'filename': ..., 'loadTimestamp': ...,
+      }
+    Per Ahmed's explicit validation requirements: reject duplicate keys,
+    warn on unknown Line/SKU/Brand, flag unmatched-actuals records (done
+    downstream in apply_shortage_scenario(), which is the only place that
+    knows what actuals exist), and NEVER silently apply an unmatched
+    override -- every rejection and every warning is returned, not just
+    logged, so it can be written into cache.meta for a permanent, visible
+    audit trail rather than a console line nobody reads after the fact.
+    This is a per-ROW reject-and-continue validator (skip the bad row,
+    keep processing the rest), NOT a fail_etl()/STOP-ETL source -- this
+    file is expected to be hand-edited by the business (Supply Chain/BU
+    Head approval, per its own Approved_By column), and one bad row must
+    never block the whole cache from refreshing. Contrast with
+    validate_source() above, which governs the six AUTHORITATIVE sales
+    sources and fails loudly on purpose.
+    """
+    load_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    result = {
+        'bySku': {}, 'byBrand': {}, 'rowsRead': 0, 'rowsApplied': 0, 'monthsExpanded': 0,
+        'warnings': [], 'rejectedRows': [],
+        'schemaValidationStatus': 'NOT_PRESENT',
+        'filename': os.path.basename(xlsx_path), 'loadTimestamp': load_ts,
+    }
+    if not os.path.exists(xlsx_path):
+        log(f'  [shortage_override] {xlsx_path} not found -- Shortage Target scenario will '
+            f'have zero flagged periods (100% parity with Working Target). This is expected '
+            f'if no shortage has been recorded yet.')
+        return result
+
+    try:
+        wb = CalamineWorkbook.from_path(xlsx_path)
+    except Exception as e:
+        result['schemaValidationStatus'] = 'FILE_UNREADABLE'
+        result['warnings'].append(f'file exists but could not be opened/read: {e}')
+        log(f'  [shortage_override] *** WARNING: could not read {xlsx_path}: {e} -- '
+            f'treating as if no overrides exist. ***')
+        return result
+
+    sheet_name = SHORTAGE_OVERRIDE_SHEET if SHORTAGE_OVERRIDE_SHEET in wb.sheet_names else wb.sheet_names[0]
+    ws = wb.get_sheet_by_name(sheet_name)
+    rows_iter = ws.iter_rows()
+    try:
+        header = [str(c).strip() if c else '' for c in next(rows_iter)]
+    except StopIteration:
+        result['schemaValidationStatus'] = 'EMPTY'
+        result['warnings'].append('sheet has no header row (empty file)')
+        return result
+
+    required = {'Line', 'Brand', 'Item', 'From_Month', 'To_Month',
+                'Is_Shortage_Confirmed_YN', 'Sales_Target_Adjustment_Rule'}
+    missing_cols = required - set(header)
+    if missing_cols:
+        result['schemaValidationStatus'] = 'BAD_SCHEMA'
+        result['warnings'].append(f'missing required column(s): {sorted(missing_cols)} -- '
+                                   f'header has: {header}. No overrides applied.')
+        log(f'  [shortage_override] *** WARNING: {xlsx_path} missing column(s) '
+            f'{sorted(missing_cols)} -- treating as if no overrides exist. ***')
+        return result
+    col = {n: header.index(n) for n in required}
+    notes_col = header.index('Notes') if 'Notes' in header else None
+    approved_col = header.index('Approved_By') if 'Approved_By' in header else None
+
+    valid_products_canon = {_canon_sku(p) for p in valid_products}
+
+    seen_keys = set()
+    for r_i, r in enumerate(rows_iter, start=2):  # start=2: row 1 is the header
+        result['rowsRead'] += 1
+
+        def cell(name, default=''):
+            i = col[name]
+            v = r[i] if i < len(r) else None
+            return str(v).strip() if v not in (None, '') else default
+
+        line_raw = cell('Line')
+        brand_raw = cell('Brand').strip().upper()
+        sku_raw = cell('Item')
+        from_raw = cell('From_Month')
+        to_raw = cell('To_Month')
+        shortage_raw = cell('Is_Shortage_Confirmed_YN').strip().upper()
+        rule_raw = cell('Sales_Target_Adjustment_Rule').strip().upper()
+        notes = (str(r[notes_col]).strip() if notes_col is not None and notes_col < len(r)
+                 and r[notes_col] not in (None, '') else '')
+        approved_by = (str(r[approved_col]).strip() if approved_col is not None and approved_col < len(r)
+                       and r[approved_col] not in (None, '') else '')
+
+        if shortage_raw not in ('Y', 'N', 'YES', 'NO'):
+            result['rejectedRows'].append(
+                {'row': r_i, 'reason': f'Is_Shortage_Confirmed_YN must be Y or N, got "{shortage_raw}"'})
+            continue
+        if shortage_raw in ('N', 'NO'):
+            continue  # explicit non-shortage row -- valid, just nothing to flag
+
+        if not approved_by:
+            result['warnings'].append(
+                f'row {r_i}: Approved_By is blank for a Shortage=Y row -- applied anyway, but '
+                f'flagged since this materially overrides a target figure without a recorded approver.')
+
+        if rule_raw not in SHORTAGE_RULES_IMPLEMENTED:
+            result['rejectedRows'].append(
+                {'row': r_i, 'reason': f'Sales_Target_Adjustment_Rule "{rule_raw}" is not implemented '
+                                        f'(only {sorted(SHORTAGE_RULES_IMPLEMENTED)} today) -- rejected '
+                                        f'rather than silently applying the Target-Equals-Sales rule to a '
+                                        f'row that asked for something else.'})
+            continue
+
+        line = norm_line(line_raw)
+        if line not in valid_lines:
+            result['rejectedRows'].append(
+                {'row': r_i, 'reason': f'unknown Line "{line_raw}" -- not present in the '
+                                        f'aggregated data. Check spelling against the Line filter.'})
+            continue
+
+        months = _expand_month_range(from_raw, to_raw)
+        if months is None:
+            result['rejectedRows'].append(
+                {'row': r_i, 'reason': f'From_Month "{from_raw}" / To_Month "{to_raw}" could not be '
+                                        f'parsed into a valid inclusive range.'})
+            continue
+        months_in_range = [m for m in months if m in valid_months]
+        months_out_of_range = [m for m in months if m not in valid_months]
+        if months_out_of_range:
+            result['warnings'].append(
+                f'row {r_i}: {len(months_out_of_range)} month(s) in the From/To range '
+                f'{months_out_of_range} are outside the aggregated data\'s period coverage -- '
+                f'skipped for those months only, the rest of the range still applies.')
+        if not months_in_range:
+            result['rejectedRows'].append(
+                {'row': r_i, 'reason': f'entire From_Month/To_Month range {months} falls outside the '
+                                        f'aggregated data\'s period coverage.'})
+            continue
+
+        has_brand = bool(brand_raw)
+        has_sku = bool(sku_raw)
+        if not has_brand and not has_sku:
+            result['rejectedRows'].append(
+                {'row': r_i, 'reason': 'both Brand and Item are blank -- at least one is required.'})
+            continue
+
+        if has_sku:
+            sku_canon = _canon_sku(sku_raw)
+            if sku_canon not in valid_products_canon:
+                result['warnings'].append(
+                    f'row {r_i}: unknown Item "{sku_raw}" for Line "{line}" -- not present in the '
+                    f'aggregated product catalog (checked whitespace/case-insensitively). Row '
+                    f'rejected (not applied) rather than risk a silent no-op or a mismatch against '
+                    f'a similarly-named SKU.')
+                result['rejectedRows'].append({'row': r_i, 'reason': f'unknown Item "{sku_raw}"'})
+                continue
+            applied_any = False
+            for month in months_in_range:
+                key = (line, sku_canon, month)
+                if key in seen_keys:
+                    result['rejectedRows'].append(
+                        {'row': r_i, 'reason': f'duplicate key (Line={line}, Item={sku_raw}, Month={month}) '
+                                                f'-- first occurrence already applied, skipped for this month.'})
+                    continue
+                seen_keys.add(key)
+                result['bySku'][key] = notes
+                result['monthsExpanded'] += 1
+                applied_any = True
+            if applied_any:
+                result['rowsApplied'] += 1
+        else:
+            if brand_raw not in valid_brands:
+                result['warnings'].append(
+                    f'row {r_i}: unknown Brand "{brand_raw}" for Line "{line}" -- not present in '
+                    f'the aggregated brand catalog. Row rejected (not applied).')
+                result['rejectedRows'].append({'row': r_i, 'reason': f'unknown Brand "{brand_raw}"'})
+                continue
+            applied_any = False
+            for month in months_in_range:
+                key = (line, brand_raw, month)
+                if key in seen_keys:
+                    result['rejectedRows'].append(
+                        {'row': r_i, 'reason': f'duplicate key (Line={line}, Brand={brand_raw}, Month={month}) '
+                                                f'-- first occurrence already applied, skipped for this month.'})
+                    continue
+                seen_keys.add(key)
+                result['byBrand'][key] = notes
+                result['monthsExpanded'] += 1
+                applied_any = True
+            if applied_any:
+                result['rowsApplied'] += 1
+
+    result['schemaValidationStatus'] = 'PASS' if not (result['warnings'] or result['rejectedRows']) else 'PASS_WITH_WARNINGS'
+    log(f'  [shortage_override] Loaded {xlsx_path}: {result["rowsRead"]} row(s) read, '
+        f'{result["rowsApplied"]} row(s) applied expanding to {result["monthsExpanded"]} Line+SKU/Brand+Month '
+        f'flag(s) ({len(result["bySku"])} unique SKU-level, {len(result["byBrand"])} unique Brand-level), '
+        f'{len(result["rejectedRows"])} row(s)/months rejected, {len(result["warnings"])} warning(s). '
+        f'Status={result["schemaValidationStatus"]}.')
+    for rr in result['rejectedRows']:
+        log(f'    REJECTED row {rr["row"]}: {rr["reason"]}')
+    for w in result['warnings']:
+        log(f'    WARNING: {w}')
+    return result
+
+
+def apply_shortage_scenario(aggregated, overrides):
+    """Post-processing pass over the fully reconstructed `aggregated` dict
+    (run exactly once per final cache build -- see the module comment
+    above). For every existing Working-Target mirror row, synthesizes a
+    corresponding Shortage-Target mirror row (mask bit6 set) with the
+    SAME dims. Ahmed's FINAL rule (2026-08-26, supersedes the prior
+    Working-fallback rule):
+
+        Shortage Target = Actual Sales    when Shortage = Y
+                         = Official Target when Shortage = N
+
+    So a synthesized row defaults to that SAME org-hierarchy group's
+    Official Target total (NOT a copy of the Working row it was built
+    from -- Working is only reused here to decide WHICH dims get a
+    Shortage row at all, exactly as before). Then, for every synthesized
+    row whose (line, product, month) or (line, brand, month) is flagged
+    in `overrides`, replaces its target figures with the matching Actual
+    Sales total for that SAME org-hierarchy group (month, line, brand,
+    product, rep, dm, rm, nsm, buhead, cm) instead.
+
+    Lines with no Official Target coverage at all (CHC/CHC_SALES, by
+    design -- see WORKING_ONLY_LINES) have no Official total to fall
+    back to for their non-flagged periods; those resolve to 0, exactly
+    like a flagged group with zero actual (see flagged_groups_zero_actual
+    below) -- NOT a silent substitution of Working, which Ahmed's rule
+    explicitly forbids.
+
+    MATCH GRAIN (2026-08-26, corrected after a real parallel-run finding --
+    see the Implementation Report's Task 8/9 section): target/mirror rows
+    (both Official and Working) NEVER carry real region/brick/distributor/
+    chain/main_type/sub_type/tx_type values -- TGT.xlsx/June TGT 2026.xlsx
+    have no such columns, so process_source() defaults all of them to
+    '(none)' for every target row (see the "absent from June TGT's smaller
+    header" comment near those defaults). Actual transaction rows DO carry
+    real values for those 7 dims. Matching on the FULL 17-dim key (an
+    earlier version of this function) therefore NEVER found a match for
+    ANY flagged group, however much real actual sales existed for that
+    exact Line+SKU+Month+rep -- confirmed empirically: a real parallel run
+    against Ahmed's actual Shortage_Conditions.xlsx showed 549/549 (100%)
+    of matched flagged groups resolving to zero actual, while the SAME
+    Line+SKU+Month carried hundreds of real actual rows and substantial
+    real value once summed correctly. This was caught BEFORE cutover by
+    the mandatory parallel validation step, not shipped. The fix: sum
+    actual sales across ALL region/brick/distributor/chain/main_type/
+    sub_type/tx_type/bulk/tender/offer/upa variants for the same 10-field
+    org-hierarchy key -- the only dims a target row can ever meaningfully
+    specify -- rather than the full 17. A flagged group with genuinely NO
+    actual sales at that org-hierarchy grain (no matching rep/SKU/month
+    combination in the actual data at all) still correctly resolves to
+    Shortage Target = 0 -- see the returned flagged_groups_zero_actual
+    count and cache.meta.shortageOverride.
+
+    Mutates `aggregated` in place (adds new keys only, never removes or
+    edits existing Official/Working/actual rows) and returns
+    (shortage_rows_created, flagged_groups_matched, flagged_groups_zero_actual).
+    """
+    # Build the actual-sales-by-org-hierarchy-key lookup ONCE (not per
+    # flagged group) -- O(n) over `aggregated`, then O(1) lookups below.
+    # Key = (month, line, brand, canon_product, rep, dm, rm, nsm, buhead,
+    # cm) -- dims[0:10] with product (dims[3]) run through _canon_sku(),
+    # deliberately excludes region/brick/distributor/chain/main_type/
+    # sub_type/tx_type (dims[10:17]), which target rows never populate
+    # meaningfully (see docstring above).
+    #
+    # PRODUCT MUST BE CANONICALIZED HERE TOO (2026-08-26, second half of
+    # the DUXNORZET fix -- found in the same real parallel run after the
+    # org-hierarchy-grain fix above still left DUXNORZET 30 MG 30 CAP at
+    # zero actual despite ~930K EGP of real June actual sales existing for
+    # it). Reason: the duplicate-lookup-index defect means actual rows for
+    # this SKU are split across TWO raw spellings ('...30 CAP' and
+    # '...30\xa0CAP'), and the Working target row for it uses only ONE of
+    # those raw spellings. Without canonicalizing product here, this dict
+    # keys the two spellings' actual totals separately, so a Working row
+    # keyed on one spelling can still miss the other spelling's actual
+    # sales even though is_flagged (which already canonicalizes) correctly
+    # identified the row as flagged. Canonicalizing on both sides of this
+    # lookup -- not just in is_flagged's own comparison -- is what actually
+    # closes the gap.
+    actual_totals = {}
+    for dims, vals in aggregated.items():
+        mask = dims[17]
+        if mask & 16:  # mirror/target row -- not an actual, skip
+            continue
+        dim_org = (dims[0], dims[1], dims[2], _canon_sku(dims[3])) + dims[4:10]
+        cur = actual_totals.get(dim_org)
+        if cur is None:
+            actual_totals[dim_org] = [vals[0], vals[1]]  # [qty, val]
+        else:
+            cur[0] += vals[0]
+            cur[1] += vals[1]
+
+    # Official-Target-by-org-hierarchy-key lookup (2026-08-26, FINAL rule
+    # change), built the identical way as actual_totals above and for the
+    # identical reason: Official mirror rows never carry real region/brick/
+    # distributor/chain/main_type/sub_type/tx_type values either (same
+    # source-file limitation documented in the docstring above), so this
+    # MUST match on the 10-dim org-hierarchy key, not the full 17-dim key --
+    # reusing the exact grain already proven correct for actual_totals
+    # rather than re-risking the full-17-dim failure mode Bug 1 found.
+    official_totals = {}
+    for dims, vals in aggregated.items():
+        mask = dims[17]
+        if (mask & 16) == 0 or (mask & 32) == 0:  # only real Official mirror rows
+            continue
+        dim_org = (dims[0], dims[1], dims[2], _canon_sku(dims[3])) + dims[4:10]
+        cur = official_totals.get(dim_org)
+        if cur is None:
+            official_totals[dim_org] = [vals[2], vals[3]]  # [tgt_qty, tgt_val]
+        else:
+            cur[0] += vals[2]
+            cur[1] += vals[3]
+
+    new_entries = {}
+    shortage_rows_created = 0
+    flagged_groups_matched = 0
+    flagged_groups_zero_actual = 0
+    for dims, vals in aggregated.items():
+        mask = dims[17]
+        if (mask & 16) == 0:
+            continue  # actual row -- shortage is a mirror-row concept only
+        if mask & _SHORTAGE_BIT:
+            continue  # already a shortage row from a prior pass (defensive; shouldn't happen)
+        if mask & 32:
+            continue  # Official row -- iterated separately (official_totals above)
+        # This is a genuine Working-Target row -- used ONLY to decide WHICH
+        # dims get a Shortage row (every Working row gets a Shortage
+        # counterpart, flagged or not). Its own target figures are no
+        # longer the fallback value -- see module comment/docstring.
+        month, line, brand, product = dims[0], dims[1], dims[2], dims[3]
+        # Canonicalize product (dims[3]) the SAME way actual_totals' keys
+        # were built above -- required, not optional, see that comment.
+        dim_org = (dims[0], dims[1], dims[2], _canon_sku(dims[3])) + dims[4:10]
+
+        # SKU-level match takes precedence over Brand-level (more specific
+        # evidence overrides a blanket one) -- moot for Ahmed's real
+        # Shortage_Conditions.xlsx today (every row fills both Brand and
+        # Item together, so bySku is always checked first and always wins
+        # when populated), but kept as the documented rule for the Brand-
+        # only fallback path. product is canonicalized the same way
+        # load_shortage_overrides() canonicalized the override file's Item
+        # names (see _canon_sku()'s docstring on the DUXNORZET defect) --
+        # this is REQUIRED, not cosmetic: without it, a flagged SKU could
+        # silently fail to match the very rows it exists to flag.
+        is_flagged = ((line, _canon_sku(product), month) in overrides['bySku']
+                      or (line, brand, month) in overrides['byBrand'])
+
+        new_mask = mask | _SHORTAGE_BIT
+        new_dims = dims[:17] + (new_mask,)
+
+        if is_flagged:
+            flagged_groups_matched += 1
+            actual = actual_totals.get(dim_org)
+            if actual is None:
+                flagged_groups_zero_actual += 1
+                new_tgt_qty, new_tgt_val = 0.0, 0.0
+            else:
+                new_tgt_qty, new_tgt_val = actual[0], actual[1]
+        else:
+            # Ahmed's FINAL rule (2026-08-26): non-flagged Shortage Target
+            # = Official Target for this SAME org-hierarchy group, NOT a
+            # copy of the Working row's own target (vals[2]/vals[3]) this
+            # Shortage row was structurally built from. official_totals
+            # is None for lines with no Official coverage at all (CHC/
+            # CHC_SALES) -- resolves to 0, never silently substituted with
+            # Working. See apply_shortage_scenario()'s docstring.
+            official = official_totals.get(dim_org)
+            if official is None:
+                new_tgt_qty, new_tgt_val = 0.0, 0.0
+            else:
+                new_tgt_qty, new_tgt_val = official[0], official[1]
+
+        # qty/val stay 0 (mirror-row convention, same as Official/Working).
+        # Extended metrics (transfer/bulk/ceiling) carry through unchanged
+        # from the Working row -- no shortage-specific data exists for
+        # them, and copying the Working baseline is the least-surprising
+        # default (see apply_shortage_scenario()'s docstring).
+        new_entries[new_dims] = [0.0, 0.0, new_tgt_qty, new_tgt_val,
+                                  vals[4], vals[5], vals[6], vals[7], set()]
+        shortage_rows_created += 1
+
+    aggregated.update(new_entries)
+    log(f'  [shortage_scenario] Created {shortage_rows_created:,} Shortage-Target mirror row(s) '
+        f'from the existing Working-Target row set. {flagged_groups_matched:,} matched a shortage '
+        f'flag ({flagged_groups_zero_actual:,} of those had zero actual sales at that exact '
+        f'dimensional grain -> Shortage Target = 0, which is correct, not a gap).')
+    return shortage_rows_created, flagged_groups_matched, flagged_groups_zero_actual
 
 # Checkpoint (2026-07-28, revised): processing ~1.19M rows across two xlsx
 # files comfortably exceeds the sandbox's 45s hard command timeout in one
@@ -351,6 +975,7 @@ def open_db():
         CREATE TABLE IF NOT EXISTS customer_roster (rkey TEXT, month TEXT, val REAL DEFAULT 0, PRIMARY KEY(rkey, month));
         CREATE TABLE IF NOT EXISTS lookups (category TEXT, value TEXT, PRIMARY KEY(category, value));
         CREATE TABLE IF NOT EXISTS rep_props (rep TEXT PRIMARY KEY, hiring_date TEXT, position TEXT);
+        CREATE TABLE IF NOT EXISTS source_manifest (label TEXT PRIMARY KEY, entry_json TEXT);
     ''')
     conn.commit()
     return conn
@@ -392,7 +1017,26 @@ def get_progress(conn):
 # output-formatting changes). On mismatch the checkpoint is discarded and
 # the run starts clean, which costs one full re-read but guarantees every
 # row in the cache was produced by exactly one version of the rules.
-ETL_RULES_VERSION = '2026-08-13.a'  # Fix: case-insensitive bool flags + brand name normalisation (uppercase)
+ETL_RULES_VERSION = '2026-08-27.a'  # 'a' = authoritative-source cutover: SOURCES rewired to
+# Q1_Sales.xlsx / Q2_Sales.xlsx / TGT.xlsx / june.xlsx / June TGT 2026.xlsx /
+# CHC_BU_YTD_PERFROMANCE.xlsx (TOTAL_SALES_2026.xlsx retired); new CHC_LINES
+# exclusion-by-source guard added (CHC/CHC_SALES rows from june.xlsx and
+# June TGT 2026.xlsx are now dropped -- CHC_BU_YTD_PERFROMANCE.xlsx is the
+# sole authority for those two lines, now spanning Jan-June).
+# 'b' (same day, found via the mandatory parallel-run reconciliation before
+# cutover): the June target de-duplication rule was unconditionally
+# dropping CHC_YTD_XLSX's own June-dated CHC/CHC_SALES target rows too
+# (it didn't know about the new CHC-exclusive-source exception), silently
+# understating CHC Working Target by ~25.7M EGP and CHC_SALES by ~19.3M
+# EGP. Fixed with a `line not in CHC_LINES` guard on that check -- see the
+# June target de-duplication comment. This changes row inclusion for
+# CHC/CHC_SALES June target rows, so the checkpoint must be discarded
+# again.
+# '2026-08-27.a' (Ahmed's directive): ZETACOLEST / ZETACOLEST PLUS sales
+# now always classified Non-Tender (mask bit 1 forced 0), regardless of
+# the source row's own IsTender value -- see FORCE_NON_TENDER_BRANDS.
+# Changes the mask (part of the aggregation groupby key) for every row of
+# those two brands, so the checkpoint must be discarded.
 RULES_VERSION_KEY = 'etl_rules_version'
 
 
@@ -542,15 +1186,48 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 month = parse_month(gv(r, col['Date']))
                 line = norm_line(gv(r, col['Line']))
 
+                # --- CHC exclusive source (2026-08-26) --------------------
+                # Applies to EVERY row (actual or target) regardless of
+                # is_mirror -- CHC/CHC_SALES are sourced exclusively from
+                # CHC_YTD_XLSX now. See CHC_LINES / CHC_AUTHORITY_LABEL
+                # above for the double-counting this prevents.
+                if line in CHC_LINES:
+                    if source_label == CHC_AUTHORITY_LABEL:
+                        _chc_seen_in_authority[line] += 1
+                    else:
+                        _chc_seen_elsewhere[source_label] += 1
+                        skip_row = True
+
+            if not skip_row:
                 # --- June target de-duplication (2026-08-04) -------------
                 # June TGT 2026.xlsx is the sole authority for June
                 # targets; drop any June-dated TARGET row arriving from
                 # another source. Without this, June Working Target lands
                 # at exactly 2x its true value. Actual (non-mirror) rows
                 # are never affected. See JUNE_TARGET_AUTHORITY_* above.
+                #
+                # EXCEPT CHC/CHC_SALES (2026-08-26 fix -- found via the
+                # mandatory parallel-run reconciliation, NOT shipped
+                # blind): those two lines have their OWN, more specific
+                # authority rule above (CHC_YTD_XLSX is the sole authority
+                # for ALL of CHC/CHC_SALES' months, June included -- see
+                # the CHC EXCLUSIVE SOURCE block just above). Without this
+                # `line not in CHC_LINES` guard, a chc_ytd row that just
+                # PASSED the CHC-exclusive-source check (source_label ==
+                # CHC_AUTHORITY_LABEL == 'chc_ytd') would immediately be
+                # dropped again here anyway, because 'chc_ytd' !=
+                # JUNE_TARGET_AUTHORITY_LABEL ('june_tgt') -- silently
+                # discarding CHC_YTD_XLSX's entire June CHC/CHC_SALES
+                # target contribution. Confirmed by reconciliation against
+                # current production: CHC Working Target landed at
+                # 105,737,194 (Jan-May only) instead of the correct
+                # 131,457,052 (Jan-June, matching CHC_YTD_XLSX's own full
+                # total) -- a silent ~25.7M EGP understatement, and
+                # CHC_SALES similarly understated by ~19.3M EGP.
                 if (is_mirror
                         and month == JUNE_TARGET_AUTHORITY_MONTH
-                        and source_label != JUNE_TARGET_AUTHORITY_LABEL):
+                        and source_label != JUNE_TARGET_AUTHORITY_LABEL
+                        and line not in CHC_LINES):
                     skip_row = True
 
                 # --- Working-only lines (2026-08-04) --------------------
@@ -668,6 +1345,11 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 is_tender = _flag('IsTender')
                 is_offer  = _flag('IsOffer')
                 is_upa    = _flag('IsUPA')
+                # 2026-08-27 (Ahmed's directive): ZETACOLEST / ZETACOLEST
+                # PLUS are always Non-Tender, regardless of what the source
+                # row itself says -- see FORCE_NON_TENDER_BRANDS above.
+                if brand in FORCE_NON_TENDER_BRANDS:
+                    is_tender = False
 
                 mask = 0
                 if is_bulk: mask |= 1
@@ -724,18 +1406,202 @@ conn = open_db()
 conn = ensure_rules_version(conn)
 prog = get_progress(conn)
 
-# SOURCES (2026-07-29, generalized from a hardcoded main/June pair when
-# June TGT was added as a third): each entry is (label, xlsx_path,
-# sheet_name, rows_done_key, complete_key). Processed strictly in order --
-# every source before it in the list must be complete before the next one
-# starts, so any file that doesn't exist (e.g. Ahmed hasn't dropped a
-# given month's TGT export yet) just gets auto-marked complete with 0 rows
-# and the pipeline moves on.
+# SOURCES (2026-08-26 rewrite — Ahmed's source consolidation): each entry
+# is (label, xlsx_path, sheet_name, rows_done_key, complete_key). Processed
+# strictly in order -- every source before it in the list must be complete
+# before the next one starts.
+#
+# ALL SIX are now REQUIRED (see REQUIRED_SOURCE_LABELS below) -- unlike the
+# old main/june/june_tgt trio, where a missing file silently marked itself
+# complete with 0 rows and the pipeline moved on. That behavior is
+# explicitly wrong for an authoritative source: per Ahmed's instruction,
+# "If an authoritative source is missing, unreadable, has an unexpected
+# schema, or produces an invalid period, the ETL must fail loudly rather
+# than silently using an old source." A missing authoritative file now
+# STOPS the ETL instead of quietly producing a cache with a silently empty
+# slice of the business.
 SOURCES = [
-    ('main', SOURCE_XLSX, SHEET_NAME, 'main_rows_done', 'main_complete'),
-    ('june', JUNE_XLSX, JUNE_SHEET_NAME, 'june_rows_done', 'june_complete'),
+    ('q1',       Q1_XLSX,      Q1_SHEET,      'q1_rows_done',      'q1_complete'),
+    ('q2',       Q2_XLSX,      Q2_SHEET,      'q2_rows_done',      'q2_complete'),
+    ('q_tgt',    Q_TGT_XLSX,   Q_TGT_SHEET,   'qtgt_rows_done',    'qtgt_complete'),
+    ('june',     JUNE_XLSX,    JUNE_SHEET_NAME, 'june_rows_done',  'june_complete'),
     ('june_tgt', JUNE_TGT_XLSX, JUNE_TGT_SHEET, 'junetgt_rows_done', 'junetgt_complete'),
+    (CHC_AUTHORITY_LABEL, CHC_YTD_XLSX, CHC_YTD_SHEET, 'chcytd_rows_done', 'chcytd_complete'),
 ]
+REQUIRED_SOURCE_LABELS = {label for label, *_ in SOURCES}  # every current source is required
+
+# ---------------------------------------------------------------------------
+# SOURCE INTEGRITY VALIDATION (2026-08-26)
+# ---------------------------------------------------------------------------
+# Runs once per source, BEFORE any row is aggregated from it. Cheap
+# (header + a single pass are already paid for by process_source itself
+# immediately after; this pass reads only the header and a bounded sample
+# for period/dtype sanity, not the whole sheet). A source that fails a
+# CRITICAL check stops the entire ETL -- see fail_etl() -- rather than
+# producing a cache built from partial or malformed data.
+ACTUALS_REQUIRED_COLS = {'Date', 'Line', 'Emp1Name', 'Quantity', 'Value'}
+TARGETS_REQUIRED_COLS = {'Date', 'Line', 'TargetValue', 'TargetIndex'}
+SOURCE_KIND = {  # label -> 'actuals' | 'targets' | 'mixed' (both actuals and target rows expected)
+    'q1': 'actuals', 'q2': 'actuals', 'q_tgt': 'targets',
+    'june': 'actuals', 'june_tgt': 'targets', CHC_AUTHORITY_LABEL: 'mixed',
+}
+VALID_MONTHS = {f'2026-{m:02d}' for m in range(1, 13)}
+
+source_manifest = []  # populated below; written into cache.meta.sourceManifest
+
+
+class EtlIntegrityError(Exception):
+    pass
+
+
+def fail_etl(label, reason):
+    """STOP ETL per Ahmed's explicit instruction: a critical integrity
+    failure must never silently fall through to partial/wrong data. Raises
+    rather than sys.exit() so the caller can still record what happened in
+    source_manifest before the process actually dies (best-effort -- if
+    the failure is early enough that source_manifest has nothing yet, the
+    exception message alone is the record)."""
+    msg = f'*** ETL STOPPED — critical integrity failure in source "{label}": {reason} ***'
+    log(msg)
+    raise EtlIntegrityError(msg)
+
+
+def validate_source(conn, label, xlsx_path, sheet_name):
+    """Returns a manifest dict: {label, filename, sheet, kind, rowCount,
+    periodRange, schemaStatus, warnings, loadTimestamp}. Raises
+    EtlIntegrityError (via fail_etl) on a CRITICAL failure: missing file,
+    missing sheet, missing a required column for this source's kind, or
+    zero data rows. Non-critical findings (an unexpected Line value, a
+    date outside 2026, a few null critical-key rows) are collected as
+    warnings and returned, not raised -- they don't invalidate the whole
+    source, but they must be visible in the cache, not silently absorbed."""
+    warnings = []
+    load_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    if not os.path.exists(xlsx_path):
+        fail_etl(label, f'file not found at {xlsx_path}')
+
+    try:
+        wb = CalamineWorkbook.from_path(xlsx_path)
+    except Exception as e:
+        fail_etl(label, f'file exists but could not be opened/read: {e}')
+
+    if sheet_name not in wb.sheet_names:
+        fail_etl(label, f'expected sheet "{sheet_name}" not found -- sheets present: {wb.sheet_names}')
+
+    ws = wb.get_sheet_by_name(sheet_name)
+    rows_iter = ws.iter_rows()
+    try:
+        header = [str(c).strip() if c else '' for c in next(rows_iter)]
+    except StopIteration:
+        fail_etl(label, 'sheet has no header row (empty file)')
+
+    kind = SOURCE_KIND[label]
+    if kind == 'targets':
+        required = TARGETS_REQUIRED_COLS
+    elif kind == 'mixed':
+        required = ACTUALS_REQUIRED_COLS | TARGETS_REQUIRED_COLS
+    else:  # 'actuals'
+        required = ACTUALS_REQUIRED_COLS
+    missing_cols = required - set(header)
+    if missing_cols:
+        fail_etl(label, f'missing required column(s) for a "{kind}" source: {sorted(missing_cols)} '
+                         f'-- header has: {header}')
+
+    col = {n: header.index(n) if n in header else None for n in
+           ('Date', 'Line', 'TargetIndex', 'CustomerID', 'Emp1Name')}
+
+    # Bounded sample pass -- period range, null critical keys, invalid
+    # Line/TargetIndex values. Full row count comes from process_source's
+    # own real pass (this would double the fetch cost for large files if
+    # it re-scanned everything); capped sample is enough to catch a wrong
+    # file/sheet/export before the expensive full aggregation starts.
+    SAMPLE_CAP = 50000
+    months_seen = set()
+    null_date_rows = 0
+    null_line_rows = 0
+    bad_target_index_rows = 0
+    sample_rows = 0
+    row_count = 0
+    for r in rows_iter:
+        row_count += 1
+        if sample_rows >= SAMPLE_CAP:
+            continue
+        sample_rows += 1
+        d = r[col['Date']] if col['Date'] is not None and col['Date'] < len(r) else None
+        ln = r[col['Line']] if col['Line'] is not None and col['Line'] < len(r) else None
+        if d in (None, ''):
+            null_date_rows += 1
+        else:
+            months_seen.add(parse_month(d))
+        if ln in (None, ''):
+            null_line_rows += 1
+        if col['TargetIndex'] is not None and col['TargetIndex'] < len(r):
+            ti = r[col['TargetIndex']]
+            if ti not in (None, ''):
+                try:
+                    if int(round(float(ti))) not in (0, 1):
+                        bad_target_index_rows += 1
+                except Exception:
+                    bad_target_index_rows += 1
+
+    if row_count == 0:
+        fail_etl(label, 'sheet has a header but zero data rows')
+
+    out_of_range_months = sorted(m for m in months_seen if m not in VALID_MONTHS and m != '2026-Unknown')
+    if out_of_range_months:
+        warnings.append(f'{len(out_of_range_months)} out-of-2026 month value(s) seen: {out_of_range_months}')
+    if null_date_rows:
+        warnings.append(f'{null_date_rows:,} row(s) (of {sample_rows:,} sampled) have a null/blank Date')
+    if null_line_rows:
+        warnings.append(f'{null_line_rows:,} row(s) (of {sample_rows:,} sampled) have a null/blank Line')
+    if bad_target_index_rows:
+        warnings.append(f'{bad_target_index_rows:,} row(s) (of {sample_rows:,} sampled) have a TargetIndex '
+                         f'outside {{0,1}}')
+
+    for w in warnings:
+        log(f'  [{label}] VALIDATION WARNING: {w}')
+
+    manifest_entry = {
+        'sourceLabel': label,
+        'filename': os.path.basename(xlsx_path),
+        'sheet': sheet_name,
+        'kind': kind,
+        'rowCountSampledOrExact': row_count if sample_rows == row_count else f'{row_count} (header+data rows, {sample_rows} sampled for validation)',
+        'periodMonthsSeen': sorted(months_seen),
+        'schemaValidationStatus': 'PASS' if not warnings else 'PASS_WITH_WARNINGS',
+        'warnings': warnings,
+        'loadTimestamp': load_ts,
+    }
+    source_manifest.append(manifest_entry)
+    # Persist to the checkpoint DB immediately (2026-08-26): this script is
+    # resumable and processes roughly one source per process invocation
+    # (see the "one source's worth of work per call" comment below), so the
+    # in-memory `source_manifest` list is reset to [] on every fresh
+    # invocation. Without a DB row here, only the LAST invocation's
+    # validation survives into cache.meta.sourceManifest and the other five
+    # sources' audit entries silently vanish -- reload_source_manifest()
+    # reconstitutes the full list from this table right before the cache is
+    # written.
+    conn.execute('INSERT OR REPLACE INTO source_manifest (label, entry_json) VALUES (?, ?)',
+                 (label, json.dumps(manifest_entry)))
+    conn.commit()
+    log(f'  [{label}] Validated: {manifest_entry["rowCountSampledOrExact"]} rows, '
+        f'months={manifest_entry["periodMonthsSeen"]}, status={manifest_entry["schemaValidationStatus"]}')
+    return manifest_entry
+
+
+def reload_source_manifest(conn):
+    """Rebuild the full source_manifest list from the checkpoint DB, in
+    SOURCES order, so the final cache_obj carries every source's audit
+    entry regardless of which invocation validated it."""
+    rows = dict(conn.execute('SELECT label, entry_json FROM source_manifest').fetchall())
+    ordered = []
+    for label, *_ in SOURCES:
+        if label in rows:
+            ordered.append(json.loads(rows[label]))
+    return ordered
+
 
 log('Progress: ' + ', '.join(
     f'{label} {prog.get(rk, 0):,} rows done (complete={prog.get(ck, False)})'
@@ -750,16 +1616,30 @@ log('Progress: ' + ', '.join(
 # fetch work) is allowed to proceed straight to the output stage below.
 did_process_this_call = False
 
+# Validation runs once per source, gated on a progress flag so a
+# multi-invocation resumable run doesn't re-validate (re-scan) a source
+# it already fetched real rows from in an earlier call.
+for label, xlsx_path, sheet_name, rows_done_key, complete_key in SOURCES:
+    if prog.get(complete_key, False):
+        continue
+    if not prog.get(f'{label}_validate_complete', False):
+        validate_source(conn, label, xlsx_path, sheet_name)
+        set_progress(conn, **{f'{label}_validate_complete': True})
+        prog = get_progress(conn)
+
 for label, xlsx_path, sheet_name, rows_done_key, complete_key in SOURCES:
     if prog.get(complete_key, False):
         continue
     if not os.path.exists(xlsx_path):
-        log(f'No {label} update file found at {xlsx_path} -- skipping')
-        set_progress(conn, **{complete_key: True})
-        prog = get_progress(conn)
-        continue
-    process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, prog, label)
+        # Unreachable in normal operation -- validate_source() above
+        # already called fail_etl() and raised if this file were missing.
+        # Kept as a defensive fail-loud fallback, not a silent skip.
+        fail_etl(label, f'file disappeared between validation and aggregation: {xlsx_path}')
+    fully_consumed, _ = process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, prog, label)
     did_process_this_call = True
+    if fully_consumed:
+        check_working_only_lines()
+        check_chc_authority_coverage()
     break  # one source's worth of work per call, same as before
 
 prog = get_progress(conn)
@@ -775,6 +1655,20 @@ if not all_complete or did_process_this_call:
             for label, _, _, rk, ck in SOURCES)
         print(f'\n[PARTIAL] Not finished yet -- re-run this script to continue ({status}).')
     sys.exit(0)
+
+# Rebuild the full source_manifest from the checkpoint DB (2026-08-26): each
+# source was validated in whichever earlier invocation first processed it,
+# so the in-memory list built during THIS invocation's run of the
+# validation loop above is almost always empty by the time we get here.
+# conn is still open at this point (the only early-exit path above already
+# closed it and exited) -- reload before RECON_PKL potentially closes it.
+source_manifest = reload_source_manifest(conn)
+missing_manifest = REQUIRED_SOURCE_LABELS - {m['sourceLabel'] for m in source_manifest}
+if missing_manifest:
+    fail_etl('<manifest-reload>',
+             f'all sources report complete, but the checkpoint DB has no validation record for '
+             f'{sorted(missing_manifest)} -- refusing to write a cache with an incomplete audit trail.')
+log(f'  Source manifest reloaded: {len(source_manifest)} of {len(REQUIRED_SOURCE_LABELS)} sources on record.')
 
 # RECON_PKL (2026-07-28): reconstructing ~2.5M rows' worth of SQLite query
 # results into Python dicts/sets, THEN building lookups, THEN encoding
@@ -889,6 +1783,19 @@ else:
 # instead of redoing the SQLite reconstruction (or, worse, the entire
 # aggregation) from scratch.
 
+# ── 2b. Shortage Target Scenario ────────────────────────────────────────────
+# Runs here (not inside the resumable per-source loop, not persisted to the
+# SQLite checkpoint) so it always reflects whatever
+# Shortage_Target_Override.xlsx currently contains -- see the module
+# comment above apply_shortage_scenario() for why. `aggregated` is fully
+# populated at this point regardless of which branch above produced it
+# (fresh SQLite reconstruction or a loaded RECON_PKL).
+print('\n[2b/5] Applying Shortage Target scenario...', flush=True)
+_shortage_overrides = load_shortage_overrides(
+    SHORTAGE_OVERRIDE_XLSX, lines_set, brands_set, products_set, months_set)
+_shortage_rows_created, _shortage_flagged_matched, _shortage_flagged_zero_actual = \
+    apply_shortage_scenario(aggregated, _shortage_overrides)
+
 # ── 3. Build Category Lookups ───────────────────────────────────────────────
 print('\n[3/5] Building lookup mapping tables...', flush=True)
 
@@ -1002,6 +1909,10 @@ for k, v in customer_roster.items():
 # Non-Tender convention every Achievement-family KPI already uses.
 print('\n[4b/5] Measuring per-line target scenario coverage...', flush=True)
 _MIRROR_BIT, _TENDER_BIT, _OFFICIAL_BIT = 16, 2, 32
+# _SHORTAGE_BIT (64) defined above, near apply_shortage_scenario(). Checked
+# FIRST (priority over _OFFICIAL_BIT, same convention as js/sales.js's
+# rowMirrorScenario()) -- a synthesized shortage row's bit5 is not
+# meaningful and must not be misread as an Official/Working classification.
 scenario_coverage = {}
 for _row in encoded_rows:
     _mask = _row[17]
@@ -1012,15 +1923,20 @@ for _row in encoded_rows:
     if not _row[21] and not _row[20]:  # no target value AND no target qty
         continue
     _line = lines_list[_row[1]]
-    _entry = scenario_coverage.setdefault(_line, {'official': False, 'working': False})
-    _entry['official' if (_mask & _OFFICIAL_BIT) else 'working'] = True
+    _entry = scenario_coverage.setdefault(_line, {'official': False, 'working': False, 'shortage': False})
+    if _mask & _SHORTAGE_BIT:
+        _entry['shortage'] = True
+    else:
+        _entry['official' if (_mask & _OFFICIAL_BIT) else 'working'] = True
 
 _cov_official = sorted(l for l, c in scenario_coverage.items() if c['official'] and not c['working'])
 _cov_working  = sorted(l for l, c in scenario_coverage.items() if c['working'] and not c['official'])
 _cov_both     = sorted(l for l, c in scenario_coverage.items() if c['working'] and c['official'])
-log(f'  Scenario coverage: {len(_cov_both)} line(s) with BOTH, '
+_cov_shortage = sorted(l for l, c in scenario_coverage.items() if c['shortage'])
+log(f'  Scenario coverage: {len(_cov_both)} line(s) with BOTH Official+Working, '
     f'{len(_cov_official)} Official-only {_cov_official or ""}, '
-    f'{len(_cov_working)} Working-only {_cov_working or ""}')
+    f'{len(_cov_working)} Working-only {_cov_working or ""}, '
+    f'{len(_cov_shortage)} with Shortage {_cov_shortage or ""}')
 
 # ── 5. Output Caches ────────────────────────────────────────────────────────
 print('\n[5/5] Gzipping and writing caches...', flush=True)
@@ -1030,7 +1946,13 @@ print('\n[5/5] Gzipping and writing caches...', flush=True)
 # can never be read with the corrected front-end and silently show wrong
 # names -- it shows a "cache needs refresh" placeholder instead. Bump this
 # any time encoded_rows' column order/meaning or the lookups dict keys change.
-SCHEMA_VERSION = 3  # v3 (2026-08-04) = Target Scenario feature: mask bit 5 now
+SCHEMA_VERSION = 4  # v4 (2026-08-26) = Authoritative-source cutover: meta now carries
+# `sourceManifest` (per-source filename, source type, period, row count, load
+# timestamp, schema validation status) so the cache itself is auditable evidence
+# of which files it was built from. Row layout / lookups keys are unchanged from
+# v3, so this is a backward-compatible addition -- js/sales.js's existing
+# graceful-degradation-on-old-cache behavior (see the v3 note below) still applies.
+# v3 (2026-08-04) = Target Scenario feature: mask bit 5 now
 # carries Official(1)/Working(0) scenario for mirror/target rows (see the
 # mask-bitfield comment above), and meta.scenarioCoverage reports which
 # scenarios each line actually has data for. NOTE (2026-08-04, later same
@@ -1054,6 +1976,36 @@ cache_obj = {
         # js/semantic-model.js resolveScenario() to resolve fallback from
         # measured data rather than a hardcoded line list.
         'scenarioCoverage': scenario_coverage,
+        # Authoritative-source audit trail (2026-08-26): one entry per source
+        # file this run actually validated and consumed -- filename, source
+        # type (actuals/targets/mixed), period covered, row count, load
+        # timestamp, and schema validation status. See validate_source()/
+        # source_manifest above. This is the evidence trail the Implementation
+        # Decision directive requires: proof of which files produced this
+        # cache, not just a claim.
+        'sourceManifest': source_manifest,
+        # Shortage Target scenario audit trail (2026-08-26): the override
+        # file's own validation result (rows read/applied/rejected,
+        # warnings -- see load_shortage_overrides()) plus the outcome of
+        # applying it (rows created, flagged groups matched, and how many
+        # of those had zero actual sales at that exact grain -- a
+        # legitimate outcome per Ahmed's rule, not an error). This is
+        # evidence, not a claim -- exactly the same standard as
+        # sourceManifest above.
+        'shortageOverride': {
+            'filename': _shortage_overrides['filename'],
+            'schemaValidationStatus': _shortage_overrides['schemaValidationStatus'],
+            'loadTimestamp': _shortage_overrides['loadTimestamp'],
+            'rowsRead': _shortage_overrides['rowsRead'],
+            'rowsApplied': _shortage_overrides['rowsApplied'],
+            'skuLevelFlags': len(_shortage_overrides['bySku']),
+            'brandLevelFlags': len(_shortage_overrides['byBrand']),
+            'rejectedRows': _shortage_overrides['rejectedRows'],
+            'warnings': _shortage_overrides['warnings'],
+            'shortageRowsCreated': _shortage_rows_created,
+            'flaggedGroupsMatched': _shortage_flagged_matched,
+            'flaggedGroupsZeroActual': _shortage_flagged_zero_actual,
+        },
     },
     'lookups': lookups,
     'rows': encoded_rows,

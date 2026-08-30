@@ -1365,3 +1365,284 @@
 .cp-denied { text-align: center; padding: 60px 20px; }
 .cp-denied h2 { font-size: 18px; margin: 0 0 8px; }
 .cp-denied p { font-size: 13px; color: #94A3B8; margin: 0; }
+
+/* -------------------------------------------------------------------
+   BUSINESS REVIEW DOWNLOAD CENTER (.brd-*)
+   ------------------------------------------------------------------- */
+.brd-root {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1E293B;
+}
+
+.brd-head {
+  margin-bottom: 32px;
+}
+
+.brd-head-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0F4C81;
+  background: #E8F1F8;
+  padding: 3px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.brd-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0 0 8px;
+  line-height: 1.25;
+}
+
+.brd-sub {
+  font-size: 14px;
+  color: #64748B;
+  margin: 0 0 16px;
+  line-height: 1.55;
+  max-width: 850px;
+}
+
+.brd-user-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  background: #F8FAFC;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+}
+
+.brd-section {
+  margin-bottom: 36px;
+}
+
+.brd-section-header {
+  margin-bottom: 16px;
+}
+
+.brd-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0 0 4px;
+}
+
+.brd-section-desc {
+  font-size: 13px;
+  color: #64748B;
+  margin: 0;
+}
+
+.brd-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.brd-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.brd-card-featured {
+  background: linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%);
+  border: 1.5px solid #0F4C81;
+  box-shadow: 0 4px 14px rgba(15, 76, 129, 0.08);
+}
+
+.brd-card-template {
+  background: #FAFAF9;
+  border: 1px dashed #CBD5E1;
+}
+
+.brd-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1;
+}
+
+.brd-file-icon {
+  font-size: 32px;
+  line-height: 1;
+  padding: 10px;
+  background: #F1F5F9;
+  border-radius: 10px;
+}
+
+.brd-icon-corp {
+  background: #E8F1F8;
+}
+
+.brd-icon-template {
+  background: #F5F5F4;
+}
+
+.brd-file-info {
+  flex: 1;
+}
+
+.brd-card-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.brd-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.brd-badge-corporate {
+  background: #0F4C81;
+  color: #FFFFFF;
+}
+
+.brd-badge-bu {
+  background: #E0E7FF;
+  color: #3730A3;
+}
+
+.brd-badge-template {
+  background: #E2E8F0;
+  color: #475569;
+}
+
+.brd-period-tag {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748B;
+  background: #F1F5F9;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.brd-file-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 4px;
+}
+
+.brd-file-meta {
+  font-size: 13px;
+  color: #64748B;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.brd-specs-row {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.brd-card-actions {
+  flex-shrink: 0;
+}
+
+.brd-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0F4C81;
+  background: #FFFFFF;
+  border: 1.5px solid #0F4C81;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.brd-download-btn:hover {
+  background: #0F4C81;
+  color: #FFFFFF;
+}
+
+.brd-download-btn:active {
+  transform: scale(0.98);
+}
+
+.brd-btn-primary {
+  background: #0F4C81;
+  color: #FFFFFF;
+}
+
+.brd-btn-primary:hover {
+  background: #093359;
+  border-color: #093359;
+}
+
+.brd-btn-secondary {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+  color: #334155;
+}
+
+.brd-btn-secondary:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.brd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.brd-grid .brd-card {
+  margin-bottom: 0;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.brd-grid .brd-card-actions {
+  margin-top: 12px;
+}
+
+.brd-grid .brd-download-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .brd-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .brd-download-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .brd-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

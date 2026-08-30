@@ -1756,6 +1756,45 @@
     return winnerPoolSummaryCardsHtml(ls, `Line: ${filterVal}`, hasRf) + managerAuditViewHtml(ls, filterVal, hasRf) + lineMedianPanelHtml(filterVal, msrLineMedians);
   }
 
+  // Row search-by-name/-code, added 2026-08-26 ("add search button in
+  // medical rep chc sales rep dm asm nsm") -- every row template
+  // (repRow/salesRepRow/hierarchyRow) stamps a lowercased "name code"
+  // string into data-search; this just substring-matches it against
+  // whatever's typed. Shared by every tier's search box below, and
+  // threaded into wireLineFilter/wireRankFilter as an ADDITIONAL
+  // condition alongside whatever Line/BU dropdown filter already exists,
+  // so typing a name narrows the current filtered view rather than
+  // fighting it.
+  function matchesSearch(tr, term) {
+    const t = (term || "").trim().toLowerCase();
+    if (!t) return true;
+    return (tr.getAttribute("data-search") || "").includes(t);
+  }
+
+  // Search box markup, reused identically across Medical Rep/CHC Sales
+  // Rep/DM/DSM/ASM/NSM -- a plain live-filter text input (no submit
+  // button; filters as you type, same "instant" feel as the existing
+  // Line/BU dropdowns) plus a small ✕ to clear it without a mouse trip to
+  // the far end of the field. `id` must be unique per tab.
+  function searchBoxHtml(id) {
+    return `<div class="sp-search-wrap">
+      <input type="text" id="${esc(id)}" class="sp-search-input" placeholder="Search name or code..." autocomplete="off">
+      <button type="button" class="sp-search-clear" data-for="${esc(id)}" title="Clear search">✕</button>
+    </div>`;
+  }
+
+  function wireSearchClearButtons() {
+    document.querySelectorAll(".sp-search-clear").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const input = document.getElementById(btn.dataset.for);
+        if (!input) return;
+        input.value = "";
+        input.dispatchEvent(new Event("input"));
+        input.focus();
+      });
+    });
+  }
+
   // Lightweight replacement for the msr call into wireRankFilter -- rank
   // numbers and Line show/hide still recompute live on filter change (the
   // # column stays "current visible rank", same intentional behaviour as
@@ -1763,13 +1802,23 @@
   // the DOM at all, so there is nothing left for an isEligible/
   // buildPanelHtml-from-<tr> callback to do. See wireRankFilter above,
   // still used unchanged by DM/DSM's own BU filter.
-  function wireLineFilter(selectEl, bodySelector, cascadePrefixes, panelId, lineSummaryMapGetter, hasRf) {
-    if (!selectEl) return;
-    selectEl.addEventListener("change", () => {
-      const val = selectEl.value;
+  //
+  // searchInputEl (added 2026-08-26): optional -- when present, its live
+  // .value is ANDed into every row's show/hide alongside the Line match,
+  // and typing in it re-triggers the same recompute (no separate code
+  // path for search vs Line, so the # rank column and cascaded
+  // probation/inactive/departing tables stay consistent whichever one
+  // changed). selectEl is now also optional (CHC Sales Rep has no Line
+  // dropdown at all, just search) -- at least one of selectEl/
+  // searchInputEl must be present or this is a no-op.
+  function wireLineFilter(selectEl, bodySelector, cascadePrefixes, panelId, lineSummaryMapGetter, hasRf, searchInputEl) {
+    if (!selectEl && !searchInputEl) return;
+    const recompute = () => {
+      const val = selectEl ? selectEl.value : "__ALL__";
+      const term = searchInputEl ? searchInputEl.value : "";
       let rank = 0;
       document.querySelectorAll(`${bodySelector} > tr`).forEach(tr => {
-        const show = (val === "__ALL__" || tr.getAttribute("data-line") === val);
+        const show = (val === "__ALL__" || tr.getAttribute("data-line") === val) && matchesSearch(tr, term);
         tr.style.display = show ? "" : "none";
         if (show) {
           rank += 1;
@@ -1783,16 +1832,20 @@
         if (!body) return;
         let count = 0;
         body.querySelectorAll("tbody > tr").forEach(tr => {
-          const show = (val === "__ALL__" || tr.getAttribute("data-line") === val);
+          const show = (val === "__ALL__" || tr.getAttribute("data-line") === val) && matchesSearch(tr, term);
           tr.style.display = show ? "" : "none";
           if (show) count += 1;
         });
         if (summary) summary.textContent = `${summary.dataset.label} (${count})`;
       });
-      const panel = document.getElementById(panelId);
-      if (panel) panel.innerHTML = msrSummaryPanelHtml(val, lineSummaryMapGetter(), hasRf);
-    });
-    selectEl.dispatchEvent(new Event("change"));
+      if (panelId) {
+        const panel = document.getElementById(panelId);
+        if (panel) panel.innerHTML = msrSummaryPanelHtml(val, lineSummaryMapGetter(), hasRf);
+      }
+    };
+    if (selectEl) selectEl.addEventListener("change", recompute);
+    if (searchInputEl) searchInputEl.addEventListener("input", recompute);
+    recompute();
   }
 
   // Brand Manager's Sales Achievement isn't a top-level field like
@@ -1913,7 +1966,7 @@
     const maxSales = isRepTier === "msr" ? 50 : 60;
     const maxCoverage = isRepTier === "msr" ? 10 : 40;
     const hasRf = isRepTier === "msr";
-    return `<tr class="sp-row" data-line="${esc(r.canonLine)}" data-ach-pct="${r.achPct != null ? r.achPct : ""}" data-coverage-pct="${r.coveragePct != null ? r.coveragePct : ""}" data-rf-pct="${r.rightFreqPct != null ? r.rightFreqPct : ""}" data-rep-name="${esc(r.name)}" data-rep-total="${r.totalPts.toFixed(1)}">
+    return `<tr class="sp-row" data-line="${esc(r.canonLine)}" data-ach-pct="${r.achPct != null ? r.achPct : ""}" data-coverage-pct="${r.coveragePct != null ? r.coveragePct : ""}" data-rf-pct="${r.rightFreqPct != null ? r.rightFreqPct : ""}" data-rep-name="${esc(r.name)}" data-rep-total="${r.totalPts.toFixed(1)}" data-search="${esc((r.name + " " + r.code).toLowerCase())}">
       <td class="sp-rank"></td>
       <td class="sp-name">
         ${esc(r.name)}
@@ -2011,6 +2064,7 @@
             <option value="__ALL__">All Lines (${all.length} reps)</option>
             ${lineOptions}
           </select>
+          ${searchBoxHtml("sp-msr-search")}
         </div>
         <table>
           <thead><tr><th>#</th><th>Rep</th><th>Sales · 50</th><th>Right Freq · 40</th><th>Coverage · 10</th><th style="text-align:right;">Total</th></tr></thead>
@@ -2062,9 +2116,12 @@
         <div class="sp-section-sub">Sales Achievement (60) + Coverage (40) = 100 pts. ${all.length} eligible reps. Total Points ranks within the Winner Pool only (reps who cleared the Line average on Sales AND Coverage) — see the tier badge and "Winner Pool #" on each row. The # rank column itself always reflects pure Total Points rank.</div>
         ${lineMedianRuleBannerHtml(false)}
         ${chcPanel}
+        <div class="sp-filter-row">
+          ${searchBoxHtml("sp-sr-search")}
+        </div>
         <table>
           <thead><tr><th>#</th><th>Rep</th><th>Sales · 60</th><th>Coverage · 40</th><th style="text-align:right;">Total</th></tr></thead>
-          <tbody>${sorted.map((r, i) => salesRepRow(r, i, derivedByCode[r.code])).join("")}</tbody>
+          <tbody id="sp-sr-body">${sorted.map((r, i) => salesRepRow(r, i, derivedByCode[r.code])).join("")}</tbody>
         </table>
       </div>
     `;
@@ -2082,7 +2139,7 @@
   // CHC's model at all, matching the deck (Sales 60 + Coverage 40 = 100).
   function salesRepRow(r, i, d) {
     const c = BAND_COLOR[band(r.totalPts)];
-    return `<tr class="sp-row" data-rep-name="${esc(r.name)}" data-rep-total="${r.totalPts.toFixed(1)}">
+    return `<tr class="sp-row" data-rep-name="${esc(r.name)}" data-rep-total="${r.totalPts.toFixed(1)}" data-search="${esc((r.name + " " + r.code).toLowerCase())}">
       <td class="sp-rank">${i + 1}</td>
       <td class="sp-name">
         ${esc(r.name)}
@@ -2110,17 +2167,33 @@
   // Days MAKE CALCULATION METHOD AS SUPPOSED FD/ ACTUAL FD (SINGLR OR
   // DOUBLE) DV Coverage NUMBER OF SUBORDINATATE SHOWN IN D.V/TOTAL TEAM
   // MEMBERS Calls per DV TOTAL D.V / D. V DAYS ITS TARGET IS 8 AND FOR
-  // CHC_SALES DM IS 12 MAKE BEST PRACTICE EXPLAINING THE KPI"). These
-  // three KPIs (DM/DSM: all three; ASM/NSM: Field Working Days only) are
-  // still entered as a manual "Actual % Achieved" fraction in zeta
-  // sprint/Sprint_Missing_KPI_Template.xlsx -- there's no raw double-
-  // visit-level log in any connected cache to compute them from directly.
-  // This documents the formula Ahmed uses to arrive at that % before
-  // typing it in, so anyone reading the dashboard (or filling the
-  // template next month) sees the same definition, rather than an opaque
-  // percentage. Deliberately NOT renaming the template's actual column
-  // headers to match -- etl/build_sprint_cache.py's load_kpi_template()
-  // matches columns by exact header text against the ALREADY-FILLED live
+  // CHC_SALES DM IS 12 MAKE BEST PRACTICE EXPLAINING THE KPI"). DM/DSM
+  // (all three KPIs) and ASM (Field Working Days only) are still entered
+  // as a manual "Actual % Achieved" fraction in zeta sprint/
+  // Sprint_Missing_KPI_Template.xlsx -- there's no raw double-visit-level
+  // log in any connected cache to compute them from directly. This
+  // documents the formula Ahmed uses to arrive at that % before typing it
+  // in, so anyone reading the dashboard (or filling the template next
+  // month) sees the same definition, rather than an opaque percentage.
+  //
+  // NSM is the exception, as of 2026-08-26: Ahmed replaced the NSM tab in
+  // Sprint_Missing_KPI_Template.xlsx with a raw per-NSM activity-day log
+  // (Calendar Days, Weekends, Holidays, Leave Days, All Visit Days,
+  // Adminstrative Day, Office Work, and several meeting/travel-day
+  // columns), and Field Working Days for NSM is now a live FORMULA in
+  // that sheet computed from those raw columns, not typed in by hand --
+  // see fieldDaysNsm below for the exact formula. The template cell still
+  // carries the same header text load_kpi_template() reads
+  // ("Field Working Days -- Actual % Achieved (e.g. 0.85 for 85%)"), so
+  // the ETL pipeline is unchanged; only how the number inside that cell
+  // gets there differs for NSM. kpiHeaderTitle()/kpiMethodologyDetailsHtml()
+  // take a tierKey and swap in fieldDaysNsm's text instead of fieldDays's
+  // when rendering the NSM tier specifically, so the tooltip/panel always
+  // matches how the number in front of the viewer was actually produced.
+  //
+  // Deliberately NOT renaming the template's actual column headers to
+  // match -- etl/build_sprint_cache.py's load_kpi_template() matches
+  // columns by exact header text against the ALREADY-FILLED live
   // workbook, so changing the wording there without touching the live
   // file would silently stop reading Ahmed's real entries as "missing".
   // Source xlsx files are never modified directly per this project's
@@ -2129,7 +2202,12 @@
     fieldDays: {
       label: "Field Working Days",
       formula: "Actual Field Days ÷ Supposed (target) Field Days for the period",
-      detail: "A field day counts once whether that day's work was a single visit or a double/joint (D.V.) visit -- either still counts as one worked field day.",
+      detail: "A field day counts once whether that day's work was a single visit or a double/joint (D.V.) visit -- either still counts as one worked field day. Manually entered by Ahmed each period (DM/DSM and ASM).",
+    },
+    fieldDaysNsm: {
+      label: "Field Working Days",
+      formula: "All Visit Days ÷ Supposed Visit Days (Calculated)",
+      detail: "Supposed Visit Days (Calculated) = (Calendar Days − (Weekends + Leave Days + Holidays + AV Confrance + Business Travel + Confrance + Gathering Meeting + Group Meeting (RTD) + Sales Meeting + Training)) × 0.3. Adminstrative Day and Office Work are NOT subtracted -- they still count as available field time. Auto-computed from the NSM raw activity-day log in Sprint_Missing_KPI_Template.xlsx (confirmed with Ahmed 2026-08-26); can exceed 100%, which the ASM&NSM scoring curve caps at the full 20 points.",
     },
     dvCoverage: {
       label: "DV Coverage",
@@ -2143,8 +2221,15 @@
     },
   };
 
-  function kpiHeaderTitle(key) {
-    const m = KPI_METHODOLOGY[key];
+  // tierKey lets the same data key ("fieldDays") resolve to a different
+  // methodology entry for NSM (fieldDaysNsm, see comment above) -- DM/DSM
+  // and ASM fall through to the shared manual-entry definition unchanged.
+  function resolveMethodologyKey(key, tierKey) {
+    return (key === "fieldDays" && tierKey === "nsm") ? "fieldDaysNsm" : key;
+  }
+
+  function kpiHeaderTitle(key, tierKey) {
+    const m = KPI_METHODOLOGY[resolveMethodologyKey(key, tierKey)];
     return m ? `${m.label} = ${m.formula}. ${m.detail}` : "";
   }
 
@@ -2154,8 +2239,8 @@
   // vertical space the way the always-visible Band Legend does; this
   // content is longer/more technical, so a details/summary reads better
   // here than another persistent colored panel.
-  function kpiMethodologyDetailsHtml(keys) {
-    const items = (keys || []).map(k => KPI_METHODOLOGY[k]).filter(Boolean);
+  function kpiMethodologyDetailsHtml(keys, tierKey) {
+    const items = (keys || []).map(k => KPI_METHODOLOGY[resolveMethodologyKey(k, tierKey)]).filter(Boolean);
     if (!items.length) return "";
     return `<details class="sp-kpi-methodology">
       <summary>ⓘ How ${items.map(m => esc(m.label)).join(" / ")} ${items.length > 1 ? "are" : "is"} calculated</summary>
@@ -2466,7 +2551,7 @@
     const teamAvgCellHtml = teamAvgCheck
       ? hierarchyKpiBlock("Team Avg", r.teamAvgRaw, teamAvgCheck.avg, teamAvgCheck.pass, r.teamAvgPts, r.teamAvgWeight, false)
       : kpiBar("Team Avg", r.teamAvgRaw, r.teamAvgPts, r.teamAvgWeight);
-    return `<tr class="sp-row${isWinner || isRunnerUp ? " sp-is-winner" : ""}" data-bu="${esc(r.bu || "")}" data-line="${esc(r.line || "")}" data-name="${esc(r.name)}" data-total="${r.totalPts != null ? r.totalPts.toFixed(1) : ""}" data-team-ach-pct="${r.teamSalesAchPct != null ? r.teamSalesAchPct : ""}" data-gate-pass="${d && d.winnerPoolEligible ? "1" : "0"}">
+    return `<tr class="sp-row${isWinner || isRunnerUp ? " sp-is-winner" : ""}" data-bu="${esc(r.bu || "")}" data-line="${esc(r.line || "")}" data-name="${esc(r.name)}" data-total="${r.totalPts != null ? r.totalPts.toFixed(1) : ""}" data-team-ach-pct="${r.teamSalesAchPct != null ? r.teamSalesAchPct : ""}" data-gate-pass="${d && d.winnerPoolEligible ? "1" : "0"}" data-search="${esc((r.name + " " + r.code).toLowerCase())}">
       <td class="sp-name">${esc(r.name)}<span class="sp-winner-badge"${isWinner ? "" : ' style="display:none;"'}>🏆 WINNER${tieFlag}</span><span class="sp-runnerup-badge"${isRunnerUp ? "" : ' style="display:none;"'}>🏆 WINNER 2</span>${isBuLeader ? `<span class="sp-leader-badge" title="Top performer for the ${esc(r.bu)} business unit">🎖 BU Leader</span>` : ""}<div class="sp-sub">#${esc(r.code)}${lineBu ? ` · <span class="sp-manager-line-badge">${esc(lineBu)}</span>` : ""} · ${r.teamSize} eligible ${esc(noun)}${r.teamSize === 1 ? "" : "s"} in team · ${probationBadge(r)}${r.teamSize > 0 && r.teamSalesAchPct != null ? teamAchNote(r) : ""}${hierarchyGateNote(d)}</div>${teamDrilldown(r)}</td>
       <td>${teamAvgCellHtml}</td>
       ${r.kpis.map(k => {
@@ -2527,7 +2612,7 @@
     const companyWinnerCodes = companyGroup ? companyGroup.winners.map(x => x.r.code) : [];
 
     const kpiKeys = (data.ranked[0] ? data.ranked[0].kpis : []).map(k => k.key);
-    const kpiHeaders = (data.ranked[0] ? data.ranked[0].kpis : []).map(k => `<th title="${esc(kpiHeaderTitle(k.key))}">${esc(kpiShortLabel(k.label))}</th>`).join("");
+    const kpiHeaders = (data.ranked[0] ? data.ranked[0].kpis : []).map(k => `<th title="${esc(kpiHeaderTitle(k.key, tierKey))}">${esc(kpiShortLabel(k.label))}</th>`).join("");
     const anyPending = data.ranked.some(r => r.isPartial);
     const memberNoun = data.ranked[0] ? data.ranked[0].memberNoun : "rep";
     const teamNounPlural = memberNoun === "DM/DSM" ? "DM/DSMs" : "reps";
@@ -2540,6 +2625,7 @@
     // those who clear their own BU's Average), replacing the old flat
     // 70% floor test.
     let buLeaders = null;
+    const searchId = opts.searchId || `sp-${tierKey}-search`;
     let buFilterHtml = "";
     if (opts.buFilter) {
       buLeaders = new Set();
@@ -2557,6 +2643,12 @@
             <option value="__ALL__">All BUs (${scored.length} scored)</option>
             ${buOptions}
           </select>
+          ${searchBoxHtml(searchId)}
+        </div>`;
+    } else {
+      buFilterHtml = `
+        <div class="sp-filter-row">
+          ${searchBoxHtml(searchId)}
         </div>`;
     }
 
@@ -2609,7 +2701,7 @@
         ${tierKey === "dmDsm"
           ? `<div id="sp-dm-averages-panel">${hierarchyAveragesPanelHtml("__ALL__", groupAverages, data.ranked[0] ? data.ranked[0].kpis : [], false, title)}</div>`
           : hierarchyAveragesPanelHtml(null, groupAverages, data.ranked[0] ? data.ranked[0].kpis : [], true, title)}
-        ${kpiMethodologyDetailsHtml(kpiKeys)}
+        ${kpiMethodologyDetailsHtml(kpiKeys, tierKey)}
         ${buFilterHtml}
         <table>
           <thead><tr><th>${esc(title.split(" ")[0])}</th><th>Team Avg</th>${kpiHeaders}<th style="text-align:right;">Total</th></tr></thead>
@@ -2738,9 +2830,9 @@
       return renderSalesRep();
     }
     if (STATE.subTab === "dm") return renderHierarchyTier("dmDsm", "DM / DSM", "Team Avg (70) + Field Working Days (10) + DV Coverage (10) + Calls per DV (10)",
-      { buFilter: "sp-dm-bu-filter", bodyId: "sp-dm-body", exclSummaryId: "sp-dm-excl-summary", exclBodyId: "sp-dm-excl", winnersCount: 2 });
-    if (STATE.subTab === "asm") return renderHierarchyTier("asm", "ASM", "Team Avg of their DM/DSMs (80) + Field Days (20)");
-    if (STATE.subTab === "nsm") return renderHierarchyTier("nsm", "NSM", "Team Avg of their DM/DSMs (80) + Field Days (20)");
+      { buFilter: "sp-dm-bu-filter", bodyId: "sp-dm-body", exclSummaryId: "sp-dm-excl-summary", exclBodyId: "sp-dm-excl", winnersCount: 2, searchId: "sp-dm-search" });
+    if (STATE.subTab === "asm") return renderHierarchyTier("asm", "ASM", "Team Avg of their DM/DSMs (80) + Field Days (20)", { bodyId: "sp-asm-body", searchId: "sp-asm-search" });
+    if (STATE.subTab === "nsm") return renderHierarchyTier("nsm", "NSM", "Team Avg of their DM/DSMs (80) + Field Days (20)", { bodyId: "sp-nsm-body", searchId: "sp-nsm-search" });
     if (STATE.subTab === "bm") return renderBrandManager();
     if (STATE.subTab === "calculator") {
       return `
@@ -2771,10 +2863,18 @@
   // filter and the DM/DSM BU filter pass these, since either one can push
   // the true (floor-eligible) winner out of view or bury it below an
   // ineligible higher scorer.
-  function wireRankFilter(selectEl, bodySelector, filterAttr, cascadePrefixes, isEligible, winnersPanelId, buildPanelHtml) {
-    if (!selectEl) return;
-    selectEl.addEventListener("change", () => {
-      const val = selectEl.value;
+  // searchInputEl (added 2026-08-26, same convention as wireLineFilter
+  // above): optional, ANDed into every row's show/hide alongside the BU
+  // match. selectEl is now also optional -- ASM/NSM have no BU dropdown
+  // at all (only DM/DSM does), so they wire this with selectEl=null and
+  // just a search box; filterAttr/isEligible/winnersPanelId/
+  // buildPanelHtml are simply unused in that case (val stays "__ALL__",
+  // isEligible falls through to "always eligible" same as no gate).
+  function wireRankFilter(selectEl, bodySelector, filterAttr, cascadePrefixes, isEligible, winnersPanelId, buildPanelHtml, searchInputEl) {
+    if (!selectEl && !searchInputEl) return;
+    const recompute = () => {
+      const val = selectEl ? selectEl.value : "__ALL__";
+      const term = searchInputEl ? searchInputEl.value : "";
       let rank = 0;
       let eligibleRank = 0;
       let winnerTr = null;
@@ -2789,7 +2889,7 @@
       // hidden even while the drilldown is open) -- caught 2026-08-15 when
       // Ahmed checked the drilldown while BU-filtered.
       document.querySelectorAll(`${bodySelector} > tr`).forEach(tr => {
-        const show = (val === "__ALL__" || tr.getAttribute(filterAttr) === val);
+        const show = (val === "__ALL__" || tr.getAttribute(filterAttr) === val) && matchesSearch(tr, term);
         tr.style.display = show ? "" : "none";
         const winnerBadge = tr.querySelector(".sp-winner-badge");
         const runnerUpBadge = tr.querySelector(".sp-runnerup-badge");
@@ -2825,7 +2925,7 @@
         if (!body) return;
         let count = 0;
         body.querySelectorAll("tbody > tr").forEach(tr => {
-          const show = (val === "__ALL__" || tr.getAttribute(filterAttr) === val);
+          const show = (val === "__ALL__" || tr.getAttribute(filterAttr) === val) && matchesSearch(tr, term);
           tr.style.display = show ? "" : "none";
           if (show) count += 1;
         });
@@ -2835,8 +2935,10 @@
         const panel = document.getElementById(winnersPanelId);
         if (panel) panel.innerHTML = buildPanelHtml(winnerTr, runnerUpTr, val);
       }
-    });
-    selectEl.dispatchEvent(new Event("change"));
+    };
+    if (selectEl) selectEl.addEventListener("change", recompute);
+    if (searchInputEl) searchInputEl.addEventListener("input", recompute);
+    recompute();
   }
 
   // ---- Winners CSV export ---------------------------------------------
@@ -3168,7 +3270,10 @@
     // other tiers below, untouched.)
     wireLineFilter(document.getElementById("sp-line-filter"), "#sp-msr-body",
       ["sp-probexcl", "sp-inactive", "sp-departing"],
-      "sp-msr-winners-panel", () => msrLineSummary, true);
+      "sp-msr-winners-panel", () => msrLineSummary, true, document.getElementById("sp-msr-search"));
+    // CHC Sales Rep: no Line dropdown, search-only -- see wireLineFilter's
+    // searchInputEl doc comment above.
+    wireLineFilter(null, "#sp-sr-body", [], null, null, false, document.getElementById("sp-sr-search"));
     // DM/DSM: floor extended here 2026-08-16 ("DM DSM HAS REWARD ALSO"),
     // then switched to the BU-Average peer gate 2026-08-19 ("apply the
     // winner pool eligibility gate for other layer dm sm asm nsm dm dsm
@@ -3181,7 +3286,12 @@
     wireRankFilter(document.getElementById("sp-dm-bu-filter"), "#sp-dm-body", "data-bu",
       ["sp-dm-excl"],
       tr => tr.getAttribute("data-gate-pass") === "1",
-      "sp-dm-winners-panel", dmWinnersPanelHtml);
+      "sp-dm-winners-panel", dmWinnersPanelHtml, document.getElementById("sp-dm-search"));
+    // ASM/NSM: no BU dropdown, search-only -- see wireRankFilter's
+    // searchInputEl doc comment above.
+    wireRankFilter(null, "#sp-asm-body", "data-bu", [], null, null, null, document.getElementById("sp-asm-search"));
+    wireRankFilter(null, "#sp-nsm-body", "data-bu", [], null, null, null, document.getElementById("sp-nsm-search"));
+    wireSearchClearButtons();
     // Peer Averages panel, recomputed live on the same BU filter change --
     // added 2026-08-19 ("make charts and illustration like [you] made in
     // medical rep"), mirrors how Medical Rep's Line Median panel

@@ -343,6 +343,8 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - IMS Rx Market Intelligence";
     } else if (tab === "sprint") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Sprint 2026";
+    } else if (tab === "businessreview") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Business Review";
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -421,6 +423,14 @@ function startAppBody() {
     sprintMenuItem.style.display = allowed ? "" : "none";
   }
 
+  // Business Review: CEO / VP / BEX / Admin / SFE Manager (Corporate + All BUs) and BU Managers (Own BU)
+  const businessReviewMenuItem = document.getElementById("menu-item-businessreview");
+  if (businessReviewMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewBusinessReview === "function"
+      ? window.AUTH.canViewBusinessReview() : false;
+    businessReviewMenuItem.style.display = allowed ? "" : "none";
+  }
+
   // REMOVED 2026-08-09 (Ahmed): the Control Panel and Expense vs Sales tabs
   // were taken out of the shell. Their modules (js/control-panel.js,
   // js/expense.js, js/expense-interface.js) are still on disk and unmodified,
@@ -480,6 +490,9 @@ function startAppBody() {
       }
       if (currentTab === "sprint" && window.SprintDashboard) {
         window.SprintDashboard.destroy();
+      }
+      if (currentTab === "businessreview" && window.BusinessReviewDownload) {
+        window.BusinessReviewDownload.destroy();
       }
       currentTab = tab;
       updateTopbarTitle(tab);
@@ -559,6 +572,11 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             renderSprintTab(document.getElementById("app-root"));
+          } else if (tab === "businessreview") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderBusinessReviewTab(document.getElementById("app-root"));
           }
           mountAskPanel(tab);
           Loader.hide();
@@ -770,6 +788,27 @@ function renderSprintTab(container) {
   }
   if (window.SprintDashboard) {
     window.SprintDashboard.init("app-root");
+  }
+}
+
+function renderBusinessReviewTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewBusinessReview === "function"
+    ? window.AUTH.canViewBusinessReview() : false;
+  if (!allowed) {
+    document.body.classList.add("businessreview-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "The Business Review Presentations & Templates are available to authorized executive roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  document.body.classList.add("businessreview-mode");
+  if (window.BusinessReviewDownload) {
+    window.BusinessReviewDownload.init("app-root");
   }
 }
 
