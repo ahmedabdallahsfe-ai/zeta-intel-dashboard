@@ -113,6 +113,32 @@ LINE_TO_BU = {
 CLUSTERS_TO_BUILD = {'Retail', 'Chain Pharmacy'}
 
 
+# Tender-flag normalization (2026-08-30 FIX, Ahmed: "Customer Health shows
+# 0 customers for every Line Manager whose BU isn't CHC"): TOTAL_SALES_2026
+# .xlsx's IsTender column mixes native Excel booleans (True/False) with the
+# UPPERCASE TEXT STRINGS 'TRUE'/'FALSE' the ERP export uses for most rows.
+# The old `if row[ci_tender]: continue` treated ANY non-empty string --
+# including the literal text "FALSE" -- as truthy, so every row whose
+# IsTender happened to be the STRING 'FALSE' was silently discarded as if
+# it were a tender transaction. Direct inspection of TOTAL_SALES_2026.xlsx
+# (2026-08-30) confirmed only the CHC/CHC_SALES lines' rows carry native
+# boolean IsTender values (114,907 of ~991k rows); every other line
+# (GIT-I/II/III, Derma, CNS, NEUROSCIENCE, DIAB-I..IV, PEDIA, ORTHO-I/II,
+# CVM-I/II -- i.e. every BU except CHC) stores IsTender as the text string
+# 'TRUE'/'FALSE', so 100% of their non-tender rows were being dropped here
+# -- which is why the Customer Health drill (Retail/Chain Pharmacy
+# clusters) came back with 0 unique customers for every Line Manager whose
+# BU is GIT, DIAB, or Cluster (14 of the platform's 15 Line Manager
+# accounts -- only the one CHC-BU Line Manager saw real data). This exact
+# bug was already found and fixed in refresh_sales.py on 2026-08-13
+# ("handle both native bool/int and the 'TRUE'/'FALSE' uppercase strings
+# exported by the ERP") but this standalone script was never updated to
+# match -- same fix, mirrored here.
+def is_tender_flag(v):
+    return str(v).strip().upper() in ('TRUE', 'YES', '1') or v in (True, 1)
+
+
+
 def clean(s):
     if s is None:
         return ''
@@ -180,7 +206,7 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
     scanned = 0
     for row in rows_iter:
         scanned += 1
-        if row[ci_tender]:
+        if is_tender_flag(row[ci_tender]):
             continue
         st = row[ci_st]
         cluster = SUBTYPE_TO_CLUSTER.get(st)

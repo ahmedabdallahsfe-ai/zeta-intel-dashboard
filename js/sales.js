@@ -3996,15 +3996,46 @@
 
       const wantBU = bu && bu !== 'All' ? bu : null;
       const wantLine = line && line !== 'All' ? line : null;
+      // AUTH default line (2026-08-30 FIX, Ahmed: "Position (PEDIA) shows
+      // other lines' positions too" -- ibrahim.ghareeb@zeta-pharma.com,
+      // Line Manager restricted to PEDIA inside the multi-Line Cluster BU).
+      // Below, `effectiveLine` gates the byLine overlay for
+      // Position/Brick/Region/Value/Status/Frequency/Basket/Last-Purchase
+      // (see `lineStats` in the customers.map() below) -- but it was ONLY
+      // ever set from `wantLine`, the Executive filter bar's explicit Line
+      // selection. A Line Manager who leaves that filter on "All Lines"
+      // (its default, and its only real option -- their dropdown offers
+      // just "All" and their one allowed Line, same as every other
+      // AUTH-restricted filter on this platform) got effectiveLine=null,
+      // so those fields fell back to buStats -- BU-WIDE, blended across
+      // every Line in that BU. The column label didn't notice: it's built
+      // by computeHealthScopeTag() in js/executive.js, which falls back to
+      // `health.lines` (the AUTH restriction) when effectiveLine is null --
+      // so the header read "(PEDIA)" while the cell underneath mixed in
+      // CVM-I/CVM-II/ORTHO-I/ORTHO-II data. This only went unnoticed for
+      // the CHC Line Manager because CHC's one Line happens to share its
+      // BU's own name, making BU-scoped and Line-scoped identical there by
+      // coincidence. SKU items were already exempt (isSkuAllowedForLines
+      // below re-filters them against AUTH regardless of effectiveLine) --
+      // this brings every other per-customer field in line with that same
+      // guarantee. An explicit filter-bar Line selection (wantLine) still
+      // wins; this only fills in when the user hasn't chosen one and their
+      // account is restricted to exactly one Line (true for every Line
+      // Manager today -- if a future role is restricted to more than one,
+      // this intentionally leaves effectiveLine unset rather than guess
+      // which of several Lines to show, same as before this fix).
+      const authScopeLines = (window.AUTH && window.AUTH.getScope().lines) || null;
+      const authDefaultLine = (!wantLine && authScopeLines && authScopeLines.length === 1) ? authScopeLines[0] : null;
+      const candidateLine = wantLine || authDefaultLine;
       // Line-scoping (2026-08-03, "position of chosen line"): the ETL's
       // byBU[bu].byLine[line] breakdown only exists in caches built after
       // this date -- feature-detect it so an older cache degrades to the
       // pre-existing BU-only scoping (Line filter simply has no effect)
       // instead of the customer list silently coming back empty.
-      const lineDataAvailable = !!(wantBU && wantLine && clusterData.customers.some(c =>
+      const lineDataAvailable = !!(wantBU && candidateLine && clusterData.customers.some(c =>
         c.byBU && c.byBU[wantBU] && c.byBU[wantBU].byLine && Object.keys(c.byBU[wantBU].byLine).length > 0
       ));
-      const effectiveLine = lineDataAvailable ? wantLine : null;
+      const effectiveLine = lineDataAvailable ? candidateLine : null;
 
       let scopedCustomers = wantBU
         ? clusterData.customers.filter(c => c.bus && c.bus.indexOf(wantBU) >= 0)
