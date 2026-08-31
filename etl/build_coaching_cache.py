@@ -103,6 +103,20 @@ worked example (Karim Lotfy Menesy AbdelSalam under Shady Emeil Basta
 Israel). The sales cross-check stays in place as a safety net for gaps
 this HR-based logic can't see (e.g. a stale Direct-Manager link).
 
+Coach-side gate (2026-08-31, same day, user-reported): the refinement
+above only ever asked whether a REP was active a given month under
+their coach -- nothing checked whether the COACH THEMSELVES was even
+employed that month. Found via a user spot-check on Michael Adel
+AbdelMassih Awad (Last Day of Work 2026-02-06): he showed an 8-person
+roster and 0% DV Coverage for March AND April, a month and two months
+after he'd left -- caused by cache/sales.json still listing 8 reps
+under his DM code in those months (their real, HR-correct manager by
+then was Aml ElKahlawy Awad AbdelBary; the sales system's territory
+assignment just hadn't caught up). Fixed by applying the exact same
+active_in_month() half-month rule to the coach's own Hiring date/Last
+Day of Work before computing their roster for a month at all -- see the
+comment above the manager_month_teams loop below.
+
 Usage:  python etl/build_coaching_cache.py
 """
 
@@ -541,9 +555,36 @@ def main():
     # entire historical team has since left (so they have zero CURRENT
     # active reports) still gets a correct month-by-month roster instead
     # of being silently skipped here before team_as_of_month() ever runs.
+    #
+    # Coach-side half-month gate (2026-08-31, user-reported: Michael Adel
+    # AbdelMassih Awad showing an 8-person roster, 0% DV Coverage, for
+    # March AND April -- months entirely AFTER his own Last Day of Work,
+    # 2026-02-06). Root cause: everything above (team_as_of_month, the
+    # sales cross-check) only ever asks "was this REP active this month
+    # under this coach" -- nothing checked whether the COACH himself was
+    # even employed that month. Michael's HR-linked direct reports are
+    # correctly empty (Layer 1 = 0 in every month), but cache/sales.json
+    # still listed 8 reps under his DM code for March/April specifically
+    # -- a stale territory-to-manager assignment in the sales system that
+    # hadn't been corrected to their real (and HR-correct) manager, Aml
+    # ElKahlawy Awad AbdelBary, yet. Fix: apply the exact same
+    # active_in_month() half-month rule to the COACH's own hireDate/
+    # lastDayOfWork before computing either roster layer for a given
+    # month -- a manager who wasn't actively employed that month (by the
+    # same rule used for reps) cannot have ANYONE counted against them
+    # that month, regardless of what either layer would otherwise
+    # compute, since there is no one there to have coached. A coach with
+    # no HR record at all (hr_by_norm lookup misses) is never gated by
+    # this -- missing data must never silently shrink coverage credit,
+    # same principle as everywhere else in this file.
     for coach_norm in set(all_direct_reports) | set(sales_month_reps):
+        coach_hr = hr_by_norm.get(coach_norm, {})
         per_month = {}
         for m in MONTHS:
+            month_start, month_end = MONTH_START[m], MONTH_END[m]
+            if not active_in_month(coach_hr.get("hireDate"), coach_hr.get("lastDayOfWork"), month_start, month_end):
+                per_month[m] = set()
+                continue
             hire_based, hard_excluded_norm = team_as_of_month(coach_norm, m)
             sales_based_raw = sales_month_reps.get(coach_norm, {}).get(m, set())
             # A precise HR hard-exclusion for THIS person/month wins over
