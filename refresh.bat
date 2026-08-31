@@ -225,6 +225,32 @@ if not "%CUSTANALYTICS_EXIT%"=="0" (
     exit /b 1
 )
 
+REM --- run the Coaching Intelligence Aggregation ---------------------------
+REM Added 2026-08-31. Reads "Visits Details S1 DM.xlsx" (joint/coached field
+REM visit log, Feb1-Jun30 2026 S1) joined against Database Shortcut.xlsx for
+REM active-team rosters and name resolution, and writes cache/coaching.data.js
+REM -- the data layer behind the new Coaching Intelligence tab (js/coaching.js).
+REM
+REM NOT FATAL IF IT FAILS. Same reasoning as Market Intelligence below: if
+REM "Visits Details S1 DM.xlsx" or "Database Shortcut.xlsx" is missing or
+REM moved, blocking the whole refresh -- including the git push of everything
+REM already rebuilt above -- over this one workspace would be the wrong
+REM trade. A warning is printed instead and the Coaching tab keeps serving
+REM its previous cache.
+echo.
+echo Reading Coaching workbooks...
+%PYTHON_CMD% etl\build_coaching_cache.py
+set "COACHING_EXIT=%ERRORLEVEL%"
+
+if not "%COACHING_EXIT%"=="0" (
+    echo.
+    echo   [WARNING] Coaching Intelligence refresh did not complete.
+    echo   The Coaching tab will keep serving its previous cache. Check that
+    echo   "Visits Details S1 DM.xlsx" and "Database Shortcut.xlsx" are
+    echo   present in the project root.
+    echo.
+)
+
 REM --- run the Total Market Intelligence Aggregation ----------------------
 REM Added 2026-08-06. Reads "IMS 2022 to April 2026.xlsx" (the full IMS
 REM competitor panel, 2022-2026) and writes cache/market_intel.data.js --
@@ -376,6 +402,7 @@ if "%GIT_CMD%"=="" (
     "%GIT_CMD%" add -f cache/sales.data.js
     "%GIT_CMD%" add -f cache/iqvia.json
     "%GIT_CMD%" add -f cache/iqvia.data.js
+    "%GIT_CMD%" add -f cache/coaching.data.js
     REM customer_analytics.json is 140MB+ (exceeds GitHub 100MB limit)
     REM -- only the compressed .data.js version is pushed
     "%GIT_CMD%" add -f cache/customer_analytics.data.js

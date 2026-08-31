@@ -1,0 +1,50 @@
+/* ===================================================================
+   COACHING INTELLIGENCE -- minimal styles
+   Deliberately small: the tab is built on css/iqvia.css's existing
+   .iqvia-dashboard-wrap design tokens and components (.section,
+   .kpi-grid, .kpi-card, .kpi-label, .kpi-value, .kpi-sub, .tb-btn,
+   .badge/.badge-up/.badge-down/.badge-warn/.badge-neutral) -- see
+   js/coaching.js's header comment for why. This file only covers the
+   handful of things iqvia.css doesn't already style for a full-page
+   (non-fixed-height) embedded tab: the generic .data-table used for
+   the Other Levels and coached-employee tables, and small layout bits
+   for the customer-popup modal.
+   =================================================================== */
+
+body.coaching-mode #app-root {
+  overflow-y: auto;
+}
+
+.iqvia-dashboard-wrap .data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-td, 13px);
+  margin-bottom: var(--gap-grid, 14px);
+}
+
+.iqvia-dashboard-wrap .data-table th,
+.iqvia-dashboard-wrap .data-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.iqvia-dashboard-wrap .data-table th {
+  color: var(--txt2);
+  font-weight: 600;
+  font-size: var(--fs-th, 13px);
+  white-space: nowrap;
+}
+
+.iqvia-dashboard-wrap .data-table tbody tr:hover {
+  background: var(--bg3);
+}
+
+.iqvia-dashboard-wrap .data-table a {
+  color: var(--acc1);
+  text-decoration: none;
+}
+
+#coaching-customer-modal .data-table {
+  margin-bottom: 0;
+}

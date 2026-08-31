@@ -421,6 +421,21 @@ function startAppBody() {
     sprintMenuItem.style.display = allowed ? "" : "none";
   }
 
+  // Coaching Intelligence (2026-08-31): visible to every management-tier
+  // role plus Line Manager (see auth.js's canViewCoaching for why -- this
+  // tab is meant to be opened by the field managers being coached-on, not
+  // just BU-and-above roles). The finer DM/FFS-own-record-only vs
+  // Sr.DM/NSM/AM/BUM/BM/FFT-BU/Line-scope split happens inside
+  // js/coaching.js at render time, same pattern as Sprint's
+  // SprintDashboard.canView -- this block only controls whether the menu
+  // entry itself is shown.
+  const coachingMenuItem = document.getElementById("menu-item-coaching");
+  if (coachingMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewCoaching === "function"
+      ? window.AUTH.canViewCoaching() : false;
+    coachingMenuItem.style.display = allowed ? "" : "none";
+  }
+
   // REMOVED 2026-08-09 (Ahmed): the Control Panel and Expense vs Sales tabs
   // were taken out of the shell. Their modules (js/control-panel.js,
   // js/expense.js, js/expense-interface.js) are still on disk and unmodified,
@@ -559,6 +574,11 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             renderSprintTab(document.getElementById("app-root"));
+          } else if (tab === "coaching") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderCoachingTab(document.getElementById("app-root"));
           }
           mountAskPanel(tab);
           Loader.hide();
@@ -770,6 +790,26 @@ function renderSprintTab(container) {
   }
   if (window.SprintDashboard) {
     window.SprintDashboard.init("app-root");
+  }
+}
+
+function renderCoachingTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewCoaching === "function"
+    ? window.AUTH.canViewCoaching() : false;
+  if (!allowed) {
+    document.body.classList.add("coaching-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "Coaching Intelligence is available to management and field-manager roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.CoachingDashboard) {
+    window.CoachingDashboard.init("app-root");
   }
 }
 

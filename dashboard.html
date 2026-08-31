@@ -17,6 +17,10 @@
   <link rel="stylesheet" href="css/layout.css?v=20260726_exec" />
   <link rel="stylesheet" href="css/components.css?v=20260807_lineperf" />
   <link rel="stylesheet" href="css/utilities.css?v=20260726_exec" />
+  <!-- Coaching Intelligence (2026-08-31): minimal, reuses css/iqvia.css tokens/
+       components (.iqvia-dashboard-wrap, .kpi-card, .kpi-grid, .tb-btn, .badge-*) --
+       see js/coaching.js header for why. -->
+  <link rel="stylesheet" href="css/coaching.css?v=20260831_v1" />
   <link rel="stylesheet" href="css/market-intel.css?v=20260806_cagr" />
   <link rel="stylesheet" href="css/sprint.css?v=20260819_bmgate" />
   <link rel="stylesheet" href="css/imsrx.css?v=20260816_mi_bridge" />
@@ -129,6 +133,10 @@
         <li class="menu-item" data-tab="sfe">
           <span class="menu-icon">👥</span>
           <span class="menu-label">Zeta Organogram</span>
+        </li>
+        <li class="menu-item" data-tab="coaching" id="menu-item-coaching" style="display:none;">
+          <span class="menu-icon">🎯</span>
+          <span class="menu-label">Coaching Intelligence</span>
         </li>
         <li class="menu-item" data-tab="sales">
           <span class="menu-icon">💰</span>
@@ -272,6 +280,11 @@
        back to the existing flat cluster->sub_type list for any cluster not present. -->
   <script defer src="cache/customer_analytics.data.js?v=20260731_skunocap"></script>
   <script defer src="cache/iqvia.data.js?v=20260811_amr"></script>
+  <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
+       from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Jun30 2026 S1) joined against
+       Database Shortcut.xlsx for active-roster / name resolution. See that script's
+       header for scope, exclusions and the confirmed name-alias list. -->
+  <script defer src="cache/coaching.data.js?v=20260831_v1"></script>
 
   <!-- App-wide authentication (2026-07-29): self-contained platform asset
        (same pattern as semantic-model.js below), no dependency on any
@@ -330,6 +343,7 @@
   <script defer src="js/sales.js?v=20260815_strengthgroups"></script>
   <script defer src="js/iqvia.js?v=20260811_amr"></script>
   <script defer src="js/sprint.js?v=20260819_bmgate"></script>
+  <script defer src="js/coaching.js?v=20260831_v1"></script>
   <script defer src="js/ims-rx.js?v=20260816_mi_bridge"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.

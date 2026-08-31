@@ -226,6 +226,40 @@
   }
 
   // -------------------------------------------------------------------
+  // COACHING INTELLIGENCE ACCESS (2026-08-31, Ahmed)
+  // -------------------------------------------------------------------
+  // New tab built on cache/coaching.data.js (etl/build_coaching_cache.py,
+  // source: "Visits Details S1 DM.xlsx" joint/coached-visit log). Tab
+  // visibility is broad -- every management-tier role, PLUS "Line
+  // Manager" -- because unlike Sprint/Expense/etc this tab is meant to
+  // be opened by the field managers being coached-on, not just by
+  // BU-and-above roles. The individual accounts in
+  // Zeta_Dashboard_User_Config.xlsx confirm every DM/Sr.DM/NSM/AM/BUM
+  // logs in under the single generic "Line Manager" role (there is no
+  // separate AUTH role per coaching-file Title1) -- so tab-level gating
+  // stops at role; the FINER split the business asked for --
+  //   - District Manager / Field force supervisor: own record + own
+  //     coached employees only
+  //   - Sr. DM / NSM / Area Manager / BUM / Brand Manager / FF Trainer:
+  //     their permitted BU/Line scope (the existing isBuAllowed /
+  //     isLineAllowed mechanism below -- deliberately NOT a new
+  //     hierarchy-walk, so this stays consistent with every other tab)
+  //   - SFE Manager / BEX / CEO / VP / Admin: full access within their
+  //     (usually unrestricted) BU/Line scope, same as every other tab
+  // -- happens in js/coaching.js, by matching the signed-in user's
+  // .name against cache/coaching.data.js's manager list and title, not
+  // here. This function only answers "can this person open the tab at
+  // all".
+  var COACHING_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "BU Manager",
+                         "Commercial Director", "Marketing Consultant", "Line Manager"];
+
+  function canViewCoaching() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return COACHING_ROLES.indexOf(u.role) >= 0;
+  }
+
+  // -------------------------------------------------------------------
   // EXPENSE VS SALES ACCESS (2026-08-09, Ahmed)
   // -------------------------------------------------------------------
   // "SFE BEX BU ADMIN CEO VP ONLY CAN SEE IT"
@@ -467,6 +501,8 @@
     IMS_RX_ROLES: IMS_RX_ROLES,
     canViewSprint: canViewSprint,
     SPRINT_ROLES: SPRINT_ROLES,
+    canViewCoaching: canViewCoaching,
+    COACHING_ROLES: COACHING_ROLES,
     canViewExpense: canViewExpense,
     EXPENSE_ROLES: EXPENSE_ROLES,
     canEditExpense: canEditExpense,
