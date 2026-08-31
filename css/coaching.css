@@ -7,8 +7,10 @@
    .section-title, .section-sub) -- see js/coaching.js's header comment.
    This file only covers what iqvia.css doesn't already provide for a
    full-page (non-fixed-height) embedded tab: the generic .data-table,
-   the insights list, the monthly-trend chart grid, the custom
-   Performance Matrix quadrant, and the Manager Profile drawer.
+   the insights list, the monthly-trend chart grid, the new BU/Line
+   filter row, and the Manager Profile drawer. (The 2x2 Coverage x
+   Visits/Day Performance Matrix that used to live here was removed
+   on request 2026-08-31 -- see js/coaching.js's header comment.)
    =================================================================== */
 
 body.coaching-mode #app-root {
@@ -177,76 +179,6 @@ body.coaching-mode #app-root {
 
 @media (max-width: 720px) {
   .iqvia-dashboard-wrap .coaching-trend-grid { grid-template-columns: 1fr; }
-}
-
-/* ---- Performance Matrix (custom HTML/CSS quadrant -- no chart lib) ---- */
-.iqvia-dashboard-wrap .coaching-matrix-wrap {
-  margin-top: 10px;
-  margin-bottom: 4px;
-}
-
-.iqvia-dashboard-wrap .coaching-matrix-box {
-  position: relative;
-  width: 100%;
-  height: 360px;
-  max-width: 720px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  overflow: hidden;
-}
-
-.iqvia-dashboard-wrap .coaching-matrix-vline {
-  position: absolute;
-  top: 0; bottom: 0;
-  width: 1px;
-  background: var(--border2);
-  border-left: 1px dashed var(--txt3);
-}
-
-.iqvia-dashboard-wrap .coaching-matrix-hline {
-  position: absolute;
-  left: 0; right: 0;
-  height: 1px;
-  background: var(--border2);
-  border-top: 1px dashed var(--txt3);
-}
-
-.iqvia-dashboard-wrap .coaching-matrix-quad-label {
-  position: absolute;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .03em;
-  color: var(--txt3);
-  text-transform: uppercase;
-  line-height: 1.3;
-  pointer-events: none;
-}
-
-.iqvia-dashboard-wrap .coaching-matrix-quad-label span {
-  display: block;
-  font-weight: 400;
-  text-transform: none;
-  font-size: 9px;
-  opacity: .8;
-}
-
-.iqvia-dashboard-wrap .coaching-matrix-dot {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--bg2);
-  transform: translate(-50%, 50%);
-  cursor: pointer;
-  padding: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
-  transition: transform .12s ease;
-}
-
-.iqvia-dashboard-wrap .coaching-matrix-dot:hover {
-  transform: translate(-50%, 50%) scale(1.6);
-  z-index: 5;
 }
 
 /* ---- Manager Profile drawer: table first-column width ----

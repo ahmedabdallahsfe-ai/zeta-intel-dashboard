@@ -9,10 +9,16 @@
  * fine at a glance, unusable once you have 113 District Manager / Field
  * force supervisor records to scan. This version replaces the card wall
  * with an analytical hierarchy a manager can actually use:
- *   Executive KPIs -> Key Insights -> Monthly Trend -> Performance
- *   Matrix -> Attention Required -> ranked/sortable/searchable table
- *   -> Other Levels table -> click-through Manager Profile (S1 summary
- *   + Feb..Jun reconciliation table + coached-employee list).
+ *   Executive KPIs -> Key Insights -> Monthly Trend -> Attention
+ *   Required -> ranked/sortable/searchable table -> Other Levels table
+ *   -> click-through Manager Profile (S1 summary + Feb..Jun
+ *   reconciliation table + coached-employee list).
+ *   (2026-08-31 follow-up: the 2x2 Coverage x Visits/Day Performance
+ *   Matrix that originally sat between Monthly Trend and Attention
+ *   Required was removed on request -- renderMatrix()/
+ *   MATRIX_Y_MAX_MULTIPLIER/.coaching-matrix-* CSS are gone, not just
+ *   hidden. Attention Required + the ranked table already surface the
+ *   same coverage/intensity split without a chart.)
  *
  * DATA SOURCE / SCOPE -- UNCHANGED from v1, still locked:
  *   cache/coaching.data.js, built by etl/build_coaching_cache.py from
@@ -74,18 +80,12 @@
  * requirement -- this file simply never reads that field. If a future
  * request re-adds a customer-level view, the data is already there.
  *
- * CHARTS: the Monthly Trend line charts and the Performance Matrix are
- * built WITHOUT touching js/charts.js (Charts.lineChart() is hardcoded
- * to a 0-100% axis -- fine for the coverage trend, wrong for the
- * visits/day trend). To avoid risking any other tab, this file keeps
- * its own tiny Chart.js instance registry (_chartInstances below) and
- * never calls into the shared `Charts` registry at all. The 2x2
- * Performance Matrix is deliberately NOT a Chart.js scatter (this
- * bundle ships Chart.js core only, no annotation plugin, so drawing
- * the two target reference lines through a scatter would need a
- * hand-rolled Chart.js plugin) -- it's a small absolutely-positioned
- * HTML/CSS grid instead: simpler, zero extra dependency, and every
- * dot is a real clickable/keyboard-focusable element.
+ * CHARTS: the Monthly Trend line charts are built WITHOUT touching
+ * js/charts.js (Charts.lineChart() is hardcoded to a 0-100% axis --
+ * fine for the coverage trend, wrong for the visits/day trend). To
+ * avoid risking any other tab, this file keeps its own tiny Chart.js
+ * instance registry (_chartInstances below) and never calls into the
+ * shared `Charts` registry at all.
  *
  * ACCESS MODEL -- UNCHANGED from v1 (unchanged by this redesign):
  *   auth.js's canViewCoaching() gates whether the tab/menu item renders
@@ -121,7 +121,7 @@
  * now includes .coaching-mode, same as every other self-contained tab;
  * (2) this file grew its own small, real, dynamic filter (BU + Line,
  * see renderFilterRow/applyFilters) that actually re-renders the KPIs,
- * insights, trend, matrix, attention list and both tables on change.
+ * insights, trend, attention list and both tables on change.
  * =====================================================================
  */
 (function (global) {
@@ -131,7 +131,6 @@
   var OWN_ONLY_TITLES = ["District Manager", "Field force supervisor"];
   var TARGET_COVERAGE_DEFAULT = 75;
   var TARGET_AVG_DAY_DEFAULT = 7;
-  var MATRIX_Y_MAX_MULTIPLIER = 2; // matrix Y axis scales to 2x the avg/day target unless data exceeds it
 
   var CHART_COLORS = {
     blue: "#4c6ef5", green: "#36c994", red: "#ff5c6b", orange: "#ff9f45",
@@ -577,51 +576,6 @@
   }
 
   // ---------------------------------------------------------------
-  // Render: Performance Matrix (custom HTML/CSS quadrant, no chart lib)
-  // ---------------------------------------------------------------
-  function renderMatrix(data, ownTier) {
-    var t = data.targets;
-    var yMax = Math.max(t.avgVisitsPerDay * MATRIX_Y_MAX_MULTIPLIER, 1);
-    ownTier.forEach(function (m) {
-      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
-      yMax = Math.max(yMax, mm.avgVisitsPerDay);
-    });
-
-    var dots = ownTier.map(function (m) {
-      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
-      if (mm.dvCoveragePct === null || mm.dvCoveragePct === undefined) return ""; // unmatched -- can't place on the coverage axis
-      var x = Math.max(0, Math.min(100, mm.dvCoveragePct));
-      var y = Math.max(0, Math.min(100, (mm.avgVisitsPerDay / yMax) * 100));
-      var covOk = mm.dvCoveragePct >= t.dvCoveragePct;
-      var dayOk = mm.avgVisitsPerDay >= t.avgVisitsPerDay;
-      var quadColor = covOk && dayOk ? CHART_COLORS.green : (!covOk && !dayOk ? CHART_COLORS.red : CHART_COLORS.orange);
-      var title = m.name + " (" + m.title + ") — Coverage " + mm.dvCoveragePct.toFixed(1) + "%, " +
-        mm.avgVisitsPerDay.toFixed(1) + " visits/day, " + mm.coachingDays + " coaching days, " +
-        (mm.coachedOnRoster + mm.coachedOffRoster) + " reps coached";
-      return '<button class="coaching-matrix-dot" data-drill="' + esc(m.id) + '" title="' + esc(title) + '" ' +
-        'style="left:' + x + '%;bottom:' + y + '%;background:' + quadColor + ';"></button>';
-    }).join("");
-
-    var xTargetPct = t.dvCoveragePct;
-    var yTargetPct = (t.avgVisitsPerDay / yMax) * 100;
-
-    return '' +
-      '<div class="section-title" style="margin-top:22px;font-size:16px;">Coaching Performance Matrix</div>' +
-      '<div class="section-sub">District Manager / Field Force Supervisor &middot; X = DV Coverage % (target ' + t.dvCoveragePct + '%) &middot; Y = Avg Visits/Day (target ' + t.avgVisitsPerDay + ') &middot; hover a dot for detail, click to open the profile</div>' +
-      '<div class="coaching-matrix-wrap">' +
-      '<div class="coaching-matrix-box">' +
-      '<div class="coaching-matrix-vline" style="left:' + xTargetPct + '%;"></div>' +
-      '<div class="coaching-matrix-hline" style="bottom:' + yTargetPct + '%;"></div>' +
-      '<div class="coaching-matrix-quad-label" style="left:6px;top:6px;">DEVELOP<br><span>low coverage, high intensity</span></div>' +
-      '<div class="coaching-matrix-quad-label" style="right:6px;top:6px;">CHAMPIONS<br><span>high coverage, high intensity</span></div>' +
-      '<div class="coaching-matrix-quad-label" style="left:6px;bottom:6px;">PRIORITY<br><span>low coverage, low intensity</span></div>' +
-      '<div class="coaching-matrix-quad-label" style="right:6px;bottom:6px;">COVERAGE ONLY<br><span>high coverage, low intensity</span></div>' +
-      dots +
-      '</div>' +
-      '</div>';
-  }
-
-  // ---------------------------------------------------------------
   // Render: Attention Required
   // ---------------------------------------------------------------
   function renderAttentionRequired(data, ownTier) {
@@ -880,7 +834,6 @@
       renderExecKPIRow(data, ownTier, agg, onTargetCount) +
       renderInsights(insights) +
       renderMonthlyTrendShell(data) +
-      renderMatrix(data, ownTier) +
       renderAttentionRequired(data, ownTier) +
       renderOwnTierTable(data, ownTier) +
       renderOtherLevelsTable(otherTier) +
