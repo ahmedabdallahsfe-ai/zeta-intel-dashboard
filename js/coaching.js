@@ -102,6 +102,26 @@
  *       of the dashboard.
  *     - CEO/VP/BEX/Admin/SFE Manager: full access within their
  *       (usually unrestricted) BU/Line scope.
+ *
+ * THEME (2026-08-31 follow-up): iqvia.css's .iqvia-dashboard-wrap is dark
+ * navy by default, with a `.iqvia-dashboard-wrap[data-theme="light"]`
+ * variant. There is no theme toggle anywhere in this app (confirmed: no
+ * data-theme/theme-toggle code exists in js/app.js or dashboard.html), so
+ * that dark default is not an active user choice -- it's just what
+ * ships if nothing overrides it. Every .iqvia-dashboard-wrap div this
+ * file creates now carries data-theme="light" explicitly, matching the
+ * light theme the rest of the dashboard (dashboard.css) already uses.
+ *
+ * FILTERS (2026-08-31 follow-up): earlier in this session the shared
+ * Coverage global filter bar (#filter-bar-container, js/filters.js) was
+ * left mounted-but-inert on top of this tab -- visible, but reading
+ * nothing from it, because Coaching's manager-level data model doesn't
+ * match Coverage's customer-visit one (see _filters comment below).
+ * Fixed two ways: (1) css/dashboard.css's existing hide-that-bar rule
+ * now includes .coaching-mode, same as every other self-contained tab;
+ * (2) this file grew its own small, real, dynamic filter (BU + Line,
+ * see renderFilterRow/applyFilters) that actually re-renders the KPIs,
+ * insights, trend, matrix, attention list and both tables on change.
  * =====================================================================
  */
 (function (global) {
@@ -119,7 +139,7 @@
   };
 
   var _cache = null;       // decompressed coaching.json payload
-  var _visible = [];       // managers this signed-in user may see (after scoping)
+  var _visible = [];       // managers this signed-in user may see (after AUTH scoping)
   var _chartInstances = {}; // canvasId -> Chart.js instance, owned entirely by this file
   var _state = {
     period: "ALL",          // "ALL" (S1 cumulative) or a "YYYY-MM" key
@@ -128,6 +148,22 @@
     sortDir: "desc",
     search: "",
   };
+  // Interactive BU/Line filter, ON TOP of AUTH scoping (_visible). This is
+  // Coaching's OWN self-contained filter -- deliberately NOT the shared
+  // Coverage global filter bar (js/filters.js / #filter-bar-container).
+  // That bar's dimensions (Specialty/Class/Status/Experience/Type) describe
+  // the HCP/customer being visited on a Doctor Visit, which Coaching
+  // structurally never surfaces (see "no HCP/customer names" in the header
+  // comment) -- so those fields have no meaning here. Every OTHER
+  // self-contained tab in this codebase (SFE/Sales/Executive/ToMarket/
+  // Expense/IMS Rx/Sprint -- see the ".xxx-mode #filter-bar-container"
+  // hide-rule in css/dashboard.css) already hides that shared bar rather
+  // than reading it, for the same reason: it's built for Coverage's
+  // customer-visit data model, not theirs. Coaching now follows the same
+  // convention (see css/dashboard.css's .coaching-mode addition to that
+  // rule) instead of leaving Coverage's bar visible-but-inert on top of
+  // this tab, which is what v2 originally shipped with.
+  var _filters = { bu: "", line: "" };
 
   // ---------------------------------------------------------------
   // Cache load / decompression (same pako gzip+b64 pattern as
@@ -361,6 +397,61 @@
     return '' +
       '<div class="section-sub" style="margin-top:2px;margin-bottom:6px;font-weight:600;">PERIOD</div>' +
       '<div id="coaching-period-toggle" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--gap-grid);">' + btns.join("") + '</div>';
+  }
+
+  // ---------------------------------------------------------------
+  // Render + apply: BU/Line filter (see _filters comment above)
+  // ---------------------------------------------------------------
+  /** Applies _filters on top of the already-AUTH-scoped `list`. */
+  function applyFilters(list) {
+    return list.filter(function (m) {
+      if (_filters.bu && m.bu !== _filters.bu) return false;
+      if (_filters.line && m.line !== _filters.line) return false;
+      return true;
+    });
+  }
+
+  function uniqueSorted(arr) {
+    var seen = {}, out = [];
+    arr.forEach(function (v) {
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
+
+  function renderFilterRow(scopeList, filteredCount, totalCount) {
+    var bus = uniqueSorted(scopeList.map(function (m) { return m.bu; }));
+    // Cascade: once a BU is picked, only offer lines that actually occur
+    // within it (matches js/filters.js's cascading-availability convention
+    // for the shared bar, applied here to Coaching's own two fields).
+    var lineSource = _filters.bu ? scopeList.filter(function (m) { return m.bu === _filters.bu; }) : scopeList;
+    var lines = uniqueSorted(lineSource.map(function (m) { return m.line; }));
+
+    var buOpts = '<option value="">All Business Units</option>' + bus.map(function (b) {
+      return '<option value="' + esc(b) + '"' + (_filters.bu === b ? " selected" : "") + '>' + esc(b) + '</option>';
+    }).join("");
+    var lineOpts = '<option value="">All Lines</option>' + lines.map(function (l) {
+      return '<option value="' + esc(l) + '"' + (_filters.line === l ? " selected" : "") + '>' + esc(l) + '</option>';
+    }).join("");
+
+    var activeNote = (_filters.bu || _filters.line)
+      ? '<span class="coaching-filter-count">Showing ' + filteredCount + ' of ' + totalCount + ' managers in scope</span>'
+      : '<span class="coaching-filter-count">' + totalCount + ' managers in scope</span>';
+
+    return '' +
+      '<div class="coaching-filter-row" id="coaching-filter-row">' +
+      '<div class="coaching-filter-field">' +
+      '<label for="coaching-filter-bu">Business Unit</label>' +
+      '<select id="coaching-filter-bu">' + buOpts + '</select>' +
+      '</div>' +
+      '<div class="coaching-filter-field">' +
+      '<label for="coaching-filter-line">Line</label>' +
+      '<select id="coaching-filter-line">' + lineOpts + '</select>' +
+      '</div>' +
+      (_filters.bu || _filters.line ? '<button class="tb-btn" id="coaching-filter-reset" type="button">Reset</button>' : '') +
+      activeNote +
+      '</div>';
   }
 
   // ---------------------------------------------------------------
@@ -771,8 +862,9 @@
   // Full render
   // ---------------------------------------------------------------
   function render(root, data) {
-    var ownTier = _visible.filter(function (m) { return OWN_ONLY_TITLES.indexOf(m.title) >= 0; });
-    var otherTier = _visible.filter(function (m) { return OWN_ONLY_TITLES.indexOf(m.title) < 0; });
+    var scoped = applyFilters(_visible); // AUTH scope, then the interactive BU/Line filter
+    var ownTier = scoped.filter(function (m) { return OWN_ONLY_TITLES.indexOf(m.title) >= 0; });
+    var otherTier = scoped.filter(function (m) { return OWN_ONLY_TITLES.indexOf(m.title) < 0; });
     var agg = aggregateOwnTier(ownTier, _state.period);
     var onTargetCount = ownTier.filter(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
@@ -784,10 +876,11 @@
     var prevAgg = (idx > 0) ? aggregateOwnTier(ownTier, months[idx - 1]) : null;
     var insights = buildInsights(data, ownTier, agg, prevAgg);
 
-    var html = '<div class="iqvia-dashboard-wrap" style="height:auto;overflow:visible;padding:var(--pad-section);">' +
+    var html = '<div class="iqvia-dashboard-wrap" data-theme="light" style="height:auto;overflow:visible;padding:var(--pad-section);">' +
       '<div class="section active">' +
       '<div class="section-title">Coaching Intelligence</div>' +
       '<div class="section-sub">S1 2026 &middot; Feb 1 – Jun 30 &middot; Joint / Coached Field Visits</div>' +
+      renderFilterRow(_visible, scoped.length, _visible.length) +
       renderPeriodControl(data) +
       renderExecKPIRow(data, ownTier, agg, onTargetCount) +
       renderInsights(insights) +
@@ -821,6 +914,35 @@
   }
 
   function wireEvents(root, data) {
+    var buSelect = document.getElementById("coaching-filter-bu");
+    if (buSelect) {
+      buSelect.addEventListener("change", function (e) {
+        _filters.bu = e.target.value;
+        // Changing BU can orphan the current Line selection (a line that
+        // only exists under a different BU) -- clear it rather than show
+        // a filter combination that can never match anything.
+        var lineStillValid = !_filters.line || _visible.some(function (m) {
+          return m.bu === _filters.bu && m.line === _filters.line;
+        });
+        if (!lineStillValid) _filters.line = "";
+        render(root, data);
+      });
+    }
+    var lineSelect = document.getElementById("coaching-filter-line");
+    if (lineSelect) {
+      lineSelect.addEventListener("change", function (e) {
+        _filters.line = e.target.value;
+        render(root, data);
+      });
+    }
+    var filterReset = document.getElementById("coaching-filter-reset");
+    if (filterReset) {
+      filterReset.addEventListener("click", function () {
+        _filters = { bu: "", line: "" };
+        render(root, data);
+      });
+    }
+
     var toggle = document.getElementById("coaching-period-toggle");
     if (toggle) {
       toggle.addEventListener("click", function (e) {
@@ -873,7 +995,7 @@
   }
 
   function renderNoAccess(root) {
-    root.innerHTML = '<div class="iqvia-dashboard-wrap" style="height:auto;padding:var(--pad-section);">' +
+    root.innerHTML = '<div class="iqvia-dashboard-wrap" data-theme="light" style="height:auto;padding:var(--pad-section);">' +
       '<div class="section active"><div class="section-title">Coaching Intelligence</div>' +
       '<p style="opacity:.7;">No coaching records are visible for your account/BU/Line scope for S1 2026.</p></div></div>';
   }
@@ -884,12 +1006,13 @@
     document.body.classList.add("coaching-mode");
     var data = loadCache();
     if (!data) {
-      root.innerHTML = '<div class="iqvia-dashboard-wrap" style="height:auto;padding:var(--pad-section);">' +
+      root.innerHTML = '<div class="iqvia-dashboard-wrap" data-theme="light" style="height:auto;padding:var(--pad-section);">' +
         '<div class="section active"><div class="section-title">Coaching Intelligence</div>' +
         '<p style="opacity:.7;">Coaching data is not available in this build (cache/coaching.data.js missing or failed to load). Run etl/build_coaching_cache.py.</p></div></div>';
       return;
     }
     _state.drillManagerId = null;
+    _filters = { bu: "", line: "" };
     _visible = getVisibleManagers(data);
     if (!_visible.length) {
       renderNoAccess(root);

@@ -15,6 +15,89 @@ body.coaching-mode #app-root {
   overflow-y: auto;
 }
 
+/* ---- New filter row (BU + Line) ---- */
+.iqvia-dashboard-wrap .coaching-filter-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 6px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.iqvia-dashboard-wrap .coaching-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.iqvia-dashboard-wrap .coaching-filter-field label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--txt2);
+}
+
+.iqvia-dashboard-wrap .coaching-filter-field select {
+  background: var(--bg3);
+  color: var(--txt1);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-btn);
+  padding: 7px 10px;
+  font-size: var(--fs-btn);
+  min-height: 34px;
+}
+
+.iqvia-dashboard-wrap .coaching-filter-count {
+  font-size: 12px;
+  color: var(--txt2);
+  margin-left: auto;
+  align-self: center;
+}
+
+@media (max-width: 720px) {
+  .iqvia-dashboard-wrap .coaching-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .iqvia-dashboard-wrap .coaching-filter-count {
+    margin-left: 0;
+  }
+}
+
+/* ---- Cross-module class-name collision fix ----
+   dashboard.css (the Coverage/Executive tab's OWN kpi-card system --
+   an entirely different module) defines UNSCOPED .kpi-value and
+   .kpi-label rules (no .iqvia-dashboard-wrap prefix), including
+   white-space:nowrap + text-overflow:ellipsis on .kpi-value and a
+   2-line -webkit-line-clamp on .kpi-label. iqvia.css's own .kpi-value/
+   .kpi-label rules never set those specific properties, so nothing
+   overrides dashboard.css's version -- CSS applies unset properties
+   from whichever rule sets them, regardless of the other rule's
+   higher specificity. Net effect: every KPI card in this tab (Exec
+   row AND the profile drawer) silently clipped "92.2% INTENSITY GAP"
+   down to "92.2% ..." even though the width looked like it should
+   fit. Restore normal wrapping, scoped to this tab only -- does not
+   touch dashboard.css or iqvia.css, so the Coverage tab's own cards
+   are unaffected. */
+.iqvia-dashboard-wrap .kpi-value {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.iqvia-dashboard-wrap .kpi-label {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
 /* ---- generic data table (Attention Required / DM-FS table / Other
    Levels / Manager Profile monthly + coached-employee tables) ---- */
 .iqvia-dashboard-wrap .coaching-table-wrap {
