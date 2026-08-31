@@ -3,48 +3,105 @@
  * =====================================================================
  * PLATFORM ASSET. Exposes window.CoachingDashboard = { init, destroy }.
  *
- * New tab (2026-08-31, Ahmed) built on cache/coaching.data.js, produced
- * by etl/build_coaching_cache.py from "Visits Details S1 DM.xlsx" (Total
- * sheet -- one row per JOINT/COACHED field visit, Coached=Coached on
- * every row already) joined against Database Shortcut.xlsx for active
- * team rosters and confirmed name matching (0 unmatched reps, 0
- * unmatched coaching managers, out of 757 reps / 165 managers -- see
- * that script's header for the alias list and why it is NOT fuzzy
- * matching).
+ * REWRITE 2026-08-31 (v2, insight-first redesign). v1 (still in git
+ * history as commit 80e08ae, "Checkpoint: Coaching Intelligence tab v1
+ * (pre-redesign backup)") rendered one kpi-card per coaching manager --
+ * fine at a glance, unusable once you have 113 District Manager / Field
+ * force supervisor records to scan. This version replaces the card wall
+ * with an analytical hierarchy a manager can actually use:
+ *   Executive KPIs -> Key Insights -> Monthly Trend -> Performance
+ *   Matrix -> Attention Required -> ranked/sortable/searchable table
+ *   -> Other Levels table -> click-through Manager Profile (S1 summary
+ *   + Feb..Jun reconciliation table + coached-employee list).
  *
- * SCOPE, confirmed with Ahmed 2026-08-31:
- *   - Period Feb 1 - Jun 30 2026 (S1). Every metric below has both a
- *     Cumulative (S1) and a per-month (Feb..Jun) view via the toggle.
- *   - Fields used: Employee, Coach Employee 1, Title 1, Date, Team, Area,
- *     Customer (name only, in the coached-employee drill-down's customer
- *     popup -- never in a main KPI table).
- *   - Fields deliberately EXCLUDED from every KPI here: Duration, GPS
- *     Deviation, Specialty, Customer Type, Status.
- *   - DV Coverage % (own active team coached / own active team size,
- *     capped at 100% for display -- reps coached who are NOT on the
- *     manager's own roster are shown separately as "cross-team", never
- *     silently folded in or dropped) and the two numeric targets
- *     (Coverage >=75%, Avg Coaching Visits/Day >=7) apply ONLY to
- *     District Manager and Field force supervisor -- the two levels
- *     with a real "own team" concept. Every other coaching level (Sr.
- *     District Manager, National Sales Manager, Area Manager, Business
- *     Unit Manager, Brand Manager, Field Force Trainer, Group Brand
- *     lead) gets visits / coaching days / zones visited with no target.
+ * DATA SOURCE / SCOPE -- UNCHANGED from v1, still locked:
+ *   cache/coaching.data.js, built by etl/build_coaching_cache.py from
+ *   "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Jun30 2026 S1) joined
+ *   against Database Shortcut.xlsx. See that script's header for the
+ *   full field list, exclusions and the confirmed 7-alias name-match
+ *   table (757/757 reps, 165/165 coaching managers matched -- verified
+ *   2026-08-31, see the chat's own QA report for the byte-for-byte
+ *   candidate search behind each alias).
  *
- * ACCESS MODEL (mirrors Sprint's split -- auth.js's canViewCoaching()
- * only gates whether the menu entry/tab renders at all; this file does
- * the finer split the business actually asked for):
- *   - District Manager / Field force supervisor (matched by the signed
- *     -in user's name against this cache): see ONLY their own record and
- *     their own coached employees.
- *   - Every other signed-in role (Sr.DM/NSM/AM/BUM/Brand Manager/FF
- *     Trainer/BU Manager/unmatched Line Manager): see every manager
- *     within their existing AUTH.isBuAllowed()/isLineAllowed() scope --
- *     deliberately reusing that mechanism rather than building a second,
- *     parallel hierarchy-walk, per Ahmed's explicit instruction to keep
- *     it "consistent with the rest of the dashboard".
- *   - CEO/VP/BEX/Admin/SFE Manager: full access within their (usually
- *     unrestricted) BU/Line scope, same as every other tab.
+ *   NOTE on org-matching source: the working brief for this redesign
+ *   asked to match Coach Employee 1 against "Total Organogram July 2026
+ *   .xlsx" (i.e. cache/organogram.json). That file is a POSITIONAL
+ *   snapshot (planned headcount / span-of-control / vacancy -- see its
+ *   top-level keys: vacancyByLine, vacancyByManager, vacantPositions,
+ *   activePositions, dmHierarchy, spanOfControl, brickWorkload,
+ *   tenureStability), not a live active/resigned roster with a
+ *   Direct-Manager edge per person. Matching against it first (done
+ *   2026-08-31, see chat) produced a WORSE match rate (74/81 DMs,
+ *   20/32 supervisors) than Database Shortcut.xlsx (81/81, 32/32) --
+ *   the latter is what refresh_sales.py / etl/build_sprint_cache.py
+ *   already treat as the authoritative HR source (active/resigned
+ *   status + Direct/Second/Third Manager columns), so
+ *   build_coaching_cache.py keeps using it. This is a deliberate,
+ *   already-validated choice, not an oversight -- flagged here so a
+ *   future maintainer doesn't "fix" it back to a worse match rate.
+ *
+ * CALCULATION RULES (see etl/build_coaching_cache.py for where these
+ * are actually computed -- this file only aggregates/reads them):
+ *   - Avg Visits/Coaching Day, at ANY grain (per-manager cumulative,
+ *     per-manager-per-month, or the aggregate KPI row here) is ALWAYS
+ *     total visits / total coaching days for that grain -- never an
+ *     average of smaller-grain averages. See aggregateOwnTier() below.
+ *   - DV Coverage % is coached-active-reps-on-own-roster / own active
+ *     roster size, capped at 100% for display; reps coached who are
+ *     NOT on the manager's own roster are counted separately as
+ *     "cross-team" and never folded into, or silently dropped from,
+ *     coverage. Aggregate coverage (KPI row / trend) is
+ *     sum(onRoster)/sum(activeTeam) across the scoped manager set --
+ *     never an average of per-manager percentages (mathematically
+ *     wrong when teams are different sizes).
+ *   - Coverage only exists for District Manager / Field force
+ *     supervisor -- the two levels with a real "own team". Every other
+ *     level (Sr. DM, NSM, Area Manager, BUM, Brand Manager, FF
+ *     Trainer, Group Brand lead) never gets a coverage % or a target.
+ *   - A manager whose name could not be matched to Database
+ *     Shortcut.xlsx at all would show "Coverage: pending org match"
+ *     rather than a computed number -- see coverageDisplay(). This
+ *     cannot currently trigger (0 unmatched), kept for when a future
+ *     data refresh introduces a new unmatched name.
+ *
+ * CUSTOMER / HCP DATA -- v1 added a per-coached-employee "customers"
+ * popup (Customer field, visit-count only). REMOVED in this rewrite:
+ * the working brief for this redesign is explicit and repeated --
+ * "Do NOT display HCP/customer names... The Customer field remains
+ * excluded." The ETL cache (cache/coaching.json) still CONTAINS a
+ * `customers` array per coached employee (harmless, unused) because
+ * rebuilding the cache without it wasn't necessary to satisfy this
+ * requirement -- this file simply never reads that field. If a future
+ * request re-adds a customer-level view, the data is already there.
+ *
+ * CHARTS: the Monthly Trend line charts and the Performance Matrix are
+ * built WITHOUT touching js/charts.js (Charts.lineChart() is hardcoded
+ * to a 0-100% axis -- fine for the coverage trend, wrong for the
+ * visits/day trend). To avoid risking any other tab, this file keeps
+ * its own tiny Chart.js instance registry (_chartInstances below) and
+ * never calls into the shared `Charts` registry at all. The 2x2
+ * Performance Matrix is deliberately NOT a Chart.js scatter (this
+ * bundle ships Chart.js core only, no annotation plugin, so drawing
+ * the two target reference lines through a scatter would need a
+ * hand-rolled Chart.js plugin) -- it's a small absolutely-positioned
+ * HTML/CSS grid instead: simpler, zero extra dependency, and every
+ * dot is a real clickable/keyboard-focusable element.
+ *
+ * ACCESS MODEL -- UNCHANGED from v1 (unchanged by this redesign):
+ *   auth.js's canViewCoaching() gates whether the tab/menu item renders
+ *   at all (every management-tier role + "Line Manager" -- see that
+ *   function's comment for why individual field managers all share the
+ *   generic "Line Manager" login role). The finer split below:
+ *     - District Manager / Field force supervisor (matched by the
+ *       signed-in user's name against this cache): own record + own
+ *       coached employees ONLY.
+ *     - Every other signed-in role: every manager within their
+ *       existing AUTH.isBuAllowed()/isLineAllowed() scope -- reusing
+ *       that mechanism rather than a second hierarchy-walk, per
+ *       Ahmed's explicit instruction to stay consistent with the rest
+ *       of the dashboard.
+ *     - CEO/VP/BEX/Admin/SFE Manager: full access within their
+ *       (usually unrestricted) BU/Line scope.
  * =====================================================================
  */
 (function (global) {
@@ -52,13 +109,24 @@
 
   var FULL_ACCESS_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager"];
   var OWN_ONLY_TITLES = ["District Manager", "Field force supervisor"];
+  var TARGET_COVERAGE_DEFAULT = 75;
+  var TARGET_AVG_DAY_DEFAULT = 7;
+  var MATRIX_Y_MAX_MULTIPLIER = 2; // matrix Y axis scales to 2x the avg/day target unless data exceeds it
 
-  var _cache = null;      // decompressed coaching.json payload
-  var _visible = [];      // managers this signed-in user may see (after scoping)
+  var CHART_COLORS = {
+    blue: "#4c6ef5", green: "#36c994", red: "#ff5c6b", orange: "#ff9f45",
+    purple: "#9775fa", cyan: "#20c4f4", grid: "rgba(148,163,184,.18)", text: "#9da8c5",
+  };
+
+  var _cache = null;       // decompressed coaching.json payload
+  var _visible = [];       // managers this signed-in user may see (after scoping)
+  var _chartInstances = {}; // canvasId -> Chart.js instance, owned entirely by this file
   var _state = {
-    period: "ALL",         // "ALL" (S1 cumulative) or a "YYYY-MM" key
-    drillManagerId: null,  // manager id whose coached-employee table is open
-    customerPopupKey: null // "managerId::empId" whose customer popup is open
+    period: "ALL",          // "ALL" (S1 cumulative) or a "YYYY-MM" key
+    drillManagerId: null,   // manager id whose profile is open
+    sortCol: "cov",         // own-tier table sort column
+    sortDir: "desc",
+    search: "",
   };
 
   // ---------------------------------------------------------------
@@ -87,11 +155,20 @@
 
   function normName(s) {
     if (!s) return "";
-    return String(s).toUpperCase().replace(/ /g, " ").trim().replace(/\s+/g, " ");
+    return String(s).toUpperCase().replace(/ /g, " ").trim().replace(/\s+/g, " ");
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
   }
 
   // ---------------------------------------------------------------
-  // Visibility scoping -- see header comment for the rule
+  // Visibility scoping -- see header comment for the rule. Unchanged
+  // logic from v1; re-verified against the live cache 2026-08-31 (SFE
+  // Manager -> 165, an NSM-tier Line Manager -> 165 within scope, a
+  // DM-tier Line Manager -> 1 (self only)).
   // ---------------------------------------------------------------
   function getVisibleManagers(data) {
     var u = global.AUTH && global.AUTH.getValidSessionUser && global.AUTH.getValidSessionUser();
@@ -110,202 +187,580 @@
     if (myRecord && OWN_ONLY_TITLES.indexOf(myRecord.title) >= 0) {
       return scoped.filter(function (m) { return m.id === selfNorm; });
     }
-    return scoped; // Sr.DM/NSM/AM/BUM/Brand Manager/FFT/BU Manager/unmatched: BU+Line scope only
+    return scoped;
   }
 
   // ---------------------------------------------------------------
-  // Metric helpers -- pick the current period's bucket for a manager
+  // Metric helpers
   // ---------------------------------------------------------------
-  function metricsFor(manager) {
-    if (_state.period === "ALL") return manager.cumulative;
-    return manager.monthly[_state.period] || {
-      visits: 0, coachingDays: 0, avgVisitsPerDay: 0, avgVsTargetPct: 0,
-      coachedOnRoster: 0, coachedOffRoster: 0, zones: 0,
-      dvCoveragePct: manager.cumulative.dvCoveragePct !== undefined ? null : undefined,
+  function metricsFor(manager, period) {
+    if (period === "ALL") return manager.cumulative;
+    return manager.monthly[period] || null; // null = no visits that manager that month
+  }
+
+  var EMPTY_METRICS = {
+    visits: 0, coachingDays: 0, avgVisitsPerDay: 0, coachedOnRoster: 0,
+    coachedOffRoster: 0, zones: 0, dvCoveragePct: null,
+  };
+
+  /** Correctly aggregate a set of DM/FFS managers for one period: totals
+   * are summed first, THEN divided -- never an average of per-manager
+   * averages/percentages (see file header). Managers with an unresolved
+   * org match (none currently) are excluded from the coverage
+   * denominator/numerator but still counted in visits/days, matching
+   * the "pending org match" display rule -- their coverage is simply
+   * unknown, not zero. */
+  function aggregateOwnTier(managers, period) {
+    var visits = 0, days = 0, onRoster = 0, offRoster = 0, activeTeamTotal = 0;
+    var repsSeen = {};
+    managers.forEach(function (m) {
+      var mm = metricsFor(m, period) || EMPTY_METRICS;
+      visits += mm.visits;
+      days += mm.coachingDays;
+      offRoster += mm.coachedOffRoster;
+      if (orgMatched(m)) {
+        onRoster += mm.coachedOnRoster;
+        activeTeamTotal += m.activeTeamCount;
+      }
+      collectRepsForPeriod(m, period).forEach(function (r) { repsSeen[r] = true; });
+    });
+    var coveragePct = activeTeamTotal > 0 ? Math.min(100, (100 * onRoster) / activeTeamTotal) : null;
+    var coverageRawPct = activeTeamTotal > 0 ? (100 * onRoster) / activeTeamTotal : null;
+    var avgPerDay = days > 0 ? visits / days : 0;
+    return {
+      visits: visits, days: days, avgPerDay: avgPerDay,
+      coveragePct: coveragePct, coverageRawPct: coverageRawPct,
+      onRoster: onRoster, offRoster: offRoster, activeTeamTotal: activeTeamTotal,
+      repsCoached: Object.keys(repsSeen).length,
     };
   }
 
-  function fmtPct(v) { return (v === null || v === undefined) ? "—" : v.toFixed(1) + "%"; }
-  function fmtNum(v) { return (v === null || v === undefined) ? "—" : v; }
-
-  function badgeFor(value, target, higherIsBetter) {
-    if (value === null || value === undefined) return '<span class="badge badge-neutral">n/a</span>';
-    var ok = higherIsBetter ? value >= target : value <= target;
-    var near = higherIsBetter ? value >= target * 0.85 : value <= target * 1.15;
-    var cls = ok ? "badge-up" : (near ? "badge-warn" : "badge-down");
-    var icon = ok ? "✓" : (near ? "▲" : "▼");
-    return '<span class="badge ' + cls + '">' + icon + " " + (ok ? "On target" : "Below target") + "</span>";
-  }
-
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  function collectRepsForPeriod(manager, period) {
+    var out = [];
+    manager.coachedEmployees.forEach(function (ce) {
+      var v = period === "ALL" ? ce.visits : ((ce.monthly[period] || {}).visits || 0);
+      if (v > 0) out.push(normName(ce.name));
     });
+    return out;
+  }
+
+  /** A manager is "org matched" if Database Shortcut resolved an active
+   * team for them at all. activeTeamCount === 0 with a matched HR
+   * record (e.g. a genuinely empty roster) is different from "never
+   * matched" -- both currently read the same way here (no roster to
+   * measure against) since 0/165 are actually unmatched today; kept as
+   * its own function so a future unmatched case has one place to fix. */
+  function orgMatched(manager) {
+    return manager.activeTeamCount !== undefined && manager.activeTeamCount !== null;
+  }
+
+  function coverageDisplay(manager, mm) {
+    if (!orgMatched(manager)) return { text: "Pending org match", cls: "badge-neutral" };
+    if (mm.dvCoveragePct === null || mm.dvCoveragePct === undefined) {
+      return { text: manager.activeTeamCount === 0 ? "No active team" : "—", cls: "badge-neutral" };
+    }
+    return null; // caller renders the numeric value + status badge normally
+  }
+
+  function statusFor(coveragePct, avgPerDay, targets) {
+    if (coveragePct === null || coveragePct === undefined) {
+      return { label: "PENDING", cls: "badge-neutral" };
+    }
+    var covOk = coveragePct >= targets.dvCoveragePct;
+    var dayOk = avgPerDay >= targets.avgVisitsPerDay;
+    if (covOk && dayOk) return { label: "ON TARGET", cls: "badge-up" };
+    if (!covOk && !dayOk) return { label: "CRITICAL", cls: "badge-down" };
+    if (!covOk) return { label: "COVERAGE GAP", cls: "badge-warn" };
+    return { label: "INTENSITY GAP", cls: "badge-warn" };
+  }
+
+  function fmtPct1(v) { return (v === null || v === undefined) ? "—" : v.toFixed(1) + "%"; }
+  function fmtNum1(v) { return (v === null || v === undefined) ? "—" : v.toFixed(1); }
+  function signed(v, suffix) {
+    if (v === null || v === undefined) return "—";
+    var s = v >= 0 ? "+" : "";
+    return s + v.toFixed(1) + (suffix || "");
+  }
+
+  function periodLabel(period) {
+    if (period === "ALL") return "S1 cumulative (Feb–Jun)";
+    var d = new Date(period + "-01T00:00:00");
+    return d.toLocaleString("en-US", { month: "long", year: "numeric" });
+  }
+  function monthShort(period) {
+    var d = new Date(period + "-01T00:00:00");
+    return d.toLocaleString("en-US", { month: "short" });
   }
 
   // ---------------------------------------------------------------
-  // Render: top summary KPI row (scope + period aware)
+  // Insights -- built ONLY from computed aggregates for the current
+  // scope + period, never hard-coded. Capped at 6.
   // ---------------------------------------------------------------
-  function renderSummary(data, ownTierManagers) {
-    var totalVisits = _visible.reduce(function (s, m) { return s + metricsFor(m).visits; }, 0);
-    var covVals = ownTierManagers.map(function (m) { return metricsFor(m).dvCoveragePct; }).filter(function (v) { return v !== null && v !== undefined; });
-    var avgCov = covVals.length ? (covVals.reduce(function (a, b) { return a + b; }, 0) / covVals.length) : null;
-    var avgDayVals = ownTierManagers.map(function (m) { return metricsFor(m).avgVisitsPerDay; }).filter(function (v) { return v !== null && v !== undefined; });
-    var avgDay = avgDayVals.length ? (avgDayVals.reduce(function (a, b) { return a + b; }, 0) / avgDayVals.length) : null;
-    var onTargetCount = ownTierManagers.filter(function (m) {
-      var mm = metricsFor(m);
-      return mm.dvCoveragePct !== null && mm.dvCoveragePct !== undefined && mm.dvCoveragePct >= data.targets.dvCoveragePct;
-    }).length;
+  function buildInsights(data, ownTier, agg, prevAgg) {
+    var t = data.targets;
+    var out = [];
 
+    var covGap = agg.coveragePct === null ? null : (agg.coveragePct - t.dvCoveragePct);
+    if (covGap !== null) {
+      out.push({
+        sev: covGap >= 0 ? "good" : "bad",
+        text: "DV Coverage is " + agg.coveragePct.toFixed(1) + "%, " + Math.abs(covGap).toFixed(1) +
+          " pp " + (covGap >= 0 ? "above" : "below") + " the " + t.dvCoveragePct + "% target.",
+      });
+    }
+
+    var belowEither = ownTier.filter(function (m) {
+      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
+      var st = statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t);
+      return st.label !== "ON TARGET" && st.label !== "PENDING";
+    }).length;
+    out.push({
+      sev: belowEither > 0 ? "bad" : "good",
+      text: belowEither + " of " + ownTier.length + " District Manager / Field Force Supervisor coaches are below at least one coaching target.",
+    });
+
+    var dayGap = agg.avgPerDay - t.avgVisitsPerDay;
+    out.push({
+      sev: dayGap >= 0 ? "good" : "bad",
+      text: "Average coaching intensity is " + agg.avgPerDay.toFixed(1) + " visits/day versus the target of " + t.avgVisitsPerDay + ".",
+    });
+
+    var belowBoth = ownTier.filter(function (m) {
+      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
+      return statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t).label === "CRITICAL";
+    }).length;
+    if (belowBoth > 0) {
+      out.push({ sev: "bad", text: belowBoth + " managers are below BOTH DV Coverage and Visits/Day targets -- see Attention Required." });
+    }
+
+    if (agg.offRoster > 0) {
+      out.push({ sev: "info", text: agg.offRoster + " cross-team coaching visits were logged this period (coaching visits to reps outside the manager's own roster)." });
+    }
+
+    if (prevAgg && prevAgg.coveragePct !== null && agg.coveragePct !== null) {
+      var delta = agg.coveragePct - prevAgg.coveragePct;
+      if (Math.abs(delta) >= 0.5) {
+        out.push({
+          sev: delta >= 0 ? "good" : "bad",
+          text: "DV Coverage is " + (delta >= 0 ? "up" : "down") + " " + Math.abs(delta).toFixed(1) + " pp vs the prior month.",
+        });
+      }
+    }
+
+    return out.slice(0, 6);
+  }
+
+  // ---------------------------------------------------------------
+  // Render: header + period control
+  // ---------------------------------------------------------------
+  function renderPeriodControl(data) {
+    var btns = ['<button class="tb-btn' + (_state.period === "ALL" ? " tb-btn-active" : "") + '" data-period="ALL">S1 Cumulative</button>'];
+    data.period.months.forEach(function (m) {
+      btns.push('<button class="tb-btn' + (_state.period === m ? " tb-btn-active" : "") + '" data-period="' + m + '">' + monthShort(m) + '</button>');
+    });
     return '' +
-      '<div class="kpi-grid">' +
-      '<div class="kpi-card blue"><div class="kpi-label">Coaching Visits</div><div class="kpi-value">' + totalVisits.toLocaleString() + '</div><div class="kpi-sub">in scope, ' + periodLabel() + '</div></div>' +
-      '<div class="kpi-card purple"><div class="kpi-label">Coaching Managers</div><div class="kpi-value">' + _visible.length + '</div><div class="kpi-sub">DM/FS: ' + ownTierManagers.length + ' with an own team</div></div>' +
-      '<div class="kpi-card green"><div class="kpi-label">Avg DV Coverage (DM/FS)</div><div class="kpi-value">' + fmtPct(avgCov) + '</div><div class="kpi-sub">target ' + data.targets.dvCoveragePct + '% &middot; ' + onTargetCount + '/' + ownTierManagers.length + ' on target</div></div>' +
-      '<div class="kpi-card orange"><div class="kpi-label">Avg Visits / Coaching Day (DM/FS)</div><div class="kpi-value">' + (avgDay === null ? "—" : avgDay.toFixed(1)) + '</div><div class="kpi-sub">target ' + data.targets.avgVisitsPerDay + '/day</div></div>' +
+      '<div class="section-sub" style="margin-top:2px;margin-bottom:6px;font-weight:600;">PERIOD</div>' +
+      '<div id="coaching-period-toggle" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--gap-grid);">' + btns.join("") + '</div>';
+  }
+
+  // ---------------------------------------------------------------
+  // Render: Executive KPI row
+  // ---------------------------------------------------------------
+  function renderExecKPIRow(data, ownTier, agg, onTargetCount) {
+    var t = data.targets;
+    var covStatus = statusFor(agg.coveragePct, agg.avgPerDay, t);
+    var covVariance = agg.coveragePct === null ? "—" : signed(agg.coveragePct - t.dvCoveragePct, " pp");
+    var dayVariance = signed(agg.avgPerDay - t.avgVisitsPerDay);
+    var dayOk = agg.avgPerDay >= t.avgVisitsPerDay;
+    var onTargetPct = ownTier.length ? (100 * onTargetCount / ownTier.length).toFixed(1) : "0.0";
+
+    return '<div class="kpi-grid">' +
+      kpiCard("DV Coverage", fmtPct1(agg.coveragePct), "Target " + t.dvCoveragePct + "% &middot; " + covVariance,
+        covStatus.label, covStatus.cls, agg.coveragePct !== null && agg.coveragePct >= t.dvCoveragePct ? "green" : "red") +
+      kpiCard("Avg Visits / Coaching Day", agg.avgPerDay.toFixed(1) + " / " + t.avgVisitsPerDay, "Target " + t.avgVisitsPerDay + " &middot; " + dayVariance,
+        dayOk ? "ON TARGET" : "BELOW TARGET", dayOk ? "badge-up" : "badge-down", dayOk ? "green" : "red") +
+      kpiCard("Managers On Target", onTargetCount + " / " + ownTier.length, onTargetPct + "% of DM/FS meet both targets",
+        null, null, "blue") +
+      kpiCard("Reps Coached", String(agg.repsCoached), "distinct reps, in scope, " + periodLabel(_state.period),
+        null, null, "purple") +
+      kpiCard("Cross-Team Coaching", String(agg.offRoster), "visits to reps outside own roster",
+        null, null, "orange") +
       '</div>';
   }
 
-  function periodLabel() {
-    if (_state.period === "ALL") return "S1 cumulative (Feb–Jun)";
-    var d = new Date(_state.period + "-01T00:00:00");
-    return d.toLocaleString("en-US", { month: "long", year: "numeric" });
+  function kpiCard(label, value, sub, badgeLabel, badgeCls, color) {
+    var badge = badgeLabel ? ' <span class="badge ' + badgeCls + '">' + esc(badgeLabel) + '</span>' : "";
+    return '<div class="kpi-card ' + color + '">' +
+      '<div class="kpi-label">' + esc(label) + '</div>' +
+      '<div class="kpi-value">' + value + badge + '</div>' +
+      '<div class="kpi-sub">' + sub + '</div>' +
+      '</div>';
   }
 
   // ---------------------------------------------------------------
-  // Render: period toggle (Monthly buttons + Cumulative)
+  // Render: Key Insights
   // ---------------------------------------------------------------
-  function renderPeriodToggle(data) {
-    var btns = ['<button class="tb-btn' + (_state.period === "ALL" ? " tb-btn-active" : "") + '" data-period="ALL">S1 Cumulative</button>'];
-    data.period.months.forEach(function (m) {
-      var d = new Date(m + "-01T00:00:00");
-      var label = d.toLocaleString("en-US", { month: "short" });
-      btns.push('<button class="tb-btn' + (_state.period === m ? " tb-btn-active" : "") + '" data-period="' + m + '">' + label + '</button>');
+  function renderInsights(insights) {
+    var icons = { good: "🟢", bad: "🔴", info: "🔵" };
+    var items = insights.map(function (i) {
+      return '<div class="coaching-insight coaching-insight-' + i.sev + '">' + icons[i.sev] + ' ' + i.text + '</div>';
+    }).join("");
+    return '<div class="section-title" style="margin-top:22px;font-size:16px;">Key Coaching Insights</div>' +
+      '<div class="coaching-insights-grid">' + items + '</div>';
+  }
+
+  // ---------------------------------------------------------------
+  // Render: Monthly Trend (2 custom Chart.js line charts, own registry)
+  // ---------------------------------------------------------------
+  function renderMonthlyTrendShell(data) {
+    return '' +
+      '<div class="section-title" style="margin-top:22px;font-size:16px;">Monthly Coaching Trend</div>' +
+      '<div class="section-sub">DM / Field Force Supervisor scope, correctly aggregated (sum &divide; sum, not an average of monthly averages)</div>' +
+      '<div class="coaching-trend-grid">' +
+      '<div><div class="kpi-sub" style="margin-bottom:4px;">DV Coverage % &middot; target ' + data.targets.dvCoveragePct + '%</div>' +
+      '<div style="height:220px;"><canvas id="coaching-trend-coverage"></canvas></div></div>' +
+      '<div><div class="kpi-sub" style="margin-bottom:4px;">Avg Visits / Coaching Day &middot; target ' + data.targets.avgVisitsPerDay + '</div>' +
+      '<div style="height:220px;"><canvas id="coaching-trend-intensity"></canvas></div></div>' +
+      '</div>';
+  }
+
+  function destroyChart(id) {
+    if (_chartInstances[id]) {
+      try { _chartInstances[id].destroy(); } catch (e) { /* ignore */ }
+      delete _chartInstances[id];
+    }
+  }
+
+  function drawLineChart(canvasId, labels, seriesLabel, values, targetValue, isPercent) {
+    var ctx = document.getElementById(canvasId);
+    if (!ctx || typeof Chart === "undefined") return;
+    destroyChart(canvasId);
+    var chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: seriesLabel,
+            data: values,
+            borderColor: CHART_COLORS.blue,
+            backgroundColor: CHART_COLORS.blue,
+            tension: 0.3,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+          },
+          {
+            label: "Target",
+            data: labels.map(function () { return targetValue; }),
+            borderColor: CHART_COLORS.red,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            borderWidth: 1.5,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        plugins: {
+          legend: { display: true, position: "bottom", labels: { boxWidth: 10, font: { size: 10 }, color: CHART_COLORS.text } },
+          tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + c.parsed.y.toFixed(1) + (isPercent ? "%" : ""); } } },
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: CHART_COLORS.text, callback: function (v) { return v + (isPercent ? "%" : ""); } }, grid: { color: CHART_COLORS.grid } },
+          x: { ticks: { color: CHART_COLORS.text }, grid: { display: false } },
+        },
+      },
     });
-    return '<div id="coaching-period-toggle" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--gap-grid);">' + btns.join("") + '</div>';
+    _chartInstances[canvasId] = chart;
+  }
+
+  function renderMonthlyTrendCharts(data, ownTier) {
+    var labels = data.period.months.map(monthShort);
+    var covVals = data.period.months.map(function (m) { return aggregateOwnTier(ownTier, m).coveragePct || 0; });
+    var dayVals = data.period.months.map(function (m) { return aggregateOwnTier(ownTier, m).avgPerDay; });
+    drawLineChart("coaching-trend-coverage", labels, "DV Coverage %", covVals, data.targets.dvCoveragePct, true);
+    drawLineChart("coaching-trend-intensity", labels, "Avg Visits/Day", dayVals, data.targets.avgVisitsPerDay, false);
   }
 
   // ---------------------------------------------------------------
-  // Render: DM / Field force supervisor scorecards
+  // Render: Performance Matrix (custom HTML/CSS quadrant, no chart lib)
   // ---------------------------------------------------------------
-  function renderOwnTierCards(data, managers) {
-    if (!managers.length) {
-      return '<p style="opacity:.7;padding:12px 0;">No District Manager / Field force supervisor records in your scope for this period.</p>';
-    }
-    var cards = managers
-      .slice()
-      .sort(function (a, b) { return metricsFor(b).visits - metricsFor(a).visits; })
-      .map(function (m) {
-        var mm = metricsFor(m);
-        var covBadge = badgeFor(mm.dvCoveragePct, data.targets.dvCoveragePct, true);
-        var dayBadge = badgeFor(mm.avgVisitsPerDay, data.targets.avgVisitsPerDay, true);
-        var crossTeam = mm.coachedOffRoster > 0
-          ? '<div class="kpi-sub" style="margin-top:4px;">+' + mm.coachedOffRoster + ' cross-team coaching visits (not counted toward coverage)</div>'
-          : "";
-        return '' +
-          '<div class="kpi-card blue" style="cursor:pointer;" data-drill="' + esc(m.id) + '">' +
-          '<div class="kpi-label">' + esc(m.name) + '</div>' +
-          '<div class="kpi-sub">' + esc(m.title) + (m.line ? " &middot; " + esc(m.line) : "") + '</div>' +
-          '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">' +
-          '<div><div class="kpi-value" style="font-size:20px;">' + mm.visits + '</div><div class="kpi-sub">Visits</div></div>' +
-          '<div><div class="kpi-value" style="font-size:20px;">' + mm.coachingDays + '</div><div class="kpi-sub">Coaching Days</div></div>' +
-          '<div><div class="kpi-value" style="font-size:20px;">' + mm.avgVisitsPerDay.toFixed(1) + '</div><div class="kpi-sub">Avg/Day ' + dayBadge + '</div></div>' +
-          '<div><div class="kpi-value" style="font-size:20px;">' + fmtPct(mm.dvCoveragePct) + '</div><div class="kpi-sub">DV Coverage ' + covBadge + '</div></div>' +
-          '</div>' + crossTeam +
-          '<div class="kpi-sub" style="margin-top:6px;text-decoration:underline;">View coached employees &rarr;</div>' +
-          '</div>';
-      }).join("");
-    return '<div class="kpi-grid" id="coaching-own-tier-grid">' + cards + '</div>';
+  function renderMatrix(data, ownTier) {
+    var t = data.targets;
+    var yMax = Math.max(t.avgVisitsPerDay * MATRIX_Y_MAX_MULTIPLIER, 1);
+    ownTier.forEach(function (m) {
+      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
+      yMax = Math.max(yMax, mm.avgVisitsPerDay);
+    });
+
+    var dots = ownTier.map(function (m) {
+      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
+      if (mm.dvCoveragePct === null || mm.dvCoveragePct === undefined) return ""; // unmatched -- can't place on the coverage axis
+      var x = Math.max(0, Math.min(100, mm.dvCoveragePct));
+      var y = Math.max(0, Math.min(100, (mm.avgVisitsPerDay / yMax) * 100));
+      var covOk = mm.dvCoveragePct >= t.dvCoveragePct;
+      var dayOk = mm.avgVisitsPerDay >= t.avgVisitsPerDay;
+      var quadColor = covOk && dayOk ? CHART_COLORS.green : (!covOk && !dayOk ? CHART_COLORS.red : CHART_COLORS.orange);
+      var title = m.name + " (" + m.title + ") — Coverage " + mm.dvCoveragePct.toFixed(1) + "%, " +
+        mm.avgVisitsPerDay.toFixed(1) + " visits/day, " + mm.coachingDays + " coaching days, " +
+        (mm.coachedOnRoster + mm.coachedOffRoster) + " reps coached";
+      return '<button class="coaching-matrix-dot" data-drill="' + esc(m.id) + '" title="' + esc(title) + '" ' +
+        'style="left:' + x + '%;bottom:' + y + '%;background:' + quadColor + ';"></button>';
+    }).join("");
+
+    var xTargetPct = t.dvCoveragePct;
+    var yTargetPct = (t.avgVisitsPerDay / yMax) * 100;
+
+    return '' +
+      '<div class="section-title" style="margin-top:22px;font-size:16px;">Coaching Performance Matrix</div>' +
+      '<div class="section-sub">District Manager / Field Force Supervisor &middot; X = DV Coverage % (target ' + t.dvCoveragePct + '%) &middot; Y = Avg Visits/Day (target ' + t.avgVisitsPerDay + ') &middot; hover a dot for detail, click to open the profile</div>' +
+      '<div class="coaching-matrix-wrap">' +
+      '<div class="coaching-matrix-box">' +
+      '<div class="coaching-matrix-vline" style="left:' + xTargetPct + '%;"></div>' +
+      '<div class="coaching-matrix-hline" style="bottom:' + yTargetPct + '%;"></div>' +
+      '<div class="coaching-matrix-quad-label" style="left:6px;top:6px;">DEVELOP<br><span>low coverage, high intensity</span></div>' +
+      '<div class="coaching-matrix-quad-label" style="right:6px;top:6px;">CHAMPIONS<br><span>high coverage, high intensity</span></div>' +
+      '<div class="coaching-matrix-quad-label" style="left:6px;bottom:6px;">PRIORITY<br><span>low coverage, low intensity</span></div>' +
+      '<div class="coaching-matrix-quad-label" style="right:6px;bottom:6px;">COVERAGE ONLY<br><span>high coverage, low intensity</span></div>' +
+      dots +
+      '</div>' +
+      '</div>';
   }
 
   // ---------------------------------------------------------------
-  // Render: other coaching levels (no target)
+  // Render: Attention Required
   // ---------------------------------------------------------------
-  function renderOtherLevelsTable(managers) {
-    var others = managers.filter(function (m) { return OWN_ONLY_TITLES.indexOf(m.title) < 0; });
-    if (!others.length) {
-      return '<p style="opacity:.7;padding:12px 0;">No other-level coaching records in your scope for this period.</p>';
+  function renderAttentionRequired(data, ownTier) {
+    var t = data.targets;
+    var rows = ownTier.map(function (m) {
+      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
+      var st = statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t);
+      var covGap = mm.dvCoveragePct === null ? -999 : (t.dvCoveragePct - mm.dvCoveragePct);
+      var dayGap = t.avgVisitsPerDay - mm.avgVisitsPerDay;
+      var score = Math.max(0, covGap) + Math.max(0, dayGap) * 3; // weight intensity gap comparably to a coverage-pp gap
+      return { m: m, mm: mm, st: st, score: score };
+    }).filter(function (r) { return r.st.label === "CRITICAL" || r.st.label === "COVERAGE GAP" || r.st.label === "INTENSITY GAP"; })
+      .sort(function (a, b) {
+        var order = { CRITICAL: 0, "COVERAGE GAP": 1, "INTENSITY GAP": 2 };
+        if (order[a.st.label] !== order[b.st.label]) return order[a.st.label] - order[b.st.label];
+        return b.score - a.score;
+      });
+
+    if (!rows.length) {
+      return '<div class="section-title" style="margin-top:22px;font-size:16px;">Coaching Attention Required</div>' +
+        '<p class="kpi-sub" style="padding:8px 0;">No District Manager / Field Force Supervisor is below target this period.</p>';
     }
-    others = others.slice().sort(function (a, b) { return metricsFor(b).visits - metricsFor(a).visits; });
-    var rows = others.map(function (m) {
-      var mm = metricsFor(m);
+
+    var top = rows.slice(0, 8);
+    var body = top.map(function (r) {
       return '<tr>' +
+        '<td><span class="badge ' + r.st.cls + '">' + r.st.label + '</span></td>' +
+        '<td>' + esc(r.m.name) + '</td>' +
+        '<td>' + esc(r.m.title) + '</td>' +
+        '<td>' + fmtPct1(r.mm.dvCoveragePct) + '</td>' +
+        '<td>' + r.mm.avgVisitsPerDay.toFixed(1) + '</td>' +
+        '<td><a href="#" class="coaching-attn-drill" data-drill="' + esc(r.m.id) + '">Open profile &rarr;</a></td>' +
+        '</tr>';
+    }).join("");
+
+    return '' +
+      '<div class="section-title" style="margin-top:22px;font-size:16px;">Coaching Attention Required <span style="font-weight:400;font-size:.65em;opacity:.7;">(' + rows.length + ' of ' + ownTier.length + ')</span></div>' +
+      '<div class="coaching-table-wrap"><table class="data-table">' +
+      '<thead><tr><th>Priority</th><th>Manager</th><th>Level</th><th>Coverage</th><th>Visits/Day</th><th></th></tr></thead>' +
+      '<tbody>' + body + '</tbody></table></div>' +
+      (rows.length > top.length ? '<a href="#coaching-owntier-table" class="tb-btn" style="display:inline-block;margin-top:8px;">View all ' + rows.length + ' &darr;</a>' : "");
+  }
+
+  // ---------------------------------------------------------------
+  // Render: DM/FFS ranked, sortable, searchable table (replaces v1's
+  // card wall entirely)
+  // ---------------------------------------------------------------
+  var OWNTIER_SORTERS = {
+    name: function (r) { return r.m.name.toLowerCase(); },
+    title: function (r) { return r.m.title; },
+    line: function (r) { return r.m.line || ""; },
+    cov: function (r) { return r.mm.dvCoveragePct === null ? -1 : r.mm.dvCoveragePct; },
+    day: function (r) { return r.mm.avgVisitsPerDay; },
+    days: function (r) { return r.mm.coachingDays; },
+    reps: function (r) { return r.mm.coachedOnRoster + r.mm.coachedOffRoster; },
+    zones: function (r) { return r.mm.zones; },
+  };
+
+  function renderOwnTierTable(data, ownTier) {
+    var t = data.targets;
+    var rows = ownTier.map(function (m) {
+      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
+      return { m: m, mm: mm, st: statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t) };
+    });
+
+    if (_state.search) {
+      var q = _state.search.toLowerCase();
+      rows = rows.filter(function (r) { return r.m.name.toLowerCase().indexOf(q) >= 0 || (r.m.line || "").toLowerCase().indexOf(q) >= 0; });
+    }
+
+    var sorter = OWNTIER_SORTERS[_state.sortCol] || OWNTIER_SORTERS.cov;
+    rows.sort(function (a, b) {
+      var av = sorter(a), bv = sorter(b);
+      var cmp = av < bv ? -1 : (av > bv ? 1 : 0);
+      return _state.sortDir === "asc" ? cmp : -cmp;
+    });
+
+    function th(col, label) {
+      var arrow = _state.sortCol === col ? (_state.sortDir === "asc" ? " ▲" : " ▼") : "";
+      return '<th class="coaching-sortable" data-sort="' + col + '" style="cursor:pointer;white-space:nowrap;">' + label + arrow + '</th>';
+    }
+
+    var body = rows.map(function (r, i) {
+      var covVar = r.mm.dvCoveragePct === null ? "—" : signed(r.mm.dvCoveragePct - t.dvCoveragePct, " pp");
+      var dayVar = signed(r.mm.avgVisitsPerDay - t.avgVisitsPerDay);
+      var covDisplay = coverageDisplay(r.m, r.mm);
+      return '<tr class="coaching-drill-row" data-drill="' + esc(r.m.id) + '" style="cursor:pointer;">' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + esc(r.m.name) + '</td>' +
+        '<td>' + esc(r.m.title === "District Manager" ? "DM" : "FFS") + '</td>' +
+        '<td>' + esc(r.m.line || "—") + '</td>' +
+        '<td>' + (covDisplay ? '<span class="badge ' + covDisplay.cls + '">' + covDisplay.text + '</span>' : fmtPct1(r.mm.dvCoveragePct)) + '</td>' +
+        '<td>' + covVar + '</td>' +
+        '<td>' + r.mm.avgVisitsPerDay.toFixed(1) + '</td>' +
+        '<td>' + dayVar + '</td>' +
+        '<td>' + r.mm.coachingDays + '</td>' +
+        '<td>' + (r.mm.coachedOnRoster + r.mm.coachedOffRoster) + '</td>' +
+        '<td>' + r.mm.zones + '</td>' +
+        '<td><span class="badge ' + r.st.cls + '">' + r.st.label + '</span></td>' +
+        '</tr>';
+    }).join("");
+
+    return '' +
+      '<div class="section-title" id="coaching-owntier-table" style="margin-top:22px;font-size:16px;">District Manager &amp; Field Force Supervisor Performance <span style="font-weight:400;font-size:.65em;opacity:.7;">(' + rows.length + ' of ' + ownTier.length + ')</span></div>' +
+      '<input type="text" id="coaching-owntier-search" placeholder="Search by name or line…" value="' + esc(_state.search) + '" ' +
+      'style="margin-bottom:10px;padding:7px 10px;border-radius:7px;border:1px solid var(--border2);background:var(--bg3);color:var(--txt1);font-size:13px;width:260px;max-width:100%;" />' +
+      '<div class="coaching-table-wrap"><table class="data-table" id="coaching-owntier-table-el">' +
+      '<thead><tr>' + th("rank", "Rank") + th("name", "Manager") + th("title", "Level") + th("line", "BU/Line") +
+      th("cov", "DV Coverage") + '<th>Variance</th>' + th("day", "Visits/Day") + '<th>Variance</th>' +
+      th("days", "Coaching Days") + th("reps", "Coached Reps") + th("zones", "Zones") + '<th>Status</th>' +
+      '</tr></thead><tbody>' + body + '</tbody></table></div>';
+  }
+
+  // ---------------------------------------------------------------
+  // Render: Other Coaching Levels (no target)
+  // ---------------------------------------------------------------
+  function renderOtherLevelsTable(others) {
+    if (!others.length) {
+      return '<div class="section-title" style="margin-top:22px;font-size:16px;">Other Coaching Levels</div>' +
+        '<p class="kpi-sub" style="padding:8px 0;">No other-level coaching records in your scope for this period.</p>';
+    }
+    var rows = others.slice().sort(function (a, b) {
+      return (metricsFor(b, _state.period) || EMPTY_METRICS).visits - (metricsFor(a, _state.period) || EMPTY_METRICS).visits;
+    }).map(function (m) {
+      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
+      return '<tr class="coaching-drill-row" data-drill="' + esc(m.id) + '" style="cursor:pointer;">' +
         '<td>' + esc(m.name) + '</td>' +
         '<td>' + esc(m.title) + '</td>' +
         '<td>' + esc(m.line || "—") + '</td>' +
         '<td>' + mm.visits + '</td>' +
         '<td>' + mm.coachingDays + '</td>' +
-        '<td>' + mm.avgVisitsPerDay.toFixed(1) + '</td>' +
+        '<td>' + (mm.coachingDays ? mm.avgVisitsPerDay.toFixed(1) : "—") + '</td>' +
+        '<td>' + (mm.coachedOnRoster + mm.coachedOffRoster) + '</td>' +
         '<td>' + mm.zones + '</td>' +
-        '<td><a href="#" data-drill="' + esc(m.id) + '">View coached &rarr;</a></td>' +
         '</tr>';
     }).join("");
     return '' +
-      '<table class="data-table" id="coaching-other-levels-table">' +
-      '<thead><tr><th>Name</th><th>Title</th><th>Line</th><th>Visits</th><th>Coaching Days</th><th>Avg/Day</th><th>Zones Visited</th><th></th></tr></thead>' +
-      '<tbody>' + rows + '</tbody>' +
-      '</table>';
+      '<div class="section-title" style="margin-top:22px;font-size:16px;">Other Coaching Levels <span style="font-weight:400;font-size:.65em;opacity:.7;">Sr. DM, NSM, Area Manager, BUM, Brand Manager, FF Trainer — no coverage target</span></div>' +
+      '<div class="coaching-table-wrap"><table class="data-table">' +
+      '<thead><tr><th>Manager</th><th>Level</th><th>Line</th><th>Visits</th><th>Coaching Days</th><th>Avg/Day</th><th>Coached Reps</th><th>Zones</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div>';
   }
 
   // ---------------------------------------------------------------
-  // Render: coached-employee drill-down (visit-count focused, with a
-  // customer popup per row -- per Ahmed's explicit instruction to keep
-  // the main table visit-count-only and put customers behind a popup)
+  // Render: Manager Profile drill-down
   // ---------------------------------------------------------------
-  function renderDrillDown(manager) {
-    var mkey = _state.period;
-    var rows = manager.coachedEmployees.slice().sort(function (a, b) {
-      var av = mkey === "ALL" ? a.visits : ((a.monthly[mkey] || {}).visits || 0);
-      var bv = mkey === "ALL" ? b.visits : ((b.monthly[mkey] || {}).visits || 0);
-      return bv - av;
-    });
-    var body = rows.map(function (ce, i) {
-      var v = mkey === "ALL" ? ce.visits : ((ce.monthly[mkey] || {}).visits || 0);
-      var d = mkey === "ALL" ? ce.coachingDays : ((ce.monthly[mkey] || {}).coachingDays || 0);
-      if (mkey !== "ALL" && v === 0) return "";
-      var popKey = manager.id + "::" + i;
+  function renderProfile(data, manager) {
+    var t = data.targets;
+    var cum = manager.cumulative;
+    var st = statusFor(cum.dvCoveragePct, cum.avgVisitsPerDay, t);
+    var isCov = OWN_ONLY_TITLES.indexOf(manager.title) >= 0;
+
+    var summaryHtml = isCov ? (
+      '<div class="kpi-grid">' +
+      kpiCard("DV Coverage", fmtPct1(cum.dvCoveragePct), "Target " + t.dvCoveragePct + "% &middot; " + (cum.dvCoveragePct === null ? "—" : signed(cum.dvCoveragePct - t.dvCoveragePct, " pp")), st.label, st.cls, "green") +
+      kpiCard("Avg Visits/Day", cum.avgVisitsPerDay.toFixed(1), "Target " + t.avgVisitsPerDay + " &middot; " + signed(cum.avgVisitsPerDay - t.avgVisitsPerDay), cum.avgVisitsPerDay >= t.avgVisitsPerDay ? "ON TARGET" : "BELOW TARGET", cum.avgVisitsPerDay >= t.avgVisitsPerDay ? "badge-up" : "badge-down", "blue") +
+      kpiCard("Coaching Days", String(cum.coachingDays), "S1 total", null, null, "purple") +
+      kpiCard("Visits", String(cum.visits), "S1 total", null, null, "orange") +
+      kpiCard("Reps Coached", String(cum.coachedOnRoster + cum.coachedOffRoster), cum.coachedOffRoster + " cross-team", null, null, "cyan") +
+      '</div>'
+    ) : (
+      '<div class="kpi-grid">' +
+      kpiCard("Coaching Days", String(cum.coachingDays), "S1 total", null, null, "purple") +
+      kpiCard("Visits", String(cum.visits), "S1 total", null, null, "orange") +
+      kpiCard("Reps Coached", String(cum.coachedOnRoster + cum.coachedOffRoster), "no target at this level", null, null, "cyan") +
+      kpiCard("Zones Visited", String(cum.zones), "S1 total", null, null, "blue") +
+      '</div>'
+    );
+
+    var monthRows = [
+      { label: "Coaching Visits", key: "visits", fmt: function (v) { return String(v); } },
+      { label: "Coaching Days", key: "coachingDays", fmt: function (v) { return String(v); } },
+      { label: "DV Coverage", key: "dvCoveragePct", fmt: fmtPct1, skip: !isCov },
+      { label: "Visits / Coaching Day", key: "avgVisitsPerDay", fmt: fmtNum1 },
+      { label: "Coached Reps", key: "__reps", fmt: function (v) { return String(v); } },
+    ];
+    var monthHead = data.period.months.map(function (m) { return "<th>" + monthShort(m) + "</th>"; }).join("");
+    var monthTable = '<table class="data-table"><thead><tr><th>Metric</th>' + monthHead + '<th>S1</th></tr></thead><tbody>' +
+      monthRows.filter(function (r) { return !r.skip; }).map(function (r) {
+        var cells = data.period.months.map(function (m) {
+          var mm = manager.monthly[m];
+          if (!mm) return "<td>—</td>";
+          var v = r.key === "__reps" ? (mm.coachedOnRoster + mm.coachedOffRoster) : mm[r.key];
+          return "<td>" + r.fmt(v) + "</td>";
+        }).join("");
+        var cumV = r.key === "__reps" ? (cum.coachedOnRoster + cum.coachedOffRoster) : cum[r.key];
+        return "<tr><td>" + r.label + "</td>" + cells + "<td><strong>" + r.fmt(cumV) + "</strong></td></tr>";
+      }).join("") + '</tbody></table>';
+
+    var empRows = manager.coachedEmployees.slice().sort(function (a, b) { return b.visits - a.visits; }).map(function (ce) {
       return '<tr>' +
-        '<td>' + esc(ce.name) + '</td>' +
+        '<td title="' + esc(ce.name) + '">' + esc(ce.name) + '</td>' +
         '<td>' + (ce.onRoster ? '<span class="badge badge-up">Own team</span>' : '<span class="badge badge-warn">Cross-team</span>') + '</td>' +
-        '<td>' + v + '</td>' +
-        '<td>' + d + '</td>' +
-        '<td>' + esc(ce.firstDate) + ' → ' + esc(ce.lastDate) + '</td>' +
+        '<td>' + ce.visits + '</td>' +
+        '<td>' + ce.coachingDays + '</td>' +
+        '<td title="' + esc(ce.firstDate) + '">' + esc(ce.firstDate) + '</td>' +
+        '<td title="' + esc(ce.lastDate) + '">' + esc(ce.lastDate) + '</td>' +
         '<td>' + ce.zones + '</td>' +
-        '<td><button class="tb-btn" data-cust-popup="' + esc(popKey) + '" data-cust-idx="' + i + '" data-cust-mgr="' + esc(manager.id) + '">Customers (' + ce.customers.length + ')</button></td>' +
         '</tr>';
     }).join("");
-    return '' +
-      '<div class="section active" id="coaching-drilldown-panel" style="margin-top:var(--gap-grid);">' +
-      '<div class="section-title">' + esc(manager.name) + ' — Coached Employees <span style="font-weight:400;font-size:.7em;opacity:.7;">(' + periodLabel() + ')</span></div>' +
-      '<button class="tb-btn" id="coaching-close-drill" style="margin-bottom:10px;">&larr; Close</button>' +
-      '<table class="data-table"><thead><tr><th>Employee</th><th>Roster</th><th>Visits</th><th>Coaching Days</th><th>First → Last</th><th>Zones</th><th>Customers</th></tr></thead>' +
-      '<tbody>' + body + '</tbody></table>' +
-      '</div>';
-  }
 
-  function renderCustomerPopup(manager, idx) {
-    var ce = manager.coachedEmployees[idx];
-    if (!ce) return "";
-    var rows = ce.customers.map(function (c) {
-      return '<tr><td>' + esc(c.name) + '</td><td>' + c.visits + '</td></tr>';
-    }).join("");
     return '' +
-      '<div id="coaching-customer-modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;"></div>' +
-      '<div id="coaching-customer-modal" style="position:fixed;top:10%;left:50%;transform:translateX(-50%);max-width:520px;width:90%;max-height:70vh;overflow:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-card);box-shadow:var(--card-sh);padding:var(--pad-card);z-index:9999;">' +
-      '<div class="section-title">' + esc(ce.name) + ' — Customers Visited Together</div>' +
-      '<button class="tb-btn" id="coaching-close-cust-popup" style="margin-bottom:10px;">&times; Close</button>' +
-      '<table class="data-table"><thead><tr><th>Customer</th><th>Joint Visits</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div id="coaching-profile-backdrop"></div>' +
+      '<div id="coaching-profile-panel" role="dialog" aria-modal="true">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">' +
+      '<div>' +
+      '<div class="section-title" style="margin:0;">' + esc(manager.name) + '</div>' +
+      '<div class="kpi-sub">' + esc(manager.title) + (manager.line ? " &middot; " + esc(manager.line) : "") + (manager.bu ? " &middot; " + esc(manager.bu) : "") + '</div>' +
+      '</div>' +
+      '<button class="tb-btn" id="coaching-profile-close">&times; Close</button>' +
+      '</div>' +
+      '<div class="section-title" style="margin-top:16px;font-size:14px;">S1 Performance</div>' +
+      summaryHtml +
+      '<div class="section-title" style="margin-top:16px;font-size:14px;">Monthly Performance</div>' +
+      '<div class="coaching-table-wrap">' + monthTable + '</div>' +
+      '<div class="section-title" style="margin-top:16px;font-size:14px;">Coached Employees <span style="font-weight:400;font-size:.7em;opacity:.7;">(' + manager.coachedEmployees.length + ')</span></div>' +
+      '<div class="coaching-table-wrap"><table class="data-table">' +
+      '<thead><tr><th>Rep</th><th>Roster</th><th title="Visits Received">Visits</th><th title="Coaching Days">Days</th>' +
+      '<th title="First Coaching Date">First</th><th title="Last Coaching Date">Last</th><th>Zones</th></tr></thead>' +
+      '<tbody>' + empRows + '</tbody></table></div>' +
       '</div>';
   }
 
   // ---------------------------------------------------------------
-  // Reconciliation footnote -- surfaces the ETL's own QA numbers so a
-  // stale/broken cache is visible on the page, not just in a console.
+  // Reconciliation footnote
   // ---------------------------------------------------------------
   function renderFootnote(data) {
     var r = data.reconciliation || {};
     return '<div style="margin-top:24px;font-size:11px;opacity:.55;">' +
-      'Source: Visits Details S1 DM.xlsx (Total sheet) &middot; generated ' + esc(data.generatedAt) +
+      'Source: Visits Details S1 DM.xlsx (Total sheet) &middot; matched against Database Shortcut.xlsx &middot; generated ' + esc(data.generatedAt) +
       ' &middot; ' + r.rowsProcessed + '/' + r.totalVisitRowsInSheet + ' rows &middot; ' +
       r.totalCoachingManagers + ' coaching managers &middot; monthly = cumulative: ' + (r.monthlyEqualsCumulative ? "yes" : "NO — CHECK CACHE") +
       ' &middot; unmatched names: ' + ((r.unmatchedReps || []).length + (r.unmatchedCoaches || []).length) +
@@ -317,37 +772,48 @@
   // ---------------------------------------------------------------
   function render(root, data) {
     var ownTier = _visible.filter(function (m) { return OWN_ONLY_TITLES.indexOf(m.title) >= 0; });
+    var otherTier = _visible.filter(function (m) { return OWN_ONLY_TITLES.indexOf(m.title) < 0; });
+    var agg = aggregateOwnTier(ownTier, _state.period);
+    var onTargetCount = ownTier.filter(function (m) {
+      var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
+      return statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, data.targets).label === "ON TARGET";
+    }).length;
+
+    var months = data.period.months;
+    var idx = months.indexOf(_state.period);
+    var prevAgg = (idx > 0) ? aggregateOwnTier(ownTier, months[idx - 1]) : null;
+    var insights = buildInsights(data, ownTier, agg, prevAgg);
 
     var html = '<div class="iqvia-dashboard-wrap" style="height:auto;overflow:visible;padding:var(--pad-section);">' +
       '<div class="section active">' +
       '<div class="section-title">Coaching Intelligence</div>' +
-      '<div class="section-sub">S1 2026 (Feb 1 – Jun 30) &middot; joint / coached field visits</div>' +
-      renderPeriodToggle(data) +
-      renderSummary(data, ownTier) +
-      '<div class="section-title" style="margin-top:24px;font-size:18px;">District Managers &amp; Field Force Supervisors</div>' +
-      '<div class="section-sub">DV Coverage target ' + data.targets.dvCoveragePct + '% of own active team &middot; Avg Visits/Day target ' + data.targets.avgVisitsPerDay + '</div>' +
-      renderOwnTierCards(data, ownTier) +
-      '<div class="section-title" style="margin-top:24px;font-size:18px;">Other Coaching Levels</div>' +
-      '<div class="section-sub">Senior District Manager, National Sales Manager, Area Manager, Business Unit Manager, Brand Manager, Field Force Trainer — no coverage target</div>' +
-      renderOtherLevelsTable(_visible) +
-      '<div id="coaching-drilldown-slot"></div>' +
+      '<div class="section-sub">S1 2026 &middot; Feb 1 – Jun 30 &middot; Joint / Coached Field Visits</div>' +
+      renderPeriodControl(data) +
+      renderExecKPIRow(data, ownTier, agg, onTargetCount) +
+      renderInsights(insights) +
+      renderMonthlyTrendShell(data) +
+      renderMatrix(data, ownTier) +
+      renderAttentionRequired(data, ownTier) +
+      renderOwnTierTable(data, ownTier) +
+      renderOtherLevelsTable(otherTier) +
       renderFootnote(data) +
       '</div></div>';
 
     root.innerHTML = html;
+    renderMonthlyTrendCharts(data, ownTier);
 
     if (_state.drillManagerId) {
       var m = _visible.filter(function (x) { return x.id === _state.drillManagerId; })[0];
-      var slot = document.getElementById("coaching-drilldown-slot");
-      if (m && slot) slot.innerHTML = renderDrillDown(m);
-    }
-    if (_state.customerPopupKey) {
-      var parts = _state.customerPopupKey.split("::");
-      var mgr = _visible.filter(function (x) { return x.id === parts[0]; })[0];
-      if (mgr) {
+      if (m) {
+        // Append INSIDE .iqvia-dashboard-wrap (not `root`, which is one level
+        // up) so the drawer is a descendant of the element that declares the
+        // --bg1/--border2/--card-sh/etc. custom properties -- otherwise the
+        // panel/backdrop render unpositioned+transparent (tokens don't
+        // inherit past .iqvia-dashboard-wrap; see css/coaching.css comment).
+        var wrapTarget = root.querySelector(".iqvia-dashboard-wrap") || root;
         var wrap = document.createElement("div");
-        wrap.innerHTML = renderCustomerPopup(mgr, parseInt(parts[1], 10));
-        while (wrap.firstChild) root.appendChild(wrap.firstChild);
+        wrap.innerHTML = renderProfile(data, m);
+        while (wrap.firstChild) wrapTarget.appendChild(wrap.firstChild);
       }
     }
 
@@ -364,28 +830,42 @@
         render(root, data);
       });
     }
+
+    var search = document.getElementById("coaching-owntier-search");
+    if (search) {
+      search.addEventListener("input", function (e) {
+        _state.search = e.target.value;
+        // Re-render, but keep focus + caret in the search box.
+        var caret = e.target.selectionStart;
+        render(root, data);
+        var newSearch = document.getElementById("coaching-owntier-search");
+        if (newSearch) { newSearch.focus(); newSearch.setSelectionRange(caret, caret); }
+      });
+    }
+
+    root.querySelectorAll(".coaching-sortable").forEach(function (th) {
+      th.addEventListener("click", function () {
+        var col = th.getAttribute("data-sort");
+        if (_state.sortCol === col) {
+          _state.sortDir = _state.sortDir === "asc" ? "desc" : "asc";
+        } else {
+          _state.sortCol = col;
+          _state.sortDir = "desc";
+        }
+        render(root, data);
+      });
+    });
+
     root.addEventListener("click", function (e) {
       var drillEl = e.target.closest("[data-drill]");
       if (drillEl) {
         e.preventDefault();
         _state.drillManagerId = drillEl.getAttribute("data-drill");
-        _state.customerPopupKey = null;
         render(root, data);
         return;
       }
-      var custBtn = e.target.closest("[data-cust-popup]");
-      if (custBtn) {
-        _state.customerPopupKey = custBtn.getAttribute("data-cust-mgr") + "::" + custBtn.getAttribute("data-cust-idx");
-        render(root, data);
-        return;
-      }
-      if (e.target.id === "coaching-close-drill") {
+      if (e.target.id === "coaching-profile-close" || e.target.id === "coaching-profile-backdrop") {
         _state.drillManagerId = null;
-        render(root, data);
-        return;
-      }
-      if (e.target.id === "coaching-close-cust-popup" || e.target.id === "coaching-customer-modal-backdrop") {
-        _state.customerPopupKey = null;
         render(root, data);
         return;
       }
@@ -410,7 +890,6 @@
       return;
     }
     _state.drillManagerId = null;
-    _state.customerPopupKey = null;
     _visible = getVisibleManagers(data);
     if (!_visible.length) {
       renderNoAccess(root);
@@ -420,6 +899,7 @@
   }
 
   function destroy() {
+    Object.keys(_chartInstances).forEach(destroyChart);
     document.body.classList.remove("coaching-mode");
   }
 

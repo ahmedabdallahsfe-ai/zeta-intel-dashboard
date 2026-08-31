@@ -1,18 +1,26 @@
 /* ===================================================================
-   COACHING INTELLIGENCE -- minimal styles
-   Deliberately small: the tab is built on css/iqvia.css's existing
+   COACHING INTELLIGENCE -- minimal styles (v2, insight-first redesign)
+   Deliberately small: rides on css/iqvia.css's existing
    .iqvia-dashboard-wrap design tokens and components (.section,
    .kpi-grid, .kpi-card, .kpi-label, .kpi-value, .kpi-sub, .tb-btn,
-   .badge/.badge-up/.badge-down/.badge-warn/.badge-neutral) -- see
-   js/coaching.js's header comment for why. This file only covers the
-   handful of things iqvia.css doesn't already style for a full-page
-   (non-fixed-height) embedded tab: the generic .data-table used for
-   the Other Levels and coached-employee tables, and small layout bits
-   for the customer-popup modal.
+   .badge/.badge-up/.badge-down/.badge-warn/.badge-neutral,
+   .section-title, .section-sub) -- see js/coaching.js's header comment.
+   This file only covers what iqvia.css doesn't already provide for a
+   full-page (non-fixed-height) embedded tab: the generic .data-table,
+   the insights list, the monthly-trend chart grid, the custom
+   Performance Matrix quadrant, and the Manager Profile drawer.
    =================================================================== */
 
 body.coaching-mode #app-root {
   overflow-y: auto;
+}
+
+/* ---- generic data table (Attention Required / DM-FS table / Other
+   Levels / Manager Profile monthly + coached-employee tables) ---- */
+.iqvia-dashboard-wrap .coaching-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .iqvia-dashboard-wrap .data-table {
@@ -27,13 +35,16 @@ body.coaching-mode #app-root {
   text-align: left;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .iqvia-dashboard-wrap .data-table th {
   color: var(--txt2);
   font-weight: 600;
   font-size: var(--fs-th, 13px);
-  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--bg2);
 }
 
 .iqvia-dashboard-wrap .data-table tbody tr:hover {
@@ -45,6 +56,180 @@ body.coaching-mode #app-root {
   text-decoration: none;
 }
 
-#coaching-customer-modal .data-table {
-  margin-bottom: 0;
+.iqvia-dashboard-wrap .coaching-sortable:hover {
+  color: var(--acc1);
+}
+
+/* ---- Key Insights ---- */
+.iqvia-dashboard-wrap .coaching-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+.iqvia-dashboard-wrap .coaching-insight {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.iqvia-dashboard-wrap .coaching-insight-good { border-left-color: var(--acc2); }
+.iqvia-dashboard-wrap .coaching-insight-bad { border-left-color: var(--acc3); }
+.iqvia-dashboard-wrap .coaching-insight-info { border-left-color: var(--acc1); }
+
+/* ---- Monthly Trend ---- */
+.iqvia-dashboard-wrap .coaching-trend-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap-grid);
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 720px) {
+  .iqvia-dashboard-wrap .coaching-trend-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- Performance Matrix (custom HTML/CSS quadrant -- no chart lib) ---- */
+.iqvia-dashboard-wrap .coaching-matrix-wrap {
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+.iqvia-dashboard-wrap .coaching-matrix-box {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  max-width: 720px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.iqvia-dashboard-wrap .coaching-matrix-vline {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: var(--border2);
+  border-left: 1px dashed var(--txt3);
+}
+
+.iqvia-dashboard-wrap .coaching-matrix-hline {
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: var(--border2);
+  border-top: 1px dashed var(--txt3);
+}
+
+.iqvia-dashboard-wrap .coaching-matrix-quad-label {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  color: var(--txt3);
+  text-transform: uppercase;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+.iqvia-dashboard-wrap .coaching-matrix-quad-label span {
+  display: block;
+  font-weight: 400;
+  text-transform: none;
+  font-size: 9px;
+  opacity: .8;
+}
+
+.iqvia-dashboard-wrap .coaching-matrix-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--bg2);
+  transform: translate(-50%, 50%);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+  transition: transform .12s ease;
+}
+
+.iqvia-dashboard-wrap .coaching-matrix-dot:hover {
+  transform: translate(-50%, 50%) scale(1.6);
+  z-index: 5;
+}
+
+/* ---- Manager Profile drawer: table first-column width ----
+   The shared .data-table class (dashboard.css) uses table-layout:fixed
+   with td { max-width:0 } so long text ellipsizes evenly across
+   columns -- correct for the app's usual compact lists. Inside the
+   720px-wide drawer that squeezes the Coached Employees table's Rep
+   (full transliterated name) column down to the same width as short
+   columns like Zones, over-truncating names that read fine at full
+   page width. Give the first column more of the row before it
+   ellipsizes; still truncates gracefully for the rare very-long name. */
+.iqvia-dashboard-wrap #coaching-profile-panel .data-table th:first-child,
+.iqvia-dashboard-wrap #coaching-profile-panel .data-table td:first-child {
+  width: 26%;
+  max-width: 26%;
+}
+
+/* ---- Manager Profile drawer: KPI card override ----
+   iqvia.css's .kpi-grid columns are sized off `vw` (viewport width),
+   which is correct for full-width sections but produces columns too
+   narrow for the panel's fixed 720px (or 100vw-on-mobile) width --
+   "100.0% ON TARGET" then gets clipped by .kpi-card's overflow:hidden.
+   Force a fixed 2-column layout scoped to the panel only. */
+.iqvia-dashboard-wrap #coaching-profile-panel .kpi-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 480px) {
+  .iqvia-dashboard-wrap #coaching-profile-panel .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Manager Profile drawer ----
+   Scoped under .iqvia-dashboard-wrap like every other rule in this
+   file, because the drawer must inherit that wrapper's CSS custom
+   properties (--bg1, --border2, --card-sh, ...) -- those tokens are
+   declared only on .iqvia-dashboard-wrap in iqvia.css, not on :root,
+   so the drawer must render as a DESCENDANT of it or it paints
+   transparent. See js/coaching.js render(): the drill-down panel is
+   appended into the .iqvia-dashboard-wrap element specifically (not
+   into the tab's outer mount element) so this scoping holds. */
+.iqvia-dashboard-wrap #coaching-profile-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  z-index: 9998;
+}
+
+.iqvia-dashboard-wrap #coaching-profile-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(720px, 100vw);
+  max-width: 100vw;
+  overflow-y: auto;
+  background: var(--bg1);
+  border-left: 1px solid var(--border2);
+  box-shadow: var(--card-sh);
+  padding: var(--pad-section);
+  z-index: 9999;
+}
+
+@media (max-width: 720px) {
+  .iqvia-dashboard-wrap #coaching-profile-panel {
+    width: 100vw;
+  }
 }
