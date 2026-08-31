@@ -677,7 +677,6 @@
     day: function (r) { return r.mm.avgVisitsPerDay; },
     days: function (r) { return r.mm.coachingDays; },
     reps: function (r) { return r.mm.coachedOnRoster + r.mm.coachedOffRoster; },
-    zones: function (r) { return r.mm.zones; },
   };
 
   function renderOwnTierTable(data, ownTier) {
@@ -719,7 +718,6 @@
         '<td>' + dayVar + '</td>' +
         '<td>' + r.mm.coachingDays + '</td>' +
         '<td>' + (r.mm.coachedOnRoster + r.mm.coachedOffRoster) + '</td>' +
-        '<td>' + r.mm.zones + '</td>' +
         '<td><span class="badge ' + r.st.cls + '">' + r.st.label + '</span></td>' +
         '</tr>';
     }).join("");
@@ -731,7 +729,7 @@
       '<div class="coaching-table-wrap"><table class="data-table" id="coaching-owntier-table-el">' +
       '<thead><tr>' + th("rank", "Rank") + th("name", "Manager") + th("title", "Level") + th("line", "BU/Line") +
       th("cov", "DV Coverage") + '<th>Variance</th>' + th("day", "Visits/Day") + '<th>Variance</th>' +
-      th("days", "Coaching Days") + th("reps", "Coached Reps") + th("zones", "Zones") + '<th>Status</th>' +
+      th("days", "Coaching Days") + th("reps", "Coached Reps") + '<th>Status</th>' +
       '</tr></thead><tbody>' + body + '</tbody></table></div>';
   }
 
@@ -755,13 +753,12 @@
         '<td>' + mm.coachingDays + '</td>' +
         '<td>' + (mm.coachingDays ? mm.avgVisitsPerDay.toFixed(1) : "—") + '</td>' +
         '<td>' + (mm.coachedOnRoster + mm.coachedOffRoster) + '</td>' +
-        '<td>' + mm.zones + '</td>' +
         '</tr>';
     }).join("");
     return '' +
       '<div class="section-title" style="margin-top:22px;font-size:16px;">Other Coaching Levels <span style="font-weight:400;font-size:.65em;opacity:.7;">Sr. DM, NSM, Area Manager, BUM, Brand Manager, FF Trainer — no coverage target</span></div>' +
       '<div class="coaching-table-wrap"><table class="data-table">' +
-      '<thead><tr><th>Manager</th><th>Level</th><th>Line</th><th>Visits</th><th>Coaching Days</th><th>Avg/Day</th><th>Coached Reps</th><th>Zones</th></tr></thead>' +
+      '<thead><tr><th>Manager</th><th>Level</th><th>Line</th><th>Visits</th><th>Coaching Days</th><th>Avg/Day</th><th>Coached Reps</th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table></div>';
   }
 
@@ -787,7 +784,6 @@
       kpiCard("Coaching Days", String(cum.coachingDays), "S1 total", null, null, "purple") +
       kpiCard("Visits", String(cum.visits), "S1 total", null, null, "orange") +
       kpiCard("Reps Coached", String(cum.coachedOnRoster + cum.coachedOffRoster), "no target at this level", null, null, "cyan") +
-      kpiCard("Zones Visited", String(cum.zones), "S1 total", null, null, "blue") +
       '</div>'
     );
 
@@ -819,7 +815,6 @@
         '<td>' + ce.coachingDays + '</td>' +
         '<td title="' + esc(ce.firstDate) + '">' + esc(ce.firstDate) + '</td>' +
         '<td title="' + esc(ce.lastDate) + '">' + esc(ce.lastDate) + '</td>' +
-        '<td>' + ce.zones + '</td>' +
         '</tr>';
     }).join("");
 
@@ -840,7 +835,7 @@
       '<div class="section-title" style="margin-top:16px;font-size:14px;">Coached Employees <span style="font-weight:400;font-size:.7em;opacity:.7;">(' + manager.coachedEmployees.length + ')</span></div>' +
       '<div class="coaching-table-wrap"><table class="data-table">' +
       '<thead><tr><th>Rep</th><th>Roster</th><th title="Visits Received">Visits</th><th title="Coaching Days">Days</th>' +
-      '<th title="First Coaching Date">First</th><th title="Last Coaching Date">Last</th><th>Zones</th></tr></thead>' +
+      '<th title="First Coaching Date">First</th><th title="Last Coaching Date">Last</th></tr></thead>' +
       '<tbody>' + empRows + '</tbody></table></div>' +
       '</div>';
   }
