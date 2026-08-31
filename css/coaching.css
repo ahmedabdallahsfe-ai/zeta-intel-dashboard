@@ -9,9 +9,10 @@
    full-page (non-fixed-height) embedded tab: the generic .data-table,
    the insights list, the monthly-trend chart grid, the new BU/Line
    filter row, the Manager Profile drawer, and (2026-08-31) the
-   detailed-visit-log modal that opens on top of that drawer. (The 2x2
-   Coverage x Visits/Day Performance Matrix that used to live here was
-   removed on request 2026-08-31 -- see js/coaching.js's header comment.)
+   detailed-visit-log modal and the DV Coverage coached/not-coached
+   popup, both of which open on top of that drawer. (The 2x2 Coverage x
+   Visits/Day Performance Matrix that used to live here was removed on
+   request 2026-08-31 -- see js/coaching.js's header comment.)
    =================================================================== */
 
 body.coaching-mode #app-root {
@@ -283,6 +284,52 @@ body.coaching-mode #app-root {
 
 @media (max-width: 600px) {
   .iqvia-dashboard-wrap #coaching-visitlog-panel {
+    width: 94vw;
+    max-height: 88vh;
+  }
+}
+
+/* ---- DV Coverage coached/not-coached popup (2026-08-31, user-requested) ----
+   Same overlay tier as the visit-log modal above (mutually exclusive with
+   it -- see js/coaching.js's wireEvents -- so identical z-index/position
+   is fine); own ids so each overlay's backdrop/close only ever clears its
+   own state. The clickable DV Coverage cells that open this live in the
+   Monthly Performance table (js/coaching.js renderProfile). */
+.iqvia-dashboard-wrap .coaching-dvcov-cell {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.iqvia-dashboard-wrap .coaching-dvcov-cell:hover {
+  color: var(--acc1);
+}
+
+.iqvia-dashboard-wrap #coaching-rosterpopup-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
+  z-index: 10001;
+}
+
+.iqvia-dashboard-wrap #coaching-rosterpopup-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(720px, 92vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--bg1);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-sh);
+  padding: var(--pad-section);
+  z-index: 10002;
+}
+
+@media (max-width: 600px) {
+  .iqvia-dashboard-wrap #coaching-rosterpopup-panel {
     width: 94vw;
     max-height: 88vh;
   }

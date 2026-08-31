@@ -157,6 +157,7 @@
     period: "ALL",          // "ALL" (S1 cumulative) or a "YYYY-MM" key
     drillManagerId: null,   // manager id whose profile is open
     visitLogFor: null,      // { managerId, empIndex } -- detailed-visits modal, on top of the profile drawer
+    rosterPopupFor: null,   // { managerId, period } -- coached/not-coached-by-name popup for a clicked DV Coverage cell
     sortCol: "cov",         // own-tier table sort column
     sortDir: "desc",
     search: "",
@@ -772,16 +773,29 @@
       { label: "Coached Reps", key: "__reps", fmt: function (v) { return String(v); } },
     ];
     var monthHead = data.period.months.map(function (m) { return "<th>" + monthShort(m) + "</th>"; }).join("");
+    // The DV Coverage row's cells are clickable -- 2026-08-31,
+    // user-requested ("popup to see with whom made coached and not") --
+    // opening renderRosterPopup() for that exact period (a "YYYY-MM" key,
+    // or "ALL" for the S1 column) via wireEvents' [data-dv-period]
+    // handler. Only wired when a value is actually present, so a "—" cell
+    // (no roster that period) never looks clickable.
     var monthTable = '<table class="data-table"><thead><tr><th>Metric</th>' + monthHead + '<th>S1</th></tr></thead><tbody>' +
       monthRows.filter(function (r) { return !r.skip; }).map(function (r) {
+        var isDvRow = r.key === "dvCoveragePct";
         var cells = data.period.months.map(function (m) {
           var mm = manager.monthly[m];
           if (!mm) return "<td>—</td>";
           var v = r.key === "__reps" ? (mm.coachedOnRoster + mm.coachedOffRoster) : mm[r.key];
+          if (isDvRow && v !== null && v !== undefined) {
+            return '<td class="coaching-dvcov-cell" data-dv-period="' + m + '" title="Click to see who was coached and who wasn\'t">' + r.fmt(v) + "</td>";
+          }
           return "<td>" + r.fmt(v) + "</td>";
         }).join("");
         var cumV = r.key === "__reps" ? (cum.coachedOnRoster + cum.coachedOffRoster) : cum[r.key];
-        return "<tr><td>" + r.label + "</td>" + cells + "<td><strong>" + r.fmt(cumV) + "</strong></td></tr>";
+        var cumCell = (isDvRow && cumV !== null && cumV !== undefined)
+          ? '<td class="coaching-dvcov-cell" data-dv-period="ALL" title="Click to see who was coached and who wasn\'t"><strong>' + r.fmt(cumV) + "</strong></td>"
+          : "<td><strong>" + r.fmt(cumV) + "</strong></td>";
+        return "<tr><td>" + r.label + "</td>" + cells + cumCell + "</tr>";
       }).join("") + '</tbody></table>';
 
     // Wrap each employee with its ORIGINAL index into manager.coachedEmployees
@@ -818,6 +832,10 @@
       var vCe = manager.coachedEmployees[_state.visitLogFor.empIndex];
       if (vCe) visitLogHtml = renderVisitLog(manager, vCe);
     }
+    var rosterPopupHtml = "";
+    if (_state.rosterPopupFor && _state.rosterPopupFor.managerId === manager.id) {
+      rosterPopupHtml = renderRosterPopup(manager, _state.rosterPopupFor.period);
+    }
 
     return '' +
       '<div id="coaching-profile-backdrop"></div>' +
@@ -839,7 +857,55 @@
       '<th title="First Coaching Date">First</th><th title="Last Coaching Date">Last</th></tr></thead>' +
       '<tbody>' + empRows + '</tbody></table></div>' +
       visitLogHtml +
+      rosterPopupHtml +
       '</div>';
+  }
+
+  /** Coached / Not Coached name breakdown for one DV Coverage cell --
+   * 2026-08-31, user-requested ("popup to see with whome made coached
+   * and not"). `period` is a "YYYY-MM" key or "ALL" for the S1
+   * cumulative column; both carry pre-computed coachedNames/
+   * notCoachedNames from etl/build_coaching_cache.py (see that file's
+   * header). Rendered as a third overlay in the same stack as the
+   * profile drawer and visit-log modal -- own ids
+   * (#coaching-rosterpopup-*), but the exact same positioning/sizing
+   * CSS as the visit-log modal (see css/coaching.css), since the two
+   * are mutually exclusive (only one can be open at a time, see
+   * wireEvents) and visually identical in size/position. Kept as
+   * separate ids rather than sharing the visit-log modal's, so each
+   * overlay's own backdrop/close clicks only ever clear that overlay's
+   * own state. */
+  function renderRosterPopup(manager, period) {
+    var isCum = period === "ALL";
+    var bucket = isCum ? manager.cumulative : manager.monthly[period];
+    if (!bucket) return "";
+    var coached = (bucket.coachedNames || []).slice().sort();
+    var notCoached = (bucket.notCoachedNames || []).slice().sort();
+    var periodLabel = isCum ? "S1 (Cumulative, Feb–Jun)" : monthShort(period) + " " + period.slice(0, 4);
+    var covLabel = fmtPct1(bucket.dvCoveragePct);
+    function listHtml(names, emptyMsg) {
+      if (!names.length) return '<div style="font-size:12px;color:var(--txt2);padding:6px 0;">' + esc(emptyMsg) + "</div>";
+      return '<ul style="margin:6px 0 0;padding-left:18px;">' +
+        names.map(function (n) { return "<li style=\"margin-bottom:4px;\">" + esc(n) + "</li>"; }).join("") +
+        "</ul>";
+    }
+    return "" +
+      '<div id="coaching-rosterpopup-backdrop"></div>' +
+      '<div id="coaching-rosterpopup-panel" role="dialog" aria-modal="true">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">' +
+      "<div>" +
+      '<div class="section-title" style="margin:0;font-size:14px;">' + esc(manager.name) + " &middot; " + esc(periodLabel) + "</div>" +
+      '<div class="kpi-sub">DV Coverage ' + covLabel + " &middot; " + coached.length + " of " + (coached.length + notCoached.length) + " roster reps coached</div>" +
+      "</div>" +
+      '<button class="tb-btn" id="coaching-rosterpopup-close">&times; Close</button>' +
+      "</div>" +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">' +
+      '<div><div style="font-size:12px;font-weight:600;color:var(--acc2);">Coached (' + coached.length + ")</div>" +
+      listHtml(coached, "No roster reps were coached this period.") + "</div>" +
+      '<div><div style="font-size:12px;font-weight:600;color:var(--acc3);">Not Coached (' + notCoached.length + ")</div>" +
+      listHtml(notCoached, "Every roster rep was coached this period.") + "</div>" +
+      "</div>" +
+      "</div>";
   }
 
   /** Detailed visit log for one coached employee under one manager --
@@ -1036,12 +1102,14 @@
           e.preventDefault();
           _state.drillManagerId = drillEl.getAttribute("data-drill");
           _state.visitLogFor = null; // opening a different manager always closes any stale visit-log modal
+          _state.rosterPopupFor = null; // ...and any stale coached/not-coached popup
           render(root, data);
           return;
         }
         if (e.target.id === "coaching-profile-close" || e.target.id === "coaching-profile-backdrop") {
           _state.drillManagerId = null;
           _state.visitLogFor = null;
+          _state.rosterPopupFor = null;
           render(root, data);
           return;
         }
@@ -1049,6 +1117,7 @@
         var ceRow = e.target.closest("[data-ce-idx]");
         if (ceRow && _state.drillManagerId) {
           _state.visitLogFor = { managerId: _state.drillManagerId, empIndex: parseInt(ceRow.getAttribute("data-ce-idx"), 10) };
+          _state.rosterPopupFor = null; // the two popups are mutually exclusive
           render(root, data);
           return;
         }
@@ -1059,6 +1128,22 @@
         }
         if (e.target.id === "coaching-visitlog-export") {
           exportVisitLog(data);
+          return;
+        }
+
+        // DV Coverage cell -> coached/not-coached-by-name popup
+        // (2026-08-31, user-requested). Checked after the ce-idx/visit-log
+        // handlers above since it's a separate, mutually-exclusive overlay.
+        var dvCell = e.target.closest("[data-dv-period]");
+        if (dvCell && _state.drillManagerId) {
+          _state.rosterPopupFor = { managerId: _state.drillManagerId, period: dvCell.getAttribute("data-dv-period") };
+          _state.visitLogFor = null; // the two popups are mutually exclusive
+          render(root, data);
+          return;
+        }
+        if (e.target.id === "coaching-rosterpopup-close" || e.target.id === "coaching-rosterpopup-backdrop") {
+          _state.rosterPopupFor = null;
+          render(root, data);
           return;
         }
       });
@@ -1109,6 +1194,7 @@
     }
     _state.drillManagerId = null;
     _state.visitLogFor = null;
+    _state.rosterPopupFor = null;
     _filters = { bu: "", line: "" };
     _visible = getVisibleManagers(data);
     if (!_visible.length) {

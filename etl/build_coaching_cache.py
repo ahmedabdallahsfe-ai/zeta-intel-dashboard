@@ -75,6 +75,16 @@ per-month rep-under-manager sales records (see the comment above
 manager_month_teams below) -- names resolved through the same
 hr_by_norm identity as everywhere else, never fuzzy-matched.
 
+Coached / Not Coached name breakdown (2026-08-31, user-requested): every
+DV Coverage metrics object (each of the 5 monthly buckets, plus the S1
+cumulative one) now also carries coachedNames/notCoachedNames -- the
+period's roster split by whether that rep actually received a coaching
+visit that period. This is the name-level detail behind the coverage %,
+for the UI's "click a DV Coverage cell to see who was/wasn't coached"
+popup. Computed from data already on hand (the period's roster names vs.
+buckets_by_key[bkey]["onRoster"]), not re-derived from the visit log, so
+a roster member with zero visits still shows up in notCoachedNames.
+
 Usage:  python etl/build_coaching_cache.py
 """
 
@@ -542,9 +552,25 @@ def main():
         # cumulative_team_size was computing 3, but Karim -- on the team
         # Feb-Apr -- made the true S1 roster 4, and his being coached
         # pushed dvCoverageRawPct to a nonsensical 133.3%).
-        cumulative_team_size = len(set().union(*month_teams.values())) if month_teams else 0
+        cumulative_roster_names = set().union(*month_teams.values()) if month_teams else set()
+        cumulative_team_size = len(cumulative_roster_names)
 
         cumulative = bucket_to_metrics(buckets_by_key["ALL"], cumulative_team_size, is_cov)
+        if is_cov:
+            # 2026-08-31, user-requested ("popup to see with whom made
+            # coached and not"): name-level breakdown of the DV Coverage
+            # numerator/denominator, so a DV Coverage % is never just a
+            # number -- it's inspectable down to which roster reps were
+            # actually visited that period and which weren't. Built from
+            # data already computed above: the period's roster (a set of
+            # display names) and buckets_by_key[bkey]["onRoster"] (the
+            # set of norm-names who were both on-roster AND visited).
+            # Sourced from the roster, not the visit log, so a roster
+            # member with zero visits still appears in notCoachedNames
+            # rather than being silently absent.
+            coached_norm_all = buckets_by_key["ALL"]["onRoster"]
+            cumulative["coachedNames"] = sorted(n for n in cumulative_roster_names if norm_name(n) in coached_norm_all)
+            cumulative["notCoachedNames"] = sorted(n for n in cumulative_roster_names if norm_name(n) not in coached_norm_all)
         # Always emit all 5 months, even ones with zero visits -- a
         # manager who did no coaching in a month they had an active team
         # is a genuine 0% that month, not an absent data point, and the
@@ -555,6 +581,11 @@ def main():
         monthly = {}
         for m in MONTHS:
             monthly[m] = bucket_to_metrics(buckets_by_key[m], len(month_teams[m]), is_cov)
+            if is_cov:
+                roster_names_m = month_teams[m]
+                coached_norm_m = buckets_by_key[m]["onRoster"]
+                monthly[m]["coachedNames"] = sorted(n for n in roster_names_m if norm_name(n) in coached_norm_m)
+                monthly[m]["notCoachedNames"] = sorted(n for n in roster_names_m if norm_name(n) not in coached_norm_m)
 
         coached_employees = []
         for emp_norm, meta in manager_emp_meta[coach_norm].items():
