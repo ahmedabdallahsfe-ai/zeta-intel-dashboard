@@ -75,14 +75,23 @@
  *     data refresh introduces a new unmatched name.
  *
  * CUSTOMER / HCP DATA -- v1 added a per-coached-employee "customers"
- * popup (Customer field, visit-count only). REMOVED in this rewrite:
- * the working brief for this redesign is explicit and repeated --
- * "Do NOT display HCP/customer names... The Customer field remains
- * excluded." The ETL cache (cache/coaching.json) still CONTAINS a
- * `customers` array per coached employee (harmless, unused) because
- * rebuilding the cache without it wasn't necessary to satisfy this
- * requirement -- this file simply never reads that field. If a future
- * request re-adds a customer-level view, the data is already there.
+ * popup (Customer field, visit-count only). REMOVED in the v2 rewrite:
+ * the working brief for that redesign was explicit and repeated -- "Do
+ * NOT display HCP/customer names... The Customer field remains
+ * excluded." The ETL cache kept a `customers` array per coached
+ * employee throughout (harmless, unused) for exactly this reason: if a
+ * future request re-added a customer-level view, the data would
+ * already be there.
+ *
+ * That request came 2026-08-31: clicking a row in the Coached
+ * Employees table now opens a detailed, per-visit log (date, customer/
+ * HCP name, area) via renderVisitLog(), explicitly reversing the v2
+ * rule for this ONE view -- confirmed with the user before building it,
+ * since it directly undoes a previously deliberate exclusion. Every
+ * OTHER view in this file (the ranked tables, the profile drawer's own
+ * summary/monthly sections) still never shows a customer/HCP name --
+ * this is the sole exception, entered deliberately by clicking into a
+ * specific rep's history, not something that appears passively.
  *
  * CHARTS: the Monthly Trend line charts are built WITHOUT touching
  * js/charts.js (Charts.lineChart() is hardcoded to a 0-100% axis --
@@ -147,6 +156,7 @@
   var _state = {
     period: "ALL",          // "ALL" (S1 cumulative) or a "YYYY-MM" key
     drillManagerId: null,   // manager id whose profile is open
+    visitLogFor: null,      // { managerId, empIndex } -- detailed-visits modal, on top of the profile drawer
     sortCol: "cov",         // own-tier table sort column
     sortDir: "desc",
     search: "",
@@ -774,16 +784,40 @@
         return "<tr><td>" + r.label + "</td>" + cells + "<td><strong>" + r.fmt(cumV) + "</strong></td></tr>";
       }).join("") + '</tbody></table>';
 
-    var empRows = manager.coachedEmployees.slice().sort(function (a, b) { return b.visits - a.visits; }).map(function (ce) {
-      return '<tr>' +
-        '<td title="' + esc(ce.name) + '">' + esc(ce.name) + '</td>' +
-        '<td>' + (ce.onRoster ? '<span class="badge badge-up">Own team</span>' : '<span class="badge badge-warn">Cross-team</span>') + '</td>' +
-        '<td>' + ce.visits + '</td>' +
-        '<td>' + ce.coachingDays + '</td>' +
-        '<td title="' + esc(ce.firstDate) + '">' + esc(ce.firstDate) + '</td>' +
-        '<td title="' + esc(ce.lastDate) + '">' + esc(ce.lastDate) + '</td>' +
-        '</tr>';
-    }).join("");
+    // Wrap each employee with its ORIGINAL index into manager.coachedEmployees
+    // (not the sort position) before sorting, so the click handler's
+    // data-ce-idx always points at the right record regardless of how
+    // this table is currently sorted or whether visit counts tie.
+    var empRows = manager.coachedEmployees.map(function (ce, i) { return { ce: ce, i: i }; })
+      .sort(function (a, b) { return b.ce.visits - a.ce.visits; })
+      .map(function (w) {
+        var ce = w.ce;
+        var rosterBadge = ce.onRoster
+          ? '<span class="badge badge-up">Own team</span>'
+          : '<span class="badge badge-warn" title="' +
+            esc(ce.actualManager ? "Not on " + manager.name + "'s own active roster this period -- reports to " + ce.actualManager + " instead." : "Not on " + manager.name + "'s own active roster this period.") +
+            '">Cross-team</span>' +
+            (ce.actualManager ? '<div style="font-size:.72em;color:var(--txt2);margin-top:2px;">reports to ' + esc(ce.actualManager) + '</div>' : '');
+        var statusBadge = ce.active === false
+          ? '<span class="badge badge-down" title="No longer Active in the HR roster">Inactive</span>'
+          : "";
+        return '<tr class="coaching-visitlog-row" data-ce-idx="' + w.i + '" style="cursor:pointer;" title="Click for the detailed visit log">' +
+          '<td title="' + esc(ce.name) + '">' + esc(ce.name) + (statusBadge ? " " + statusBadge : "") + '</td>' +
+          '<td>' + rosterBadge + '</td>' +
+          '<td>' + esc(ce.line || "—") + '</td>' +
+          '<td title="' + esc(ce.position || "") + '">' + esc(ce.position || "—") + '</td>' +
+          '<td>' + ce.visits + '</td>' +
+          '<td>' + ce.coachingDays + '</td>' +
+          '<td title="' + esc(ce.firstDate) + '">' + esc(ce.firstDate) + '</td>' +
+          '<td title="' + esc(ce.lastDate) + '">' + esc(ce.lastDate) + '</td>' +
+          '</tr>';
+      }).join("");
+
+    var visitLogHtml = "";
+    if (_state.visitLogFor && _state.visitLogFor.managerId === manager.id) {
+      var vCe = manager.coachedEmployees[_state.visitLogFor.empIndex];
+      if (vCe) visitLogHtml = renderVisitLog(manager, vCe);
+    }
 
     return '' +
       '<div id="coaching-profile-backdrop"></div>' +
@@ -799,11 +833,47 @@
       summaryHtml +
       '<div class="section-title" style="margin-top:16px;font-size:14px;">Monthly Performance</div>' +
       '<div class="coaching-table-wrap">' + monthTable + '</div>' +
-      '<div class="section-title" style="margin-top:16px;font-size:14px;">Coached Employees <span style="font-weight:400;font-size:.7em;opacity:.7;">(' + manager.coachedEmployees.length + ')</span></div>' +
+      '<div class="section-title" style="margin-top:16px;font-size:14px;">Coached Employees <span style="font-weight:400;font-size:.7em;opacity:.7;">(' + manager.coachedEmployees.length + ') &middot; click a row for the detailed visit log</span></div>' +
       '<div class="coaching-table-wrap"><table class="data-table">' +
-      '<thead><tr><th>Rep</th><th>Roster</th><th title="Visits Received">Visits</th><th title="Coaching Days">Days</th>' +
+      '<thead><tr><th>Rep</th><th>Roster</th><th>Line</th><th title="Territory / position">Position</th><th title="Visits Received">Visits</th><th title="Coaching Days">Days</th>' +
       '<th title="First Coaching Date">First</th><th title="Last Coaching Date">Last</th></tr></thead>' +
       '<tbody>' + empRows + '</tbody></table></div>' +
+      visitLogHtml +
+      '</div>';
+  }
+
+  /** Detailed visit log for one coached employee under one manager --
+   * 2026-08-31, user-requested. Every individual coaching visit (date,
+   * customer/HCP, area), not the aggregated per-customer counts the
+   * cache already carried for v1's now-removed popup. This is the ONE
+   * place in the tab that shows a customer/HCP name -- see the
+   * CUSTOMER / HCP DATA note in this file's header comment for why
+   * that was excluded everywhere else, and why the user explicitly
+   * asked for it here. Rendered as a second overlay ON TOP of the
+   * profile drawer (higher z-index, see css/coaching.css), appended
+   * inside the same .iqvia-dashboard-wrap element as the profile
+   * drawer for the same CSS-custom-property-inheritance reason. */
+  function renderVisitLog(manager, ce) {
+    var rows = (ce.visitLog || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    var body = rows.map(function (v) {
+      return '<tr><td>' + esc(v.date) + '</td><td>' + esc(v.customer || "—") + '</td><td>' + esc(v.area || "—") + '</td></tr>';
+    }).join("");
+    return '' +
+      '<div id="coaching-visitlog-backdrop"></div>' +
+      '<div id="coaching-visitlog-panel" role="dialog" aria-modal="true">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">' +
+      '<div>' +
+      '<div class="section-title" style="margin:0;font-size:14px;">' + esc(ce.name) + '</div>' +
+      '<div class="kpi-sub">Detailed visits from ' + esc(manager.name) + ' &middot; ' + rows.length + ' visit' + (rows.length === 1 ? "" : "s") + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-shrink:0;">' +
+      '<button class="tb-btn" id="coaching-visitlog-export">Export to Excel</button>' +
+      '<button class="tb-btn" id="coaching-visitlog-close">&times; Close</button>' +
+      '</div>' +
+      '</div>' +
+      '<div class="coaching-table-wrap" style="margin-top:14px;"><table class="data-table">' +
+      '<thead><tr><th>Date</th><th>Customer / HCP</th><th>Area</th></tr></thead>' +
+      '<tbody>' + (body || '<tr><td colspan="3" style="opacity:.6;">No individual visit records.</td></tr>') + '</tbody></table></div>' +
       '</div>';
   }
 
@@ -939,20 +1009,85 @@
       });
     });
 
-    root.addEventListener("click", function (e) {
-      var drillEl = e.target.closest("[data-drill]");
-      if (drillEl) {
-        e.preventDefault();
-        _state.drillManagerId = drillEl.getAttribute("data-drill");
-        render(root, data);
-        return;
-      }
-      if (e.target.id === "coaching-profile-close" || e.target.id === "coaching-profile-backdrop") {
-        _state.drillManagerId = null;
-        render(root, data);
-        return;
-      }
-    });
+    // 2026-08-31 fix: `root` itself is never replaced -- only
+    // `root.innerHTML` is reassigned above -- so a delegated listener
+    // attached to `root` (as opposed to the querySelector-scoped
+    // listeners above, whose target elements ARE recreated each render
+    // and legitimately need re-binding) survives across every render()
+    // call. wireEvents() runs after every single render (including
+    // every keystroke in the search box), so without a guard this
+    // addEventListener call was stacking a fresh, never-removed
+    // listener on `root` each time -- harmless for the older handlers
+    // below (re-running `_state.x = y; render(...)` a few extra times
+    // is a no-op), but it turned the new Export-to-Excel button into a
+    // multi-download bug the instant a user had typed a few characters
+    // or opened/closed a couple of things first: one click fired the
+    // export once per accumulated listener (observed 8 downloads from
+    // a single click during this session's QA). Guarding with a flag on
+    // `root` -- set once, checked every call -- attaches this listener
+    // exactly once for the element's lifetime, which is correct: a
+    // delegated listener does not need re-attaching just because its
+    // descendants changed.
+    if (!root._coachingClickWired) {
+      root._coachingClickWired = true;
+      root.addEventListener("click", function (e) {
+        var drillEl = e.target.closest("[data-drill]");
+        if (drillEl) {
+          e.preventDefault();
+          _state.drillManagerId = drillEl.getAttribute("data-drill");
+          _state.visitLogFor = null; // opening a different manager always closes any stale visit-log modal
+          render(root, data);
+          return;
+        }
+        if (e.target.id === "coaching-profile-close" || e.target.id === "coaching-profile-backdrop") {
+          _state.drillManagerId = null;
+          _state.visitLogFor = null;
+          render(root, data);
+          return;
+        }
+
+        var ceRow = e.target.closest("[data-ce-idx]");
+        if (ceRow && _state.drillManagerId) {
+          _state.visitLogFor = { managerId: _state.drillManagerId, empIndex: parseInt(ceRow.getAttribute("data-ce-idx"), 10) };
+          render(root, data);
+          return;
+        }
+        if (e.target.id === "coaching-visitlog-close" || e.target.id === "coaching-visitlog-backdrop") {
+          _state.visitLogFor = null;
+          render(root, data);
+          return;
+        }
+        if (e.target.id === "coaching-visitlog-export") {
+          exportVisitLog(data);
+          return;
+        }
+      });
+    }
+  }
+
+  /** Export the currently-open visit-log modal's rows to .xlsx via the
+   * dashboard's shared exporter (js/exporter.js -- same SheetJS "core"
+   * build every other tab's Excel export already uses, see that file's
+   * header for why). 2026-08-31, user-requested. */
+  function exportVisitLog(data) {
+    if (!_state.visitLogFor) return;
+    var manager = _visible.filter(function (x) { return x.id === _state.visitLogFor.managerId; })[0];
+    if (!manager) return;
+    var ce = manager.coachedEmployees[_state.visitLogFor.empIndex];
+    if (!ce) return;
+    if (typeof Exporter === "undefined" || !Exporter.tableToExcel) {
+      console.warn("[Coaching] Exporter is not loaded -- cannot export the visit log.");
+      return;
+    }
+    var columns = [
+      { key: "date", label: "Date" },
+      { key: "customer", label: "Customer / HCP" },
+      { key: "area", label: "Area" },
+    ];
+    var rows = (ce.visitLog || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    var filenameBase = "coaching_visits_" + manager.name.replace(/[^A-Za-z0-9]+/g, "_") +
+      "_" + ce.name.replace(/[^A-Za-z0-9]+/g, "_");
+    Exporter.tableToExcel(columns, rows, filenameBase);
   }
 
   function renderNoAccess(root) {
@@ -973,6 +1108,7 @@
       return;
     }
     _state.drillManagerId = null;
+    _state.visitLogFor = null;
     _filters = { bu: "", line: "" };
     _visible = getVisibleManagers(data);
     if (!_visible.length) {

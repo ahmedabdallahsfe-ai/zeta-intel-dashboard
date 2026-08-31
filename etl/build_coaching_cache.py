@@ -99,7 +99,13 @@ PERIOD_START = datetime.date(2026, 2, 1)
 PERIOD_END = datetime.date(2026, 6, 30)
 MONTHS = ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]
 
-TARGET_DV_COVERAGE_PCT = 75
+# 2026-08-31 (user-set): DV Coverage target raised from 75% to 100% --
+# full roster coverage is the actual bar, not 3-in-4. This single
+# constant drives every "ON TARGET"/"BELOW TARGET" badge, the Monthly
+# Trend reference line, and every "+X pp vs target" figure in the UI --
+# nothing else needs to change, js/coaching.js always reads the target
+# from data.targets.dvCoveragePct rather than hardcoding 75.
+TARGET_DV_COVERAGE_PCT = 100
 TARGET_AVG_VISITS_PER_DAY = 7
 
 # Levels with a real "own active team" -> get DV Coverage %.
@@ -129,6 +135,46 @@ def norm_name(s):
     n = str(s).upper().replace(chr(160), " ").strip()
     n = " ".join(n.split())
     return COACHING_NAME_ALIASES.get(n, n)
+
+
+# Database Shortcut's own "Line" column is inconsistently keyed --
+# confirmed 2026-08-31 by dumping every distinct value in the sheet:
+# trailing-space duplicates ("Diabetes I " vs "Diabetes I", "GIT II  "
+# vs "GIT II " vs "GIT II"), which trimming + collapsing whitespace
+# fixes generically -- and, flagged directly by the user, "Pedia/Gyn"
+# and a stray lowercase "pedia" both being used for what is really just
+# the Pedia line, which needs an explicit rename since it isn't a
+# whitespace/case artifact trimming alone would catch (Pedia/Gyn reads
+# as a different, real line name unless you already know it isn't).
+# Applied once at hr_by_norm construction time (the single source of
+# truth every manager/rep "line" field reads from), not re-applied ad
+# hoc at each call site.
+LINE_RENAMES = {"PEDIA/GYN": "Pedia", "PEDIA": "Pedia"}
+
+
+def norm_line(raw):
+    if raw is None:
+        return None
+    trimmed = " ".join(str(raw).split())
+    if not trimmed:
+        return None
+    return LINE_RENAMES.get(trimmed.upper(), trimmed)
+
+
+def safe_str(v):
+    """CustomerName/Area cells are expected to be plain text, but a
+    handful of source rows have them mis-typed as Excel date/time values
+    (a data-entry artifact, not something this ETL should paper over
+    silently) -- found 2026-08-31 when the per-visit log below tried to
+    JSON-serialize a raw datetime.time object and crashed the whole
+    build. isoformat() for date/time/datetime keeps the value visible
+    (rather than dropping it) so a real data issue stays discoverable
+    instead of disappearing into an empty string."""
+    if v is None:
+        return ""
+    if hasattr(v, "isoformat"):
+        return v.isoformat()
+    return str(v)
 
 
 def log(msg):
@@ -209,9 +255,10 @@ def main():
             "name": name,
             "code": r[hi["Code"]],
             "status": status,
-            "line": r[hi["Line"]],
+            "line": norm_line(r[hi["Line"]]),
             "bu": r[hi["Business Unit"]],
             "position": r[hi["Position (English)"]],
+            "directManager": dm,
             "hireDate": hire_date,
         }
         if status == "Active" and dm:
@@ -292,6 +339,15 @@ def main():
     # only rosters (this project's existing, already-shipped behavior),
     # not a hard failure.
     sales_month_reps = defaultdict(lambda: defaultdict(set))  # coach_norm -> {month: {HR-canonical names}}
+    # HR-canonical rep name -> sales-sheet "position" (Line + territory,
+    # e.g. "DIAB-I ASSUIT") -- this is the only place in the project's
+    # data that carries a human territory label per rep (Database
+    # Shortcut's own "Assigment Code" field is a code like
+    # "ZE-SA-D1-0008", not a readable territory). Populated alongside
+    # the roster cross-check below, from the same source, using the same
+    # name resolution -- surfaced on the Coached Employees table so a
+    # rep reads as e.g. "PEDIA NASR CITY" instead of just a bare name.
+    hr_name_to_position = {}
     sales_path = os.path.join(ROOT_DIR, "cache", "sales.json")
     if os.path.exists(sales_path):
         try:
@@ -300,6 +356,7 @@ def main():
             s_months = sales["lookups"]["months"]
             s_reps = sales["lookups"]["reps"]
             s_dms = sales["lookups"]["dms"]
+            s_positions = sales["lookups"]["rep_positions"]
 
             def resolve_hr_name(raw_name):
                 n = norm_name(raw_name[:-4] if raw_name.endswith("_Rep") else raw_name)
@@ -317,6 +374,9 @@ def main():
                 resolved = resolve_hr_name(raw)
                 if resolved:
                     rep_idx_to_hr_name[i] = resolved
+                    pos = s_positions[i] if i < len(s_positions) else None
+                    if pos:
+                        hr_name_to_position[resolved] = pos
 
             month_set = set(MONTHS)
             cells_added = 0
@@ -429,7 +489,7 @@ def main():
         if emp_norm:
             meta = manager_emp_meta[coach_norm].setdefault(emp_norm, {
                 "name": emp_raw, "onRoster": on_roster, "first": d, "last": d,
-                "areas": set(), "customers": Counter(),
+                "areas": set(), "customers": Counter(), "visitLog": [],
             })
             meta["onRoster"] = meta["onRoster"] or on_roster
             meta["first"] = min(meta["first"], d)
@@ -438,6 +498,15 @@ def main():
                 meta["areas"].add(area)
             if cust:
                 meta["customers"][cust] += 1
+            # Per-visit detail (date/customer/area) for the Coached
+            # Employees drill-down's "detailed visits" view -- 2026-08-31,
+            # user-requested, reversing the earlier "no HCP/customer
+            # names anywhere" rule for this ONE new view only (see the
+            # header comment's CUSTOMER / HCP DATA note in js/coaching.js
+            # for the full history of that rule and this exception to it).
+            meta["visitLog"].append({
+                "date": d.isoformat(), "customer": safe_str(cust), "area": safe_str(area),
+            })
             for bkey in ("ALL", mkey):
                 eb = manager_emp_buckets[coach_norm][emp_norm][bkey]
                 eb["visits"] += 1
@@ -495,17 +564,54 @@ def main():
                 if m in manager_emp_buckets[coach_norm][emp_norm]:
                     mb = manager_emp_buckets[coach_norm][emp_norm][m]
                     emp_monthly[m] = {"visits": mb["visits"], "coachingDays": len(mb["days"])}
+            emp_hr = hr_by_norm.get(emp_norm, {})
+            emp_status = emp_hr.get("status")
+            # A handful of Database Shortcut rows have a malformed/blank
+            # Status cell that openpyxl reads back as a bare
+            # datetime.time(0, 0) instead of text (found 2026-08-31 --
+            # same Excel quirk as blank date cells reading as 00:00:00).
+            # That is not a real status value, so treat it exactly like
+            # a missing one rather than emit it or let it flow into the
+            # "== 'Active'" check below.
+            if not isinstance(emp_status, str):
+                emp_status = None
+            # 2026-08-31, user-requested: a coached employee who has
+            # since left the company shows as Inactive, distinct from
+            # (and independent of) their Own-team/Cross-team roster
+            # badge -- someone can be Own-team-but-now-Inactive (left
+            # after being coached) just as easily as Cross-team. Unknown
+            # status (no HR match, or the malformed cell above) is
+            # treated as active rather than guessed at -- never mark
+            # someone Inactive without evidence.
+            emp_active = True if emp_status is None else (emp_status == "Active")
+            actual_manager = None
+            if not meta["onRoster"]:
+                # 2026-08-31, user-requested ("define why cross-team"):
+                # show whose roster this person is really on, not just
+                # that they aren't on THIS manager's.
+                real_dm = emp_hr.get("directManager")
+                if real_dm and norm_name(real_dm) != coach_norm:
+                    actual_manager = real_dm
             coached_employees.append({
                 "name": meta["name"],
                 "onRoster": meta["onRoster"],
+                "active": emp_active,
+                "status": emp_status,
+                "line": emp_hr.get("line"),
+                "position": hr_name_to_position.get(meta["name"]),
+                "actualManager": actual_manager,
                 "visits": eb_all["visits"],
                 "coachingDays": len(eb_all["days"]),
                 "firstDate": meta["first"].isoformat(),
                 "lastDate": meta["last"].isoformat(),
                 "zones": len(meta["areas"]),
                 "monthly": emp_monthly,
-                # Customer popup only -- never surfaced in the main table.
+                # Aggregated customer/visit counts (kept from v1, still
+                # unused by the main table) PLUS, as of 2026-08-31, the
+                # full per-visit log (date/customer/area) backing the
+                # Coached Employees drill-down's "detailed visits" view.
                 "customers": [{"name": cn, "visits": v} for cn, v in meta["customers"].most_common()],
+                "visitLog": sorted(meta["visitLog"], key=lambda v: v["date"]),
             })
         coached_employees.sort(key=lambda x: -x["visits"])
 

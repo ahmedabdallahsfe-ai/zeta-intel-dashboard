@@ -8,9 +8,10 @@
    This file only covers what iqvia.css doesn't already provide for a
    full-page (non-fixed-height) embedded tab: the generic .data-table,
    the insights list, the monthly-trend chart grid, the new BU/Line
-   filter row, and the Manager Profile drawer. (The 2x2 Coverage x
-   Visits/Day Performance Matrix that used to live here was removed
-   on request 2026-08-31 -- see js/coaching.js's header comment.)
+   filter row, the Manager Profile drawer, and (2026-08-31) the
+   detailed-visit-log modal that opens on top of that drawer. (The 2x2
+   Coverage x Visits/Day Performance Matrix that used to live here was
+   removed on request 2026-08-31 -- see js/coaching.js's header comment.)
    =================================================================== */
 
 body.coaching-mode #app-root {
@@ -246,5 +247,43 @@ body.coaching-mode #app-root {
 @media (max-width: 720px) {
   .iqvia-dashboard-wrap #coaching-profile-panel {
     width: 100vw;
+  }
+}
+
+/* ---- Detailed visit log (2026-08-31, user-requested) ----
+   A second overlay ON TOP of the profile drawer -- higher z-index than
+   #coaching-profile-panel/-backdrop above, and centered rather than a
+   side drawer, since it's a focused single-employee detail view opened
+   from within the drawer rather than a peer of it. Scoped under
+   .iqvia-dashboard-wrap for the same custom-property-inheritance reason
+   as the profile drawer (see that section's comment) -- js/coaching.js
+   appends it into the same wrapper element. */
+.iqvia-dashboard-wrap #coaching-visitlog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
+  z-index: 10001;
+}
+
+.iqvia-dashboard-wrap #coaching-visitlog-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(720px, 92vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--bg1);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-sh);
+  padding: var(--pad-section);
+  z-index: 10002;
+}
+
+@media (max-width: 600px) {
+  .iqvia-dashboard-wrap #coaching-visitlog-panel {
+    width: 94vw;
+    max-height: 88vh;
   }
 }
