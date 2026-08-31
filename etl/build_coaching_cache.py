@@ -85,6 +85,24 @@ popup. Computed from data already on hand (the period's roster names vs.
 buckets_by_key[bkey]["onRoster"]), not re-derived from the visit log, so
 a roster member with zero visits still shows up in notCoachedNames.
 
+Half-month roster refinement (2026-08-31, user-requested): the monthly
+roster's Hiring-date cutoff was a hard "on or before month start" test --
+a rep hired on the 3rd of a month didn't count for that month at all,
+even though they worked its other ~27 days. Now a rep hired in a
+month's first half (day <= 15) counts for that month; hired in the
+second half, they still don't count until the following month.
+Symmetrically -- and this is new -- a departed rep now counts for their
+departure month if Database Shortcut's own "Last Day of Work" falls in
+that month's second half, but not if it falls in the first half. This
+reads Last Day of Work directly for every HR-linked employee (not just
+those still Status=="Active"), which is a more exact signal for
+departures than the sales-sheet cross-check's "had any sales that
+month" proxy -- see team_as_of_month()/active_in_month() below for the
+exact rule, and the "Half-month refinement" comment above them for a
+worked example (Karim Lotfy Menesy AbdelSalam under Shady Emeil Basta
+Israel). The sales cross-check stays in place as a safety net for gaps
+this HR-based logic can't see (e.g. a stale Direct-Manager link).
+
 Usage:  python etl/build_coaching_cache.py
 """
 
@@ -93,6 +111,7 @@ import sys
 import json
 import gzip
 import base64
+import calendar
 import datetime
 from collections import defaultdict, Counter
 
@@ -169,6 +188,31 @@ def norm_line(raw):
     if not trimmed:
         return None
     return LINE_RENAMES.get(trimmed.upper(), trimmed)
+
+
+def safe_date(v):
+    """Hiring date / Last Day of Work cells are expected to be real dates,
+    but a blank cell is read back by openpyxl as a bare datetime.time(0,0)
+    rather than None -- the same Excel quirk already fixed for Status
+    (see safe_str's malformed-Status note). A bare time object has no
+    date component (hasattr(time_obj, 'date') is actually False, so the
+    old `hire_raw.date() if hasattr(hire_raw, 'date') else hire_raw` line
+    silently left the raw time object in place instead of catching it --
+    harmless for currently-Active reps, whose Hiring date is always a
+    real date in this sheet, but a live TypeError-in-waiting once
+    2026-08-31's day-precise roster logic below started reading Hiring
+    date AND Last Day of Work for every employee, active or not: 54 rows
+    have a bare-time Hiring date and 1263 have a bare-time Last Day of
+    Work (i.e. every employee who hasn't left)). Coerced to None here --
+    treated as "no date on file", exactly like a genuinely blank cell,
+    never as a crash or as a fabricated date."""
+    if v is None:
+        return None
+    if isinstance(v, datetime.datetime):
+        return v.date()
+    if isinstance(v, datetime.date):
+        return v
+    return None
 
 
 def safe_str(v):
@@ -251,15 +295,16 @@ def main():
     hr_rows = list(ws_hr.iter_rows(min_row=2, values_only=True))
 
     hr_by_norm = {}
-    active_direct_reports = defaultdict(set)  # norm(Direct Manager) -> {employee names}
+    active_direct_reports = defaultdict(set)  # norm(Direct Manager) -> {employee names}, CURRENT status=="Active" only -- display/legacy use, see below
+    all_direct_reports = defaultdict(set)     # norm(Direct Manager) -> {employee names}, EVERY status -- feeds the day-precise monthly roster (team_as_of_month)
     for r in hr_rows:
         name = r[hi["Employee Name (English)"]]
         if name is None:
             continue
         status = r[hi["Status"]]
         dm = r[hi["Name of Direct Manager"]]
-        hire_raw = r[hi["Hiring date"]]
-        hire_date = hire_raw.date() if hasattr(hire_raw, "date") else hire_raw
+        hire_date = safe_date(r[hi["Hiring date"]])
+        last_day_of_work = safe_date(r[hi["Last Day of Work"]])
         n = norm_name(name)
         hr_by_norm[n] = {
             "name": name,
@@ -270,9 +315,12 @@ def main():
             "position": r[hi["Position (English)"]],
             "directManager": dm,
             "hireDate": hire_date,
+            "lastDayOfWork": last_day_of_work,
         }
-        if status == "Active" and dm:
-            active_direct_reports[norm_name(dm)].add(name)
+        if dm:
+            all_direct_reports[norm_name(dm)].add(name)
+            if status == "Active":
+                active_direct_reports[norm_name(dm)].add(name)
     log(f"HR master rows: {len(hr_rows)} | unique normalized names: {len(hr_by_norm)}")
 
     # ---- Per-manager, per-month "team as of the start of that month" ----
@@ -289,29 +337,104 @@ def main():
     # who were genuinely his team at the time (3 of 3) in Feb, Mar, Apr
     # and Jun.
     #
-    # Fix: a rep counts toward a given month's roster only if their
-    # Hiring date is on or before that month's first day. A rep with no
-    # recorded hire date is always counted (missing data must never
-    # silently shrink a manager's coverage credit). By itself this still
-    # does not model historical departures -- Database Shortcut is a
-    # current-status snapshot, so someone who resigned before today would
-    # be invisible here exactly as before this fix -- but see the
-    # sales-sheet cross-check further down, which closes that gap by
-    # union'ing in cache/sales.json's own per-month rep-under-manager
-    # records. Because of that cross-check, a manager's month-to-month
-    # roster can both grow AND shrink across S1, so the S1 cumulative
-    # roster is computed as the union of all five monthly rosters, not
-    # assumed to equal any single month's (see cumulative_team_size
-    # below for why that assumption broke once departures were added).
+    # Fix (original, 2026-08-31): a rep counts toward a given month's
+    # roster only if their Hiring date is on or before that month's first
+    # day. A rep with no recorded hire date is always counted (missing
+    # data must never silently shrink a manager's coverage credit). By
+    # itself this still does not model historical departures -- Database
+    # Shortcut is a current-status snapshot, so someone who resigned
+    # before today would be invisible here exactly as before this fix --
+    # but see the sales-sheet cross-check further down, which closes that
+    # gap by union'ing in cache/sales.json's own per-month rep-under-
+    # manager records. Because of that cross-check, a manager's
+    # month-to-month roster can both grow AND shrink across S1, so the S1
+    # cumulative roster is computed as the union of all five monthly
+    # rosters, not assumed to equal any single month's (see
+    # cumulative_team_size below for why that assumption broke once
+    # departures were added).
+    #
+    # Half-month refinement (2026-08-31, same day, user-requested): the
+    # fix above is a hard cutoff at each month's FIRST day -- a rep hired
+    # on, say, the 3rd of a month was excluded from that whole month even
+    # though they worked 27-28 of its ~30 days. The user asked for a
+    # fairer rule: a rep hired in the first half of a month (day <= 15)
+    # counts for that month (they worked its majority); hired in the
+    # second half (day 16+) still doesn't count until the following
+    # month, unchanged from before. Symmetrically, a rep who resigned
+    # counts for their departure month if their Last Day of Work falls in
+    # that month's second half (day >= 15 -- they worked its majority)
+    # but NOT if it falls in the first half (day < 15). This directly
+    # replaces the old status-snapshot blind spot for departures too:
+    # Database Shortcut's own "Last Day of Work" column (previously
+    # unused by this ETL) gives an exact date rather than the sales-sheet
+    # cross-check's coarser "had any sales that calendar month" proxy --
+    # e.g. Karim Lotfy Menesy AbdelSalam (Shady Emeil Basta Israel's
+    # team) has Last Day of Work 2026-04-04: under the sales-only proxy
+    # he still counted toward Shady's April roster (he had April sales
+    # before leaving), but under this day-15 rule he correctly drops out
+    # of April (left on the 4th, well before the month's midpoint) while
+    # still correctly counting for Feb and Mar in full.
+    #
+    # This roster logic now needs EVERY employee's HR record, not just
+    # those currently Status=="Active" (all_direct_reports, built above,
+    # vs. active_direct_reports which stays a current-snapshot for
+    # display purposes only -- see activeTeamCount/activeTeam below) --
+    # otherwise a rep who has since left would never be evaluated against
+    # their actual Hiring date / Last Day of Work at all, the exact gap
+    # the sales cross-check (still kept below, as an extra safety net for
+    # DM-link/data gaps this HR-based logic can't see) was built to
+    # patch.
     MONTH_START = {m: datetime.date(int(m[:4]), int(m[5:7]), 1) for m in MONTHS}
+    MONTH_END = {
+        m: datetime.date(int(m[:4]), int(m[5:7]), calendar.monthrange(int(m[:4]), int(m[5:7]))[1])
+        for m in MONTHS
+    }
 
-    def team_as_of(coach_norm, cutoff_date):
+    def active_in_month(hire_date, last_day_of_work, month_start, month_end):
+        """True if a rep with these dates counts toward the roster for
+        the month spanning [month_start, month_end] -- see the
+        "Half-month refinement" comment above for the exact rule. None
+        for either date means no evidence of a late start / early exit
+        that month, so it never excludes on its own."""
+        if hire_date is not None:
+            if hire_date > month_end:
+                return False  # not yet hired this month at all
+            if hire_date > month_start and hire_date.day > 15:
+                return False  # hired this month, but in its second half
+        if last_day_of_work is not None:
+            if last_day_of_work < month_start:
+                return False  # already gone before this month started
+            if last_day_of_work <= month_end and last_day_of_work.day < 15:
+                return False  # left this month, but in its first half
+        return True
+
+    def team_as_of_month(coach_norm, m):
+        """Returns (included, hard_excluded_norm) for this coach/month.
+        hard_excluded_norm is the set of norm-names EXPLICITLY excluded
+        by active_in_month() above -- i.e. HR itself has a dated Hiring
+        date / Last Day of Work fact that answers "on roster this month?"
+        for this specific person. This is threaded through to the
+        sales-cross-check union below on purpose: a precise, dated HR
+        fact (e.g. "left 2026-04-04") must win over the sales sheet's
+        coarser "had any sales that calendar month" signal, or the fix
+        above is silently undone the moment someone with real sales data
+        also has a hard HR exclusion -- exactly Karim Lotfy Menesy
+        AbdelSalam's case (Last Day of Work 2026-04-04, but still shows
+        April sales recorded before he left). A name NOT in
+        all_direct_reports[coach_norm] at all (no HR record links them
+        to this coach) is untouched by this -- that's the sales
+        cross-check's other, still-intact job: catching people HR's own
+        Direct-Manager link misses entirely."""
         out = set()
-        for nm in active_direct_reports.get(coach_norm, set()):
-            hd = hr_by_norm.get(norm_name(nm), {}).get("hireDate")
-            if hd is None or hd <= cutoff_date:
+        hard_excluded_norm = set()
+        month_start, month_end = MONTH_START[m], MONTH_END[m]
+        for nm in all_direct_reports.get(coach_norm, set()):
+            hr = hr_by_norm.get(norm_name(nm), {})
+            if active_in_month(hr.get("hireDate"), hr.get("lastDayOfWork"), month_start, month_end):
                 out.add(nm)
-        return out
+            else:
+                hard_excluded_norm.add(norm_name(nm))
+        return out, hard_excluded_norm
 
     # ---- Sales-sheet cross-check / supplement for monthly rosters ----
     # WHY: team_as_of() above (Hiring date vs. month start) correctly
@@ -413,11 +536,20 @@ def main():
 
     manager_month_teams = {}       # coach_norm -> {month: {names}}
     manager_month_teams_norm = {}  # coach_norm -> {month: {norm names}}
-    for coach_norm in set(active_direct_reports) | set(sales_month_reps):
+    # Iterate all_direct_reports (every HR-linked coach, any status) union
+    # sales_month_reps -- NOT active_direct_reports -- so a coach whose
+    # entire historical team has since left (so they have zero CURRENT
+    # active reports) still gets a correct month-by-month roster instead
+    # of being silently skipped here before team_as_of_month() ever runs.
+    for coach_norm in set(all_direct_reports) | set(sales_month_reps):
         per_month = {}
         for m in MONTHS:
-            hire_based = team_as_of(coach_norm, MONTH_START[m])
-            sales_based = sales_month_reps.get(coach_norm, {}).get(m, set())
+            hire_based, hard_excluded_norm = team_as_of_month(coach_norm, m)
+            sales_based_raw = sales_month_reps.get(coach_norm, {}).get(m, set())
+            # A precise HR hard-exclusion for THIS person/month wins over
+            # the sales cross-check's coarser monthly signal -- see
+            # team_as_of_month()'s docstring above.
+            sales_based = set(n for n in sales_based_raw if norm_name(n) not in hard_excluded_norm)
             per_month[m] = hire_based | sales_based
         manager_month_teams[coach_norm] = per_month
         manager_month_teams_norm[coach_norm] = {
