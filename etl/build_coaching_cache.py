@@ -45,10 +45,12 @@ user spot-check on Shady Emeil Basta Israel ("in June is 100%" vs. the
 2026-06-20 and 2026-07-18, so the old code was crediting his June (and
 February through May) coverage against reps who, in June, either hadn't
 joined yet at all or had only just joined. Fixed by making each month's
-roster (and hence the cumulative roster, since rosters only grow) use
-Database Shortcut's Hiring date to ask "was this rep already on the team
-as of this month's start" instead of "is this rep on the team today" --
-see team_as_of() and its comment below for the exact rule. This is a
+roster use Database Shortcut's Hiring date to ask "was this rep already
+on the team as of this month's start" instead of "is this rep on the
+team today" -- see team_as_of() and its comment below for the exact
+rule (the cumulative roster is the union of all five monthly rosters --
+see the sales-sheet cross-check note further down for why it's a full
+union and not just the last month). This is a
 real recomputation, not a display tweak: cache/coaching.json's monthly
 and cumulative dvCoveragePct/dvCoverageRawPct values changed for any
 manager whose team grew during S1, and each metrics object now also
@@ -57,6 +59,21 @@ period) -- js/coaching.js's aggregate KPI math was updated to sum that
 field per period instead of the manager's top-level (current-snapshot)
 activeTeamCount, so the Executive-row aggregate stays consistent with
 the per-manager numbers.
+
+Sales-sheet cross-check follow-up (2026-08-31, same day): the Hiring-
+date fix above only catches JOINERS -- it is blind to reps who LEFT
+during S1, since Database Shortcut's Status=="Active" filter drops them
+from active_direct_reports entirely, for every month, not just the ones
+after they left. Caught by re-checking Shady's team against
+cache/sales.json (built by refresh_sales.py from this project's
+authoritative sales actuals): Karim Lotfy Menesy AbdelSalam recorded
+real DIAB-I sales under Shady in Feb/Mar/Apr but is no longer
+Status=="Active" today, so he was silently missing from all three
+months' rosters, not just May/Jun when he'd genuinely left. Fixed by
+UNION'ing team_as_of()'s Hiring-date roster with cache/sales.json's own
+per-month rep-under-manager sales records (see the comment above
+manager_month_teams below) -- names resolved through the same
+hr_by_norm identity as everywhere else, never fuzzy-matched.
 
 Usage:  python etl/build_coaching_cache.py
 """
@@ -218,14 +235,17 @@ def main():
     # Fix: a rep counts toward a given month's roster only if their
     # Hiring date is on or before that month's first day. A rep with no
     # recorded hire date is always counted (missing data must never
-    # silently shrink a manager's coverage credit). This does not model
-    # historical departures -- Database Shortcut is a current-status
-    # snapshot, so someone who resigned before today is invisible here
-    # exactly as it was invisible before this fix; that survivorship
-    # limitation is unchanged, not introduced by it. Because rosters only
-    # grow across the period under this rule, a manager's S1 cumulative
-    # roster equals their roster as of the LAST period month's start
-    # (2026-06-01) -- the union of all five monthly rosters.
+    # silently shrink a manager's coverage credit). By itself this still
+    # does not model historical departures -- Database Shortcut is a
+    # current-status snapshot, so someone who resigned before today would
+    # be invisible here exactly as before this fix -- but see the
+    # sales-sheet cross-check further down, which closes that gap by
+    # union'ing in cache/sales.json's own per-month rep-under-manager
+    # records. Because of that cross-check, a manager's month-to-month
+    # roster can both grow AND shrink across S1, so the S1 cumulative
+    # roster is computed as the union of all five monthly rosters, not
+    # assumed to equal any single month's (see cumulative_team_size
+    # below for why that assumption broke once departures were added).
     MONTH_START = {m: datetime.date(int(m[:4]), int(m[5:7]), 1) for m in MONTHS}
 
     def team_as_of(coach_norm, cutoff_date):
@@ -236,10 +256,99 @@ def main():
                 out.add(nm)
         return out
 
+    # ---- Sales-sheet cross-check / supplement for monthly rosters ----
+    # WHY: team_as_of() above (Hiring date vs. month start) correctly
+    # excludes reps who joined AFTER a given month, but it is blind to
+    # reps who LEFT before today -- Database Shortcut's Status=="Active"
+    # filter drops them from active_direct_reports entirely, so a rep who
+    # was genuinely on a manager's team for the first months of S1 and
+    # then resigned is invisible to EVERY month's roster, not just the
+    # months after they left. Found 2026-08-31 via a user spot-check:
+    # cache/sales.json (built by etl/refresh_sales.py from this project's
+    # authoritative sales actuals -- Q1_Sales.xlsx, Q2_Sales.xlsx,
+    # june.xlsx; see refresh_sales.py's own header for the full source
+    # list) shows Karim Lotfy Menesy AbdelSalam recording real DIAB-I
+    # sales under Shady Emeil Basta Israel's territory in Feb, Mar AND
+    # Apr -- but Karim's current Database Shortcut Status is no longer
+    # "Active", so team_as_of() silently dropped him from all three
+    # months, not just the ones after he actually left.
+    #
+    # Fix: a rep also counts toward a given month's roster if the sales
+    # sheet recorded real production for them, that month, under that
+    # manager -- UNION'd with the Hiring-date test above, never replacing
+    # it (a brand-new hire can be on the roster before their first sale
+    # closes). This is read from cache/sales.json rather than the raw
+    # multi-hundred-MB source workbooks directly -- refresh_sales.py has
+    # already validated and reconciled that cache from the exact same
+    # sheets, so re-parsing them here would just re-derive the same
+    # numbers slower. Names are matched through the exact same
+    # hr_by_norm identity used everywhere else in this script (never
+    # fuzzy, see COACHING_NAME_ALIASES) -- a sales-sheet name that
+    # doesn't resolve to a known HR employee (an open "Vacant ..."
+    # territory placeholder, an "Unknown_..." bucket, a stray
+    # house-account label, or a genuinely unmatched spelling) contributes
+    # nothing, rather than ever being merged in as if it were a person.
+    # Missing/unreadable sales.json degrades gracefully to Hiring-date-
+    # only rosters (this project's existing, already-shipped behavior),
+    # not a hard failure.
+    sales_month_reps = defaultdict(lambda: defaultdict(set))  # coach_norm -> {month: {HR-canonical names}}
+    sales_path = os.path.join(ROOT_DIR, "cache", "sales.json")
+    if os.path.exists(sales_path):
+        try:
+            with open(sales_path, "r", encoding="utf-8") as f:
+                sales = json.load(f)
+            s_months = sales["lookups"]["months"]
+            s_reps = sales["lookups"]["reps"]
+            s_dms = sales["lookups"]["dms"]
+
+            def resolve_hr_name(raw_name):
+                n = norm_name(raw_name[:-4] if raw_name.endswith("_Rep") else raw_name)
+                hr = hr_by_norm.get(n)
+                return hr["name"] if hr else None
+
+            dm_idx_to_coach_norm = {}
+            for i, raw in enumerate(s_dms):
+                resolved = resolve_hr_name(raw)
+                if resolved:
+                    dm_idx_to_coach_norm[i] = norm_name(resolved)
+
+            rep_idx_to_hr_name = {}
+            for i, raw in enumerate(s_reps):
+                resolved = resolve_hr_name(raw)
+                if resolved:
+                    rep_idx_to_hr_name[i] = resolved
+
+            month_set = set(MONTHS)
+            cells_added = 0
+            for row in sales["rows"]:
+                m = s_months[row[0]]
+                if m not in month_set:
+                    continue
+                coach_n = dm_idx_to_coach_norm.get(row[5])
+                rep_n = rep_idx_to_hr_name.get(row[4])
+                if coach_n and rep_n:
+                    before = len(sales_month_reps[coach_n][m])
+                    sales_month_reps[coach_n][m].add(rep_n)
+                    if len(sales_month_reps[coach_n][m]) > before:
+                        cells_added += 1
+            log(f"sales roster cross-check: {os.path.basename(sales_path)} contributed "
+                f"{cells_added} manager/rep/month roster entries across "
+                f"{len(sales_month_reps)} managers")
+        except Exception as e:
+            log(f"WARNING: could not read/parse {sales_path} ({e}) -- "
+                f"monthly rosters fall back to Hiring date alone for this run.")
+    else:
+        log(f"WARNING: {sales_path} not found -- monthly rosters fall back to "
+            f"Hiring date alone for this run.")
+
     manager_month_teams = {}       # coach_norm -> {month: {names}}
     manager_month_teams_norm = {}  # coach_norm -> {month: {norm names}}
-    for coach_norm in active_direct_reports:
-        per_month = {m: team_as_of(coach_norm, MONTH_START[m]) for m in MONTHS}
+    for coach_norm in set(active_direct_reports) | set(sales_month_reps):
+        per_month = {}
+        for m in MONTHS:
+            hire_based = team_as_of(coach_norm, MONTH_START[m])
+            sales_based = sales_month_reps.get(coach_norm, {}).get(m, set())
+            per_month[m] = hire_based | sales_based
         manager_month_teams[coach_norm] = per_month
         manager_month_teams_norm[coach_norm] = {
             m: set(norm_name(x) for x in s) for m, s in per_month.items()
@@ -349,10 +458,22 @@ def main():
         team_size = len(team)
 
         month_teams = manager_month_teams.get(coach_norm, {m: set() for m in MONTHS})
-        # S1 cumulative roster = roster as of the last period month's
-        # start (rosters only grow across the period under team_as_of(),
-        # so this equals the union of all five monthly rosters).
-        cumulative_team_size = len(month_teams[MONTHS[-1]])
+        # S1 cumulative roster = the UNION of all five monthly rosters.
+        # NOTE: this is NOT simply "the last month's roster" -- that
+        # shortcut only held back when team_as_of() (Hiring date) was the
+        # sole source and rosters could only grow across the period. Once
+        # the sales-sheet cross-check above can also surface someone who
+        # was on the team in an EARLIER month and genuinely left before a
+        # LATER one (a real S1 departure, not a data gap), rosters can
+        # shrink month to month too, so "last month" would silently drop
+        # that person from the cumulative denominator while their coached
+        # visits still counted in the cumulative numerator -- exactly the
+        # >100% raw-coverage bug this comment replaces (caught 2026-08-31
+        # on Karim Lotfy Menesy AbdelSalam under Shady Emeil Basta Israel:
+        # cumulative_team_size was computing 3, but Karim -- on the team
+        # Feb-Apr -- made the true S1 roster 4, and his being coached
+        # pushed dvCoverageRawPct to a nonsensical 133.3%).
+        cumulative_team_size = len(set().union(*month_teams.values())) if month_teams else 0
 
         cumulative = bucket_to_metrics(buckets_by_key["ALL"], cumulative_team_size, is_cov)
         # Always emit all 5 months, even ones with zero visits -- a
