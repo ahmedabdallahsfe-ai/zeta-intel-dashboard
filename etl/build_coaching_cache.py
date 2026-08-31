@@ -37,6 +37,27 @@ silently merging two different people). Before aliases: 754/757 reps and
 162/165 coaching managers matched by norm_name() alone. After the 7
 aliases below: 757/757 reps and 165/165 managers matched -- 0 unmatched.
 
+Roster denominator fix (2026-08-31, user-reported): DV Coverage's
+denominator used to be a single CURRENT active-team-size snapshot applied
+to every Feb-Jun monthly bucket AND the S1 cumulative bucket alike. A
+user spot-check on Shady Emeil Basta Israel ("in June is 100%" vs. the
+60% shown) found the real bug: 2 of his 5 current reps were hired
+2026-06-20 and 2026-07-18, so the old code was crediting his June (and
+February through May) coverage against reps who, in June, either hadn't
+joined yet at all or had only just joined. Fixed by making each month's
+roster (and hence the cumulative roster, since rosters only grow) use
+Database Shortcut's Hiring date to ask "was this rep already on the team
+as of this month's start" instead of "is this rep on the team today" --
+see team_as_of() and its comment below for the exact rule. This is a
+real recomputation, not a display tweak: cache/coaching.json's monthly
+and cumulative dvCoveragePct/dvCoverageRawPct values changed for any
+manager whose team grew during S1, and each metrics object now also
+carries its own activeTeamSize (the denominator actually used for that
+period) -- js/coaching.js's aggregate KPI math was updated to sum that
+field per period instead of the manager's top-level (current-snapshot)
+activeTeamCount, so the Executive-row aggregate stays consistent with
+the per-manager numbers.
+
 Usage:  python etl/build_coaching_cache.py
 """
 
@@ -126,6 +147,15 @@ def bucket_to_metrics(b, active_team_size, is_coverage_title):
         "zones": zones,
     }
     if is_coverage_title:
+        # The team size actually used as this bucket's denominator (time-
+        # aware for monthly buckets, see team_as_of() above) -- distinct
+        # from the manager's top-level activeTeamCount/activeTeam, which
+        # stay a CURRENT-roster snapshot for display purposes only. The
+        # UI's aggregate (Executive KPI row / trend) math must sum THIS
+        # field per period, never the top-level activeTeamCount, or it
+        # would silently reintroduce the same back-dating bug at the
+        # aggregate level.
+        out["activeTeamSize"] = active_team_size
         if active_team_size:
             raw_cov = 100 * on_roster / active_team_size
             out["dvCoveragePct"] = round(min(raw_cov, 100.0), 1)
@@ -155,6 +185,8 @@ def main():
             continue
         status = r[hi["Status"]]
         dm = r[hi["Name of Direct Manager"]]
+        hire_raw = r[hi["Hiring date"]]
+        hire_date = hire_raw.date() if hasattr(hire_raw, "date") else hire_raw
         n = norm_name(name)
         hr_by_norm[n] = {
             "name": name,
@@ -163,10 +195,55 @@ def main():
             "line": r[hi["Line"]],
             "bu": r[hi["Business Unit"]],
             "position": r[hi["Position (English)"]],
+            "hireDate": hire_date,
         }
         if status == "Active" and dm:
             active_direct_reports[norm_name(dm)].add(name)
     log(f"HR master rows: {len(hr_rows)} | unique normalized names: {len(hr_by_norm)}")
+
+    # ---- Per-manager, per-month "team as of the start of that month" ----
+    # WHY (bug found 2026-08-31, reported by a user spot-check on Shady
+    # Emeil Basta Israel's DV Coverage): active_direct_reports above is a
+    # single CURRENT snapshot (status == "Active" as of whenever Database
+    # Shortcut.xlsx was last exported). Using it unmodified as the
+    # denominator for every Feb-Jun monthly bucket silently back-dates
+    # today's team onto earlier months. Concretely: 2 of Shady's 5 current
+    # reps were hired 2026-06-20 and 2026-07-18 (mid-June and after S1
+    # ended entirely) -- yet the old code counted both against his
+    # February through June coverage, capping every month at 3-on-roster
+    # / 5-team = 60% even though he had actually coached 100% of the reps
+    # who were genuinely his team at the time (3 of 3) in Feb, Mar, Apr
+    # and Jun.
+    #
+    # Fix: a rep counts toward a given month's roster only if their
+    # Hiring date is on or before that month's first day. A rep with no
+    # recorded hire date is always counted (missing data must never
+    # silently shrink a manager's coverage credit). This does not model
+    # historical departures -- Database Shortcut is a current-status
+    # snapshot, so someone who resigned before today is invisible here
+    # exactly as it was invisible before this fix; that survivorship
+    # limitation is unchanged, not introduced by it. Because rosters only
+    # grow across the period under this rule, a manager's S1 cumulative
+    # roster equals their roster as of the LAST period month's start
+    # (2026-06-01) -- the union of all five monthly rosters.
+    MONTH_START = {m: datetime.date(int(m[:4]), int(m[5:7]), 1) for m in MONTHS}
+
+    def team_as_of(coach_norm, cutoff_date):
+        out = set()
+        for nm in active_direct_reports.get(coach_norm, set()):
+            hd = hr_by_norm.get(norm_name(nm), {}).get("hireDate")
+            if hd is None or hd <= cutoff_date:
+                out.add(nm)
+        return out
+
+    manager_month_teams = {}       # coach_norm -> {month: {names}}
+    manager_month_teams_norm = {}  # coach_norm -> {month: {norm names}}
+    for coach_norm in active_direct_reports:
+        per_month = {m: team_as_of(coach_norm, MONTH_START[m]) for m in MONTHS}
+        manager_month_teams[coach_norm] = per_month
+        manager_month_teams_norm[coach_norm] = {
+            m: set(norm_name(x) for x in s) for m, s in per_month.items()
+        }
 
     print("\n[2/5] Loading Visits Details S1 DM.xlsx (Total sheet)...", flush=True)
     if not os.path.exists(SOURCE_VISITS):
@@ -228,9 +305,8 @@ def main():
         cust = r[idx["CustomerName"]]
         mkey = month_key(d)
 
-        team = active_direct_reports.get(coach_norm, set())
-        team_norm = set(norm_name(t) for t in team)
-        on_roster = bool(emp_norm and emp_norm in team_norm)
+        month_team_norm = manager_month_teams_norm.get(coach_norm, {}).get(mkey, set())
+        on_roster = bool(emp_norm and emp_norm in month_team_norm)
 
         for bkey in ("ALL", mkey):
             b = manager_buckets[coach_norm][bkey]
@@ -268,15 +344,27 @@ def main():
     for coach_norm, buckets_by_key in manager_buckets.items():
         title = manager_title_votes[coach_norm].most_common(1)[0][0]
         hr = hr_by_norm.get(coach_norm, {})
-        team = active_direct_reports.get(coach_norm, set())
+        team = active_direct_reports.get(coach_norm, set())  # CURRENT roster -- display only, see below
         is_cov = title in COVERAGE_TITLES
         team_size = len(team)
 
-        cumulative = bucket_to_metrics(buckets_by_key["ALL"], team_size, is_cov)
+        month_teams = manager_month_teams.get(coach_norm, {m: set() for m in MONTHS})
+        # S1 cumulative roster = roster as of the last period month's
+        # start (rosters only grow across the period under team_as_of(),
+        # so this equals the union of all five monthly rosters).
+        cumulative_team_size = len(month_teams[MONTHS[-1]])
+
+        cumulative = bucket_to_metrics(buckets_by_key["ALL"], cumulative_team_size, is_cov)
+        # Always emit all 5 months, even ones with zero visits -- a
+        # manager who did no coaching in a month they had an active team
+        # is a genuine 0% that month, not an absent data point, and the
+        # UI's aggregate KPI needs every period's activeTeamSize present
+        # to sum correctly (see bucket_to_metrics's comment). buckets_by_key
+        # is a defaultdict, so buckets_by_key[m] safely returns an empty
+        # bucket for a month with no rows instead of KeyError.
         monthly = {}
         for m in MONTHS:
-            if m in buckets_by_key:
-                monthly[m] = bucket_to_metrics(buckets_by_key[m], team_size, is_cov)
+            monthly[m] = bucket_to_metrics(buckets_by_key[m], len(month_teams[m]), is_cov)
 
         coached_employees = []
         for emp_norm, meta in manager_emp_meta[coach_norm].items():

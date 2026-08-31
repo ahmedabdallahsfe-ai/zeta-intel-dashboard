@@ -57,9 +57,13 @@
  *     NOT on the manager's own roster are counted separately as
  *     "cross-team" and never folded into, or silently dropped from,
  *     coverage. Aggregate coverage (KPI row / trend) is
- *     sum(onRoster)/sum(activeTeam) across the scoped manager set --
- *     never an average of per-manager percentages (mathematically
- *     wrong when teams are different sizes).
+ *     sum(onRoster)/sum(activeTeamSize) across the scoped manager set,
+ *     using each manager's PERIOD-SPECIFIC activeTeamSize (see
+ *     aggregateOwnTier()) -- never an average of per-manager percentages
+ *     (mathematically wrong when teams are different sizes) and never
+ *     the manager's top-level activeTeamCount, which is a current-roster
+ *     snapshot, not a per-period figure (see the 2026-08-31 roster-
+ *     denominator fix note in etl/build_coaching_cache.py's header).
  *   - Coverage only exists for District Manager / Field force
  *     supervisor -- the two levels with a real "own team". Every other
  *     level (Sr. DM, NSM, Area Manager, BUM, Brand Manager, FF
@@ -235,7 +239,7 @@
 
   var EMPTY_METRICS = {
     visits: 0, coachingDays: 0, avgVisitsPerDay: 0, coachedOnRoster: 0,
-    coachedOffRoster: 0, zones: 0, dvCoveragePct: null,
+    coachedOffRoster: 0, zones: 0, dvCoveragePct: null, activeTeamSize: 0,
   };
 
   /** Correctly aggregate a set of DM/FFS managers for one period: totals
@@ -255,7 +259,12 @@
       offRoster += mm.coachedOffRoster;
       if (orgMatched(m)) {
         onRoster += mm.coachedOnRoster;
-        activeTeamTotal += m.activeTeamCount;
+        // Sum THIS period's activeTeamSize (time-aware, see
+        // etl/build_coaching_cache.py's 2026-08-31 roster-denominator
+        // fix comment) -- never the manager's top-level activeTeamCount,
+        // which is a current-snapshot display field and would silently
+        // reintroduce the same back-dating bug at the aggregate level.
+        activeTeamTotal += mm.activeTeamSize || 0;
       }
       collectRepsForPeriod(m, period).forEach(function (r) { repsSeen[r] = true; });
     });
@@ -292,7 +301,11 @@
   function coverageDisplay(manager, mm) {
     if (!orgMatched(manager)) return { text: "Pending org match", cls: "badge-neutral" };
     if (mm.dvCoveragePct === null || mm.dvCoveragePct === undefined) {
-      return { text: manager.activeTeamCount === 0 ? "No active team" : "—", cls: "badge-neutral" };
+      // activeTeamSize is this specific period's (time-aware) team size,
+      // not the manager's current-snapshot activeTeamCount -- a manager
+      // can have a current team but still show "no active team" for an
+      // early month before anyone on today's roster had joined yet.
+      return { text: (mm.activeTeamSize || 0) === 0 ? "No active team" : "—", cls: "badge-neutral" };
     }
     return null; // caller renders the numeric value + status badge normally
   }
