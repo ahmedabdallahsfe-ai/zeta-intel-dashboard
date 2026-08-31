@@ -79,21 +79,32 @@ const Charts = (() => {
   function horizontalBarChart(canvasId, labels, datasets, optionsOverride = {}) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return null;
+    const baseBarOptions = () => baseOptions(Object.assign({
+      indexAxis: "y",
+      scales: { x: { beginAtZero: true, ticks: { callback: (v) => v + "%" } } },
+      plugins: { tooltip: { callbacks: { label: pctXTooltipLabel } } },
+    }, optionsOverride));
     if (registry.has(canvasId)) {
       const chart = registry.get(canvasId);
       chart.data.labels = labels;
       chart.data.datasets = datasets;
+      // 2026-08-31 fix: options (and any tooltip/legend callbacks inside
+      // optionsOverride) were never refreshed on this update path -- only
+      // data/labels were. Callers like the Class Visit Achievement chart
+      // pass a tooltip callback that closes over their own per-render data
+      // array (e.g. classAchData); leaving chart.options frozen at its
+      // first-ever value meant every later hover kept showing numbers from
+      // the very first render, long after new filters made the bars
+      // themselves (chart.data, reassigned above) correct. Same root cause
+      // as the doughnutChart staleness fix earlier -- applied here too.
+      chart.options = baseBarOptions();
       chart.update();
       return chart;
     }
     const chart = new Chart(ctx, {
       type: "bar",
       data: { labels, datasets },
-      options: baseOptions(Object.assign({
-        indexAxis: "y",
-        scales: { x: { beginAtZero: true, ticks: { callback: (v) => v + "%" } } },
-        plugins: { tooltip: { callbacks: { label: pctXTooltipLabel } } },
-      }, optionsOverride)),
+      options: baseBarOptions(),
     });
     registry.set(canvasId, chart);
     return chart;
@@ -111,6 +122,16 @@ const Charts = (() => {
       chart.data.labels = labels;
       chart.data.datasets[0].data = values;
       chart.data.datasets[0].backgroundColor = colors;
+      // 2026-08-30 fix: options (including onClick / tooltip callbacks)
+      // were never refreshed on this update path -- only data/labels/
+      // colors were. Any onClick closure (e.g. the Class/Specialty
+      // Distribution drilldown) was captured on the chart's FIRST render
+      // and then frozen forever, so clicking a slice after changing the
+      // filter bar re-opened the drilldown with whatever filter state was
+      // active when the page first loaded, not the current one. Rebuild
+      // options every call so the click handler always closes over the
+      // latest filtered data.
+      chart.options = baseOptions(Object.assign({ cutout: "60%" }, optionsOverride));
       chart.update();
       return chart;
     }

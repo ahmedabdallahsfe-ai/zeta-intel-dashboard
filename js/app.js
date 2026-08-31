@@ -958,8 +958,8 @@ function buildLayout() {
       </div>
       <div class="distribution-grid">
         ${chartCardHtml("chart-type-distribution", "Customer Type Distribution", "chart-card-small")}
-        ${chartCardHtml("chart-class-distribution", "Customer Class Distribution", "chart-card-small")}
-        ${chartCardHtml("chart-specialty-distribution", "Customer Specialty Distribution", "chart-card-small")}
+        ${chartCardHtml("chart-class-distribution", "Customer Class Distribution <span class=\"chart-drill-hint\">click a slice ›</span>", "chart-card-small")}
+        ${chartCardHtml("chart-specialty-distribution", "Customer Specialty Distribution <span class=\"chart-drill-hint\">click a slice ›</span>", "chart-card-small")}
       </div>
       <div class="visits-contribution-grid" style="margin-top: 24px; border-top: 1px solid #E2E8F0; padding-top: 24px;">
         ${chartCardHtml("chart-class-visits-distribution", "Class Visits Contribution", "chart-card-small")}
@@ -1291,7 +1291,21 @@ function renderExecutiveSummary(result, filterState) {
   if (rfPct >= 0.80) {
     summaryText = `For the period ending **${periodName}**, ${scopeName} delivered **exceptional commercial performance** with a Right Frequency (RF) score of **${fmtPct(rfPct)}** (an ${rfDirection} trend of **${rfDeltaStr}**). This success is backed by highly optimized execution in **${topSegmentDesc}**. While overall health is excellent, management should monitor minor leakage in **${bottomSegmentDesc}** and re-allocate the **${fmtN(wasted)} wasted visits** (${wastedPctStr} of call capacity) to cover the remaining **${fmtN(rf.atRiskCount)} zero-visit doctors** to lock in 100% compliance.`;
   } else if (rfPct >= 0.60) {
-    summaryText = `For the period ending **${periodName}**, ${scopeName} is tracking in the **watch zone** with a Right Frequency (RF) score of **${fmtPct(rfPct)}** (${rfDirection} at **${rfDeltaStr}**). Strong performance in **${topSegmentDesc}** is currently offsetting execution gaps in **${bottomSegmentDesc}**. The primary bottleneck is call dilution: **${wastedPctStr}** of actual calls (**${fmtN(wasted)} visits**) were wasted on over-servicing, while **${fmtN(rf.atRiskCount)} critical doctors** received zero frequency achievement. Immediate reallocation of this capacity is recommended to rescue these at-risk accounts.`;
+    // 2026-08-30 fix: this branch used to always blame "call dilution"
+    // (over-servicing / wastedCalls) as "the primary bottleneck", even when
+    // missedCalls (under-servicing) was the larger of the two -- which
+    // reads as contradictory next to the Class Visit Achievement bar chart
+    // right above it, whose Target bar is taller than its Actual bar
+    // (totalActualVisits < totalTargetVisits) precisely BECAUSE missed
+    // visits outweigh wasted ones. Pick whichever is actually dominant so
+    // the narrative ties out with that bar instead of contradicting it,
+    // and always surface both figures so the achievement gap (target vs.
+    // actual) is fully accounted for.
+    const missedIsDominant = missed >= wasted;
+    const bottleneckSentence = missedIsDominant
+      ? `The primary bottleneck is under-coverage: **${missedPctStr}** of planned visits (**${fmtN(missed)} visits**) were missed against target -- only partly offset by **${fmtN(wasted)} visits** (${wastedPctStr}) spent over-servicing other accounts -- netting **${fmtN(kpis.totalActualVisits)}** of **${fmtN(kpis.totalTargetVisits)}** planned visits achieved (**${fmtPct(achPct)}**)`
+      : `The primary bottleneck is call dilution: **${wastedPctStr}** of actual calls (**${fmtN(wasted)} visits**) were wasted on over-servicing -- only partly offset by **${fmtN(missed)} visits** (${missedPctStr}) missed against target -- netting **${fmtN(kpis.totalActualVisits)}** of **${fmtN(kpis.totalTargetVisits)}** planned visits achieved (**${fmtPct(achPct)}**)`;
+    summaryText = `For the period ending **${periodName}**, ${scopeName} is tracking in the **watch zone** with a Right Frequency (RF) score of **${fmtPct(rfPct)}** (${rfDirection} at **${rfDeltaStr}**). Strong performance in **${topSegmentDesc}** is currently offsetting execution gaps in **${bottomSegmentDesc}**. ${bottleneckSentence}, while **${fmtN(rf.atRiskCount)} critical doctors** received zero frequency achievement. Immediate reallocation of this capacity is recommended to rescue these at-risk accounts.`;
   } else {
     summaryText = `For the period ending **${periodName}**, ${scopeName} displays a **critical frequency deficit**, tracking at a Right Frequency (RF) score of **${fmtPct(rfPct)}** (a ${rfDirection} trend of **${rfDeltaStr}**). Although visit coverage stands at ${fmtPct(covPct)}, poor call plan compliance has resulted in **${fmtN(missed)} missed visits** (${missedPctStr} of total planned effort) and **${fmtN(rf.atRiskCount)} doctors** receiving zero visits. Management must intervene to enforce call-cadence compliance, particularly in **${bottomSegmentDesc}**, and redirect the **${fmtN(wasted)} wasted over-target visits** to high-priority accounts.`;
   }
@@ -1426,6 +1440,14 @@ function renderTrendCharts(result) {
     const classValues = classData.map((r) => (classTotal > 0 ? Math.round((r.count / classTotal) * 1000) / 10 : 0));
     Charts.doughnutChart("chart-class-distribution", classLabels, classValues, {
       plugins: { tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.toFixed(1)}%` } } },
+      onClick: (evt, elements) => {
+        if (!elements.length || !result.allCoverage) return;
+        const clicked = classData[elements[0].index];
+        if (!clicked) return;
+        const name = clicked.name || "(Blank)";
+        const rows = result.allCoverage.list.filter((r) => (r.klass || "(Blank)") === name);
+        openFreqModal("class", rows, `Customers — Class: ${name}`, DRILLDOWN_COLS_COVERAGE);
+      },
     });
   } else {
     const canvas = document.getElementById("chart-class-distribution");
@@ -1449,6 +1471,20 @@ function renderTrendCharts(result) {
     const specValues = displayData.map((r) => (specTotal > 0 ? Math.round((r.count / specTotal) * 1000) / 10 : 0));
     Charts.doughnutChart("chart-specialty-distribution", specLabels, specValues, {
       plugins: { tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.toFixed(1)}%` } } },
+      onClick: (evt, elements) => {
+        if (!elements.length || !result.allCoverage) return;
+        const clicked = displayData[elements[0].index];
+        if (!clicked) return;
+        const name = clicked.name || "(Blank)";
+        let rows;
+        if (name === "Other" && specialtyData.length > 6) {
+          const topNames = new Set(specialtyData.slice(0, 6).map((r) => r.name || "(Blank)"));
+          rows = result.allCoverage.list.filter((r) => !topNames.has(r.specialty || "(Blank)"));
+        } else {
+          rows = result.allCoverage.list.filter((r) => (r.specialty || "(Blank)") === name);
+        }
+        openFreqModal("specialty", rows, `Customers — Specialty: ${name}`, DRILLDOWN_COLS_COVERAGE);
+      },
     });
   } else {
     const canvas = document.getElementById("chart-specialty-distribution");
@@ -1911,6 +1947,78 @@ function renderAttritionVacancyQuality(result, dims) {
 
 }
 
+/** Shared row-array sorter for the customer-drilldown modals (mirrors
+ * Tables.applySort's semantics: numeric compare when both values are
+ * numbers, else locale-aware string compare; null/undefined sort last). */
+function sortRows(rows, key, dir) {
+  if (!key) return rows;
+  const sorted = [...rows].sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (av === null || av === undefined) return 1;
+    if (bv === null || bv === undefined) return -1;
+    if (typeof av === "number" && typeof bv === "number") return av - bv;
+    return String(av).localeCompare(String(bv));
+  });
+  return dir === "desc" ? sorted.reverse() : sorted;
+}
+
+/** Sortable <th> markup + click wiring, shared by both drilldown-modal
+ * renderers below (openFreqModal's renderFreqModalBody and
+ * wireNotSeenModal's renderBody) so header-click sorting behaves and
+ * looks identical (reuses Tables' existing .sortable/.sort-arrow/
+ * .sorted-asc/.sorted-desc CSS -- no new styles needed). */
+function sortableTh(c, sortKey, sortDir) {
+  return `<th data-key="${c.key}" class="sortable ${sortKey === c.key ? "sorted-" + sortDir : ""}" style="text-align:${c.align || "left"}">${UI.escapeHtml(c.label)}<span class="sort-arrow"></span></th>`;
+}
+function wireSortableHeaders(container, onSort) {
+  container.querySelectorAll("th[data-key]").forEach((th) => {
+    th.addEventListener("click", () => onSort(th.dataset.key));
+  });
+}
+
+/** Renders a Team cell as one or more clickable "chips" (a Unique-view
+ * cell can hold several comma-joined line names, e.g. "DIAB-I, DIAB-II")
+ * so clicking any single line name drills into that line's customers --
+ * wired once, by delegation, in wireNotSeenModal(). 2026-08-30. */
+function renderTeamCell(align, rawValue) {
+  const names = String(rawValue ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!names.length) return `<td style="text-align:${align || "left"}"></td>`;
+  const chips = names.map((n) =>
+    `<span class="team-chip" data-team="${UI.escapeHtml(n)}">${UI.escapeHtml(n)}</span>`
+  ).join(", ");
+  return `<td style="text-align:${align || "left"}" title="${UI.escapeHtml(names.join(", "))}">${chips}</td>`;
+}
+
+/* ── Shared column sets for the customer-drilldown modal (reuses the
+ * existing #ns-modal-overlay shell via openFreqModal). 2026-08-30: Ahmed
+ * reverted the "Team" header label back from "Position", added an Area
+ * column, and dropped the Unique view's Coverage column. ─────────────── */
+const DRILLDOWN_COLS_COVERAGE = [
+  { key: "customerName", label: "Customer Name", width: "16%" },
+  { key: "specialty",    label: "Specialty",     width: "8%"  },
+  { key: "klass",        label: "Class",         width: "5%"  },
+  { key: "employee",     label: "Employee",      width: "11%" },
+  { key: "team",         label: "Team",          width: "8%"  },
+  { key: "manager",      label: "Manager",       width: "12%" },
+  { key: "area",         label: "Area",          width: "9%"  },
+  { key: "frequency",    label: "Target",        width: "7%", align: "right" },
+  { key: "visits",       label: "Actual",        width: "7%", align: "right" },
+  { key: "remaining",    label: "Remaining",     width: "8%", align: "right" },
+  { key: "status",       label: "Status",        width: "8%"  },
+];
+const DRILLDOWN_COLS_UNIQUE = [
+  { key: "customerName", label: "Customer Name", width: "18%" },
+  { key: "specialty",    label: "Specialty",     width: "10%" },
+  { key: "klass",        label: "Class",         width: "6%"  },
+  { key: "team",         label: "Team",          width: "11%" },
+  { key: "manager",      label: "Manager",       width: "12%" },
+  { key: "area",         label: "Area",          width: "10%" },
+  { key: "frequency",    label: "Target",        width: "7%", align: "right" },
+  { key: "visits",       label: "Actual",        width: "7%", align: "right" },
+  { key: "remaining",    label: "Remaining",     width: "8%", align: "right" },
+  { key: "status",       label: "Status",        width: "8%"  },
+];
+
 /* ── Not-Seen Customers Modal ─────────────────────────────────────────────── */
 function wireNotSeenModal() {
   const overlay  = document.getElementById("ns-modal-overlay");
@@ -1928,6 +2036,8 @@ function wireNotSeenModal() {
   let _allRows = [];
   let _filtered = [];
   let _page = 1;
+  let _sortKey = null;
+  let _sortDir = "desc";
 
   const COLS = [
     { key: "customerName", label: "Customer Name", width: "16%" },
@@ -1955,11 +2065,12 @@ function wireNotSeenModal() {
   }
 
   function renderBody() {
-    const totalPages = Math.max(1, Math.ceil(_filtered.length / PAGE_SIZE));
+    const sorted = sortRows(_filtered, _sortKey, _sortDir);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
     _page = Math.min(_page, totalPages);
-    const slice = _filtered.slice((_page - 1) * PAGE_SIZE, _page * PAGE_SIZE);
+    const slice = sorted.slice((_page - 1) * PAGE_SIZE, _page * PAGE_SIZE);
 
-    info.textContent = `${_filtered.length.toLocaleString()} customer${_filtered.length !== 1 ? "s" : ""} not seen`;
+    info.textContent = `${sorted.length.toLocaleString()} customer${sorted.length !== 1 ? "s" : ""} not seen`;
     pageLabel.textContent = `${_page} / ${totalPages}`;
     prevBtn.disabled = _page <= 1;
     nextBtn.disabled = _page >= totalPages;
@@ -1970,12 +2081,11 @@ function wireNotSeenModal() {
     }
 
     const colgroup = COLS.map((c) => `<col style="width:${c.width}">`).join("");
-    const thead = COLS.map((c) =>
-      `<th style="text-align:${c.align||"left"}">${esc(c.label)}</th>`
-    ).join("");
+    const thead = COLS.map((c) => sortableTh(c, _sortKey, _sortDir)).join("");
     const tbody = slice.map((r) =>
       `<tr>${COLS.map((c) =>
-        `<td style="text-align:${c.align||"left"}" title="${esc(r[c.key])}">${esc(r[c.key])}</td>`
+        c.key === "team" ? renderTeamCell(c.align, r[c.key])
+        : `<td style="text-align:${c.align||"left"}" title="${esc(r[c.key])}">${esc(r[c.key])}</td>`
       ).join("")}</tr>`
     ).join("");
 
@@ -1985,6 +2095,12 @@ function wireNotSeenModal() {
         <thead><tr>${thead}</tr></thead>
         <tbody>${tbody}</tbody>
       </table>`;
+
+    wireSortableHeaders(body, (key) => {
+      if (_sortKey === key) { _sortDir = _sortDir === "asc" ? "desc" : "asc"; } else { _sortKey = key; _sortDir = "desc"; }
+      _page = 1;
+      renderBody();
+    });
   }
 
   function openModal() {
@@ -1994,6 +2110,8 @@ function wireNotSeenModal() {
     searchEl.value = "";
     _filtered = _allRows;
     _page = 1;
+    _sortKey = null;
+    _sortDir = "desc";
     renderBody();
     overlay.classList.add("open");
     searchEl.focus();
@@ -2017,6 +2135,14 @@ function wireNotSeenModal() {
       } else if (kpi === "belowFreqCount") {
         if (_lastResult && _lastResult.belowFreq) {
           openFreqModal("below", _lastResult.belowFreq.list, "Customers Visited Below Target Frequency");
+        }
+      } else if (kpi === "totalUniqueCustomers") {
+        if (_lastResult && _lastResult.uniqueCustomers) {
+          openFreqModal("unique", _lastResult.uniqueCustomers.list, "Total Customers — Unique", DRILLDOWN_COLS_UNIQUE);
+        }
+      } else if (kpi === "totalSharedCustomers") {
+        if (_lastResult && _lastResult.allCoverage) {
+          openFreqModal("shared", _lastResult.allCoverage.list, "Total Customers — Shared Coverage", DRILLDOWN_COLS_COVERAGE);
         }
       }
       return;
@@ -2048,6 +2174,21 @@ function wireNotSeenModal() {
   overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
+  // Team-chip drilldown -- click any line name in any popup's Team column
+  // (Not Seen / Over / Below / At-Risk / Unique / Shared / Specialty /
+  // Class) to see that line's customers. Wired once here (body is the
+  // one stable #ns-modal-body element every popup renders into) rather
+  // than inside openFreqModal, which runs on every popup open and would
+  // otherwise stack a fresh listener each time. 2026-08-30.
+  body.addEventListener("click", (e) => {
+    const chip = e.target.closest(".team-chip");
+    if (!chip) return;
+    const teamName = chip.dataset.team;
+    if (!teamName || !_lastResult || !_lastResult.allCoverage) return;
+    const rows = _lastResult.allCoverage.list.filter((r) => (r.team || "(Blank)") === teamName);
+    openFreqModal("team", rows, `Customers — Team: ${teamName}`, DRILLDOWN_COLS_COVERAGE);
+  });
+
   searchEl.addEventListener("input", Utils.debounce((e) => {
     _filtered = applySearch(e.target.value.trim());
     _page = 1;
@@ -2059,7 +2200,7 @@ function wireNotSeenModal() {
 
   exportBtn.addEventListener("click", () => {
     if (typeof Exporter === "undefined") return;
-    Exporter.tableToExcel(COLS, _filtered, `not-seen-customers_${filenameSuffix}`);
+    Exporter.tableToExcel(COLS, sortRows(_filtered, _sortKey, _sortDir), `not-seen-customers_${filenameSuffix}`);
   });
 }
 
@@ -2263,7 +2404,7 @@ function openKolModal(mgrName, quarter, kolRows) {
   });
 }
 
-function openFreqModal(mode, list, title) {
+function openFreqModal(mode, list, title, colsOverride) {
   // Reuse the existing not-seen modal overlay
   const overlay = document.getElementById("ns-modal-overlay");
   const badge   = document.getElementById("ns-modal-badge");
@@ -2284,7 +2425,10 @@ function openFreqModal(mode, list, title) {
   pageLabel.textContent = "";
   info.textContent    = `${list.length} customer${list.length !== 1 ? "s" : ""} in this list`;
 
-  const COLS = [
+  let sortKey = null;
+  let sortDir = "desc";
+
+  const COLS = colsOverride || [
     { key: "customerName", label: "Customer Name", width: "20%" },
     { key: "specialty",    label: "Specialty",     width: "10%" },
     { key: "klass",        label: "Class",          width: "6%" },
@@ -2306,14 +2450,26 @@ function openFreqModal(mode, list, title) {
       body.innerHTML = `<div style="padding:32px;text-align:center;color:#94A3B8;">No doctors match.</div>`;
       return;
     }
+    const sortedRows = sortRows(filteredRows, sortKey, sortDir);
     const colgroup = COLS.map((c) => `<col style="width:${c.width}">`).join("");
-    const thead    = COLS.map((c) =>
-      `<th style="text-align:${c.align || "left"}">${UI.escapeHtml(c.label)}</th>`
-    ).join("");
-    const tbody = filteredRows.map((r) =>
+    const thead    = COLS.map((c) => sortableTh(c, sortKey, sortDir)).join("");
+    const STATUS_STYLE = {
+      on:    "background:#DCFCE7;color:#15803D;",
+      below: "background:#FEE2E2;color:#DC2626;",
+      over:  "background:#FEF3C7;color:#B45309;",
+    };
+    const STATUS_LABEL = { on: "On Target", below: "Below", over: "Over" };
+    const tbody = sortedRows.map((r) =>
       `<tr>${COLS.map((c) => {
         const val = r[c.key];
-        const isBoldKey = c.key === "missedCalls" || c.key === "overCalls";
+        if (c.key === "team") return renderTeamCell(c.align, val);
+        if (c.key === "status") {
+          const st = STATUS_STYLE[val] ? val : "on";
+          return `<td style="text-align:${c.align || "left"}">
+            <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;${STATUS_STYLE[st]}">${STATUS_LABEL[st]}</span>
+          </td>`;
+        }
+        const isBoldKey = c.key === "missedCalls" || c.key === "overCalls" || c.key === "remaining";
         return `<td style="text-align:${c.align || "left"}" title="${UI.escapeHtml(String(val ?? ""))}">
           ${isBoldKey ? `<strong>${val}</strong>` : UI.escapeHtml(String(val ?? ""))}
         </td>`;
@@ -2324,6 +2480,11 @@ function openFreqModal(mode, list, title) {
       <thead><tr>${thead}</tr></thead>
       <tbody>${tbody}</tbody>
     </table>`;
+
+    wireSortableHeaders(body, (key) => {
+      if (sortKey === key) { sortDir = sortDir === "asc" ? "desc" : "asc"; } else { sortKey = key; sortDir = "desc"; }
+      renderFreqModalBody(filteredRows);
+    });
   }
 
   let filtered = list;
@@ -2349,7 +2510,7 @@ function openFreqModal(mode, list, title) {
   exportBtn.parentNode.replaceChild(newExport, exportBtn);
   newExport.addEventListener("click", () => {
     if (typeof Exporter !== "undefined")
-      Exporter.tableToExcel(COLS, filtered, `${mode}-frequency-customers_${filenameSuffix}`);
+      Exporter.tableToExcel(COLS, sortRows(filtered, sortKey, sortDir), `${mode}-customers_${filenameSuffix}`);
   });
 
   setTimeout(() => { newSearch.focus(); }, 50);

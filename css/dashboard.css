@@ -1471,6 +1471,32 @@ ul.issue-list li {
   box-shadow: 0 6px 20px rgba(220,38,38,.18);
   transform: translateY(-2px);
 }
+/* 2026-08-30 -- Total Customers (Unique/Shared) drilldown */
+.kpi-card[data-kpi="totalUniqueCustomers"],
+.kpi-card[data-kpi="totalSharedCustomers"] {
+  cursor: pointer;
+  transition: box-shadow .15s, transform .15s;
+}
+.kpi-card[data-kpi="totalUniqueCustomers"]:hover,
+.kpi-card[data-kpi="totalSharedCustomers"]:hover {
+  box-shadow: 0 6px 20px rgba(37,99,235,.18);
+  transform: translateY(-2px);
+}
+/* Class/Specialty Distribution chart drilldown */
+#chart-class-distribution, #chart-specialty-distribution { cursor: pointer; }
+.chart-drill-hint {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #2563EB;
+  margin-left: 4px;
+}
+/* 2026-08-30 -- clickable line/team name inside a drilldown-modal cell */
+.team-chip {
+  cursor: pointer;
+  color: #2563EB;
+  font-weight: 600;
+}
+.team-chip:hover { text-decoration: underline; }
 
 /* ── KOL Coverage Table ─────────────────────────────────────────────────── */
 .kol-legend {

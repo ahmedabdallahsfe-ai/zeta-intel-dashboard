@@ -296,6 +296,17 @@ const Analytics = (() => {
     let overFreqCount = 0;
     const overFreqList = [];
 
+    // 2026-08-30 -- generic customer-level drilldown for Total Customers
+    // (Unique/Shared) KPI cards and the Class/Specialty Distribution charts.
+    // allCoverageList retains EVERY active coverage row (one entry per
+    // customer x employee x product-line assignment) -- its length equals
+    // the "Total Customers (Shared)" KPI. custUniqueAgg dedupes those rows
+    // down to one entry per physical customer (keyed by custIdx), summing
+    // Target Frequency / Actual Visits across every rep/line that covers
+    // them -- its size equals the "Total Customers (Unique)" KPI.
+    const allCoverageList = [];
+    const custUniqueAgg = new Map();
+
     const n = rows.length;
     for (let i = 0; i < n; i++) {
       const row = rows[i];
@@ -434,6 +445,30 @@ const Analytics = (() => {
           area: dims.areas ? (dims.areas[row[F.area]] || "") : "",
         };
 
+        // Always retain this coverage row for the Total Customers
+        // (Unique/Shared) drilldowns and the Class/Specialty Distribution
+        // chart drilldowns -- independent of the at-risk/over-freq tiering
+        // below, which only tracks a SUBSET of rows.
+        docInfo.remaining = docInfo.missedCalls;
+        docInfo.status = actualVisits > targetFreq ? "over" : (targetFreq > actualVisits ? "below" : "on");
+        allCoverageList.push(docInfo);
+
+        if (!custUniqueAgg.has(custIdx)) {
+          custUniqueAgg.set(custIdx, {
+            customerName: docInfo.customerName, specialty: docInfo.specialty,
+            klass: docInfo.klass, type: docInfo.type,
+            targetSum: 0, visitsSum: 0, coverageCount: 0,
+            positions: new Set(), managers: new Set(), areas: new Set(),
+          });
+        }
+        const uAgg = custUniqueAgg.get(custIdx);
+        uAgg.targetSum += targetFreq;
+        uAgg.visitsSum += actualVisits;
+        uAgg.coverageCount += 1;
+        if (docInfo.team) uAgg.positions.add(docInfo.team);
+        if (docInfo.manager) uAgg.managers.add(docInfo.manager);
+        if (docInfo.area) uAgg.areas.add(docInfo.area);
+
         if (row[F.rightFreq] === 0) {
           const missed = targetFreq - actualVisits;
           if (missed === 1) {
@@ -460,6 +495,7 @@ const Analytics = (() => {
       global, byPeriod, byTeam, byManager, byAreaManager, bySpecialty, byClass,
       byType, byEmployeePeriod, vacantSeenByPeriod, empProfileMap, want, availableSetsArr,
       byExperience, custRfTracker, custUniqByPeriod, atRiskTiers, overFreqCount, overFreqList,
+      allCoverageList, custUniqueAgg,
     });
   }
 
@@ -502,7 +538,7 @@ const Analytics = (() => {
   }
 
   function buildResult(ctx) {
-    const { global, byPeriod, byTeam, byManager, byAreaManager, bySpecialty, byClass, byType, byEmployeePeriod, vacantSeenByPeriod, empProfileMap, want, availableSetsArr, byExperience, custRfTracker, custUniqByPeriod, atRiskTiers, overFreqCount, overFreqList } = ctx;
+    const { global, byPeriod, byTeam, byManager, byAreaManager, bySpecialty, byClass, byType, byEmployeePeriod, vacantSeenByPeriod, empProfileMap, want, availableSetsArr, byExperience, custRfTracker, custUniqByPeriod, atRiskTiers, overFreqCount, overFreqList, allCoverageList, custUniqueAgg } = ctx;
 
     // Build manager/areaManager name → profileIdx lookup by cross-referencing
     // dims.managers (manager names) with dims.employeeNames (employee names).
@@ -896,6 +932,30 @@ const Analytics = (() => {
     };
     // ──────────────────────────────────────────────────────────────────────
 
+    // Materialize the per-customer Unique list from custUniqueAgg -- one
+    // row per physical customer, Target/Actual summed across every
+    // rep/product-line that covers them (Option A, confirmed 2026-08-30).
+    const uniqueCustomersList = Array.from(custUniqueAgg.values()).map((u) => {
+      const remaining = Math.max(0, u.targetSum - u.visitsSum);
+      const status = u.visitsSum > u.targetSum ? "over" : (u.targetSum > u.visitsSum ? "below" : "on");
+      const positions = Array.from(u.positions);
+      const managers = Array.from(u.managers);
+      const areas = Array.from(u.areas);
+      return {
+        customerName: u.customerName, specialty: u.specialty, klass: u.klass, type: u.type,
+        // 2026-08-30 -- name the actual line(s), not just a count, so a
+        // shared customer's Team cell answers "shared with which line?"
+        // directly (e.g. "DIAB-I, CVM-II") instead of "Multiple (2)".
+        team: positions.join(", "),
+        manager: managers.length <= 1 ? (managers[0] || "") : `Multiple (${managers.length})`,
+        area: areas.length <= 1 ? (areas[0] || "") : `Multiple (${areas.length})`,
+        coverageCount: u.coverageCount,
+        frequency: u.targetSum, visits: u.visitsSum,
+        missedCalls: remaining, overCalls: Math.max(0, u.visitsSum - u.targetSum),
+        remaining, status,
+      };
+    });
+
     return {
       kpis, trend, teamComparison, managerRanking, areaManagerRanking,
       specialtyCoverage, classCoverage, typeDistribution, classDistribution, specialtyDistribution,
@@ -910,6 +970,8 @@ const Analytics = (() => {
       rfInsights,
       overFreq: { count: overFreqCount, list: overFreqList },
       belowFreq: { count: atRiskCount, list: [].concat(ctx.atRiskTiers.tier1.list, ctx.atRiskTiers.tier2.list, ctx.atRiskTiers.tier3.list) },
+      allCoverage: { count: allCoverageList.length, list: allCoverageList },
+      uniqueCustomers: { count: uniqueCustomersList.length, list: uniqueCustomersList },
     };
   }
 

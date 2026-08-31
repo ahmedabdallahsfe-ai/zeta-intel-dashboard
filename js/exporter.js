@@ -119,6 +119,18 @@ const Exporter = (() => {
       console.warn(`[Exporter] No chart is currently registered for canvas "${canvasId}".`);
       return false;
     }
+    // 2026-08-30 fix: a filter change re-renders the chart via chart.update(),
+    // which Chart.js animates over ~400ms (see baseOptions() in charts.js).
+    // chart.data is already the correct final values the instant update() is
+    // called, but the CANVAS PIXELS lag behind for up to 400ms while the bars/
+    // slices animate into place. Exporting right after changing filters (the
+    // natural workflow) could capture a mid-animation frame -- e.g. a bar
+    // chart showing partially-grown bars with numbers far below the real
+    // totals, while the KPI cards (plain text, never animated) already show
+    // the correct settled figures. Force an animation-free repaint of the
+    // chart's current data immediately before reading pixels, so the PNG
+    // always matches what's on screen once everything settles.
+    chart.update("none");
     const dataUrl = chart.toBase64Image("image/png", 1);
     const a = document.createElement("a");
     a.href = dataUrl;
