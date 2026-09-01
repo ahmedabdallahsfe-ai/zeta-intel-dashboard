@@ -269,6 +269,21 @@ def safe_str(v):
     return str(v)
 
 
+def safe_position(v):
+    """Database Shortcut's "Position (English)" column is never blank
+    (verified 2026-09-01: 0/2466 rows), but 393 rows carry leading/
+    trailing whitespace ("Sales Representative " etc.) -- strip it so
+    the roster popup and Coached Employees table never render an
+    invisible-looking gap after a rep's territory/title. Returns None
+    (not "") for a genuinely blank/whitespace-only cell, so callers can
+    `or`-fall-through to another source exactly like every other
+    optional field in this file."""
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s or None
+
+
 def log(msg):
     print(f"  {msg}", flush=True)
 
@@ -350,7 +365,7 @@ def main():
             "status": status,
             "line": norm_line(r[hi["Line"]]),
             "bu": r[hi["Business Unit"]],
-            "position": r[hi["Position (English)"]],
+            "position": safe_position(r[hi["Position (English)"]]),
             "directManager": dm,
             "hireDate": hire_date,
             "lastDayOfWork": last_day_of_work,
@@ -518,6 +533,14 @@ def main():
     # the roster cross-check below, from the same source, using the same
     # name resolution -- surfaced on the Coached Employees table so a
     # rep reads as e.g. "PEDIA NASR CITY" instead of just a bare name.
+    # NOTE: only covers a rep who appears in cache/sales.json's own rep
+    # list -- every lookup site (coached_employees below, and
+    # roster_name_detail() further down) falls back to Database
+    # Shortcut's own raw HR "Position (English)" field (a plain job
+    # title, e.g. "Sales Representative" -- never actually blank, see
+    # safe_position()'s docstring) when this dict has no entry, so a
+    # rep with zero sales records this S1 still shows a position rather
+    # than a bare "--".
     hr_name_to_position = {}
     sales_path = os.path.join(ROOT_DIR, "cache", "sales.json")
     if os.path.exists(sales_path):
@@ -545,7 +568,7 @@ def main():
                 resolved = resolve_hr_name(raw)
                 if resolved:
                     rep_idx_to_hr_name[i] = resolved
-                    pos = s_positions[i] if i < len(s_positions) else None
+                    pos = safe_position(s_positions[i]) if i < len(s_positions) else None
                     if pos:
                         hr_name_to_position[resolved] = pos
 
@@ -872,7 +895,19 @@ def main():
                 "active": emp_active,
                 "status": emp_status,
                 "line": emp_hr.get("line"),
-                "position": hr_name_to_position.get(meta["name"]),
+                # 2026-09-01, user-requested ("check that all position
+                # appeared correctly"): hr_name_to_position (sales-derived
+                # territory label, e.g. "DIAB-I ASSUIT") only has an entry
+                # for a rep who appears in cache/sales.json's own rep
+                # list -- 238/1848 (12.9%) Coached Employees rows had NO
+                # sales record at all this S1 (e.g. Peter Mekhael Sobhy
+                # Mekhael, first coaching visit only in May) and so showed
+                # a bare "--" even though Database Shortcut's own raw HR
+                # "Position (English)" field (e.g. "Sales Representative")
+                # is never actually blank (0/2466 rows) -- it just wasn't
+                # being fallen back to. Same fallback pattern as
+                # roster_name_detail() above, for the same reason.
+                "position": hr_name_to_position.get(meta["name"]) or emp_hr.get("position"),
                 "actualManager": actual_manager,
                 "visits": eb_all["visits"],
                 "coachingDays": len(eb_all["days"]),

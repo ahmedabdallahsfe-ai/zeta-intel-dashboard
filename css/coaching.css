@@ -448,9 +448,16 @@ body.coaching-mode #app-root {
   overflow: visible;
   text-overflow: clip;
 }
+/* Roster (col 2): renders an "Own team"/"Cross-team" .badge -- like
+   every other badge in this tab (DV Coverage, Status), it's nowrap
+   internally so it can't itself wrap to avoid overflow; a percentage
+   width kept losing this tug-of-war against the other columns'
+   adjustments, so give it a fixed px width sized to the longer badge
+   ("Cross-team") instead. The optional "reports to X" note below the
+   badge is plain text and still wraps fine within that width. */
 .iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(2),
 .iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(2) {
-  width: 13%;
+  width: 100px;
   max-width: none;
   white-space: normal;
   overflow: visible;
@@ -463,14 +470,25 @@ body.coaching-mode #app-root {
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
+  overflow-wrap: break-word;
 }
+/* Position (col 4): as of 2026-09-01, can now also hold Database
+   Shortcut's raw HR job title ("Sales Representative") as a fallback
+   when a rep has no sales-derived territory label -- QA-verified that
+   single unbroken word alone (14 chars, ~90px) came up 13px short of
+   this column's previous 13% width, since white-space:normal can only
+   break BETWEEN words. overflow-wrap:break-word is the real fix (lets
+   an unusually long single word itself break rather than overflow,
+   whatever the column ends up sized to); the extra 1% width just
+   keeps that from being needed in the common case. */
 .iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(4),
 .iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(4) {
-  width: 13%;
+  width: 14%;
   max-width: none;
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
+  overflow-wrap: break-word;
 }
 /* Visits/Days (cols 5-6): QA-verified the auto-shared width (~27px)
    was too tight even for a 3-digit count like "193" (needs ~42px) --
