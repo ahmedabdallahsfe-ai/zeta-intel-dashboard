@@ -84,6 +84,18 @@ for the UI's "click a DV Coverage cell to see who was/wasn't coached"
 popup. Computed from data already on hand (the period's roster names vs.
 buckets_by_key[bkey]["onRoster"]), not re-derived from the visit log, so
 a roster member with zero visits still shows up in notCoachedNames.
+  2026-09-01 follow-up (user-requested: "add here hiring or resigned
+  date when it according to rule and add position"): each entry in
+  coachedNames/notCoachedNames is now an object -- {name, position,
+  note} -- not a bare string. position is the same human territory
+  label shown on the Coached Employees table (hr_name_to_position,
+  falling back to Database Shortcut's own raw HR position field). note
+  is "Hired <date>" / "Resigned <date>", populated ONLY when that date
+  falls inside the exact period this popup is showing -- i.e. only
+  when the half-month roster rule actually had that date in play for
+  this specific month (or the full S1 range for the cumulative popup),
+  not a stale hire/resignation from a different period. See
+  roster_name_detail() below.
 
 Half-month roster refinement (2026-08-31, user-requested): the monthly
 roster's Hiring-date cutoff was a hard "on or before month start" test --
@@ -609,6 +621,39 @@ def main():
             m: set(norm_name(x) for x in s) for m, s in per_month.items()
         }
 
+    # Roster popup name detail (2026-09-01, user-requested: "add here
+    # hiring or resigned date when it according to rule and add
+    # position" -- the Coached/Not Coached popup on a DV Coverage cell,
+    # see js/coaching.js renderRosterPopup(), previously showed bare
+    # names only). For each rep on a roster popup's list, surface:
+    #   - position: the same human territory label already shown on the
+    #     Coached Employees table (hr_name_to_position, e.g. "DIAB-I
+    #     ASSUIT") -- falls back to Database Shortcut's own raw HR
+    #     "Position (English)" field when the sales-sheet lookup has no
+    #     entry for this person (e.g. someone with zero visits all S1,
+    #     so never appears in cache/sales.json's rep list either).
+    #   - note: a "Hired <date>" / "Resigned <date>" annotation, but
+    #     ONLY when that date falls inside the exact period this popup
+    #     is showing (this month's [month_start, month_end], or the
+    #     full Feb1-Jun30 S1 range for the cumulative popup) -- i.e.
+    #     only when the half-month roster rule (active_in_month() above)
+    #     actually had that date in play for this period, not a stale
+    #     hire/resignation from a different period that isn't relevant
+    #     here. A rep who was on roster the whole period gets no note.
+    def roster_name_detail(name, period_start, period_end):
+        hr = hr_by_norm.get(norm_name(name), {})
+        position = hr_name_to_position.get(name) or hr.get("position")
+        note = None
+        hire_date = hr.get("hireDate")
+        last_day = hr.get("lastDayOfWork")
+        if hire_date is not None and period_start <= hire_date <= period_end:
+            note = "Hired " + hire_date.strftime("%b %d, %Y")
+        elif last_day is not None and period_start <= last_day <= period_end:
+            note = "Resigned " + last_day.strftime("%b %d, %Y")
+        return {"name": name, "position": position, "note": note}
+
+    S1_START, S1_END = MONTH_START[MONTHS[0]], MONTH_END[MONTHS[-1]]
+
     print("\n[2/5] Loading Visits Details S1 DM.xlsx (Total sheet)...", flush=True)
     if not os.path.exists(SOURCE_VISITS):
         print(f"ERROR: {SOURCE_VISITS} not found.")
@@ -754,8 +799,14 @@ def main():
             # member with zero visits still appears in notCoachedNames
             # rather than being silently absent.
             coached_norm_all = buckets_by_key["ALL"]["onRoster"]
-            cumulative["coachedNames"] = sorted(n for n in cumulative_roster_names if norm_name(n) in coached_norm_all)
-            cumulative["notCoachedNames"] = sorted(n for n in cumulative_roster_names if norm_name(n) not in coached_norm_all)
+            cumulative["coachedNames"] = sorted(
+                (roster_name_detail(n, S1_START, S1_END) for n in cumulative_roster_names if norm_name(n) in coached_norm_all),
+                key=lambda d: d["name"],
+            )
+            cumulative["notCoachedNames"] = sorted(
+                (roster_name_detail(n, S1_START, S1_END) for n in cumulative_roster_names if norm_name(n) not in coached_norm_all),
+                key=lambda d: d["name"],
+            )
         # Always emit all 5 months, even ones with zero visits -- a
         # manager who did no coaching in a month they had an active team
         # is a genuine 0% that month, not an absent data point, and the
@@ -769,8 +820,15 @@ def main():
             if is_cov:
                 roster_names_m = month_teams[m]
                 coached_norm_m = buckets_by_key[m]["onRoster"]
-                monthly[m]["coachedNames"] = sorted(n for n in roster_names_m if norm_name(n) in coached_norm_m)
-                monthly[m]["notCoachedNames"] = sorted(n for n in roster_names_m if norm_name(n) not in coached_norm_m)
+                m_start, m_end = MONTH_START[m], MONTH_END[m]
+                monthly[m]["coachedNames"] = sorted(
+                    (roster_name_detail(n, m_start, m_end) for n in roster_names_m if norm_name(n) in coached_norm_m),
+                    key=lambda d: d["name"],
+                )
+                monthly[m]["notCoachedNames"] = sorted(
+                    (roster_name_detail(n, m_start, m_end) for n in roster_names_m if norm_name(n) not in coached_norm_m),
+                    key=lambda d: d["name"],
+                )
 
         coached_employees = []
         for emp_norm, meta in manager_emp_meta[coach_norm].items():

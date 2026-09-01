@@ -907,7 +907,12 @@
    * and not"). `period` is a "YYYY-MM" key or "ALL" for the S1
    * cumulative column; both carry pre-computed coachedNames/
    * notCoachedNames from etl/build_coaching_cache.py (see that file's
-   * header). Rendered as a third overlay in the same stack as the
+   * header) -- each entry is {name, position, note}, not a bare string
+   * (2026-09-01 follow-up, user-requested: "add here hiring or resigned
+   * date when it according to rule and add position"); note is only
+   * ever present when a Hired/Resigned date actually falls inside the
+   * period this popup is showing. Rendered as a third overlay in the
+   * same stack as the
    * profile drawer and visit-log modal -- own ids
    * (#coaching-rosterpopup-*), but the exact same positioning/sizing
    * CSS as the visit-log modal (see css/coaching.css), since the two
@@ -920,14 +925,33 @@
     var isCum = period === "ALL";
     var bucket = isCum ? manager.cumulative : manager.monthly[period];
     if (!bucket) return "";
-    var coached = (bucket.coachedNames || []).slice().sort();
-    var notCoached = (bucket.notCoachedNames || []).slice().sort();
+    // 2026-09-01, user-requested ("add here hiring or resigned date when
+    // it according to rule and add position"): each entry is now
+    // {name, position, note} (etl/build_coaching_cache.py's
+    // roster_name_detail()), already sorted by name -- re-sort defensively
+    // by .name rather than relying on array order, since a bare .sort()
+    // on objects would compare "[object Object]" and silently scramble
+    // the list.
+    function byName(a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); }
+    var coached = (bucket.coachedNames || []).slice().sort(byName);
+    var notCoached = (bucket.notCoachedNames || []).slice().sort(byName);
     var periodLabel = isCum ? "S1 (Cumulative, Feb–Jun)" : monthShort(period) + " " + period.slice(0, 4);
     var covLabel = fmtPct1(bucket.dvCoveragePct);
-    function listHtml(names, emptyMsg) {
-      if (!names.length) return '<div style="font-size:12px;color:var(--txt2);padding:6px 0;">' + esc(emptyMsg) + "</div>";
+    function listHtml(items, emptyMsg) {
+      if (!items.length) return '<div style="font-size:12px;color:var(--txt2);padding:6px 0;">' + esc(emptyMsg) + "</div>";
       return '<ul style="margin:6px 0 0;padding-left:18px;">' +
-        names.map(function (n) { return "<li style=\"margin-bottom:4px;\">" + esc(n) + "</li>"; }).join("") +
+        items.map(function (it) {
+          var metaBits = [];
+          if (it.position) metaBits.push(esc(it.position));
+          // "note" is the Hired/Resigned date, only ever present when the
+          // half-month roster rule (etl) had that exact date in play for
+          // THIS period -- see roster_name_detail()'s comment.
+          if (it.note) metaBits.push('<span style="color:var(--acc1);">' + esc(it.note) + "</span>");
+          var metaHtml = metaBits.length
+            ? '<div style="font-size:.78em;color:var(--txt2);margin-top:1px;">' + metaBits.join(" &middot; ") + "</div>"
+            : "";
+          return '<li style="margin-bottom:6px;">' + esc(it.name) + metaHtml + "</li>";
+        }).join("") +
         "</ul>";
     }
     return "" +
