@@ -334,3 +334,174 @@ body.coaching-mode #app-root {
     max-height: 88vh;
   }
 }
+
+/* ---- Table column widths -- names/positions were being clipped
+   (2026-09-01, user-requested) ----
+   Root cause: the shared .data-table class (css/dashboard.css) uses
+   table-layout:fixed with td { max-width:0 }, which forces EVERY
+   column of EVERY .data-table in the app to an equal share of the
+   table's width and ellipsizes whatever doesn't fit -- correct for
+   the Coverage tab's short, similar-width numeric columns, wrong for
+   this tab's Manager/Rep name columns, the Roster column's "reports
+   to X" note, and the Position column (screenshot: names cut to
+   "Ahmed Othman...", "Haggag Mohamed A..."; "Cross-te..."/
+   "reports to Va..."; "Diab..."; even the "Position" HEADER clipped
+   to "POSITIO"). Fixed per table below, scoped by a unique id added
+   to each table in js/coaching.js -- never touches the Coverage tab's
+   own tables or any other .data-table in the app. Long-text columns
+   get an explicit generous width plus white-space:normal (wraps onto
+   a second line for a rare very-long name instead of clipping it);
+   short numeric/badge columns are left unspecified so table-layout:
+   fixed auto-divides the remaining width evenly across them, exactly
+   as it did before this fix. */
+
+/* Coaching Attention Required -- 6 cols: Priority, Manager, Level,
+   Coverage, Visits/Day, (open-profile link). Manager is col 2. */
+.iqvia-dashboard-wrap #coaching-attention-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-attention-table-el td:nth-child(2) {
+  width: 30%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* District Manager & FFS Performance (ranked table) -- 11 cols: Rank,
+   Manager, Level, BU/Line, DV Coverage, Variance, Visits/Day,
+   Variance, Coaching Days, Coached Reps, Status. Rank stays a fixed
+   narrow pixel width (it's always 1-3 digits); Manager gets real
+   room + wrap (it can also carry the "Left company" badge inline). */
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(1),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(1) {
+  width: 48px;
+  max-width: 48px;
+}
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(2) {
+  width: 19%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+/* BU/Line (col 4, e.g. "Diabetes IV") came up 2px short at its
+   auto-shared width -- QA-verified. DV Coverage (col 5) can also show
+   a text badge instead of a percent ("Pending org match", "No active
+   team") -- .badge is nowrap internally (a wrapping pill looks wrong)
+   so white-space:normal on the cell alone doesn't help; give both a
+   fixed width instead. Status (col 11, last) shows a badge too
+   ("INTENSITY GAP" measured 132px vs. this column's ~92px auto share)
+   -- same fix, fixed width wide enough for the longest label. */
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(4),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(4) {
+  width: 96px;
+  max-width: none;
+  white-space: nowrap;
+}
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(5),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(5) {
+  width: 118px;
+  max-width: none;
+  white-space: nowrap;
+}
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(11),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(11) {
+  width: 140px;
+  max-width: none;
+  white-space: nowrap;
+}
+
+/* Other Coaching Levels -- 7 cols: Manager, Level, Line, Visits,
+   Coaching Days, Avg/Day, Coached Reps. Manager is col 1; Level (col
+   2, e.g. "National Sales Manager", "Senior District Manager") also
+   QA-verified truncating at its auto-shared width -- give it explicit
+   room too. */
+.iqvia-dashboard-wrap #coaching-otherlevels-table-el th:nth-child(1),
+.iqvia-dashboard-wrap #coaching-otherlevels-table-el td:nth-child(1) {
+  width: 22%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.iqvia-dashboard-wrap #coaching-otherlevels-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-otherlevels-table-el td:nth-child(2) {
+  width: 18%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Manager Profile drawer -- Coached Employees table -- 8 cols: Rep,
+   Roster, Line, Position, Visits, Days, First, Last. Rep (col 1)
+   already gets width:26% from the drawer-wide first-column rule
+   above ("Manager Profile drawer: table first-column width") -- this
+   only adds wrapping to it instead of ellipsis, without touching that
+   width. Roster (badge + "reports to X" note) and Position (territory
+   name) get explicit room + wrap; Line/Visits/Days are short enough
+   to stay unspecified/auto; First/Last (dates) get just enough fixed
+   width to render in full on one line. */
+.iqvia-dashboard-wrap #coaching-ce-table-el th:first-child,
+.iqvia-dashboard-wrap #coaching-ce-table-el td:first-child {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(2) {
+  width: 13%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(3),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(3) {
+  width: 10%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(4),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(4) {
+  width: 13%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+/* Visits/Days (cols 5-6): QA-verified the auto-shared width (~27px)
+   was too tight even for a 3-digit count like "193" (needs ~42px) --
+   give them just enough fixed room. First/Last (cols 7-8, dates like
+   "2026-02-02" measured 88px) also came up short at 12%; bump with
+   margin. */
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(5),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(5),
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(6),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(6) {
+  width: 7%;
+  max-width: none;
+  white-space: nowrap;
+}
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(7),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(7),
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(8),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(8) {
+  width: 14%;
+  max-width: none;
+  white-space: nowrap;
+}
+
+/* Detailed visit log modal -- 3 cols: Date, Customer / HCP, Area.
+   Customer/HCP (col 2) can carry a full HCP name -- give it room and
+   let it wrap; Date and Area are short enough to stay auto-sized. */
+.iqvia-dashboard-wrap #coaching-visitlog-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-visitlog-table-el td:nth-child(2) {
+  width: 50%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}

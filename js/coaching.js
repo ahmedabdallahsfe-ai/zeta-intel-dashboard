@@ -135,6 +135,30 @@
  * (2) this file grew its own small, real, dynamic filter (BU + Line,
  * see renderFilterRow/applyFilters) that actually re-renders the KPIs,
  * insights, trend, attention list and both tables on change.
+ *
+ * TABLE COLUMN WIDTHS (2026-09-01, user-requested: "make names position
+ * appear perfectly and review and adjust all like this"). Root cause:
+ * the shared .data-table class (css/dashboard.css) uses
+ * table-layout:fixed with td { max-width:0 }, which splits every
+ * column to an EQUAL share of the table's width and ellipsizes
+ * anything that doesn't fit -- correct for the Coverage tab's short,
+ * similar-width numeric columns, but wrong here where several of this
+ * tab's tables carry a full employee/manager name, a territory/
+ * position name, or a "reports to X" note that needs real room
+ * (screenshot: "Ahmed Othman...", "Haggag Mohamed A...", "Cross-te...",
+ * "reports to Va...", "Diab...", even the "Position" HEADER clipped to
+ * "POSITIO"). Fixed in css/coaching.css, scoped per table by id so it
+ * never touches the Coverage tab's own tables or any other .data-table
+ * in the app: every table below that carries a long name/text column
+ * now got a unique id (coaching-attention-table-el,
+ * coaching-owntier-table-el [already had one],
+ * coaching-otherlevels-table-el, coaching-ce-table-el,
+ * coaching-visitlog-table-el), and that table's name/text column(s)
+ * get an explicit generous width plus white-space:normal (wraps onto a
+ * second line for the rare very-long name instead of clipping it);
+ * short numeric/badge columns are left unspecified so table-layout:
+ * fixed auto-divides the remaining width evenly across them, same as
+ * before.
  * =====================================================================
  */
 (function (global) {
@@ -651,7 +675,7 @@
 
     return '' +
       '<div class="section-title" style="margin-top:22px;font-size:16px;">Coaching Attention Required <span style="font-weight:400;font-size:.65em;opacity:.7;">(' + rows.length + ' of ' + ownTier.length + ')</span></div>' +
-      '<div class="coaching-table-wrap"><table class="data-table">' +
+      '<div class="coaching-table-wrap"><table class="data-table" id="coaching-attention-table-el">' +
       '<thead><tr><th>Priority</th><th>Manager</th><th>Level</th><th>Coverage</th><th>Visits/Day</th><th></th></tr></thead>' +
       '<tbody>' + body + '</tbody></table></div>' +
       (rows.length > top.length ? '<a href="#coaching-owntier-table" class="tb-btn" style="display:inline-block;margin-top:8px;">View all ' + rows.length + ' &darr;</a>' : "");
@@ -752,7 +776,7 @@
     }).join("");
     return '' +
       '<div class="section-title" style="margin-top:22px;font-size:16px;">Other Coaching Levels <span style="font-weight:400;font-size:.65em;opacity:.7;">Sr. DM, NSM, Area Manager, BUM, Brand Manager, FF Trainer — no coverage target</span></div>' +
-      '<div class="coaching-table-wrap"><table class="data-table">' +
+      '<div class="coaching-table-wrap"><table class="data-table" id="coaching-otherlevels-table-el">' +
       '<thead><tr><th>Manager</th><th>Level</th><th>Line</th><th>Visits</th><th>Coaching Days</th><th>Avg/Day</th><th>Coached Reps</th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table></div>';
   }
@@ -869,7 +893,7 @@
       '<div class="section-title" style="margin-top:16px;font-size:14px;">Monthly Performance</div>' +
       '<div class="coaching-table-wrap">' + monthTable + '</div>' +
       '<div class="section-title" style="margin-top:16px;font-size:14px;">Coached Employees <span style="font-weight:400;font-size:.7em;opacity:.7;">(' + manager.coachedEmployees.length + ') &middot; click a row for the detailed visit log</span></div>' +
-      '<div class="coaching-table-wrap"><table class="data-table">' +
+      '<div class="coaching-table-wrap"><table class="data-table" id="coaching-ce-table-el">' +
       '<thead><tr><th>Rep</th><th>Roster</th><th>Line</th><th title="Territory / position">Position</th><th title="Visits Received">Visits</th><th title="Coaching Days">Days</th>' +
       '<th title="First Coaching Date">First</th><th title="Last Coaching Date">Last</th></tr></thead>' +
       '<tbody>' + empRows + '</tbody></table></div>' +
@@ -954,7 +978,7 @@
       '<button class="tb-btn" id="coaching-visitlog-close">&times; Close</button>' +
       '</div>' +
       '</div>' +
-      '<div class="coaching-table-wrap" style="margin-top:14px;"><table class="data-table">' +
+      '<div class="coaching-table-wrap" style="margin-top:14px;"><table class="data-table" id="coaching-visitlog-table-el">' +
       '<thead><tr><th>Date</th><th>Customer / HCP</th><th>Area</th></tr></thead>' +
       '<tbody>' + (body || '<tr><td colspan="3" style="opacity:.6;">No individual visit records.</td></tr>') + '</tbody></table></div>' +
       '</div>';
