@@ -264,6 +264,20 @@
     var visits = 0, days = 0, onRoster = 0, offRoster = 0, activeTeamTotal = 0;
     var repsSeen = {};
     managers.forEach(function (m) {
+      // 2026-08-31, user-requested: a manager who has since left the
+      // company entirely (m.currentlyActive === false, Database
+      // Shortcut's current Status snapshot -- see
+      // etl/build_coaching_cache.py's "Currently-active manager flag"
+      // note) is excluded from this aggregate ENTIRELY, for every
+      // period including S1 Cumulative -- not just the periods after
+      // they left. This keeps the company-wide Executive KPI row /
+      // ranked-table totals reading as "how is the CURRENT org
+      // performing", never diluted by a former employee's fragmentary
+      // historical numbers, even for a month they were genuinely
+      // present for. Their own Manager Profile drawer is unaffected --
+      // it still reads straight from manager.monthly/cumulative and
+      // shows their accurate individual history when opened directly.
+      if (m.currentlyActive === false) return;
       var mm = metricsFor(m, period) || EMPTY_METRICS;
       visits += mm.visits;
       days += mm.coachingDays;
@@ -685,9 +699,12 @@
       var covVar = r.mm.dvCoveragePct === null ? "—" : signed(r.mm.dvCoveragePct - t.dvCoveragePct, " pp");
       var dayVar = signed(r.mm.avgVisitsPerDay - t.avgVisitsPerDay);
       var covDisplay = coverageDisplay(r.m, r.mm);
+      var leftBadge = r.m.currentlyActive === false
+        ? '<span class="badge badge-neutral" title="No longer with the company -- excluded from the Executive KPI row and this table\'s totals for every period, including S1 Cumulative. This row still shows their own accurate historical numbers.">Left company</span>'
+        : "";
       return '<tr class="coaching-drill-row" data-drill="' + esc(r.m.id) + '" style="cursor:pointer;">' +
         '<td>' + (i + 1) + '</td>' +
-        '<td>' + esc(r.m.name) + '</td>' +
+        '<td>' + esc(r.m.name) + (leftBadge ? " " + leftBadge : "") + '</td>' +
         '<td>' + esc(r.m.title === "District Manager" ? "DM" : "FFS") + '</td>' +
         '<td>' + esc(r.m.line || "—") + '</td>' +
         '<td>' + (covDisplay ? '<span class="badge ' + covDisplay.cls + '">' + covDisplay.text + '</span>' : fmtPct1(r.mm.dvCoveragePct)) + '</td>' +

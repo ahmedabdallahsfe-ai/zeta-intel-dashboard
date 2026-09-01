@@ -117,6 +117,18 @@ active_in_month() half-month rule to the coach's own Hiring date/Last
 Day of Work before computing their roster for a month at all -- see the
 comment above the manager_month_teams loop below.
 
+Currently-active manager flag (2026-08-31, same day, user-requested):
+the fix above corrects a departed coach's PER-PERIOD numbers, but a
+manager who has since left the company could still contribute real
+historical visits/days to the company-wide AGGREGATE (Executive KPI
+row / ranked-table totals) for periods they were genuinely present for
+-- including S1 Cumulative. Each manager record now carries
+currentlyActive (Database Shortcut's current Status snapshot), which
+js/coaching.js's aggregateOwnTier() uses to exclude such a manager
+entirely from every aggregate total, for every period -- their own
+Manager Profile drawer is unaffected and still shows their accurate
+individual history.
+
 Usage:  python etl/build_coaching_cache.py
 """
 
@@ -819,6 +831,27 @@ def main():
             })
         coached_employees.sort(key=lambda x: -x["visits"])
 
+        # 2026-08-31, user-requested ("make S1 cumulative for current
+        # active [managers] as well as when choosing months"): whether
+        # THIS coach is still actively employed TODAY, per Database
+        # Shortcut's own current Status snapshot -- distinct from (and a
+        # coarser signal than) the day-15 half-month logic used per-
+        # period above. That logic already correctly zeroes out a
+        # departed coach's roster for months they weren't employed
+        # (e.g. Michael Adel AbdelMassih Awad), but a manager whose
+        # entire S1 tenure was brief and who has since left the company
+        # can still contribute real historical visits/days to a period
+        # they were genuinely present for. This flag lets the UI's
+        # company-wide aggregate (Executive KPI row / ranked-table
+        # totals -- see js/coaching.js's aggregateOwnTier) exclude such
+        # a manager ENTIRELY, from every period including S1 Cumulative,
+        # so former employees never factor into a headline "how is the
+        # CURRENT org performing" number -- while their own Manager
+        # Profile drawer, opened directly, still shows their accurate
+        # historical record unaffected by this flag. Unknown status (no
+        # HR match) defaults to True -- missing data must never silently
+        # shrink credit, same principle as everywhere else in this file.
+        currently_active = (hr.get("status") == "Active") if hr.get("status") is not None else True
         managers_out.append({
             "id": coach_norm,
             "name": hr.get("name") or (manager_emp_meta[coach_norm] and None) or coach_norm.title(),
@@ -828,6 +861,7 @@ def main():
             "bu": hr.get("bu"),
             "activeTeamCount": team_size,
             "activeTeam": sorted(team),
+            "currentlyActive": currently_active,
             "cumulative": cumulative,
             "monthly": monthly,
             "coachedEmployees": coached_employees,
