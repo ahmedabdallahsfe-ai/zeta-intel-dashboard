@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zeta Commercial Excellence Dashboard</title>
-  <link rel="stylesheet" href="css/dashboard.css?v=20260816_imsrx" />
+  <link rel="stylesheet" href="css/dashboard.css?v=20260910_regulatorymode" />
   <!-- Fully scoped under .iqvia-dashboard-wrap (namespaced 2026-07-26) — safe to load
        on every tab; cannot leak into Coverage/Organogram/Sales styling. -->
   <link rel="stylesheet" href="css/iqvia.css?v=20260726_namespaced" />
@@ -22,8 +22,11 @@
        see js/coaching.js header for why. -->
   <link rel="stylesheet" href="css/coaching.css?v=20260901_v5" />
   <link rel="stylesheet" href="css/market-intel.css?v=20260806_cagr" />
-  <link rel="stylesheet" href="css/sprint.css?v=20260819_bmgate" />
+  <link rel="stylesheet" href="css/sprint.css?v=20260902_winnerpoolfix" />
+  <link rel="stylesheet" href="css/working-days.css?v=20260906_hireleft" />
   <link rel="stylesheet" href="css/imsrx.css?v=20260816_mi_bridge" />
+  <link rel="stylesheet" href="css/news-feed.css?v=20260910_v3_ticker" />
+  <link rel="stylesheet" href="css/regulatory-pipeline.css?v=20260910_v1" />
 </head>
 <body>
 
@@ -167,9 +170,21 @@
           </svg></span>
           <span class="menu-label">Zeta Sprint 2026</span>
         </li>
+        <li class="menu-item" data-tab="workingdays" id="menu-item-workingdays" style="display:none;">
+          <span class="menu-icon">🗓️</span>
+          <span class="menu-label">Field Working Days</span>
+        </li>
         <li class="menu-item" data-tab="imsrx" id="menu-item-imsrx" style="display:none;">
           <span class="menu-icon">💊</span>
           <span class="menu-label">IMS Rx</span>
+        </li>
+        <li class="menu-item" data-tab="marketnews" id="menu-item-marketnews">
+          <span class="menu-icon">📰</span>
+          <span class="menu-label">Market Intelligence Feed</span>
+        </li>
+        <li class="menu-item" data-tab="regulatory" id="menu-item-regulatory">
+          <span class="menu-icon">🧬</span>
+          <span class="menu-label">Regulatory & Egypt Registration</span>
         </li>
 
       </ul>
@@ -225,11 +240,11 @@
   <script defer src="js/perf-probe.js?v=20260808_perf2"></script>
 
   <!-- Cache (must load before any module that reads it) -->
-  <script defer src="cache/metadata.data.js?v=20260724"></script>
-  <script defer src="cache/dashboard.data.js?v=20260724"></script>
+  <script defer src="cache/metadata.data.js?v=20260903_july"></script>
+  <script defer src="cache/dashboard.data.js?v=20260903_july"></script>
   <script defer src="cache/teamkpis.data.js?v=20260724"></script>
-  <script defer src="cache/records.data.js?v=20260724"></script>
-  <script defer src="cache/organogram.data.js?v=20260724"></script>
+  <script defer src="cache/records.data.js?v=20260903_july"></script>
+  <script defer src="cache/organogram.data.js?v=20260903_july"></script>
   <!-- v20260726_hierarchyfix = corrected BUHead/NSM/RM/DM/Rep naming + CM (Emp6) capture (cache/meta.schemaVersion 2).
        js/sales.js checks this schema and shows a pending-refresh placeholder if the cache on disk is still the
        pre-fix version -- safe to deploy this script tag even before the cache file itself is regenerated.
@@ -256,14 +271,22 @@
        these two brands' sales count toward Sales Achievement instead of being excluded by the existing
        Non-Tender convention. All other brands/products unchanged. 191,352.00 EGP moved Tender->Non-Tender;
        Total Actual Sales Value unchanged to the cent (1,426,495,032.60). -->
-  <script defer src="cache/sales.data.js?v=20260827_zetacolestnontender"></script>
+  <script defer src="cache/sales.data.js?v=20260909_chchiredatefix"></script>
   <!-- Zeta Sprint 2026 cache (2026-08-15): built by etl/build_sprint_cache.py from
        sprint/scaling scores.xlsx (point curves) + this page's own Coverage/Sales
        cache sources. Re-linked 2026-08-16 (Ahmed: "add zeta sprint to dashboard") --
        this script tag, the sidebar entry, and app.js's Sprint wiring were dropped
        during the same pass that added IMS Rx role-gating; the underlying cache/js/css
        files were never touched, so no rebuild was needed, only re-wiring. -->
-  <script defer src="cache/sprint.data.js?v=20260815_sprint2"></script>
+  <script defer src="cache/sprint.data.js?v=20260910_julyperiod"></script>
+  <!-- Field Working Days Intelligence cache (2026-09-05, Ahmed "implmement
+       to zeta intell"): built by etl/build_working_days_cache.py from the
+       Sprint KPI template's DM_DSM/ASM/NSM tabs. Separate from
+       cache/sprint.data.js on purpose -- this page shows the full Feb-Jul
+       trend from the template's stacked months, independent of whichever
+       single month Sprint itself is currently scoring. See that ETL
+       script's header for the TOT / Target Working Days formula. -->
+  <script defer src="cache/working_days.data.js?v=20260906_hireleft"></script>
   <!-- IMS Rx cache (2026-08-15): physician-panel Rx-volume audit, via
        etl/build_ims_rx_cache.py, reading "IMS RX TOTAL YEAR 2025.xlsx" with
        Corporation joined in from "IMS 2022 to April 2026.xlsx" (same source
@@ -279,12 +302,18 @@
        script's CLUSTERS_TO_BUILD to extend. Optional at load time: sales.js falls
        back to the existing flat cluster->sub_type list for any cluster not present. -->
   <script defer src="cache/customer_analytics.data.js?v=20260731_skunocap"></script>
-  <script defer src="cache/iqvia.data.js?v=20260811_amr"></script>
+  <script defer src="cache/iqvia.data.js?v=20260909_zekardovalmap"></script>
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
-       from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Jun30 2026 S1) joined against
+       from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Jul31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's
        header for scope, exclusions and the confirmed name-alias list. -->
-  <script defer src="cache/coaching.data.js?v=20260901_v2"></script>
+  <script defer src="cache/coaching.data.js?v=20260908_srdmcoverage"></script>
+  <!-- External Market Intelligence cache (2026-09-09): multi-dimensional pharmaceutical
+       intelligence (EDA decrees, competitor moves, pricing, clinical, SGLT2/DOAC/PCAB trends)
+       built by etl/build_news_cache.py. 100% offline static cache. -->
+  <script defer src="cache/news_latest.data.js?v=20260910_v2"></script>
+  <script defer src="cache/regulatory_pipeline.data.js?v=20260910_v1"></script>
+  <script defer src="cache/egypt_registration.data.js?v=20260910_v1"></script>
 
   <!-- App-wide authentication (2026-07-29): self-contained platform asset
        (same pattern as semantic-model.js below), no dependency on any
@@ -340,11 +369,14 @@
        (2.5MG / 5MG combining both pack sizes each) instead of shown as
        4 separate raw SKU rows; getBrandPortfolioHealth() and every
        Executive "by Brand" modal both use this now. -->
-  <script defer src="js/sales.js?v=20260815_strengthgroups"></script>
-  <script defer src="js/iqvia.js?v=20260811_amr"></script>
-  <script defer src="js/sprint.js?v=20260819_bmgate"></script>
-  <script defer src="js/coaching.js?v=20260901_v2"></script>
+  <script defer src="js/sales.js?v=20260906_momfix"></script>
+  <script defer src="js/iqvia.js?v=20260907_valuerank"></script>
+  <script defer src="js/sprint.js?v=20260907_salesavgallpos"></script>
+  <script defer src="js/working-days.js?v=20260906_hireleft"></script>
+  <script defer src="js/coaching.js?v=20260908_srdmcoverage"></script>
   <script defer src="js/ims-rx.js?v=20260816_mi_bridge"></script>
+  <script defer src="js/news-feed.js?v=20260910_v2"></script>
+  <script defer src="js/regulatory-pipeline.js?v=20260910_v1"></script>
 
   <!-- Executive Command Center -- Phase 1 (2026-07-27): Executive KPI Section.
        Default landing page. Reads only through SEMANTIC, DS, and the four
@@ -369,7 +401,7 @@
        getItemAchievement() -- ELIMBOSIS's two pack sizes per strength
        are merged into one row per strength, not shown as 4 raw SKUs. -->
   <script defer src="cache/tms_ims.data.js"></script>
-  <script defer src="js/executive.js?v=20260815_strengthgroups"></script>
+  <script defer src="js/executive.js?v=20260910_cleanexec"></script>
 
 
   <script defer src="cache/market_intel.data.js?v=20260806_annual"></script>
@@ -381,7 +413,7 @@
   <script defer src="js/ask-coverage.js?v=20260807_ask"></script>
   <script defer src="js/ask-sfe.js?v=20260807_ask"></script>
   <script defer src="js/ask-executive.js?v=20260807_ask"></script>
-  <script defer src="js/app.js?v=20260807_control"></script>
+  <script defer src="js/app.js?v=20260910_regulatorytab"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

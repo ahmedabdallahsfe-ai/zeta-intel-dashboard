@@ -19,6 +19,38 @@ body.coaching-mode #app-root {
   overflow-y: auto;
 }
 
+/* 2026-09-01 (Ahmed: "Coaching Intelligence make box of how active
+   coached employee calculated and source of this calculation") -- plain-
+   language methodology box for the "Reps Coached" Executive KPI card,
+   rendered right under the kpi-grid by renderRepsCoachedMethodologyBox()
+   in js/coaching.js. Rides on .iqvia-dashboard-wrap's --bg2/--border/
+   --txt1/--txt2/--acc1 tokens, same as the rest of this file. */
+.ci-methodology-box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--acc1);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 10px 0 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--txt2);
+}
+.ci-methodology-title {
+  font-weight: 700;
+  color: var(--txt1);
+  margin-bottom: 4px;
+}
+.ci-methodology-body b { color: var(--txt1); }
+.ci-methodology-body + .ci-methodology-body { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.ci-methodology-source {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--txt3);
+  font-style: italic;
+}
+
+
 /* ---- New filter row (BU + Line) ---- */
 .iqvia-dashboard-wrap .coaching-filter-row {
   display: flex;

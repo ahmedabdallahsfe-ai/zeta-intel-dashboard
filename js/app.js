@@ -343,6 +343,12 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - IMS Rx Market Intelligence";
     } else if (tab === "sprint") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Sprint 2026";
+    } else if (tab === "workingdays") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Field Working Days Intelligence";
+    } else if (tab === "marketnews") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Market Intelligence & News Feed";
+    } else if (tab === "regulatory") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Global & Egypt New Drug Registration Intelligence";
     } else {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard";
     }
@@ -421,6 +427,19 @@ function startAppBody() {
     sprintMenuItem.style.display = allowed ? "" : "none";
   }
 
+  // Field Working Days Intelligence (2026-09-05, Ahmed "implmement to zeta
+  // intell"): same audience as Zeta Sprint 2026 for now -- reuses
+  // AUTH.canViewSprint() rather than a dedicated AUTH.canViewWorkingDays(),
+  // since it is built from the same Sprint KPI template data and Ahmed
+  // hasn't asked for different gating. Swap this (and js/working-days.js's
+  // own canViewPage()) to a dedicated check if that is ever needed.
+  const workingDaysMenuItem = document.getElementById("menu-item-workingdays");
+  if (workingDaysMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewSprint === "function"
+      ? window.AUTH.canViewSprint() : false;
+    workingDaysMenuItem.style.display = allowed ? "" : "none";
+  }
+
   // Coaching Intelligence (2026-08-31): visible to every management-tier
   // role plus Line Manager (see auth.js's canViewCoaching for why -- this
   // tab is meant to be opened by the field managers being coached-on, not
@@ -453,6 +472,16 @@ function startAppBody() {
     window.ExecutiveDashboard.init("app-root");
   }
   mountAskPanel(currentTab);
+
+  // Expose global switchTab helper for Executive widget, ticker, and modal click-throughs
+  window.switchTab = function(targetTab) {
+    const tabBtn = document.querySelector(`#sidebar-nav .menu-item[data-tab="${targetTab}"]`);
+    if (tabBtn) {
+      tabBtn.click();
+      return true;
+    }
+    return false;
+  };
 
   // Sidebar tab switching
   const menuItems = document.querySelectorAll("#sidebar-nav .menu-item");
@@ -495,6 +524,33 @@ function startAppBody() {
       }
       if (currentTab === "sprint" && window.SprintDashboard) {
         window.SprintDashboard.destroy();
+      }
+      if (currentTab === "workingdays" && window.WorkingDaysDashboard) {
+        window.WorkingDaysDashboard.destroy();
+      }
+      if (currentTab === "marketnews" && window.MarketNewsDashboard) {
+        window.MarketNewsDashboard.destroy();
+      }
+      if (currentTab === "regulatory" && window.RegulatoryPipelineDashboard) {
+        window.RegulatoryPipelineDashboard.destroy();
+      }
+      // 2026-09-09 fix: Coaching Intelligence was the one tab with an
+      // init()/destroy() pair (see js/coaching.js) that this leaving-tab
+      // teardown block never called on the way OUT -- every other tab
+      // above (sales/iqvia/executive/tomarket/marketintel/imsrx/sprint/
+      // workingdays/marketnews) tears itself down here, but coaching was
+      // missing. destroy() removes body's "coaching-mode" class, which
+      // css/dashboard.css uses to hide the shared #filter-bar-container/
+      // .filter-bar-wrap for tabs that own their own filtering (see that
+      // rule's comment). Without this call, leaving Coaching Intelligence
+      // for ANY other tab left "coaching-mode" stuck on body forever,
+      // silently hiding the global filter bar on every tab visited
+      // afterward -- including Coverage ("Operational and Execution"),
+      // which is the one tab that actually reads it. Reported by Ahmed as
+      // "there was filters here return the filters again" on a screenshot
+      // of the Coverage tab with the filter bar gone.
+      if (currentTab === "coaching" && window.CoachingDashboard) {
+        window.CoachingDashboard.destroy();
       }
       currentTab = tab;
       updateTopbarTitle(tab);
@@ -574,11 +630,26 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             renderSprintTab(document.getElementById("app-root"));
+          } else if (tab === "workingdays") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderWorkingDaysTab(document.getElementById("app-root"));
           } else if (tab === "coaching") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
             renderCoachingTab(document.getElementById("app-root"));
+          } else if (tab === "marketnews") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderMarketNewsTab(document.getElementById("app-root"));
+          } else if (tab === "regulatory") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderRegulatoryTab(document.getElementById("app-root"));
           }
           mountAskPanel(tab);
           Loader.hide();
@@ -793,6 +864,26 @@ function renderSprintTab(container) {
   }
 }
 
+function renderWorkingDaysTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewSprint === "function"
+    ? window.AUTH.canViewSprint() : false;
+  if (!allowed) {
+    document.body.classList.add("working-days-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "Field Working Days Intelligence is available to BU Manager, BEx, VP, SFE Manager, Admin and CEO roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.WorkingDaysDashboard) {
+    window.WorkingDaysDashboard.init("app-root");
+  }
+}
+
 function renderCoachingTab(container) {
   if (!container) return;
   const allowed = window.AUTH && typeof window.AUTH.canViewCoaching === "function"
@@ -810,6 +901,28 @@ function renderCoachingTab(container) {
   }
   if (window.CoachingDashboard) {
     window.CoachingDashboard.init("app-root");
+  }
+}
+
+function renderMarketNewsTab(container) {
+  if (!container) return;
+  document.body.classList.add("marketnews-mode");
+  if (window.MarketNewsDashboard) {
+    window.MarketNewsDashboard.init("app-root");
+  }
+}
+
+// Regulatory & Egypt Registration Intelligence (2026-09-10): same
+// full-bleed / owns-its-own-filtering pattern as marketnews above --
+// see .regulatory-mode in css/dashboard.css, which hides the shared
+// #filter-bar-container/.filter-bar-wrap/#topbar-export-pdf exactly the
+// way .marketnews-mode does, since this tab has its own search/stage/
+// Egypt-status/TA filter controls (js/regulatory-pipeline.js).
+function renderRegulatoryTab(container) {
+  if (!container) return;
+  document.body.classList.add("regulatory-mode");
+  if (window.RegulatoryPipelineDashboard) {
+    window.RegulatoryPipelineDashboard.init("app-root");
   }
 }
 

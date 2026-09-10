@@ -165,6 +165,11 @@
   }
 
   function fmtPct1(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : v.toFixed(1) + "%"; }
+  // Whole-number percent (2026-09-07, Ahmed: "if 59.5% make it 60%") --
+  // Operational Coverage / Right Frequency read as whole percentages
+  // everywhere on the Executive Command Center, properly rounded (not
+  // truncated) via Math.round rather than a decimal-place toFixed().
+  function fmtPct0(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : Math.round(v) + "%"; }
   function fmtSignedPts(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : (v >= 0 ? "+" : "") + v.toFixed(1) + " pts"; }
   function fmtSignedPct(v) { return (v === null || v === undefined || isNaN(v)) ? "N/A" : (v >= 0 ? "+" : "") + v.toFixed(1) + "%"; }
   // Currency scale (2026-08-04, Ahmed: "make in million and billion").
@@ -413,10 +418,10 @@
     if (isLineMgr || (line && line !== "All")) {
       const r = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageForLine", bu, null, true);
       const v = (r && r.ok) ? r[metricKey] : null;
-      return v !== null && v !== undefined ? { label: "vs " + bu, value: fmtPct1(v) } : null;
+      return v !== null && v !== undefined ? { label: "vs " + bu, value: fmtPct0(v) } : null;
     }
     const v = corporateCoveragePct(metricKey);
-    return v !== null ? { label: "vs Corporate", value: fmtPct1(v) } : null;
+    return v !== null ? { label: "vs Corporate", value: fmtPct0(v) } : null;
   }
 
   function sfeReferenceEntry(bu, line, summaries) {
@@ -497,7 +502,7 @@
   // ---------------------------------------------------------------------
   // Filter state + BU line lists.
   // ---------------------------------------------------------------------
-  let _filters = { bu: "CHC", line: "All", dm: "All", scenario: "official" }; // re-clamped to the signed-in user's scope/role in init(), see clampFiltersToScope()
+  let _filters = { bu: "All", line: "All", dm: "All", scenario: "official" }; // default changed CHC -> All (2026-09-06, Ahmed); re-clamped to the signed-in user's scope/role in init(), see clampFiltersToScope()
   // Local Period state for the Line Performance section ONLY (2026-07-29)
   // -- NOT the platform-wide Period selector in the global filter bar,
   // which stays disabled since Coverage/SFE have no month dimension to
@@ -799,7 +804,7 @@
       const n = scoped.periodsPooled;
       comparison.push({
         label: n ? "YTD avg (" + n + " mo)" : "YTD average",
-        value: fmtPct1(pooledVal),
+        value: fmtPct0(pooledVal),
       });
     }
     if (!isAllBU(bu)) {
@@ -809,10 +814,10 @@
 
     return {
       kpiId: kpiId, name: name,
-      mainValue: fmtPct1(mainVal),
+      mainValue: fmtPct0(mainVal),
       mainValueSub: (usingLatest && scoped.latestPeriod ? scoped.latestPeriod : "Current YTD")
                     + (isAllBU(bu) ? " · All Business Units" : (line !== "All" ? " · " + line : "")),
-      performance: { target: target + "%", achievementPct: fmtPct1(achievementPct), variance: fmtSignedPts(variance) },
+      performance: { target: target + "%", achievementPct: fmtPct0(achievementPct), variance: fmtSignedPts(variance) },
       comparison: comparison.length ? comparison : null,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
       status: statusFromAchievement(achievementPct),
@@ -1472,6 +1477,356 @@
       trendLabel: evi !== null ? "EI Index " + Math.round(evi) : "EI Index unavailable",
       clickable: true, dblClickable: true,
     };
+  }
+
+  // ---------------------------------------------------------------------
+  // KPI -- Market Position Ranking (2026-09-06, Ahmed "add card of ranking
+  // ... ranking based on market intel"). Same BU-vs-BU / Line-vs-Line
+  // Market Share comparison buildMarketShareCard() above already computes
+  // internally (just to produce ITS OWN "#2 of 4" rank footer) -- this
+  // card surfaces the full ordered list instead of collapsing it to one
+  // entity's position.
+  //
+  // GRAIN RULE (2026-09-07, Ahmed, CHANGED from buildMarketShareCard()'s
+  // rule -- "remove this and make dynamic when i choose bu from filter
+  // and instead to show bu show lines related to choosen bu"): ranks
+  // Business Units ONLY when the BU filter is literally "All"
+  // (isAllBU(bu)). As soon as ANY specific real BU is chosen in the
+  // filter -- with or without a Line also chosen -- this card switches
+  // to ranking the Lines within that BU. Originally this card copied
+  // buildMarketShareCard()'s own `isAllBU(bu) || (!activeLine &&
+  // !isBuRestricted())` rule, which ALSO showed the BU-list/ZETA-
+  // CORPORATE view whenever no Line was picked, even with a specific BU
+  // already selected -- Ahmed corrected this directly: picking a BU
+  // should always drill straight to that BU's own Lines, never fall
+  // back to the company-wide view. buildMarketShareCard() itself is
+  // UNCHANGED and still uses its own original rule -- the two cards are
+  // now intentionally allowed to diverge on this.
+  //
+  // Deliberately DUPLICATES the per-entity share lookup rather than
+  // sharing it with buildMarketShareCard() -- that card is a proven, live
+  // executive KPI, and refactoring it to share code with a brand-new card
+  // risked a regression there for a small DRY win here.
+  // ---------------------------------------------------------------------
+  function buildMarketShareRankingCard(filters) {
+    const bu = filters.bu, line = filters.line;
+    const avg = (a, b) => (a != null && b != null) ? (a + b) / 2 : (a != null ? a : b);
+
+    // Actual + Target (+ Achievement, All-BU grain only) per entity --
+    // Ahmed 2026-09-06: "when choosing all bu[:] market share tgt and
+    // achievement for each bu" / "when choosing bu[:] line ms actual and
+    // tgt appear". Same avg(dm1,dm2) blend buildMarketShareCard() uses.
+    function statsFor(b, l) {
+      const d = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, l);
+      // 2026-09-06 (Ahmed "no get zeta rank in market intell"): Zeta's
+      // own rank vs ACTUAL competing corporations (IQVIA data), a
+      // different figure from this card's BU-vs-BU / Line-vs-Line
+      // internal leaderboard -- see computeZetaMarketRank()'s doc
+      // comment in js/iqvia.js for the exact scoping. 2026-09-07: a
+      // Value (LCV) basis rank was briefly added alongside this SU one
+      // (Ahmed "add ranking in value"), then removed again the same day
+      // (Ahmed "remove value raking") -- SU only, as originally shipped.
+      // computeZetaMarketRank()/getZetaMarketRank() in js/iqvia.js still
+      // COMPUTE valueRank/valueOf/valueSharePct internally (left in place,
+      // unused, same precedent as other reversed features on this
+      // dashboard -- see coaching_intelligence_reps_coached_methodology.md);
+      // this card simply no longer reads those fields.
+      const zr = safeCall("iqvia", "IQVIADashboard", "getZetaMarketRank", b, l);
+      const zetaRank = (zr && zr.ok) ? zr.rank : null;
+      const zetaRankOf = (zr && zr.ok) ? zr.of : null;
+      if (!d || !d.ok || !d.total) return { sharePct: null, targetPct: null, achievementPct: null, zetaRank: zetaRank, zetaRankOf: zetaRankOf };
+      const s1 = d.total.dm1.ytd.su, s2 = d.total.dm2.ytd.su;
+      return {
+        sharePct: avg(s1.sharePct, s2.sharePct),
+        targetPct: avg(s1.blendedTargetPct, s2.blendedTargetPct),
+        achievementPct: avg(s1.achievementPct, s2.achievementPct),
+        zetaRank: zetaRank, zetaRankOf: zetaRankOf,
+      };
+    }
+
+    let entries, rankUnit, isBuGrain;
+    let ownBuRank = null, ownBuOf = null, ownBuStats = null;
+    if (isAllBU(bu)) {
+      rankUnit = "Business Units";
+      isBuGrain = true;
+      entries = getAllowedBUList().map(b => Object.assign({ label: b }, statsFor(b, null) || {}));
+    } else {
+      rankUnit = "Lines within " + bu;
+      isBuGrain = false;
+      entries = getAllowedLinesForBU(bu).map(l => {
+        const queryLine = l === "CHC_SALES" ? "CHC" : l;
+        return Object.assign({ label: l }, statsFor(bu, queryLine) || {});
+      });
+      // 2026-09-06 (Ahmed: "when choosing bu its own rank and lines
+      // rank" -- both, not just the Lines leaderboard below): this BU's
+      // own standing among ALL Business Units, same statsFor()/sharePct
+      // ranking used at All-BU grain.
+      const allBuEntries = getAllowedBUList().map(b => Object.assign({ label: b }, statsFor(b, null) || {}))
+        .filter(e => e.sharePct !== null && e.sharePct !== undefined)
+        .sort((a, b) => b.sharePct - a.sharePct);
+      const myBuIdx = allBuEntries.findIndex(e => e.label === bu);
+      if (myBuIdx !== -1) {
+        ownBuRank = myBuIdx + 1;
+        ownBuOf = allBuEntries.length;
+        ownBuStats = allBuEntries[myBuIdx];
+      }
+    }
+
+    const ranked = entries.filter(e => e.sharePct !== null && e.sharePct !== undefined).sort((a, b) => b.sharePct - a.sharePct);
+    if (!ranked.length) {
+      return unavailableCard("marketShareRanking", "Market Position Ranking", "module_unavailable");
+    }
+
+    // Actual% always; Target% always (both grains, per Ahmed); Achievement%
+    // only at BU grain (All-BU view, or a real BU with no Line filter) --
+    // Line-grain rows show Actual+Target only, matching Ahmed's own wording.
+    function fmtRow(e) {
+      var s = fmtPct1(e.sharePct) + " (Tgt " + fmtPct1(e.targetPct) + (isBuGrain ? ", Ach " + fmtPct1(e.achievementPct) : "") + ")";
+      if (e.zetaRank != null && e.zetaRankOf != null) {
+        s += " \u00b7 Zeta #" + e.zetaRank + "/" + e.zetaRankOf + " vs. competitors";
+      }
+      return s;
+    }
+
+    // 2026-09-07 (Ahmed, CRITICAL CORRECTION): "#1 DIAB" was being shown
+    // as this card's headline at All-BU grain, which reads as if DIAB
+    // were Zeta's own corporate rank -- it is only the top Business Unit
+    // in the LEVEL 2 (BU-vs-BU, Zeta-internal) leaderboard below. Explicit
+    // hierarchy per Ahmed: LEVEL 1 = ZETA CORPORATE (vs REAL competitor
+    // corporations, company-wide, via the new getZetaCorporateMarketIntel()
+    // in js/iqvia.js) headlines the card; LEVEL 2 = Business Units (each
+    // BU's own rank/actual/target/achievement among the OTHER BUs) fills
+    // comparison[] below it. The corporate rank is computed independently
+    // and never derived from/reused as a BU's own ranking value. This
+    // branch only changes the All-BU (isBuGrain) case -- the Lines-within-
+    // one-BU case (isBuGrain === false) is unaffected, its leader is
+    // already unambiguously scoped to that one BU.
+    let mainValue, mainValueSub, comparisonRows, footerRank, footerRankOf, footerRankUnit;
+
+    if (isBuGrain) {
+      const corp = safeCall("iqvia", "IQVIADashboard", "getZetaCorporateMarketIntel");
+      const corpOk = !!(corp && corp.ok);
+      mainValue = (corpOk && corp.rank != null) ? ("#" + corp.rank + " ZETA") : "ZETA CORPORATE";
+      mainValueSub = "Zeta Corporate Market Share " + fmtPct1(corpOk ? corp.sharePct : null)
+        + " (Tgt " + fmtPct1(corpOk ? corp.targetPct : null) + ", Ach " + fmtPct1(corpOk ? corp.achievementPct : null) + ")"
+        + (corpOk && corp.rank != null ? " · #" + corp.rank + " of " + corp.of + " vs. competitors" : "")
+        + " · YTD · SU basis";
+      // LEVEL 2: every allowed BU ranked against each OTHER (unchanged
+      // Zeta-internal leaderboard) -- now the full list, not "leader" +
+      // a sliced tail, since it is no longer doubling as the headline.
+      comparisonRows = ranked.map((e, i) => ({ label: "#" + (i + 1) + " " + e.label, value: fmtRow(e) }));
+      footerRank = corpOk ? corp.rank : null;
+      footerRankOf = corpOk ? corp.of : null;
+      footerRankUnit = "Competitors (Zeta Corporate)";
+    } else {
+      const leader = ranked[0];
+      // Cap the visible tail at 5 more rows -- BU lists are only ever 4
+      // long anyway, but a Line list can run longer than fits a card
+      // gracefully.
+      const rest = ranked.slice(1, 6);
+      mainValue = "#1 " + leader.label;
+      mainValueSub = "Leads Market Share at " + fmtRow(leader) + " · YTD · SU basis";
+      comparisonRows = rest.map((e, i) => ({ label: "#" + (i + 2) + " " + e.label, value: fmtRow(e) }));
+      // Footer rank badge (2026-09-06, Ahmed "when choosing bu its own
+      // rank and lines rank"): the SELECTED BU's own rank among all
+      // Business Units.
+      footerRank = ownBuRank || 1;
+      footerRankOf = ownBuOf || ranked.length;
+      footerRankUnit = "Business Units";
+    }
+
+    return {
+      kpiId: "marketShareRanking", name: "Market Position Ranking",
+      mainValue: mainValue,
+      mainValueSub: mainValueSub,
+      performance: null,
+      comparison: comparisonRows,
+      rank: footerRank, rankOf: footerRankOf, rankUnit: footerRankUnit,
+      status: null, trend: null, trendLabel: null,
+      // Click-through (2026-09-06): All-BU grain opens the per-BU +
+      // per-brand/line/DM1/DM2 Target MS & Achievement breakdown; a
+      // real-BU grain opens the SAME per-product Sales Value/Achievement
+      // modal the Sales Achievement card already uses (Ahmed: "pop up
+      // with product in sales value and sales achievement" -- explicitly
+      // NOT market-share data at this grain). See wireCardEvents().
+      clickable: true, dblClickable: false,
+    };
+  }
+
+  /** All-BU click-through for the Market Position Ranking card: BU-level
+   * Actual/Target/Achievement summary, then the full per-product/Line
+   * Target MS & Achievement detail (DM1 + DM2) across every allowed BU.
+   * Deliberately a standalone function rather than a refactor of
+   * openMarketShareProductModal() below (that one is a proven, live modal
+   * for the existing Market Share card -- reworking it to share code with
+   * a brand-new modal risked a regression there for a small DRY win here). */
+  function openMarketShareRankingModal(bu, line) {
+    if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
+    const avg = (a, b) => (a != null && b != null) ? (a + b) / 2 : (a != null ? a : b);
+    const pctFmt = v => (v === null || v === undefined) ? "—" : v.toFixed(1) + "%";
+
+    function statsFor(b, l) {
+      const d = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, l);
+      // 2026-09-06 (Ahmed "no get zeta rank in market intell"): Zeta's
+      // own rank vs ACTUAL competing corporations -- see
+      // computeZetaMarketRank()'s doc comment in js/iqvia.js.
+      const zr = safeCall("iqvia", "IQVIADashboard", "getZetaMarketRank", b, l);
+      const zetaRankStr = (zr && zr.ok && zr.rank != null) ? ("#" + zr.rank + " of " + zr.of) : "\u2014";
+      if (!d || !d.ok || !d.total) return { sharePct: null, targetPct: null, achievementPct: null, zetaRank: zetaRankStr };
+      const s1 = d.total.dm1.ytd.su, s2 = d.total.dm2.ytd.su;
+      return {
+        sharePct: avg(s1.sharePct, s2.sharePct),
+        targetPct: avg(s1.blendedTargetPct, s2.blendedTargetPct),
+        achievementPct: avg(s1.achievementPct, s2.achievementPct),
+        zetaRank: zetaRankStr,
+      };
+    }
+
+    function segmentRows(b, l) {
+      const d = safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, l);
+      if (!d || !d.ok || !d.segments) return [];
+      return d.segments.map(s => ({
+        bu: b,
+        product: s.product,
+        line: s.line || "—",
+        dm1Name: s.dm1Name || "—",
+        dm1SharePct: s.dm1 && s.dm1.ytd && s.dm1.ytd.su ? s.dm1.ytd.su.sharePct : null,
+        dm1TargetPct: s.tgtDm1Pct,
+        dm1AchPct: s.dm1 && s.dm1.ytd && s.dm1.ytd.su ? s.dm1.ytd.su.achievementPct : null,
+        dm2Name: s.dm2Name || "—",
+        dm2SharePct: s.dm2 && s.dm2.ytd && s.dm2.ytd.su ? s.dm2.ytd.su.sharePct : null,
+        dm2TargetPct: s.tgtDm2Pct,
+        dm2AchPct: s.dm2 && s.dm2.ytd && s.dm2.ytd.su ? s.dm2.ytd.su.achievementPct : null,
+      }));
+    }
+
+    // GRAIN RULE (2026-09-07, Ahmed -- same change as
+    // buildMarketShareRankingCard()'s own grain rule, see that
+    // function's doc comment for the full rationale): rank Business
+    // Units ONLY when the BU filter is literally "All". Any specific
+    // real BU chosen in the filter -- regardless of the Line filter --
+    // drills straight to that BU's own Lines. buildMarketShareCard()
+    // itself is unchanged and keeps its original, different rule.
+    const buGrain = isAllBU(bu);
+
+    let entityRows, entityLabel, title, detailRows, detailScopeNote, ownBuSummary = null, corpSummary = null;
+    if (buGrain) {
+      entityLabel = "Business Unit";
+      title = "All Business Units — Market Position Ranking";
+      const bus = getAllowedBUList();
+      entityRows = bus.map(b => Object.assign({ name: b }, statsFor(b, null)));
+      detailRows = [].concat(...bus.map(b => segmentRows(b, null)));
+      detailScopeNote = "";
+      // 2026-09-07 (Ahmed, CRITICAL CORRECTION): LEVEL 1 of the popup,
+      // same fix as the card face -- Zeta's own corporate rank vs REAL
+      // competitor corporations, shown ABOVE the Business Unit table so
+      // it never reads as one of the BU rows below it.
+      const corp = safeCall("iqvia", "IQVIADashboard", "getZetaCorporateMarketIntel");
+      if (corp && corp.ok) {
+        corpSummary = corp;
+      }
+    } else {
+      entityLabel = "Line";
+      title = bu + " — Market Position Ranking";
+      const lines = getAllowedLinesForBU(bu);
+      entityRows = lines.map(l => {
+        const queryLine = l === "CHC_SALES" ? "CHC" : l;
+        return Object.assign({ name: l }, statsFor(bu, queryLine));
+      });
+      // Detail stays at the full-BU grain (every Line's products) even
+      // when one specific Line is active in the filter bar -- the Line
+      // ranking above already lets the reader isolate one Line; narrowing
+      // the detail table too would hide the very cross-Line comparison
+      // this popup exists to show.
+      detailRows = segmentRows(bu, null).map(r => { delete r.bu; return r; });
+      detailScopeNote = "";
+      // 2026-09-06 (Ahmed "its own rank and lines rank"): this BU's own
+      // standing among ALL Business Units, shown as a summary line above
+      // the Line-ranking table -- same ranking the All-BU view uses.
+      const allBus = getAllowedBUList().map(b => Object.assign({ name: b }, statsFor(b, null)));
+      allBus.sort((a, b) => (b.sharePct === null ? -Infinity : b.sharePct) - (a.sharePct === null ? -Infinity : a.sharePct));
+      const myBuIdx = allBus.findIndex(b => b.name === bu);
+      if (myBuIdx !== -1) {
+        ownBuSummary = Object.assign({ rank: myBuIdx + 1, of: allBus.length }, allBus[myBuIdx]);
+      }
+    }
+    entityRows.sort((a, b) => (b.sharePct === null ? -Infinity : b.sharePct) - (a.sharePct === null ? -Infinity : a.sharePct));
+    entityRows.forEach((r, i) => { r.rank = "#" + (i + 1); });
+
+    const entityTable = global.DS.table({
+      columns: [
+        { key: "rank", label: "Rank" },
+        { key: "name", label: entityLabel },
+        { key: "sharePct", label: "Actual MS % (YTD SU)", align: "right", format: pctFmt },
+        { key: "targetPct", label: "Target MS %", align: "right", format: pctFmt },
+        { key: "achievementPct", label: "Achievement %", align: "right", format: pctFmt },
+        { key: "zetaRank", label: "Zeta Rank vs. Competitors", align: "right" },
+      ],
+      rows: entityRows,
+    });
+
+    const detailColumns = buGrain
+      ? [
+          { key: "bu", label: "BU" },
+          { key: "product", label: "Product" },
+          { key: "line", label: "Line" },
+          { key: "dm1Name", label: "DM1 Market" },
+          { key: "dm1SharePct", label: "DM1 Actual %", align: "right", format: pctFmt },
+          { key: "dm1TargetPct", label: "DM1 Target %", align: "right", format: pctFmt },
+          { key: "dm1AchPct", label: "DM1 Ach %", align: "right", format: pctFmt },
+          { key: "dm2Name", label: "DM2 Market" },
+          { key: "dm2SharePct", label: "DM2 Actual %", align: "right", format: pctFmt },
+          { key: "dm2TargetPct", label: "DM2 Target %", align: "right", format: pctFmt },
+          { key: "dm2AchPct", label: "DM2 Ach %", align: "right", format: pctFmt },
+        ]
+      : [
+          { key: "product", label: "Product" },
+          { key: "line", label: "Line" },
+          { key: "dm1Name", label: "DM1 Market" },
+          { key: "dm1SharePct", label: "DM1 Actual %", align: "right", format: pctFmt },
+          { key: "dm1TargetPct", label: "DM1 Target %", align: "right", format: pctFmt },
+          { key: "dm1AchPct", label: "DM1 Ach %", align: "right", format: pctFmt },
+          { key: "dm2Name", label: "DM2 Market" },
+          { key: "dm2SharePct", label: "DM2 Actual %", align: "right", format: pctFmt },
+          { key: "dm2TargetPct", label: "DM2 Target %", align: "right", format: pctFmt },
+          { key: "dm2AchPct", label: "DM2 Ach %", align: "right", format: pctFmt },
+        ];
+    const detailTable = global.DS.table({ columns: detailColumns, rows: detailRows });
+
+    const ownBuSummaryHtml = ownBuSummary
+      ? '<div style="font-size:13px;font-weight:700;margin-bottom:12px;padding:8px 10px;background:var(--color-primary-light,#E8F0F7);border-radius:var(--radius-md,8px);color:var(--color-text-primary,#0F172A);">'
+        + escapeAttr(bu) + ' ranks #' + ownBuSummary.rank + ' of ' + ownBuSummary.of + ' Business Units'
+        + ' \u2014 Actual ' + pctFmt(ownBuSummary.sharePct) + ', Target ' + pctFmt(ownBuSummary.targetPct) + ', Achievement ' + pctFmt(ownBuSummary.achievementPct)
+        + (ownBuSummary.zetaRank ? ', Zeta Rank ' + escapeAttr(ownBuSummary.zetaRank) + ' vs. competitors' : '')
+        + '</div>'
+      : '';
+
+    // 2026-09-07 (Ahmed, CRITICAL CORRECTION): LEVEL 1 block -- Zeta's
+    // own corporate rank vs REAL competitor corporations, styled like
+    // ownBuSummaryHtml above but placed FIRST (before the LEVEL 2
+    // Business Unit table) and labeled "ZETA CORPORATE" so it can never
+    // be mistaken for one of the BU rows below it. Only rendered at
+    // buGrain (All Business Units); Ahmed's correction was specifically
+    // about that view's headline, so the single-BU (Lines-within-BU)
+    // popup is unchanged.
+    const corpSummaryHtml = corpSummary
+      ? '<div style="font-size:13px;font-weight:700;margin-bottom:12px;padding:8px 10px;background:var(--color-primary-light,#E8F0F7);border-radius:var(--radius-md,8px);color:var(--color-text-primary,#0F172A);">'
+        + 'ZETA CORPORATE'
+        + (corpSummary.rank != null ? ' ranks #' + corpSummary.rank + ' of ' + corpSummary.of + ' vs. Competitors' : ' — rank unavailable')
+        + ' — Actual ' + pctFmt(corpSummary.sharePct) + ', Target ' + pctFmt(corpSummary.targetPct) + ', Achievement ' + pctFmt(corpSummary.achievementPct)
+        + '</div>'
+      : '';
+
+    const bodyHtml =
+      '<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Excludes Other Markets. YTD, SU basis.' + detailScopeNote + '</div>' +
+      corpSummaryHtml +
+      ownBuSummaryHtml +
+      '<div style="font-weight:700;font-size:13px;margin-bottom:6px;">' + escapeAttr(entityLabel) + ' Ranking</div>' +
+      entityTable +
+      '<div style="font-weight:700;font-size:13px;margin:18px 0 6px;">Per Brand / Line — Target MS &amp; Achievement (DM1 / DM2)</div>' +
+      detailTable;
+
+    global.DS.openModal({ title: title, bodyHtml: bodyHtml });
   }
 
   // ---------------------------------------------------------------------
@@ -2443,52 +2798,102 @@
     // Line filter through makes the drill-down describe the same
     // population as the card it opened from.
     const scopedLine = (line && line !== "All") ? line : null;
-    const data = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageByType", bu, scopedLine);
-    const titleScope = bu + (scopedLine ? " / " + scopedLine : "");
+    const allBu = isAllBU(bu);
+    const titleScope = allBu ? "All Business Units" : (bu + (scopedLine ? " / " + scopedLine : ""));
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
-    if (!data || !data.ok) {
-      global.DS.openModal({ title: titleScope + " — " + (kind === "coverage" ? "Coverage" : "Right Frequency") + " by Type", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>Data unavailable.</div>" });
-      return;
-    }
-    const metricKey = kind === "coverage" ? "coveragePct" : "rightFreqPct";
-    const topKey = kind === "coverage" ? "topClassCov" : "topClassRf";
-    const bottomKey = kind === "coverage" ? "bottomClassCov" : "bottomClassRf";
 
-    const rows = data.types.map(t => {
-      const topClass = t[topKey];
-      const bottomClass = t[bottomKey];
-      return {
-        name: t.name,
-        value: t[metricKey],
-        repCount: t.repCount,
-        topClass: topClass ? `${topClass.name} (${topClass.pct.toFixed(1)}%)` : "—",
-        bottomClass: bottomClass ? `${bottomClass.name} (${bottomClass.pct.toFixed(1)}%)` : "—"
-      };
-    });
+    const metricKey = kind === "coverage" ? "coveragePct" : "rightFreqPct";
+    let rows, asOfDate, scopeCaptionText;
+
+    if (allBu) {
+      // 2026-09-07 (Ahmed "it is empty"): getFilteredCoverageByType()
+      // matches each row's OWN Business Unit against `bu` literally (see
+      // coverage-interface.js), so calling it with the "All" sentinel
+      // matched nothing and left this popup blank the moment the default
+      // BU filter became "All" (see Pass 1 of this file's reorder work).
+      // The KPI CARD behind this popup already aggregates across BUs;
+      // this now does the same by calling every allowed BU separately and
+      // merging by Type -- a weighted average using each BU's own
+      // customerRowCount (the exact denominator coveragePct/rightFreqPct
+      // were computed from), so the merged % reproduces exactly what one
+      // pass over every BU's rows would have produced, not an average of
+      // averages. Top/Bottom-Performing Class isn't merged across BUs
+      // (mixing two different BUs' "top class" under one row would be a
+      // silently wrong number) -- selecting a single BU still shows it.
+      const byType = new Map();
+      let any = false;
+      getAllowedBUList().forEach(b => {
+        const d = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageByType", b, scopedLine);
+        if (!d || !d.ok) return;
+        any = true;
+        if (!asOfDate) asOfDate = d.asOfDate;
+        d.types.forEach(t => {
+          if (!byType.has(t.name)) byType.set(t.name, { name: t.name, covSum: 0, rfSum: 0, weight: 0, repCount: 0 });
+          const m = byType.get(t.name);
+          const w = t.customerRowCount || 0;
+          if (t.coveragePct !== null) m.covSum += t.coveragePct * w;
+          if (t.rightFreqPct !== null) m.rfSum += t.rightFreqPct * w;
+          m.weight += w;
+          m.repCount += t.repCount || 0;
+        });
+      });
+      if (!any) {
+        global.DS.openModal({ title: titleScope + " — " + (kind === "coverage" ? "Coverage" : "Right Frequency") + " by Type", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>Data unavailable.</div>" });
+        return;
+      }
+      rows = Array.from(byType.values()).map(m => ({
+        name: m.name,
+        value: m.weight > 0 ? (kind === "coverage" ? m.covSum : m.rfSum) / m.weight : null,
+        repCount: m.repCount,
+        topClass: "—",
+        bottomClass: "—",
+      }));
+      scopeCaptionText = "All Business Units combined, Experience=Non-Probation, Status=Active. Top/Bottom-Performing Class needs a single Business Unit selected";
+    } else {
+      const data = safeCall("coverage", "CoverageDashboard", "getFilteredCoverageByType", bu, scopedLine);
+      if (!data || !data.ok) {
+        global.DS.openModal({ title: titleScope + " — " + (kind === "coverage" ? "Coverage" : "Right Frequency") + " by Type", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>Data unavailable.</div>" });
+        return;
+      }
+      const topKey = kind === "coverage" ? "topClassCov" : "topClassRf";
+      const bottomKey = kind === "coverage" ? "bottomClassCov" : "bottomClassRf";
+      rows = data.types.map(t => {
+        const topClass = t[topKey];
+        const bottomClass = t[bottomKey];
+        return {
+          name: t.name,
+          value: t[metricKey],
+          repCount: t.repCount,
+          topClass: topClass ? `${topClass.name} (${Math.round(topClass.pct)}%)` : "—",
+          bottomClass: bottomClass ? `${bottomClass.name} (${Math.round(bottomClass.pct)}%)` : "—"
+        };
+      });
+      asOfDate = data.asOfDate;
+      // Caption reads from the scope the interface actually applied,
+      // rather than hardcoding "Title=Medical Representative" (which was
+      // simply false for CHC_SALES -- see this function's header note).
+      const fs = data.filterScope || {};
+      scopeCaptionText = [
+        "Title=" + (fs.title || "Medical Representative"),
+        "Type=" + ((fs.types && fs.types.length) ? fs.types.join("/") : "Contract/Doctor/Hospital"),
+        "Experience=" + (fs.experience || "Non-Probation"),
+        "Status=" + (fs.status || "Active"),
+      ].join(", ");
+    }
 
     const table = global.DS.table({
       columns: [
         { key: "name", label: "Type" },
-        { key: "value", label: kind === "coverage" ? "Coverage %" : "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+        { key: "value", label: kind === "coverage" ? "Coverage %" : "Right-Freq %", align: "right", format: v => v === null ? "—" : Math.round(v) + "%" },
         { key: "topClass", label: "Top-Performing Class" },
         { key: "bottomClass", label: "Bottom-Performing Class" },
         { key: "repCount", label: "Reps", align: "right" },
       ],
       rows: rows,
     });
-    // Caption reads from the scope the interface actually applied, rather
-    // than hardcoding "Title=Medical Representative" (which was simply
-    // false for CHC_SALES -- see openTypeBreakdownModal's header note).
-    const fs = data.filterScope || {};
-    const scopeCaption = [
-      "Title=" + (fs.title || "Medical Representative"),
-      "Type=" + ((fs.types && fs.types.length) ? fs.types.join("/") : "Contract/Doctor/Hospital"),
-      "Experience=" + (fs.experience || "Non-Probation"),
-      "Status=" + (fs.status || "Active"),
-    ].join(", ");
     global.DS.openModal({
       title: titleScope + " — " + (kind === "coverage" ? "Operational Coverage" : "Right Frequency") + " by Type",
-      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${escapeAttr(scopeCaption)}, as of ${escapeAttr(data.asOfDate)}.</div>` + table
+      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${escapeAttr(scopeCaptionText)}, as of ${escapeAttr(asOfDate)}.</div>` + table
     });
   }
 
@@ -2549,29 +2954,64 @@
   function openBrandAchievementModal(bu, line) {
     const scopedLine = line && line !== "All" ? line : null;
     const scenario = activeScenario();
-    const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine, undefined, scenario);
+    const allBu = isAllBU(bu);
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
-    if (!data || !data.ok || !data.brands.length) {
-      global.DS.openModal({ title: bu + " — Brand Achievement", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
-      return;
+
+    let rows, scopeText, asOfDate;
+
+    if (allBu) {
+      // 2026-09-07 (Ahmed "it is empty"): getBrandAchievement() matches
+      // each row's own Business Unit against `bu` literally (see
+      // sales.js), so it always came back empty for the "All" sentinel
+      // once the default BU filter became "All". Brands are BU-owned (a
+      // brand name essentially never repeats across BUs in this
+      // catalogue), so rather than merge anything numerically this calls
+      // every allowed BU separately and lists its rows prefixed with that
+      // BU -- one flat table across the whole company, re-sorted the same
+      // weakest-Achievement-first way getBrandAchievement() itself sorts
+      // a single BU's brands.
+      rows = [];
+      getAllowedBUList().forEach(b => {
+        const d = safeCall("sales", "SalesDashboard", "getBrandAchievement", b, scopedLine, undefined, scenario);
+        if (!d || !d.ok || !d.brands.length) return;
+        if (!asOfDate) asOfDate = d.asOfDate;
+        const displayBrands = b === "CHC" ? d.brands : expandItemSplitBrandsForModal(b, scopedLine, scenario, d);
+        displayBrands.forEach(br => rows.push({ name: b + " — " + br.name, actualValue: br.actualValue, targetValue: br.targetValue, achievementPct: br.achievementPct }));
+      });
+      rows.sort((x, y) => (x.achievementPct === null ? Infinity : x.achievementPct) - (y.achievementPct === null ? Infinity : y.achievementPct));
+      if (!rows.length) {
+        global.DS.openModal({ title: "All Business Units — Brand Achievement", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
+        return;
+      }
+      scopeText = "Non-Tender transactions only, Value basis. Every row is prefixed with its Business Unit";
+    } else {
+      const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine, undefined, scenario);
+      if (!data || !data.ok || !data.brands.length) {
+        global.DS.openModal({ title: bu + " — Brand Achievement", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
+        return;
+      }
+      const displayBrands = bu === "CHC" ? data.brands : expandItemSplitBrandsForModal(bu, scopedLine, scenario, data);
+      rows = displayBrands.map(b => ({ name: b.name, actualValue: b.actualValue, targetValue: b.targetValue, achievementPct: b.achievementPct }));
+      scopeText = data.scope;
+      asOfDate = data.asOfDate;
     }
-    const displayBrands = bu === "CHC" ? data.brands : expandItemSplitBrandsForModal(bu, scopedLine, scenario, data);
-    const rows = displayBrands.map(b => ({ name: b.name, actualValue: b.actualValue, targetValue: b.targetValue, achievementPct: b.achievementPct }));
+
     const table = global.DS.table({
       columns: [
-        { key: "name", label: "Brand" },
+        { key: "name", label: allBu ? "Business Unit — Brand" : "Brand" },
         { key: "actualValue", label: "Actual (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
         { key: "targetValue", label: "Target (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
         { key: "achievementPct", label: "Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
       ],
       rows: rows,
     });
-    const note = bu === "CHC"
-      ? `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Click a brand row for Item-level detail (CHC only).${escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>`
-      : `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.${escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>`;
-    global.DS.openModal({ title: bu + " — Brand Achievement", bodyHtml: note + table });
+    const titleScope = allBu ? "All Business Units" : bu;
+    const note = (!allBu && bu === "CHC")
+      ? `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}. Click a brand row for Item-level detail (CHC only).${escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>`
+      : `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}.${allBu ? "" : escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>`;
+    global.DS.openModal({ title: titleScope + " — Brand Achievement", bodyHtml: note + table });
 
-    if (bu === "CHC") {
+    if (!allBu && bu === "CHC") {
       // Wire per-row click -> Item modal. openModal() appends to
       // document.body -- query it fresh after the modal is in the DOM.
       setTimeout(() => {
@@ -2614,6 +3054,7 @@
   function openSalesValueModal(bu, line) {
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     const scopedLine = line && line !== "All" ? line : null;
+    const allBu = isAllBU(bu);
     const columns = [
       { key: "name", label: null }, // label filled in per-mode below
       { key: "actualQty", label: "Units", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
@@ -2624,6 +3065,40 @@
     ];
 
     const scenario = activeScenario();
+
+    if (allBu) {
+      // 2026-09-07 (Ahmed "it is empty"): same per-BU-only gap as the
+      // Brand Achievement popup right above -- getItemAchievement()/
+      // getBrandAchievement() both match against `bu` literally, so this
+      // came back empty the moment the default BU filter became "All".
+      // Loops every allowed BU (CHC at item grain, everyone else at
+      // brand grain -- each BU's own existing convention), prefixes
+      // every row with its Business Unit, and lists them flat.
+      columns[0].label = "Business Unit — Brand / Item";
+      const rows = [];
+      let asOfDate = null;
+      getAllowedBUList().forEach(b => {
+        if (b === "CHC") {
+          const d = safeCall("sales", "SalesDashboard", "getItemAchievement", b, null, scopedLine, scenario);
+          if (!d || !d.ok || !d.items.length) return;
+          if (!asOfDate) asOfDate = d.asOfDate;
+          d.items.forEach(it => rows.push(Object.assign({}, it, { name: b + " — " + it.name })));
+        } else {
+          const d = safeCall("sales", "SalesDashboard", "getBrandAchievement", b, scopedLine, undefined, scenario);
+          if (!d || !d.ok || !d.brands.length) return;
+          if (!asOfDate) asOfDate = d.asOfDate;
+          expandItemSplitBrandsForModal(b, scopedLine, scenario, d).forEach(br => rows.push(Object.assign({}, br, { name: b + " — " + br.name })));
+        }
+      });
+      if (!rows.length) {
+        global.DS.openModal({ title: "All Business Units — Sales Value by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
+        return;
+      }
+      const table = global.DS.table({ columns: columns, rows: rows });
+      global.DS.openModal({ title: "All Business Units — Sales Value by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Non-Tender transactions only, Value basis, as of ${escapeAttr(asOfDate)}. CHC's rows are items (no brand grouping); every row is prefixed with its Business Unit.</div>` + table });
+      return;
+    }
+
     if (bu === "CHC") {
       const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, null, scopedLine, scenario);
       columns[0].label = "Item (SKU)";
@@ -2664,6 +3139,7 @@
   function openSalesUnitsModal(bu, line) {
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     const scopedLine = line && line !== "All" ? line : null;
+    const allBu = isAllBU(bu);
     const columns = [
       { key: "name", label: null }, // label filled in per-mode below
       { key: "actualQty", label: "Actual Units", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
@@ -2677,6 +3153,38 @@
     }));
 
     const scenario = activeScenario();
+
+    if (allBu) {
+      // 2026-09-07 (Ahmed "it is empty"): same fix as openSalesValueModal()
+      // immediately above -- see its comment for the root cause. Loops
+      // every allowed BU (CHC at item grain, everyone else at brand
+      // grain), prefixes every row with its Business Unit, and lists
+      // them flat.
+      columns[0].label = "Business Unit — Brand / Item";
+      const rows = [];
+      let asOfDate = null;
+      getAllowedBUList().forEach(b => {
+        if (b === "CHC") {
+          const d = safeCall("sales", "SalesDashboard", "getItemAchievement", b, null, scopedLine, scenario);
+          if (!d || !d.ok || !d.items.length) return;
+          if (!asOfDate) asOfDate = d.asOfDate;
+          d.items.forEach(it => rows.push(Object.assign({}, it, { name: b + " — " + it.name })));
+        } else {
+          const d = safeCall("sales", "SalesDashboard", "getBrandAchievement", b, scopedLine, undefined, scenario);
+          if (!d || !d.ok || !d.brands.length) return;
+          if (!asOfDate) asOfDate = d.asOfDate;
+          expandItemSplitBrandsForModal(b, scopedLine, scenario, d).forEach(br => rows.push(Object.assign({}, br, { name: b + " — " + br.name })));
+        }
+      });
+      if (!rows.length) {
+        global.DS.openModal({ title: "All Business Units — Sales Units by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
+        return;
+      }
+      const table = global.DS.table({ columns: columns, rows: withUnitsAchievement(rows) });
+      global.DS.openModal({ title: "All Business Units — Sales Units by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis, as of ${escapeAttr(asOfDate)}. CHC's rows are items (no brand grouping); every row is prefixed with its Business Unit.</div>` + table });
+      return;
+    }
+
     if (bu === "CHC") {
       const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, null, scopedLine, scenario);
       columns[0].label = "Item (SKU)";
@@ -2705,27 +3213,60 @@
   // breakdown. Mirrors openBrandAchievementModal()/
   // openItemAchievementModal()'s two-level click pattern exactly.
   function openCustomerClusterMixModal(bu, line) {
-    const data = (_filters.dm && _filters.dm !== "All")
-      ? safeCall("sales", "SalesDashboard", "getCustomerClusterMixForDm", bu, line && line !== "All" ? line : null, _filters.dm)
-      : safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, line && line !== "All" ? line : null);
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
-    if (!data || !data.ok || !data.clusters.length) {
-      global.DS.openModal({ title: bu + " — Customer Channel Mix", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No customer-channel data available.</div>" });
-      return;
+    const allBu = isAllBU(bu);
+    const scopedLine = line && line !== "All" ? line : null;
+
+    let rows, scopeText, asOfDate;
+
+    if (allBu) {
+      // 2026-09-07 (Ahmed "it is empty"): getCustomerClusterMix()/
+      // getCustomerClusterMixForDm() are per-BU (see sales.js), so this
+      // came back empty the moment the default BU filter became "All".
+      // Loops every allowed BU, prefixes every cluster row with its
+      // Business Unit, and remembers each row's own BU (_bu) so the
+      // click-through to the sub-type breakdown still opens against the
+      // real BU that produced it, not the literal "All" sentinel.
+      rows = [];
+      getAllowedBUList().forEach(b => {
+        const d = (_filters.dm && _filters.dm !== "All")
+          ? safeCall("sales", "SalesDashboard", "getCustomerClusterMixForDm", b, scopedLine, _filters.dm)
+          : safeCall("sales", "SalesDashboard", "getCustomerClusterMix", b, scopedLine);
+        if (!d || !d.ok || !d.clusters.length) return;
+        if (!asOfDate) asOfDate = d.asOfDate;
+        d.clusters.forEach(c => rows.push({ name: b + " — " + c.name, actualValue: c.actualValue, contributionPct: c.contributionPct, customerCount: c.customerCount, _bu: b, _clusterName: c.name }));
+      });
+      if (!rows.length) {
+        global.DS.openModal({ title: "All Business Units — Customer Channel Mix", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No customer-channel data available.</div>" });
+        return;
+      }
+      scopeText = "Non-Tender YTD. Every row is prefixed with its Business Unit";
+    } else {
+      const data = (_filters.dm && _filters.dm !== "All")
+        ? safeCall("sales", "SalesDashboard", "getCustomerClusterMixForDm", bu, scopedLine, _filters.dm)
+        : safeCall("sales", "SalesDashboard", "getCustomerClusterMix", bu, scopedLine);
+      if (!data || !data.ok || !data.clusters.length) {
+        global.DS.openModal({ title: bu + " — Customer Channel Mix", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No customer-channel data available.</div>" });
+        return;
+      }
+      rows = data.clusters.map(c => ({ name: c.name, actualValue: c.actualValue, contributionPct: c.contributionPct, customerCount: c.customerCount, _bu: bu, _clusterName: c.name }));
+      scopeText = data.scope;
+      asOfDate = data.asOfDate;
     }
-    const rows = data.clusters.map(c => ({ name: c.name, actualValue: c.actualValue, contributionPct: c.contributionPct, customerCount: c.customerCount }));
+
     const table = global.DS.table({
       columns: [
-        { key: "name", label: "Channel Cluster" },
+        { key: "name", label: allBu ? "Business Unit — Channel Cluster" : "Channel Cluster" },
         { key: "actualValue", label: "Value (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
         { key: "contributionPct", label: "Contribution %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
         { key: "customerCount", label: "# Sub-Types", align: "right" },
       ],
       rows: rows,
     });
+    const titleScope = allBu ? "All Business Units" : bu;
     global.DS.openModal({
-      title: bu + " — Customer Channel Mix",
-      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Click a cluster row for its sub-type ("customer") breakdown.</div>` + table,
+      title: titleScope + " — Customer Channel Mix",
+      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}. Click a cluster row for its sub-type ("customer") breakdown.</div>` + table,
     });
 
     setTimeout(() => {
@@ -2734,7 +3275,7 @@
       const trs = overlay.querySelectorAll("tbody tr");
       trs.forEach((tr, i) => {
         tr.style.cursor = "pointer";
-        tr.addEventListener("click", () => openClusterCustomersModal(bu, line, rows[i].name));
+        tr.addEventListener("click", () => openClusterCustomersModal(rows[i]._bu, line, rows[i]._clusterName));
       });
     }, 0);
   }
@@ -2745,29 +3286,64 @@
   // shows "data unavailable" and isn't clickable, so this only ever runs
   // against the BU/line-scoped figure.
   function openBrandPortfolioHealthModal(bu, line) {
-    const data = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", bu, line && line !== "All" ? line : null, undefined, activeScenario());
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
-    if (!data || !data.ok || !data.entities.length) {
-      global.DS.openModal({ title: bu + " — Brand Portfolio Health", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No portfolio-health data available.</div>" });
-      return;
+    const allBu = isAllBU(bu);
+    const scenario = activeScenario();
+    const scopedLine = line && line !== "All" ? line : null;
+
+    let rows, scopeText, asOfDate, threshold, grainNote, nameLabel;
+
+    if (allBu) {
+      // 2026-09-07 (Ahmed "it is empty"): getBrandPortfolioHealth()
+      // refuses bu === "All" outright (see sales.js, status
+      // 'bu_required'), so this always came back empty at the "All"
+      // grain. Loops every allowed BU (CHC at item grain, everyone else
+      // at brand grain -- each BU's own existing convention) and
+      // prefixes every row with its Business Unit.
+      rows = [];
+      getAllowedBUList().forEach(b => {
+        const d = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", b, scopedLine, undefined, scenario);
+        if (!d || !d.ok || !d.entities.length) return;
+        if (!asOfDate) { asOfDate = d.asOfDate; threshold = d.threshold; }
+        d.entities.forEach(e => rows.push({ name: b + " — " + e.name, actualValue: e.actualValue, targetValue: e.targetValue, achievementPct: e.achievementPct, healthy: e.achievementPct !== null && e.achievementPct >= d.threshold ? "Yes" : "No" }));
+      });
+      if (!rows.length) {
+        global.DS.openModal({ title: "All Business Units — Brand Portfolio Health", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No portfolio-health data available.</div>" });
+        return;
+      }
+      scopeText = "Non-Tender YTD. Every row is prefixed with its Business Unit";
+      nameLabel = "Business Unit — Brand / Item";
+      grainNote = "CHC is shown at item (SKU) level; ELIMBOSIS is shown split by strength (2.5MG / 5MG) everywhere else -- same convention each Business Unit's own popup uses.";
+    } else {
+      const data = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", bu, scopedLine, undefined, scenario);
+      if (!data || !data.ok || !data.entities.length) {
+        global.DS.openModal({ title: bu + " — Brand Portfolio Health", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No portfolio-health data available.</div>" });
+        return;
+      }
+      rows = data.entities.map(e => ({ name: e.name, actualValue: e.actualValue, targetValue: e.targetValue, achievementPct: e.achievementPct, healthy: e.achievementPct !== null && e.achievementPct >= data.threshold ? "Yes" : "No" }));
+      scopeText = data.scope;
+      asOfDate = data.asOfDate;
+      threshold = data.threshold;
+      nameLabel = data.grain === "item" ? "Item (SKU)" : "Brand";
+      grainNote = data.grain === "item"
+        ? "CHC is shown at item (SKU) level -- brand grain would collapse to a single meaningless pass/fail."
+        : "ELIMBOSIS is shown split by strength (2.5MG / 5MG) rather than merged -- its two strengths can perform very differently.";
     }
-    const rows = data.entities.map(e => ({ name: e.name, actualValue: e.actualValue, targetValue: e.targetValue, achievementPct: e.achievementPct, healthy: e.achievementPct !== null && e.achievementPct >= data.threshold ? "Yes" : "No" }));
+
     const table = global.DS.table({
       columns: [
-        { key: "name", label: data.grain === "item" ? "Item (SKU)" : "Brand" },
+        { key: "name", label: nameLabel },
         { key: "actualValue", label: "Actual (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
         { key: "targetValue", label: "Target (EGP)", align: "right", format: v => Math.round(v).toLocaleString() },
         { key: "achievementPct", label: "Achievement %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-        { key: "healthy", label: "≥" + data.threshold + "%", align: "right" },
+        { key: "healthy", label: "≥" + threshold + "%", align: "right" },
       ],
       rows: rows,
     });
-    const grainNote = data.grain === "item"
-      ? "CHC is shown at item (SKU) level -- brand grain would collapse to a single meaningless pass/fail."
-      : "ELIMBOSIS is shown split by strength (2.5MG / 5MG) rather than merged -- its two strengths can perform very differently.";
+    const titleScope = allBu ? "All Business Units" : bu;
     global.DS.openModal({
-      title: bu + " — Brand Portfolio Health",
-      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. ${grainNote}${escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>` + table,
+      title: titleScope + " — Brand Portfolio Health",
+      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}. ${grainNote}${allBu ? "" : escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>` + table,
     });
   }
 
@@ -2843,8 +3419,8 @@
         exportFormat: function (v, row) {
           return (row.position && row.position !== "N/A") ? v + " (" + row.position + ")" : v;
         } },
-      { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-      { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : Math.round(v) + "%" },
+      { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : Math.round(v) + "%" },
       { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
       { key: "targetValue", label: "Target Value (EGP)", align: "right", isHtml: true,
         // Target Basis Filter Shortage (2026-08-17): a passive badge next
@@ -3429,7 +4005,43 @@
     return wrap;
   }
 
+  function buildMarketIntelligenceWidgetCard(filters) {
+    const feed = global.ZETA_NEWS_FEED || { meta: {}, articles: [] };
+    const meta = feed.meta || {};
+    const articles = feed.articles || [];
+    const criticalCount = meta.criticalCount || 0;
+    const highImpactCount = meta.highImpactCount || 0;
+    const breaking = articles.find(a => a.importance >= 4) || articles[0];
+
+    const buDist = meta.buDistribution || {};
+    const buBreakdown = "DIAB " + (buDist.DIAB || 0) + " · Cluster " + (buDist.Cluster || 0) + " · GIT " + (buDist.GIT || 0) + " · CHC " + (buDist.CHC || 0);
+
+    const cardHtml = '<div class="ds-card ds-card-kpi" style="cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;" onclick="if(window.switchTab) window.switchTab(\'marketnews\');">' +
+      '<div>' +
+        '<div class="ds-kpi-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">' +
+          '<div class="ds-kpi-title-wrap">' +
+            '<span class="ds-kpi-category" style="font-size:10.5px;font-weight:800;color:#0F4C81;letter-spacing:0.05em;">EXTERNAL INTELLIGENCE</span>' +
+            '<h3 class="ds-kpi-title" style="font-size:16px;font-weight:800;color:#0F172A;margin:2px 0 0;">Market Intelligence</h3>' +
+          '</div>' +
+          '<span class="ds-kpi-badge" style="background:#FFE4E6;color:#BE123C;font-weight:800;font-size:10px;padding:2px 6px;border-radius:4px;">' + criticalCount + ' CRITICAL</span>' +
+        '</div>' +
+        '<div class="ds-kpi-value-wrap" style="margin:6px 0;">' +
+          '<div style="font-size:13px;color:#B45309;font-weight:700;">⚡ ' + highImpactCount + ' High-Impact Signals Active</div>' +
+          '<div style="font-size:11px;color:#64748B;margin-top:2px;">' + buBreakdown + '</div>' +
+        '</div>' +
+        (breaking ? '<div style="background:#F8FAFC;border-left:3px solid #0F4C81;padding:6px 8px;border-radius:0 4px 4px 0;margin:8px 0;font-size:11.5px;color:#1E293B;line-height:1.35;"><strong style="color:#0F4C81;">Latest: </strong>' + escapeAttr(breaking.title.length > 68 ? breaking.title.substring(0, 68) + '...' : breaking.title) + '</div>' : '') +
+      '</div>' +
+      '<div class="ds-kpi-footer" style="margin-top:8px;padding-top:8px;border-top:1px solid #F1F5F9;display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-size:11px;color:#94A3B8;">' + (meta.totalArticles || 0) + ' cached signals</span>' +
+        '<span style="font-size:11.5px;font-weight:700;color:#0F4C81;">View Intelligence →</span>' +
+      '</div>' +
+    '</div>';
+
+    return { rawHtml: cardHtml };
+  }
+
   function renderCard(data) {
+    if (data && data.rawHtml) return data.rawHtml;
     return global.DS.executiveKpiCard(data);
   }
 
@@ -3440,17 +4052,32 @@
     // do not have access to supply chain/inventory KPIs.
     const isManager = global.AUTH && (global.AUTH.getScope().bus !== null || global.AUTH.getScope().lines !== null);
 
+    // Card order (2026-09-06, Ahmed "organinize and reorder cards as best
+    // practice"): reads top-to-bottom as an executive narrative --
+    // (1) Financial Results, the headline outcome numbers; (2) Growth &
+    // Market Position, the trend/competitive context behind those numbers;
+    // (3) Portfolio & Customer Mix, what's driving the mix; (4) Field
+    // Execution Drivers, the operational inputs the field team controls.
+    // Supply Chain (Pull-Through/Stock Days below) stays last, as the
+    // furthest-downstream watch-list items -- unchanged, still gated to
+    // non-managers via the existing isManager check. No card's own logic
+    // changed, only this array's order.
     const cards = [
-      buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 100, filters),
-      buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 90, filters),
-      buildSFECard(filters, summaries),
+      // -- Financial Results --
       buildSalesAchievementCard(filters),
       buildSalesValueCard(filters),
       buildSalesUnitsAchievementCard(filters),
-      buildCustomerClusterMixCard(filters),
-      buildBrandPortfolioHealthCard(filters),
-      buildMarketShareCard(filters),
+      // -- Growth & Market Position --
       buildBUGrowthCard(filters),
+      buildMarketShareCard(filters),
+      buildMarketShareRankingCard(filters),
+      // -- Portfolio & Customer Mix --
+      buildBrandPortfolioHealthCard(filters),
+      buildCustomerClusterMixCard(filters),
+      // -- Field Execution Drivers --
+      buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 100, filters),
+      buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 90, filters),
+      buildSFECard(filters, summaries),
       buildSalesProductivityCard(summaries, filters)
     ];
 
@@ -3596,8 +4223,8 @@
           return pos ? v + " (" + pos + ")" : v;
         },
       },
-      { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
-      { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : v.toFixed(1) + "%" },
+      { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : Math.round(v) + "%" },
+      { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : Math.round(v) + "%" },
       { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
       { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
       { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", isHtml: true,
@@ -3694,6 +4321,7 @@
         else if (kpiId === "customerClusterMix") openCustomerClusterMixModal(bu, ctx.filters.line);
         else if (kpiId === "brandPortfolioHealth") openBrandPortfolioHealthModal(bu, ctx.filters.line);
         else if (kpiId === "marketShare") openMarketShareProductModal(bu, ctx.filters.line);
+        else if (kpiId === "marketShareRanking") openMarketShareRankingModal(bu, ctx.filters.line);
         else if (kpiId === "sfe") switchToTab("sfe");
         else if (kpiId === "pullThroughRate") openTmsImsModal(bu, ctx.filters.line, "pullThrough");
         else if (kpiId === "stockDays") openTmsImsModal(bu, ctx.filters.line, "stockDays");
@@ -3705,6 +4333,262 @@
         const tabByKpi = { coverage: "coverage", rightFrequency: "coverage", sfe: "sfe", salesAchievement: "sales", salesValue: "sales", salesUnitsAchievement: "sales", marketShare: "iqvia", buGrowth: "iqvia", salesProductivity: "sales", pullThroughRate: "tomarket", stockDays: "tomarket" };
         if (tabByKpi[kpiId]) switchToTab(tabByKpi[kpiId]);
       });
+    });
+  }
+
+  var _tickerInterval = null;
+  var _tickerPool = [];
+  var _tickerPoolIdx = 0;
+
+  // Professional-default marquee speed (px/sec) and duration clamps --
+  // change these to retune the ticker, nothing else needs to change.
+  var TICKER_SPEED_PX_PER_SEC = 90;
+  var TICKER_MIN_DURATION_S = 10;
+  var TICKER_MAX_DURATION_S = 32;
+  var TICKER_REDUCED_MOTION_INTERVAL_MS = 6000;
+
+  function tickerRelativeTime(publishedAt) {
+    try {
+      var d = new Date(publishedAt);
+      var diffHours = Math.floor((new Date() - d) / (1000 * 60 * 60));
+      if (diffHours >= 0 && diffHours < 1) return "Just now";
+      if (diffHours >= 1 && diffHours < 24) return diffHours + "h ago";
+      return Math.floor(diffHours / 24) + "d ago";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  // 2026-09-10: rebuilt as a true continuous right->left marquee (css/
+  // news-feed.css: .nws-ticker-track / @keyframes nws-ticker-scroll).
+  // Was a discrete 5-second instant text-swap with no motion at all.
+  //
+  // Eligibility: the article pool is now `item.breaking === true` --
+  // the SAME backend-computed gate used everywhere else in the platform
+  // (etl/build_news_cache.py: valid publication date, within the live
+  // recency window, relevance >= configured threshold, valid original
+  // URL, not academic/low-signal noise, impact CRITICAL or HIGH) --
+  // instead of this component's own separate, looser rule
+  // (importance>=3 || impact CRITICAL/HIGH || geography Egypt), which
+  // could let an article through this bar that the rest of the platform
+  // would have excluded.
+  //
+  // 2026-09-10 (regulatory intelligence spec section H): the pool now
+  // also merges in js/regulatory-pipeline.js's getExecutiveSignals() --
+  // records the ETL already gated to a real, dated, evidenced APPROVED
+  // or POSITIVE_REGULATORY_OPINION milestone for a Zeta-relevant product
+  // (see etl/build_regulatory_cache.py's exec_eligible logic). This
+  // function does NOT re-derive eligibility and never adds a
+  // "expected"/"likely" Egypt-entry line -- that phrasing is explicitly
+  // prohibited from this ticker by spec section H, and nothing here
+  // constructs it. regulatoryRecordToTickerItem() below only ever
+  // states what the record's evidenced stage already says happened.
+  function regulatoryRecordToTickerItem(r) {
+    var isApproval = r.global_stage === "APPROVED";
+    var who = (r.companies && r.companies[0]) || (r.molecules && r.molecules[0]) || "";
+    var titleCore = r.drug_name + (who ? " (" + who + ")" : "");
+    var title = isApproval
+      ? titleCore + " approved" + (r.indication_text ? " — " + r.indication_text : "")
+      : titleCore + ": positive regulatory opinion" + (r.indication_text ? " — " + r.indication_text : "");
+    return {
+      kind: "regulatory",
+      regStage: r.global_stage,
+      title: title,
+      url: r.global_source_url || "#",
+      source: r.global_source || "Official regulatory authority",
+      published_at: r.global_stage_date,
+      geography: null,
+      relevance: r.confidence === "HIGH" ? 5 : 3,
+    };
+  }
+
+  function renderDynamicTicker(container) {
+    if (_tickerInterval) {
+      clearInterval(_tickerInterval);
+      _tickerInterval = null;
+    }
+
+    const feed = global.ZETA_NEWS_FEED || { articles: [] };
+    const newsItems = (feed.articles || []).filter(a => a.breaking === true);
+
+    const regSignals = (global.RegulatoryPipelineDashboard && typeof global.RegulatoryPipelineDashboard.getExecutiveSignals === "function")
+      ? global.RegulatoryPipelineDashboard.getExecutiveSignals()
+      : [];
+    const regItems = regSignals.map(regulatoryRecordToTickerItem);
+
+    const pool = newsItems.concat(regItems)
+      .sort((a, b) => (b.relevance - a.relevance) || String(b.published_at || "").localeCompare(String(a.published_at || "")));
+
+    const tickerEl = document.createElement("div");
+    tickerEl.className = "nws-ticker nws-ticker-marquee";
+    tickerEl.id = "exec-dynamic-ticker";
+
+    if (!pool.length) {
+      // Zero eligible articles must NEVER fall back to an old or
+      // low-quality article -- explicit empty state instead (previously
+      // this function just returned with nothing rendered at all).
+      tickerEl.innerHTML =
+        '<div class="nws-ticker-headrow">' +
+          '<span class="nws-ticker-label nws-ticker-label-none">✓ NO ALERTS</span>' +
+          '<span class="nws-ticker-meta">No high-impact market alerts or regulatory signals at this time.</span>' +
+        '</div>' +
+        '<div class="nws-ticker-controls">' +
+          '<span class="nws-ticker-view-all" id="ticker-view-all-btn">View Intelligence →</span>' +
+        '</div>';
+      container.appendChild(tickerEl);
+      const viewAllBtnEmpty = tickerEl.querySelector("#ticker-view-all-btn");
+      if (viewAllBtnEmpty) {
+        viewAllBtnEmpty.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (typeof global.switchTab === "function") global.switchTab("marketnews");
+        });
+      }
+      return;
+    }
+
+    _tickerPool = pool;
+    _tickerPoolIdx = 0;
+
+    tickerEl.innerHTML =
+      '<div class="nws-ticker-headrow">' +
+        '<span class="nws-ticker-label" id="exec-ticker-label" title="Click to view all market intelligence" style="cursor:pointer;">🔴 CRITICAL MARKET ALERT</span>' +
+        '<span class="nws-ticker-meta" id="exec-ticker-meta"></span>' +
+      '</div>' +
+      '<div class="nws-ticker-viewport" id="exec-ticker-viewport">' +
+        '<a class="nws-ticker-track" id="exec-ticker-track" target="_blank" rel="noopener noreferrer"></a>' +
+      '</div>' +
+      '<div class="nws-ticker-controls">' +
+        '<span class="nws-ticker-view-all" id="ticker-view-all-btn">View Intelligence →</span>' +
+      '</div>';
+
+    container.appendChild(tickerEl);
+
+    const viewport = tickerEl.querySelector("#exec-ticker-viewport");
+    const track = tickerEl.querySelector("#exec-ticker-track");
+    const labelEl = tickerEl.querySelector("#exec-ticker-label");
+    const metaEl = tickerEl.querySelector("#exec-ticker-meta");
+
+    const reducedMotion = !!(global.matchMedia && global.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+    function applyItem(item) {
+      if (item.kind === "regulatory") {
+        // Spec section H example signal formats: 🔴 NEW GLOBAL APPROVAL,
+        // 🟠 REGULATORY MILESTONE (this build's two exec-eligible stages;
+        // 🟠 EGYPT PIPELINE SIGNAL / 🟡 UPCOMING PIPELINE are reserved for
+        // when a future source actually evidences those stages -- never
+        // shown speculatively).
+        var isApproval = item.regStage === "APPROVED";
+        labelEl.textContent = isApproval ? "🔴 NEW GLOBAL APPROVAL" : "🟠 REGULATORY MILESTONE";
+        labelEl.style.background = isApproval ? "#FFE4E6" : "#EEF2FF";
+        labelEl.style.color = isApproval ? "#BE123C" : "#4338CA";
+      } else {
+        var isCritical = item.impact === "CRITICAL";
+        labelEl.textContent = isCritical ? "🔴 CRITICAL MARKET ALERT" : "⚡ HIGH-IMPACT SIGNAL";
+        labelEl.style.background = isCritical ? "#FFE4E6" : "#FEF3C7";
+        labelEl.style.color = isCritical ? "#BE123C" : "#B45309";
+      }
+
+      var relTime = tickerRelativeTime(item.published_at);
+      var geoTag = item.geography === "Egypt" ? " · 🇪🇬 Egypt" : "";
+      var kindTag = item.kind === "regulatory" ? " · Regulatory Intelligence" : "";
+      metaEl.textContent = (item.source || "") + geoTag + kindTag + (relTime ? " · " + relTime : "");
+
+      track.textContent = item.title + "  ↗";
+      track.href = item.url || "#";
+      track.title = item.kind === "regulatory"
+        ? "Click to open the official regulatory source: " + item.title
+        : "Click to open verified publisher article: " + item.title;
+    }
+
+    // Measures the viewport and the (now-current) headline, then parks
+    // the track fully off-screen right and re-engages the CSS animation
+    // with fresh --ticker-start-x / --ticker-end-x / --ticker-duration
+    // custom properties -- so the scroll distance is always exactly
+    // "fully off right" -> "fully off left" for THIS headline's actual
+    // rendered width, never a generic guess. The parked transform is set
+    // (and reflow forced) BEFORE the animation is re-enabled, so the
+    // animation's own `from` state exactly matches what's already on
+    // screen -- no jump, no flash of unpositioned text.
+    function measureAndAnimate() {
+      if (reducedMotion) return; // static text only in this mode, see below
+      track.style.animation = "none";
+      var viewportWidth = viewport.clientWidth;
+      var textWidth = track.offsetWidth;
+      var startX = viewportWidth;
+      var endX = -textWidth;
+      track.style.transform = "translateX(" + startX + "px)";
+      void track.offsetWidth; // force reflow: commit the parked position first
+      var distance = viewportWidth + textWidth;
+      var duration = Math.min(TICKER_MAX_DURATION_S, Math.max(TICKER_MIN_DURATION_S, distance / TICKER_SPEED_PX_PER_SEC));
+      track.style.setProperty("--ticker-start-x", startX + "px");
+      track.style.setProperty("--ticker-end-x", endX + "px");
+      track.style.setProperty("--ticker-duration", duration + "s");
+      track.style.animation = "nws-ticker-scroll var(--ticker-duration) linear infinite";
+    }
+
+    function showCurrent() {
+      applyItem(_tickerPool[_tickerPoolIdx]);
+      measureAndAnimate();
+    }
+
+    function advance() {
+      // Round-robin through the pool -- never repeats the same headline
+      // back-to-back unless it's genuinely the only eligible one (in
+      // which case looping it continuously is the correct behavior).
+      _tickerPoolIdx = (_tickerPoolIdx + 1) % _tickerPool.length;
+      showCurrent();
+    }
+
+    showCurrent();
+
+    if (reducedMotion) {
+      // No continuous motion for users who asked for it -- just an
+      // accessible periodic swap of the current headline, no animation.
+      _tickerInterval = setInterval(advance, TICKER_REDUCED_MOTION_INTERVAL_MS);
+    } else {
+      // The actual right->left movement is 100% CSS (@keyframes
+      // nws-ticker-scroll driving `transform`). JS only advances to the
+      // next headline once per FULLY COMPLETED pass, at the animation's
+      // own iteration boundary -- never on a per-frame timer.
+      track.addEventListener("animationiteration", function () {
+        if (_tickerPool.length > 1) {
+          advance();
+        } else {
+          measureAndAnimate(); // re-measure in case the bar was resized
+        }
+      });
+    }
+
+    // Pause-on-hover for the animated path is pure CSS (see
+    // .nws-ticker-marquee:hover .nws-ticker-track in news-feed.css). This
+    // only needs to pause/resume the JS interval used in reduced-motion
+    // mode, where there is no CSS animation to pause.
+    tickerEl.addEventListener("mouseenter", () => {
+      if (_tickerInterval) clearInterval(_tickerInterval);
+    });
+    tickerEl.addEventListener("mouseleave", () => {
+      if (reducedMotion) {
+        if (_tickerInterval) clearInterval(_tickerInterval);
+        _tickerInterval = setInterval(advance, TICKER_REDUCED_MOTION_INTERVAL_MS);
+      }
+    });
+
+    function currentTabTarget() {
+      var cur = _tickerPool[_tickerPoolIdx];
+      return (cur && cur.kind === "regulatory") ? "regulatory" : "marketnews";
+    }
+
+    const viewAllBtn = tickerEl.querySelector("#ticker-view-all-btn");
+    if (viewAllBtn) {
+      viewAllBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (typeof global.switchTab === "function") global.switchTab(currentTabTarget());
+      });
+    }
+
+    labelEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (typeof global.switchTab === "function") global.switchTab(currentTabTarget());
     });
   }
 
@@ -3753,6 +4637,10 @@
       render(container);
     },
     destroy() {
+      if (_tickerInterval) {
+        clearInterval(_tickerInterval);
+        _tickerInterval = null;
+      }
       document.body.classList.remove("executive-mode");
     },
     setFilters: setFilters,

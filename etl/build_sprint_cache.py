@@ -76,12 +76,45 @@ CACHE_DIR = os.path.join(ROOT_DIR, 'cache')
 DB_PATH = os.path.join(ROOT_DIR, 'Database Shortcut.xlsx')
 SCALING_PATH = os.path.join(ROOT_DIR, 'zeta sprint', 'scaling scores.xlsx')
 TEMPLATE_PATH = os.path.join(ROOT_DIR, 'zeta sprint', 'Sprint_Missing_KPI_Template.xlsx')
+# Coaching Intelligence (2026-09-01, Ahmed: "from Coaching Intelligence make
+# it source for zeta sprint june") -- see load_coaching_dv_coverage() below.
+COACHING_CACHE_PATH = os.path.join(CACHE_DIR, 'coaching.json')
+# Calls per DV target, ADDED 2026-09-10 (Ahmed: "work zeta sprint from field
+# working days and coaching intel for dm dsm and nsm and asm"). Coaching
+# Intelligence's own avgVisitsPerDay target is a flat 7/day for everyone;
+# Sprint's own Calls-per-DV KPI has always scored against a different target
+# per Ahmed 2026-08-16 (and js/sprint.js's own KPI_METHODOLOGY.callsPerDv
+# text) -- 8/day generally, 12/day specifically for a DM/DSM whose team is
+# majority CHC_SALES. Used to rescale Coaching's raw visits/day into the "%
+# of target" fraction this KPI's curve expects, exactly like Ahmed's own
+# manual-template column asks him to pre-compute by hand.
+CALLS_PER_DV_TARGET_DEFAULT = 8.0
+CALLS_PER_DV_TARGET_CHC_SALES = 12.0
 OUT_JS = os.path.join(CACHE_DIR, 'sprint.data.js')
 OUT_JSON = os.path.join(CACHE_DIR, 'sprint.json')
 HISTORY_DIR = os.path.join(CACHE_DIR, 'sprint_history')
 HISTORY_INDEX_JS = os.path.join(HISTORY_DIR, 'index.js')
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 12  # 12 (2026-09-10): DM/DSM Calls per DV now sourced from
+                      # Coaching Intelligence (avgVisitsPerDay) wherever it has
+                      # a match for the eval month, rescored against Sprint's
+                      # own target (8/day, 12/day for a majority-CHC_SALES
+                      # DM/DSM) instead of Coaching's flat 7/day -- falls back
+                      # to the manual template exactly like DV Coverage
+                      # already does. Ahmed 2026-09-10: "work zeta sprint from
+                      # field working days and coaching intel for dm dsm and
+                      # nsm and asm".
+                      # 11 (2026-09-01): coachingDetail gains repBreakdown (per-
+                      # coached-rep visits/coachingDays/avgVisitsPerDay + a
+                      # Best Practice flag) and dvCoverageRank/callsPerDvRank
+                      # (this manager's position among all DM/DSM coaching-
+                      # matched peers on that KPI) -- Ahmed 2026-09-01: "show
+                      # coched rep how many days visits per each day make the
+                      # best practice and show position if this rep".
+                      # 10 (2026-09-01): DM/DSM DV Coverage now sourced from
+                     # Coaching Intelligence (cache/coaching.json) instead of
+                     # the manual KPI template, wherever it has a match --
+                     # see load_coaching_dv_coverage().
 
 # ---------------------------------------------------------------------
 # KPI slots not computable from any existing cache -- Ahmed fills these
@@ -131,10 +164,10 @@ TEMPLATE_SHEETS = {
 
 # The month being ranked. Bump these three lines each time this script is
 # re-run for a newly-closed period -- everything else derives from them.
-EVAL_PERIOD_NAME = 'June'        # must match a label in dims['periods']
-EVAL_MONTH_STR = '2026-06'       # must match a label in sales lookups['months']
-EVAL_PERIOD_START = datetime.date(2026, 6, 1)
-EVAL_PERIOD_END = datetime.date(2026, 6, 30)
+EVAL_PERIOD_NAME = 'July'        # must match a label in dims['periods']
+EVAL_MONTH_STR = '2026-07'       # must match a label in sales lookups['months']
+EVAL_PERIOD_START = datetime.date(2026, 7, 1)
+EVAL_PERIOD_END = datetime.date(2026, 7, 31)
 
 
 def log(msg):
@@ -436,6 +469,18 @@ def main():
 
     titleIdx = titles.index('Medical Representative')
     salesRepTitleIdx = titles.index('Sales Representative')
+    # CNS/Neuroscience title gap, FIXED 2026-09-10 (Ahmed, after being shown
+    # [[sprint_cns_medical_rep_title_gap]]'s diagnosis: "CNS AND NEUROSCIENCE
+    # ARE THE SAME LINE" -- confirming they should be treated as one line,
+    # then asked to go ahead and fix the gap). 14 of 20 July CNS field staff
+    # are coded 'Product Specialist' in the DVR/Coverage source instead of
+    # 'Medical Representative' (HR's own Database Shortcut.xlsx Position
+    # field often still says 'Medical Representative' for the same person --
+    # this is a DVR-source coding quirk unique to this one line, confirmed
+    # 2026-09-10: every other line is ~95-100% 'Medical Representative').
+    # 'Product Specialist' does not exist as a title in every dataset, so
+    # this is guarded rather than assumed present.
+    productSpecialistTitleIdx = titles.index('Product Specialist') if 'Product Specialist' in titles else None
     statusIdx = statuses.index('Active')
     standardTypeIdx = {types.index(t) for t in ['Contract', 'Doctor', 'Hospital'] if t in types}
     pharmacyTypeIdx = {types.index(t) for t in ['Pharmacy'] if t in types}
@@ -445,8 +490,21 @@ def main():
         canon = normalize_line(t)
         bu = line_to_bu(t)
         is_chc_sales = (bu == 'CHC' and canon == 'CHC_SALES')
+        # titleSet (2026-09-10): CNS is the one line where 'Product
+        # Specialist'-coded field staff count as Medical-Rep-equivalent for
+        # Sprint purposes -- every other line keeps its single-title
+        # membership test unchanged. Every other tier (CHC Sales Rep via
+        # is_chc_sales, and every non-CNS Medical Rep line) still gets a
+        # single-element set, so behaviour for them is byte-identical to the
+        # old titleIdx-equality check.
+        if is_chc_sales:
+            title_set = {salesRepTitleIdx}
+        elif canon == 'CNS' and productSpecialistTitleIdx is not None:
+            title_set = {titleIdx, productSpecialistTitleIdx}
+        else:
+            title_set = {titleIdx}
         team_checks.append(dict(bu=bu, canon=canon, is_chc_sales=is_chc_sales,
-                                 titleIdx=(salesRepTitleIdx if is_chc_sales else titleIdx),
+                                 titleSet=title_set,
                                  typeSet=(pharmacyTypeIdx if is_chc_sales else standardTypeIdx)))
 
     rep_cov = defaultdict(lambda: dict(coveredSum=0, rightFreqSum=0, rowCount=0))
@@ -464,7 +522,7 @@ def main():
         check = team_checks[row[F['team']]]
         if not check['bu']:
             continue
-        if row[F['title']] != check['titleIdx']:
+        if row[F['title']] not in check['titleSet']:
             continue
         if row[F['type']] not in check['typeSet']:
             continue
@@ -511,24 +569,51 @@ def main():
     scenarioCoverage = sales_cache['meta'].get('scenarioCoverage', {})
     schemaVersion = sales_cache['meta'].get('schemaVersion', 0)
 
-    def resolve_scenario(raw, requested):
+    # Target scenario resolution -- UPDATED 2026-09-07 (Ahmed: "apply to
+    # shortage target"), after Ahmed asked which target Sales Achievement
+    # uses and was told Official->Working, never Shortage. Shortage Target
+    # is a strict refinement of Official Target by construction (see
+    # refresh_sales.py's apply_shortage_scenario(): a non-flagged group's
+    # Shortage Target literally EQUALS its own Official Target; only a
+    # group explicitly confirmed Shortage=Y in Shortage_Conditions.xlsx
+    # gets a different (lower, fairer) target = that group's own Actual
+    # Sales). So preferring Shortage over Official wherever a Line has
+    # Shortage coverage can only ever match or improve fairness -- it
+    # never disagrees with Official on a non-flagged group. Verified
+    # against the live June cache before wiring this in: GIT-II
+    # (26,076,000 -> 24,903,885) and ORTHO-II (8,971,200 -> 8,341,284.1)
+    # both have real, non-trivial Shortage-flagged groups this month;
+    # every other Line's Shortage total is numerically identical to its
+    # Official total (confirmed no other Line is silently affected).
+    # CHC/CHC_SALES have no Shortage coverage at all (Working-only, same
+    # as before) -- scenarioCoverage confirms shortage=False for both, so
+    # they fall through to Working exactly as before this change.
+    SCENARIO_PRIORITY = ('shortage', 'official', 'working')
+
+    def resolve_target_scenario(raw):
         canon = normalize_line(raw)
         cov = scenarioCoverage.get(canon) or scenarioCoverage.get(raw)
         if not cov:
-            return requested
-        if cov.get(requested):
-            return requested
-        other = 'working' if requested == 'official' else 'official'
-        return other if cov.get(other) else requested
+            return 'official'  # unchanged fallback for lines with no coverage info at all
+        for scenario in SCENARIO_PRIORITY:
+            if cov.get(scenario):
+                return scenario
+        return 'official'
 
-    want_official_by_line = [resolve_scenario(l, 'official') == 'official' for l in linesLk]
+    target_scenario_by_line = [resolve_target_scenario(l) for l in linesLk]
 
-    def include_target_row(mask, want_official):
+    def include_target_row(mask, scenario):
         if (mask & 16) == 0:
             return True
         if schemaVersion < 3:
             return True
-        return ((mask & 32) > 0) == want_official
+        is_shortage = (mask & 64) > 0
+        is_official = (mask & 32) > 0
+        if scenario == 'shortage':
+            return is_shortage
+        if scenario == 'official':
+            return is_official and not is_shortage
+        return (not is_official) and not is_shortage  # 'working'
 
     rep_sales_month = defaultdict(lambda: dict(val=0, tgtVal=0))
     # National, line-level val/target totals for the eval month -- used to
@@ -541,7 +626,7 @@ def main():
         month_str = monthsLk[r[MONTH]] if r[MONTH] is not None and r[MONTH] < len(monthsLk) else None
         if month_str != EVAL_MONTH_STR:
             continue
-        want_official = include_target_row(r[MASK], want_official_by_line[r[LINE]])
+        want_official = include_target_row(r[MASK], target_scenario_by_line[r[LINE]])
         la = line_sales_month[r[LINE]]
         la['val'] += r[VAL] or 0
         if want_official:
@@ -628,6 +713,22 @@ def main():
         'CVM II': 'CVM-II', 'DIABETES II': 'DIAB-II', 'GIT II': 'GIT-II',
         'GIT I': 'GIT-I', 'GIT III': 'GIT-III', 'DIABETES III': 'DIAB-III',
         'DERMA': 'Derma', 'CNS': 'NEUROSCIENCE',
+        # ADDED 2026-09-07 (Ahmed: "check all zeta sprint as per last rule
+        # book and fix any mismatch or error"). This dict was originally
+        # built 2026-08-15 by matching only the 11 then-ACTIVE BM roster
+        # rows' own Line values -- it never needed to cover a resigned or
+        # probation-failed BM's Line. That was invisible until today's
+        # Sales Average widening (BM_excluded now also carries achPct):
+        # 4 excluded BM records carry Line 'CHC' or 'Ortho I', neither of
+        # which was in this dict, so BM_LINE_TO_SALES_LINE.get(...) came
+        # back None and those 4 people were silently dropped from the
+        # widened National Sales Average -- exactly the population Ahmed
+        # asked to include. Both Lines have real Sales-cache data this
+        # month (verified before adding): 'CHC' -> Sales cache's own 'CHC'
+        # line resolves to the Working scenario (no Official coverage,
+        # same as CHC_SALES); 'ORTHO I' -> 'ORTHO-I' resolves to Shortage
+        # (same pattern as 'ORTHO II' -> 'ORTHO-II' above).
+        'CHC': 'CHC', 'ORTHO I': 'ORTHO-I',
     }
 
     # -----------------------------------------------------------------
@@ -644,11 +745,26 @@ def main():
         canon_line = normalize_line(cov['team'])
         bu = line_to_bu(cov['team'])
 
+        # Sales Achievement is computed for EVERY rep up front, before the
+        # active/probation gates below -- excluded reps (not-active-
+        # resigned or probation-not-passed) still carry a raw achPct/role
+        # on their excluded record. This is deliberately the ONLY raw KPI
+        # computed pre-gate: Coverage/Right Frequency remain gate-only
+        # (never computed for an excluded rep), because Ahmed asked for
+        # this widened population for the Sales Average specifically, not
+        # for every KPI (2026-09-07, "only Sales Average should be all
+        # positions included either active or not probation or not").
+        sales = rep_sales_month.get(key)
+        is_sales_rep = (bu == 'CHC' and canon_line == 'CHC_SALES')
+        ach_pct = (sales['val'] / sales['tgtVal']) if sales and sales['tgtVal'] > 0 else None
+        excl_role = 'Sales Rep (CHC)' if is_sales_rep else 'Medical Rep'
+
         active_ok, inactive_reason = is_active_for_period(code, EVAL_PERIOD_END)
         if not active_ok:
             last_day = code_to_lastday.get(code)
             notif = code_to_resignnotif.get(code)
-            excluded.append(dict(code=code, name=cov['name'], line=canon_line, bu=bu, reason='not-active-resigned',
+            excluded.append(dict(code=code, name=cov['name'], line=canon_line, canonLine=canon_line, bu=bu,
+                                  role=excl_role, achPct=ach_pct, reason='not-active-resigned',
                                   detail=inactive_reason,
                                   lastDay=last_day.isoformat() if last_day else None,
                                   resignationNotif=notif.isoformat() if notif else None))
@@ -656,14 +772,11 @@ def main():
 
         prob_ok, pp = is_probation_passed_for_period(code, EVAL_PERIOD_START)
         if prob_ok is False:
-            excluded.append(dict(code=code, name=cov['name'], line=canon_line, bu=bu, reason='probation-not-passed',
+            excluded.append(dict(code=code, name=cov['name'], line=canon_line, canonLine=canon_line, bu=bu,
+                                  role=excl_role, achPct=ach_pct, reason='probation-not-passed',
                                   detail=f"passes {pp.isoformat()}, ranking period starts {EVAL_PERIOD_START.isoformat()}",
                                   lastDay=None, resignationNotif=None))
             continue
-
-        sales = rep_sales_month.get(key)
-        is_sales_rep = (bu == 'CHC' and canon_line == 'CHC_SALES')
-        ach_pct = (sales['val'] / sales['tgtVal']) if sales and sales['tgtVal'] > 0 else None
 
         if is_sales_rep:
             sales_pts = interp(sr_sales_curve, ach_pct) if ach_pct is not None else None
@@ -747,11 +860,57 @@ def main():
             else:
                 continue
             code_col = header.index(code_header)
+            # Raw activity-log sheets (NSM, and ASM as of 2026-09-02) stack
+            # one row per employee per period in the same sheet (e.g. June
+            # then July, appended below each other) -- with no filtering,
+            # whichever month block comes LAST in the sheet would silently
+            # win for every cache rebuild regardless of EVAL_MONTH_STR.
+            # Filter to the period being built when a Date/DATE column
+            # exists (NSM, ASM). DM_DSM has no Date column but, as of
+            # Ahmed's 2026-09-05 restructure to the same raw activity-log
+            # layout (stacking Feb-July in one sheet, same bug shape as
+            # NSM/ASM on 2026-09-02), it DOES have a text 'Month' column
+            # (e.g. 'June', 'July') -- filter on that instead. Brand_Manager
+            # has neither and keeps the original code-only behaviour.
+            date_col = None
+            for date_header in ('DATE', 'Date'):
+                if date_header in header:
+                    date_col = header.index(date_header)
+                    break
+            month_col = None
+            if date_col is None and 'Month' in header:
+                month_col = header.index('Month')
             sheet_data = {}
             for row in ws_t.iter_rows(min_row=2, values_only=True):
                 code = row[code_col]
                 if code is None:
                     continue
+                if date_col is not None:
+                    raw_date = row[date_col]
+                    row_period = None
+                    if isinstance(raw_date, (datetime.datetime, datetime.date)):
+                        row_period = f'{raw_date.year:04d}-{raw_date.month:02d}'
+                    elif raw_date is not None:
+                        parts = re.split(r'[/\-.]', str(raw_date).strip())
+                        if len(parts) == 3:
+                            try:
+                                d, m, y = (int(p) for p in parts)
+                                if y < 100:
+                                    y += 2000
+                                row_period = f'{y:04d}-{m:02d}'
+                            except ValueError:
+                                row_period = None
+                    if row_period != EVAL_MONTH_STR:
+                        continue
+                elif month_col is not None:
+                    row_month = row[month_col]
+                    # Text month name (e.g. 'June'), no year column -- the
+                    # sheet only ever holds 2026 data, so a bare name match
+                    # against EVAL_PERIOD_NAME is unambiguous for now. If
+                    # this template ever spans a second year, this will
+                    # need a real year column to stay correct.
+                    if row_month is None or str(row_month).strip().lower() != EVAL_PERIOD_NAME.strip().lower():
+                        continue
                 code = str(int(code)) if isinstance(code, (int, float)) else str(code).strip()
                 vals = {}
                 for key, col_label, _weight in col_map:
@@ -820,6 +979,172 @@ def main():
         log(f'wrote NEW KPI template: {TEMPLATE_PATH}')
 
     kpi_template = load_kpi_template()
+
+    def load_coaching_data():
+        """Coaching Intelligence (etl/build_coaching_cache.py) is now the
+        SOURCE for the DM/DSM tier's DV (Double Visit) Coverage KPI --
+        replacing Ahmed's manual Sprint_Missing_KPI_Template.xlsx entry for
+        any DM/DSM it covers -- per Ahmed's explicit instruction (2026-09-01,
+        "from Coaching Intelligence make it source for zeta sprint june").
+        Coaching Intelligence computes a real DV Coverage % per manager per
+        month straight from the joint/coached field-visit log (Visits
+        Details S1 DM.xlsx), for the two titles with a real "own team"
+        concept -- District Manager and Field force supervisor -- which
+        together ARE the DM/DSM tier's roster (same COVERAGE_TITLES set
+        used in etl/build_coaching_cache.py). Matched by employee Code
+        (both this script and coaching's ETL key off Database Shortcut.xlsx
+        the same way), for EVAL_MONTH_STR only.
+
+        The manual template stays the FALLBACK for any DM/DSM coaching
+        doesn't cover (no code match, no visits logged that month, or the
+        coaching cache being unavailable/stale) -- never silently dropped
+        to pending just because this source exists.
+
+        Returns (dv_by_code, calls_by_code, detail_by_code):
+          dv_by_code: {code_str: fraction 0-1}, built from dvCoveragePct
+            (capped at 100%, /100) -- NOT the uncapped dvCoverageRawPct --
+            to match the 0.75-1.0 domain dm_dvcoverage_curve expects and
+            what Coaching Intelligence's own UI displays.
+          calls_by_code: {code_str: raw avgVisitsPerDay}. ADDED 2026-09-10
+            (Ahmed: "work zeta sprint from field working days and coaching
+            intel for dm dsm and nsm and asm"). Deliberately the RAW
+            visits/day, not a pre-scored ratio -- Coaching Intelligence's
+            own avgVisitsPerDay target is a flat 7/day for every manager,
+            while Sprint's Calls per DV KPI has always scored against 8/day
+            (12/day for a majority-CHC_SALES DM/DSM) per Ahmed 2026-08-16,
+            so score_hierarchy_tier() divides this by the right target for
+            that manager's own team before running it through the curve --
+            the target-adjustment this KPI always needed to be safely
+            coaching-sourced. Falls back to the manual template exactly
+            like DV Coverage, wherever a code has no coaching match this
+            month.
+          detail_by_code: {code_str: {...}} -- the supporting detail behind
+            both numbers, attached to each DM/DSM record as `coachingDetail`
+            (2026-09-01, Ahmed: "DV Coverage Calls per DV pop up like in
+            coaching intel") so js/sprint.js can show the same coached/
+            not-coached name breakdown Coaching Intelligence itself shows
+            on a DV Coverage cell click, plus the manager's real visit
+            activity (visits/coachingDays/avgVisitsPerDay) for the popup.
+        """
+        if not os.path.exists(COACHING_CACHE_PATH):
+            log(f'  WARNING: {COACHING_CACHE_PATH} not found -- DM/DSM DV Coverage '
+                f'falls back to the manual KPI template for everyone this run.')
+            return {}, {}
+        try:
+            with open(COACHING_CACHE_PATH, encoding='utf-8') as f:
+                coaching = json.load(f)
+        except (OSError, ValueError) as e:
+            log(f'  WARNING: could not read {COACHING_CACHE_PATH} ({e}) -- DM/DSM DV '
+                f'Coverage falls back to the manual KPI template for everyone this run.')
+            return {}, {}
+        coaching_target_avg_visits = (coaching.get('targets') or {}).get('avgVisitsPerDay')
+        dv_out = {}
+        calls_out = {}
+        detail_out = {}
+        for mgr in coaching.get('managers', []):
+            code = mgr.get('code')
+            if code is None:
+                continue
+            month = (mgr.get('monthly') or {}).get(EVAL_MONTH_STR)
+            if not month:
+                continue
+            code_str = str(code)
+            pct = month.get('dvCoveragePct')
+            if pct is not None:
+                dv_out[code_str] = pct / 100.0
+            # Calls per DV (2026-09-10, Ahmed: "work zeta sprint from field
+            # working days and coaching intel for dm dsm and nsm and asm") --
+            # raw avgVisitsPerDay; target-adjusted per manager's own BU down
+            # in score_hierarchy_tier(), NOT Coaching's own flat 7/day target.
+            avg_visits = month.get('avgVisitsPerDay')
+            if avg_visits is not None:
+                calls_out[code_str] = avg_visits
+            # repBreakdown (2026-09-01, Ahmed: "show coched rep how many days
+            # visits per each day make the best practice"): per coached
+            # rep, THIS month's own coachingDays/visits/avgVisitsPerDay --
+            # from coachedEmployees' per-employee `monthly` bucket, not the
+            # cumulative Feb-Jun totals on that record. Best Practice is
+            # whoever has the highest visits/coachingDays cadence this
+            # month (ties all flagged) -- gives Ahmed a concrete "do what
+            # this rep's coach did" example inside the same popup, not just
+            # an aggregate manager-level number.
+            rep_breakdown = []
+            for emp in (mgr.get('coachedEmployees') or []):
+                emp_month = (emp.get('monthly') or {}).get(EVAL_MONTH_STR)
+                if not emp_month:
+                    continue
+                emp_days = emp_month.get('coachingDays') or 0
+                if emp_days <= 0:
+                    continue
+                emp_visits = emp_month.get('visits') or 0
+                emp_avg = round(emp_visits / emp_days, 2) if emp_days else None
+                rep_breakdown.append(dict(
+                    name=emp.get('name'),
+                    position=emp.get('position'),
+                    coachingDays=emp_days,
+                    visits=emp_visits,
+                    avgVisitsPerDay=emp_avg,
+                    isBestPractice=False,
+                ))
+            rep_breakdown.sort(key=lambda row: (row['avgVisitsPerDay'] or 0, row['visits']), reverse=True)
+            if rep_breakdown:
+                best_avg = rep_breakdown[0]['avgVisitsPerDay']
+                for row in rep_breakdown:
+                    if best_avg is not None and row['avgVisitsPerDay'] == best_avg:
+                        row['isBestPractice'] = True
+            detail_out[code_str] = dict(
+                dvCoveragePct=month.get('dvCoveragePct'),
+                dvCoverageRawPct=month.get('dvCoverageRawPct'),
+                activeTeamSize=month.get('activeTeamSize'),
+                coachedOnRoster=month.get('coachedOnRoster'),
+                coachedOffRoster=month.get('coachedOffRoster'),
+                coachedNames=month.get('coachedNames') or [],
+                notCoachedNames=month.get('notCoachedNames') or [],
+                visits=month.get('visits'),
+                coachingDays=month.get('coachingDays'),
+                avgVisitsPerDay=month.get('avgVisitsPerDay'),
+                avgVsTargetPct=month.get('avgVsTargetPct'),
+                coachingTargetAvgVisitsPerDay=coaching_target_avg_visits,
+                zones=month.get('zones'),
+                repBreakdown=rep_breakdown,
+            )
+
+        # dvCoverageRank / callsPerDvRank (2026-09-01, Ahmed: "show position
+        # if this rep"): this manager's rank among every DM/DSM Coaching
+        # Intelligence matched this month (competition ranking -- equal
+        # values share a rank, next rank skips accordingly), computed
+        # separately for DV Coverage (dvCoveragePct) and Calls per DV
+        # (avgVisitsPerDay, the REAL coaching cadence number shown in that
+        # popup -- not the manual-template score, which isn't coaching-
+        # sourced and so isn't comparable this way).
+        def competition_rank(pairs):
+            ranked = sorted(pairs, key=lambda p: p[1], reverse=True)
+            ranks = {}
+            prev_val, prev_rank = None, 0
+            for i, (code_key, val) in enumerate(ranked, start=1):
+                if prev_val is None or val != prev_val:
+                    prev_rank = i
+                    prev_val = val
+                ranks[code_key] = prev_rank
+            return ranks, len(ranked)
+
+        dv_pairs = [(c, d['dvCoveragePct']) for c, d in detail_out.items() if d.get('dvCoveragePct') is not None]
+        dv_ranks, dv_total = competition_rank(dv_pairs)
+        calls_pairs = [(c, d['avgVisitsPerDay']) for c, d in detail_out.items() if d.get('avgVisitsPerDay') is not None]
+        calls_ranks, calls_total = competition_rank(calls_pairs)
+        for c, d in detail_out.items():
+            if c in dv_ranks:
+                d['dvCoverageRank'] = dv_ranks[c]
+                d['dvCoverageRankOf'] = dv_total
+            if c in calls_ranks:
+                d['callsPerDvRank'] = calls_ranks[c]
+                d['callsPerDvRankOf'] = calls_total
+
+        log(f'  Coaching Intelligence DV Coverage: {len(dv_out)} DM/DSM matched for {EVAL_MONTH_STR} '
+            f'({len(detail_out)} with popup detail); Calls per DV: {len(calls_out)} matched')
+        return dv_out, calls_out, detail_out
+
+    coaching_dv_by_code, coaching_calls_by_code, coaching_detail_by_code = load_coaching_data()
 
     def normalize_raw(key, val):
         """Defensive guard against a common fill-in mistake: entering a
@@ -912,6 +1237,39 @@ def main():
             any_pending = team_avg_pts is None
             for key, label, weight in kpi_slots:
                 raw = provided.get(key)
+                source = 'template' if raw is not None else None
+                # DV Coverage (2026-09-01): Coaching Intelligence is the
+                # SOURCE for this KPI wherever it has a matching DM/DSM for
+                # this month -- see load_coaching_dv_coverage() above. Only
+                # falls back to the manual template when coaching has no
+                # match for this code -- never overrides a real coaching
+                # value with a stale manual one.
+                if key == 'dvCoverage' and code in coaching_dv_by_code:
+                    raw = coaching_dv_by_code[code]
+                    source = 'coaching'
+                # Calls per DV (2026-09-10, Ahmed: "work zeta sprint from
+                # field working days and coaching intel for dm dsm and nsm
+                # and asm") -- same precedent as DV Coverage above: prefer
+                # Coaching Intelligence's real visit-log cadence wherever it
+                # has a match for this manager this month, falling back to
+                # the manual template only when it doesn't. Coaching's raw
+                # number is visits/day, not "% of target" -- has to be
+                # divided by THIS manager's own Calls-per-DV target (8/day,
+                # or 12/day when their team is majority CHC_SALES) before it
+                # means the same thing the manual template's own column asks
+                # Ahmed to enter -- matches js/sprint.js's own documented
+                # rule (KPI_METHODOLOGY.callsPerDv: "12 DVs/day specifically
+                # for the DM/DSM managing the CHC_SALES line"). primary_line
+                # (majority-vote canonical Line of this manager's own team,
+                # computed above) is the same signal used everywhere else in
+                # this file to identify a CHC_SALES-line team -- BU=='CHC'
+                # alone is not specific enough, since the DB's own 'CHC'
+                # canonical line (a different population from CHC_SALES)
+                # also maps to BU 'CHC'.
+                if key == 'callsPerDv' and code in coaching_calls_by_code:
+                    target = CALLS_PER_DV_TARGET_CHC_SALES if primary_line == 'CHC_SALES' else CALLS_PER_DV_TARGET_DEFAULT
+                    raw = coaching_calls_by_code[code] / target
+                    source = 'coaching'
                 pts = None
                 if raw is not None:
                     raw = normalize_raw(key, raw)
@@ -919,7 +1277,7 @@ def main():
                     extra_pts_sum += pts
                 else:
                     any_pending = True
-                kpis.append(dict(key=key, label=label, weight=weight, pts=pts, raw=raw))
+                kpis.append(dict(key=key, label=label, weight=weight, pts=pts, raw=raw, source=source))
 
             total_pts = None if team_avg_pts is None else (team_avg_pts + extra_pts_sum)
 
@@ -940,6 +1298,14 @@ def main():
                 teamSalesVal=team_sales_val,
                 teamSalesTgt=team_sales_tgt,
                 teamSalesAchPct=team_sales_ach_pct,
+                # Coaching Intelligence popup detail (2026-09-01, Ahmed: "DV
+                # Coverage Calls per DV pop up like in coaching intel") --
+                # only ever present for DM/DSM (coaching_detail_by_code is
+                # keyed by District Manager/Field force supervisor codes);
+                # None for ASM/NSM, which is what js/sprint.js uses to
+                # decide whether the DV Coverage / Calls per DV KPI cells
+                # are clickable at all -- see load_coaching_data() above.
+                coachingDetail=coaching_detail_by_code.get(code),
             ))
         return out, excl
 
@@ -1010,6 +1376,77 @@ def main():
     log(f'  ASM:    {len(asm_results)} scored, {len(asm_excluded)} excluded')
     log(f'  NSM:    {len(nsm_results)} scored, {len(nsm_excluded)} excluded')
 
+    # Mid-period promotion/tier-change safety net -- added 2026-09-03,
+    # Ahmed: "Mohamed Yakn Hamed Abuelenein HE WAS DISTRICT TILL JUNE SO
+    # LET HIM APPEAR TILL JUNE AND JULY HE BOCOME AREA MANAGER CONSIDER
+    # THIS AND ALL LIKE SITUATION". That specific case (code 799) was
+    # already handled correctly by existing behavior: DM_DSM tier
+    # membership comes from having a row in the DM_DSM template sheet,
+    # ASM/NSM tier membership from a template row whose OWN Date column
+    # falls in EVAL_MONTH_STR (see load_kpi_template()'s date filter,
+    # 2026-09-02) plus the Coverage/Sales source data's own Direct
+    # Manager/Area Manager/NSM columns for that period -- so a person who
+    # was District Manager through June and became Area Manager in July
+    # is scored under DM/DSM for June and (once EVAL_PERIOD moves to
+    # July, and the underlying Coverage/Sales source reflects the new
+    # reporting line) under ASM for July, automatically, with no code
+    # change needed. What COULD go wrong for "all like situations": if
+    # Ahmed's DM_DSM/ASM/NSM template rows aren't cleanly period-scoped
+    # for a promoted person (e.g. a stale DM_DSM row left in for a month
+    # they'd already moved on from), this build would silently score them
+    # in two tiers for the same period. Rather than trust a one-off manual
+    # check to catch every future case, this cross-checks it on every
+    # build: any employee code scored in more than one of DM/DSM, ASM, NSM
+    # this run gets a loud console warning (non-fatal -- a real dual role
+    # is rare but not impossible, e.g. covering two roles during a
+    # handover, so this informs rather than blocks).
+    # Only count a tier appearance as "real" when it actually carries a
+    # score (totalPts is not None) -- dims['managers']/['areaManagers']/
+    # ['nsms'] (the Coverage cache's Direct Manager/Area Manager/NSM name
+    # dimensions) can list someone who ISN'T really a manager at that
+    # tier at all, e.g. via a vacant-position escalation chain (Database
+    # Shortcut's Direct/2nd/3rd Manager fallback) -- score_hierarchy_tier
+    # still emits a placeholder record for them (teamSize 0, every KPI
+    # raw None, totalPts None, isPartial True) so the front-end has a row
+    # to show as pending, but it is never scored, never averaged, and
+    # explicitly excluded from feeding ASM/NSM's own team pools (see the
+    # `if dm['totalPts'] is None: continue` guard a few lines above this
+    # tier's own pool-building loop). Spot-checked 2026-09-03: 23 such
+    # placeholder-only overlaps exist right now (real NSMs/ASMs whose name
+    # also lands in the DM/DSM dims from an escalation artifact) -- every
+    # one had teamSize 0 / totalPts None on the DM/DSM side, confirming
+    # they're harmless placeholders, not real double-scoring. Filtering to
+    # totalPts is not None here is what keeps this warning limited to
+    # genuine same-period double-scoring (the actual risk from a sloppy
+    # mid-period promotion) instead of firing on this pre-existing,
+    # harmless pattern every single build.
+    tier_codes = defaultdict(list)
+    for tier_label_chk, tier_results_chk in (('DM/DSM', dm_results), ('ASM', asm_results), ('NSM', nsm_results)):
+        for rec_chk in tier_results_chk:
+            if rec_chk.get('code') and rec_chk.get('totalPts') is not None:
+                tier_codes[rec_chk['code']].append((tier_label_chk, rec_chk['name']))
+    dual_tier = {dt_code: dt_tiers for dt_code, dt_tiers in tier_codes.items() if len(dt_tiers) > 1}
+    if dual_tier:
+        log(f'  [WARNING] {len(dual_tier)} employee(s) scored in MORE THAN ONE tier this period -- '
+            f'check for a mid-period promotion/tier-change that needs its template rows tightened to '
+            f'the right month(s):')
+        for dt_code, dt_tiers in dual_tier.items():
+            dt_names = ', '.join(f"{dt_label} ({dt_name})" for dt_label, dt_name in dt_tiers)
+            log(f'    code {dt_code}: {dt_names}')
+    # Deliberately reusing plain, generic-sounding loop variable names
+    # anywhere in THIS function is what caused a real bug the first time
+    # this exact block was added (2026-09-03): a `for label, results in
+    # (...)` loop here silently clobbered an outer `results` accumulator
+    # (532 Medical Rep/CHC Sales Rep records, defined far above at
+    # `results = []` and read again far below at `'ranked': results`) --
+    # Python for-loops are not block-scoped, so the loop's own local names
+    # leak into this whole function and can silently overwrite a
+    # same-named variable used elsewhere, with no error at all. Every
+    # variable in this block is now prefixed dt_/tier_/_chk specifically
+    # so it can never collide with a name used elsewhere in this (very
+    # long, single-scope) function again -- do the same for any future
+    # addition here rather than trusting short generic names.
+
     # -----------------------------------------------------------------
     # 7. Brand Manager -- roster from Database Shortcut (owns products,
     #    not a rep hierarchy, so no Team Avg rollup is possible).
@@ -1024,18 +1461,20 @@ def main():
     bm_template = kpi_template.get('Brand_Manager', {})
     bm_results, bm_excluded = [], []
     for code, name, position, line in bm_roster:
+        # Same pre-gate Sales computation as Medical Rep/CHC Sales Rep
+        # above, for the same reason (2026-09-07 widened Sales Average).
+        sales_line = BM_LINE_TO_SALES_LINE.get(line.strip().upper()) if line else None
+        ach = line_sales_achievement(sales_line) if sales_line else None
+
         active_ok, inactive_reason = is_active_for_period(code, EVAL_PERIOD_END)
         if not active_ok:
-            bm_excluded.append(dict(name=name, code=code, reason='not-active-resigned', detail=inactive_reason))
+            bm_excluded.append(dict(name=name, code=code, line=line, achPct=ach, reason='not-active-resigned', detail=inactive_reason))
             continue
         prob_ok, pp = is_probation_passed_for_period(code, EVAL_PERIOD_START)
         if prob_ok is False:
-            bm_excluded.append(dict(name=name, code=code, reason='probation-not-passed',
+            bm_excluded.append(dict(name=name, code=code, line=line, achPct=ach, reason='probation-not-passed',
                                      detail=f"passes {pp.isoformat()}, ranking period starts {EVAL_PERIOD_START.isoformat()}"))
             continue
-
-        sales_line = BM_LINE_TO_SALES_LINE.get(line.strip().upper()) if line else None
-        ach = line_sales_achievement(sales_line) if sales_line else None
         kpis = []
         total_pts = 0.0
         any_pending = False

@@ -1,0 +1,681 @@
+/* =====================================================================
+   ZETA COMMERCIAL EXCELLENCE — EXTERNAL MARKET INTELLIGENCE (.nws-*)
+   ===================================================================== */
+
+.nws-wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 24px 60px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1E293B;
+}
+
+/* Header & Sync Status */
+.nws-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.nws-header-left {
+  flex: 1;
+  min-width: 320px;
+}
+
+.nws-badge-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0F4C81;
+  background: #E8F1F8;
+  padding: 3px 10px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.nws-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0 0 6px;
+  line-height: 1.25;
+}
+
+.nws-subtitle {
+  font-size: 13.5px;
+  color: #64748B;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.nws-sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  background: #F8FAFC;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  white-space: nowrap;
+}
+
+.nws-dot-online {
+  width: 8px;
+  height: 8px;
+  background: #10B981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+/* 2026-09-10: source-health warning state (one or more sources FAILed
+   this run) — same dot, amber instead of green, so staleness/degraded
+   coverage is visible at a glance rather than always claiming "online". */
+.nws-dot-warning {
+  width: 8px;
+  height: 8px;
+  background: #D97706;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.nws-sync-detail {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #64748B;
+  margin-top: 2px;
+}
+
+/* 2026-09-10: explicit "no alerts" ticker state — shown instead of
+   fabricating a breaking alert when nothing meets the ticker-eligibility
+   bar (config/pipeline_settings.yaml: ticker_eligibility). */
+.nws-ticker-empty {
+  background: linear-gradient(90deg, #F0FDF4 0%, #F7FEF9 100%);
+  border: 1px solid #BBF7D0;
+  border-left: 4px solid #16A34A;
+}
+
+.nws-ticker-empty .nws-ticker-label {
+  color: #166534;
+  background: #DCFCE7;
+}
+
+/* Breaking Alert Ticker (Dynamic Cycling) */
+.nws-ticker {
+  background: linear-gradient(90deg, #FEF2F2 0%, #FFF1F2 100%);
+  border: 1px solid #FECDD3;
+  border-left: 4px solid #E11D48;
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(225, 29, 72, 0.06);
+  user-select: none;
+}
+
+.nws-ticker-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #BE123C;
+  background: #FFE4E6;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nws-ticker-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+}
+
+.nws-ticker-item {
+  font-size: 13px;
+  font-weight: 600;
+  color: #881337;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nws-ticker-link {
+  color: #881337;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  transition: color 0.15s ease;
+}
+
+.nws-ticker-link:hover {
+  color: #BE123C;
+  text-decoration: underline;
+}
+
+.nws-ticker-source {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #9F1239;
+  background: rgba(254, 205, 211, 0.5);
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.nws-ticker-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nws-ticker-btn {
+  background: #FFE4E6;
+  border: 1px solid #FECDD3;
+  color: #9F1239;
+  font-size: 13px;
+  font-weight: 800;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s ease;
+}
+
+.nws-ticker-btn:hover {
+  background: #FECDD3;
+  color: #881337;
+}
+
+.nws-ticker-view-all {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #BE123C;
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.nws-ticker-view-all:hover {
+  background: #FFE4E6;
+}
+
+/* 2026-09-10: TV-style continuous marquee ticker (Executive Command Center
+   MARKET ALERT bar). Motion is CSS-driven (@keyframes + transform), with
+   real pixel start/end values written in by JS via custom properties so the
+   headline fully enters from the right and fully exits to the left for any
+   text/viewport width combination. Hover-pause is pure CSS; JS only swaps
+   content once per completed pass (on `animationiteration`). */
+.nws-ticker.nws-ticker-marquee {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+}
+
+.nws-ticker-headrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.nws-ticker-meta {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #9F1239;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nws-ticker-label-none {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.nws-ticker-marquee .nws-ticker-controls {
+  align-self: flex-end;
+  margin-top: -2px;
+}
+
+.nws-ticker-viewport {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 19px;
+}
+
+.nws-ticker-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #881337;
+  text-decoration: none;
+  will-change: transform;
+  --ticker-start-x: 100%;
+  --ticker-end-x: -100%;
+  --ticker-duration: 18s;
+}
+
+.nws-ticker-track:hover {
+  color: #BE123C;
+  text-decoration: underline;
+}
+
+@keyframes nws-ticker-scroll {
+  from { transform: translateX(var(--ticker-start-x)); }
+  to   { transform: translateX(var(--ticker-end-x)); }
+}
+
+/* Pause on hover, resume automatically on mouse leave (default browser
+   behavior of animation-play-state — no JS required for this path). */
+.nws-ticker-marquee:hover .nws-ticker-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nws-ticker-track {
+    animation: none !important;
+    position: static !important;
+    transform: none !important;
+    white-space: normal;
+  }
+  .nws-ticker-viewport {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+/* Card title link */
+.nws-card-title-link {
+  color: #0F172A;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.nws-card-title-link:hover {
+  color: #0F4C81;
+  text-decoration: underline;
+}
+
+/* Metrics Snapshot Strip */
+.nws-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.nws-metric-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.nws-metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.nws-metric-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nws-metric-icon {
+  font-size: 16px;
+}
+
+.nws-metric-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0F172A;
+}
+
+.nws-metric-sub {
+  font-size: 11.5px;
+  color: #94A3B8;
+  margin-top: 2px;
+}
+
+/* Controls: Filters & Search */
+.nws-controls {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.nws-search-row {
+  margin-bottom: 14px;
+}
+
+.nws-search-input {
+  width: 100%;
+  padding: 10px 14px 10px 38px;
+  font-size: 13.5px;
+  color: #0F172A;
+  background: #F8FAFC url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%2394A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>') no-repeat 12px center;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.nws-search-input:focus {
+  border-color: #0F4C81;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.1);
+}
+
+.nws-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.nws-filter-group-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.nws-pill {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 20px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.nws-pill:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.nws-pill.active {
+  background: #0F4C81;
+  color: #FFFFFF;
+  border-color: #0F4C81;
+}
+
+/* Article Cards Feed */
+.nws-feed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 16px;
+}
+
+.nws-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.nws-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
+}
+
+.nws-card-critical {
+  border-top: 3.5px solid #E11D48;
+}
+
+.nws-card-high {
+  border-top: 3.5px solid #F59E0B;
+}
+
+.nws-card-medium {
+  border-top: 3.5px solid #3B82F6;
+}
+
+.nws-card-moderate {
+  border-top: 3.5px solid #64748B;
+}
+
+.nws-card-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.nws-badges-left {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.nws-badge-impact {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.nws-impact-5 { background: #FFE4E6; color: #BE123C; }
+.nws-impact-4 { background: #FEF3C7; color: #B45309; }
+.nws-impact-3 { background: #DBEAFE; color: #1D4ED8; }
+.nws-impact-2 { background: #F1F5F9; color: #475569; }
+.nws-impact-1 { background: #F8FAFC; color: #64748B; }
+
+.nws-badge-cat {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #F1F5F9;
+  color: #334155;
+}
+
+.nws-badge-bu {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #E0E7FF;
+  color: #3730A3;
+}
+
+.nws-date {
+  font-size: 11px;
+  color: #94A3B8;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.nws-card-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0 0 8px;
+  line-height: 1.35;
+}
+
+.nws-card-source {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #0F4C81;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nws-card-summary {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+/* "Why it matters" Box */
+.nws-why-box {
+  background: #F8FAFC;
+  border-left: 3px solid #0F4C81;
+  border-radius: 0 6px 6px 0;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #1E293B;
+  line-height: 1.45;
+}
+
+.nws-why-title {
+  font-weight: 800;
+  color: #0F4C81;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+/* Tags & Link Row */
+.nws-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #F1F5F9;
+  margin-top: auto;
+}
+
+.nws-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.nws-chip {
+  font-size: 10.5px;
+  color: #64748B;
+  background: #F1F5F9;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.nws-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F4C81;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nws-link:hover {
+  text-decoration: underline;
+}
+
+/* Empty State */
+.nws-empty {
+  text-align: center;
+  padding: 60px 20px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  grid-column: 1 / -1;
+}
+
+.nws-empty-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.nws-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 4px;
+}
+
+.nws-empty-sub {
+  font-size: 13px;
+  color: #64748B;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .nws-wrap {
+    padding: 16px;
+  }
+  .nws-feed-grid {
+    grid-template-columns: 1fr;
+  }
+  .nws-header {
+    flex-direction: column;
+  }
+  .nws-sync-status {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -111,6 +111,22 @@ JUNE_TGT_SHEET  = 'SalesPositionTargets'
 CHC_YTD_XLSX  = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'CHC_BU_YTD_PERFROMANCE.xlsx')
 CHC_YTD_SHEET = 'CHC_YTD_PERFROMANCE'
 
+# Q3 (July 2026) actuals + official/working targets for the 14 non-CHC lines (2026-09-10)
+#
+# File quirk (verified directly against the real file, 2026-09-10): the
+# 'April-June' sheet (a stale name carried over from an earlier export
+# template -- its actual content is July only, trusted by Date value not
+# by sheet name, same principle as CHC_YTD_XLSX's rolling period range)
+# has ONE entirely blank spacer row before its real header row -- every
+# other authoritative source's header has always been physical row 1.
+# See read_source_header() below, which skips a leading blank row
+# generically (a no-op for every other source). Without it, validate_source()
+# reads the blank row as the header, every expected column resolves to
+# None, and the ETL fails loud on "missing required column(s)" the moment
+# it reaches this source.
+Q3_XLSX      = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'Q3_SALES.xlsx')
+Q3_SHEET     = 'April-June'
+
 # Shortage Target scenario override file (2026-08-26) -- Ahmed's own real
 # file, already present in ZETA SALES_2026\ before any placeholder of
 # Claude's own design was finalized (discovered 2026-08-26 while staging
@@ -953,6 +969,28 @@ def gv(r, idx, default=None):
         return default
     return r[idx]
 
+def read_source_header(rows_iter):
+    """Consumes rows_iter up to and including the header row, skipping any
+    leading fully-blank row(s) first (2026-09-10, added for Q3_XLSX: its
+    'April-June' sheet has one entirely blank spacer row before its real
+    header, verified directly against the real file -- every other
+    authoritative source's header has always been physical row 1, so this
+    is a no-op for them: the very first row they hand back is already
+    non-blank and is returned immediately). Works against any iterator
+    that yields row tuples/lists, including iter(ws.to_python()). Returns
+    the header as a list of stripped strings, same shape the old
+    `[str(c).strip() if c is not None else '' for c in next(rows_iter)]`
+    one-liner produced. Raises StopIteration if no non-blank row turns up
+    within a small cap -- the same failure a direct next(rows_iter) used
+    to raise for a literally header-less sheet, so existing StopIteration
+    handling (validate_source's 'sheet has no header row' check) is
+    unaffected."""
+    for _ in range(5):
+        row = next(rows_iter)
+        if row and not all(c in (None, '') for c in row):
+            return [str(c).strip() if c is not None else '' for c in row]
+    raise StopIteration
+
 def open_db():
     conn = sqlite3.connect(DB_PATH)
     # MEMORY journal (not WAL/DELETE): this is a scratch checkpoint we can
@@ -1017,26 +1055,13 @@ def get_progress(conn):
 # output-formatting changes). On mismatch the checkpoint is discarded and
 # the run starts clean, which costs one full re-read but guarantees every
 # row in the cache was produced by exactly one version of the rules.
-ETL_RULES_VERSION = '2026-08-27.a'  # 'a' = authoritative-source cutover: SOURCES rewired to
-# Q1_Sales.xlsx / Q2_Sales.xlsx / TGT.xlsx / june.xlsx / June TGT 2026.xlsx /
-# CHC_BU_YTD_PERFROMANCE.xlsx (TOTAL_SALES_2026.xlsx retired); new CHC_LINES
-# exclusion-by-source guard added (CHC/CHC_SALES rows from june.xlsx and
-# June TGT 2026.xlsx are now dropped -- CHC_BU_YTD_PERFROMANCE.xlsx is the
-# sole authority for those two lines, now spanning Jan-June).
-# 'b' (same day, found via the mandatory parallel-run reconciliation before
-# cutover): the June target de-duplication rule was unconditionally
-# dropping CHC_YTD_XLSX's own June-dated CHC/CHC_SALES target rows too
-# (it didn't know about the new CHC-exclusive-source exception), silently
-# understating CHC Working Target by ~25.7M EGP and CHC_SALES by ~19.3M
-# EGP. Fixed with a `line not in CHC_LINES` guard on that check -- see the
-# June target de-duplication comment. This changes row inclusion for
-# CHC/CHC_SALES June target rows, so the checkpoint must be discarded
-# again.
-# '2026-08-27.a' (Ahmed's directive): ZETACOLEST / ZETACOLEST PLUS sales
-# now always classified Non-Tender (mask bit 1 forced 0), regardless of
-# the source row's own IsTender value -- see FORCE_NON_TENDER_BRANDS.
-# Changes the mask (part of the aggregation groupby key) for every row of
-# those two brands, so the checkpoint must be discarded.
+ETL_RULES_VERSION = '2026-09-10.q3_chc_hdrfix'  # 'q3_chc' = Q3 onboarding + CHC TargetIndex=1
+# actual-sales preservation (e.g. Noon/online accounts). '_hdrfix' (same day, added on top): Q3_XLSX's
+# real file has one blank spacer row before its header (see the Q3_XLSX comment above) -- without
+# read_source_header() skipping it, every column resolves to None and validate_source() fails loud
+# on "missing required column(s)" the moment it reaches q3, so this source could never actually run
+# end-to-end until this was added. Does not change how any row is classified (a header-detection fix,
+# not a classification rule), but bumped anyway per this file's own checkpoint-rules-version discipline.
 RULES_VERSION_KEY = 'etl_rules_version'
 
 
@@ -1085,8 +1110,9 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
     ws = wb.get_sheet_by_name(sheet_name)
     log(f'  Sheet fetched: {xlsx_path} ({time.time()-t0:.1f}s)')
 
-    rows_iter = ws.iter_rows()
-    header = [str(c).strip() if c else '' for c in next(rows_iter)]
+    rows = ws.to_python()
+    rows_iter = iter(rows)
+    header = read_source_header(rows_iter)
     # None (2026-07-29), not expected_cols' hardcoded position, for a name
     # missing from THIS header -- the position fallback was dead code for
     # the main/June actuals files (their headers always contain every
@@ -1168,19 +1194,48 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
             is_mirror = False
             is_official_scenario = True  # only meaningful when is_mirror is True
             skip_row = False
+            t_idx = None
+
+            # Detect whether this row carries a Target figure or an Actual Sales figure
+            raw_tgt_val = gv(r, col['TargetValue'])
+            raw_val = gv(r, col['Value'])
+            has_tgt_val = False
+            if raw_tgt_val not in (None, ''):
+                try: has_tgt_val = float(raw_tgt_val) != 0.0
+                except: pass
+            has_act_val = False
+            if raw_val not in (None, ''):
+                try: has_act_val = float(raw_val) != 0.0
+                except: pass
+
             if tgt_idx_val not in (None, ''):
-                try:
-                    t_idx = int(round(float(tgt_idx_val)))
-                    if t_idx == 1:
-                        is_mirror = True
-                        is_official_scenario = True
-                    elif t_idx == 0:
-                        is_mirror = True
-                        is_official_scenario = False
-                    else:
-                        skip_row = True  # target rows with other target indexes excluded
-                except:
-                    skip_row = True  # unparseable target index excluded
+                s_ti = str(tgt_idx_val).strip()
+                s_ti_lower = s_ti.lower()
+                if s_ti_lower == 'sales' or (has_act_val and not has_tgt_val):
+                    # Actual sales transaction (e.g. Q3_SALES.xlsx or CHC online accounts tagged TargetIndex=1.0 with Value>0 and TargetValue=0)
+                    is_mirror = False
+                    is_official_scenario = True
+                elif s_ti_lower in ('original', '1', '1.0'):
+                    is_mirror = True
+                    is_official_scenario = True
+                    t_idx = 1
+                elif s_ti_lower in ('buffer', '0', '0.0'):
+                    is_mirror = True
+                    is_official_scenario = False
+                    t_idx = 0
+                else:
+                    try:
+                        t_idx = int(round(float(tgt_idx_val)))
+                        if t_idx == 1:
+                            is_mirror = True
+                            is_official_scenario = True
+                        elif t_idx == 0:
+                            is_mirror = True
+                            is_official_scenario = False
+                        else:
+                            skip_row = True  # target rows with other target indexes excluded
+                    except:
+                        skip_row = True  # unparseable target index excluded
 
             if not skip_row:
                 month = parse_month(gv(r, col['Date']))
@@ -1427,6 +1482,7 @@ SOURCES = [
     ('june',     JUNE_XLSX,    JUNE_SHEET_NAME, 'june_rows_done',  'june_complete'),
     ('june_tgt', JUNE_TGT_XLSX, JUNE_TGT_SHEET, 'junetgt_rows_done', 'junetgt_complete'),
     (CHC_AUTHORITY_LABEL, CHC_YTD_XLSX, CHC_YTD_SHEET, 'chcytd_rows_done', 'chcytd_complete'),
+    ('q3',       Q3_XLSX,      Q3_SHEET,      'q3_rows_done',      'q3_complete'),
 ]
 REQUIRED_SOURCE_LABELS = {label for label, *_ in SOURCES}  # every current source is required
 
@@ -1444,6 +1500,7 @@ TARGETS_REQUIRED_COLS = {'Date', 'Line', 'TargetValue', 'TargetIndex'}
 SOURCE_KIND = {  # label -> 'actuals' | 'targets' | 'mixed' (both actuals and target rows expected)
     'q1': 'actuals', 'q2': 'actuals', 'q_tgt': 'targets',
     'june': 'actuals', 'june_tgt': 'targets', CHC_AUTHORITY_LABEL: 'mixed',
+    'q3': 'mixed',
 }
 VALID_MONTHS = {f'2026-{m:02d}' for m in range(1, 13)}
 
@@ -1490,11 +1547,12 @@ def validate_source(conn, label, xlsx_path, sheet_name):
         fail_etl(label, f'expected sheet "{sheet_name}" not found -- sheets present: {wb.sheet_names}')
 
     ws = wb.get_sheet_by_name(sheet_name)
-    rows_iter = ws.iter_rows()
+    rows = ws.to_python()
+    rows_iter = iter(rows)
     try:
-        header = [str(c).strip() if c else '' for c in next(rows_iter)]
+        header = read_source_header(rows_iter)
     except StopIteration:
-        fail_etl(label, 'sheet has no header row (empty file)')
+        fail_etl(label, 'sheet has no header row (empty file, or nothing but blank rows)')
 
     kind = SOURCE_KIND[label]
     if kind == 'targets':
@@ -1539,11 +1597,13 @@ def validate_source(conn, label, xlsx_path, sheet_name):
         if col['TargetIndex'] is not None and col['TargetIndex'] < len(r):
             ti = r[col['TargetIndex']]
             if ti not in (None, ''):
-                try:
-                    if int(round(float(ti))) not in (0, 1):
+                s_ti_lower = str(ti).strip().lower()
+                if s_ti_lower not in ('sales', 'original', 'buffer'):
+                    try:
+                        if int(round(float(ti))) not in (0, 1):
+                            bad_target_index_rows += 1
+                    except Exception:
                         bad_target_index_rows += 1
-                except Exception:
-                    bad_target_index_rows += 1
 
     if row_count == 0:
         fail_etl(label, 'sheet has a header but zero data rows')

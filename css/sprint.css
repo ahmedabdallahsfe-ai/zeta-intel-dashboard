@@ -192,6 +192,43 @@ tr.sp-row.sp-is-winner:hover { background: linear-gradient(90deg, rgba(180,83,9,
 .sp-member-modal-total { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-border); }
 .sp-member-modal-total .sp-total-pts { font-size: 20px; font-weight: 800; }
 
+/* Coaching Intelligence detail popup for DV Coverage / Calls per DV --
+   2026-09-01, Ahmed: "DV Coverage Calls per DV pop up like in coaching
+   intel". Clickable variant of .sp-kpi-wrap (see kpiBar()'s
+   coachingAttrs param in js/sprint.js) plus the popup body itself
+   (coachingDetailModalBody()). */
+.sp-kpi-coaching-clickable { cursor: pointer; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; transition: background 0.15s; }
+.sp-kpi-coaching-clickable:hover, .sp-kpi-coaching-clickable:focus-visible { background: var(--color-surface-alt); outline: none; }
+.sp-kpi-coaching-hint { font-size: 10px; color: var(--color-primary); margin-top: 3px; font-weight: 600; }
+.sp-coaching-detail-summary { font-size: 12.5px; color: var(--color-text-tertiary); margin-bottom: 12px; }
+.sp-coaching-detail-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.sp-coaching-col-title { font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+.sp-coaching-col-coached { color: var(--color-success); }
+.sp-coaching-col-notcoached { color: var(--color-warning); }
+.sp-coaching-namelist { margin: 0; padding-left: 16px; font-size: 12px; }
+.sp-coaching-namelist li { margin-bottom: 6px; }
+.sp-coaching-namemeta { font-size: 10.5px; color: var(--color-text-tertiary); margin-top: 1px; }
+.sp-coaching-note { color: var(--color-primary); }
+.sp-coaching-empty { font-size: 12px; color: var(--color-text-tertiary); padding: 6px 0; }
+.sp-coaching-detail-note { font-size: 11.5px; color: var(--color-text-tertiary); margin-top: 12px; padding: 8px 10px; background: var(--color-surface-alt); border-radius: 6px; }
+.sp-coaching-detail-source { font-size: 10.5px; color: var(--color-text-tertiary); margin-top: 10px; font-style: italic; }
+.sp-coaching-back-link { display: block; width: 100%; text-align: left; margin-top: 16px; padding-top: 14px; border: none; border-top: 1px solid var(--color-border); background: none; color: var(--color-primary); font-size: 12px; font-weight: 700; cursor: pointer; }
+.sp-coaching-back-link:hover { text-decoration: underline; }
+
+/* 2026-09-01 (Ahmed: "show coched rep how many days visits per each day
+   make the best practice and show position if this rep") -- rank line +
+   per-coached-rep visit-cadence table + Best Practice badge, added to the
+   same Coaching Intelligence popup. Reuses --color-primary/-success/
+   -border/-surface-alt tokens already used by the rest of this popup. */
+.sp-coaching-rank-line { font-size: 12px; font-weight: 600; color: var(--color-primary); background: var(--color-surface-alt); border-radius: 6px; padding: 8px 10px; margin: 10px 0; }
+.sp-coaching-rep-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+.sp-coaching-rep-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--color-text-tertiary); padding: 4px 8px; border-bottom: 1px solid var(--color-border); }
+.sp-coaching-rep-table td { padding: 5px 8px; border-bottom: 1px solid var(--color-border); }
+.sp-coaching-rep-table tr:last-child td { border-bottom: none; }
+.sp-coaching-best-row td { background: var(--color-surface-alt); }
+.sp-coaching-best-badge { display: inline-block; font-size: 10px; font-weight: 700; color: var(--color-success); margin-left: 4px; white-space: nowrap; }
+
+
 /* =====================================================================
    Access scoping + personal performance card
    ===================================================================== */

@@ -41,6 +41,13 @@ org_inspect.txt
 sfe_org_output.txt
 test_write.txt
 
+*.bak*
+*.bak_*
+_qa_tarballs_to_delete/
+Claude outputs/
+_to_delete/
+scratch/
+
 # Python
 __pycache__/
 *.pyc

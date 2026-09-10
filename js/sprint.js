@@ -258,6 +258,12 @@
   let historyIndex = [];     // [{key:"2026-06", name:"June", file:"cache/sprint_history/..."}]
   const periodDataCache = {}; // monthName -> decompressed archive, memoized after first load
   let ready = false;
+  // 2026-09-01 (Ahmed: "DV Coverage Calls per DV pop up like in coaching
+  // intel") -- tracks whichever DS.openModal() overlay is currently open,
+  // so openCoachingDetailModal() can close it before opening the nested
+  // detail popup (window.DS's own contract says "only one DS modal is
+  // expected open at a time" -- see js/components.js buildModal()).
+  let _spModalOverlay = null;
 
   const STATE = {
     subTab: "overview",
@@ -558,12 +564,23 @@
     </div>`;
   }
 
-  function kpiBar(label, pct, pts, maxpts, pctText) {
+  function kpiBar(label, pct, pts, maxpts, pctText, coachingAttrs) {
+    // coachingAttrs (2026-09-01, Ahmed: "DV Coverage Calls per DV pop up
+    // like in coaching intel"): a pre-built `data-coaching-code="..."
+    // data-coaching-kpi="..."` string, passed only for the DM/DSM tier's
+    // DV Coverage / Calls per DV bars when that manager has real Coaching
+    // Intelligence detail attached (see kpiSlotCell below). Makes the
+    // whole bar clickable -- onSprintDocumentClick's
+    // .sp-kpi-coaching-clickable handler opens the popup.
+    const clickableClass = coachingAttrs ? " sp-kpi-coaching-clickable" : "";
+    const clickableAttrs = coachingAttrs ? ` ${coachingAttrs} role="button" tabindex="0"` : "";
+    const hintHtml = coachingAttrs ? '<div class="sp-kpi-coaching-hint">🔍 Coaching Intelligence detail</div>' : "";
     if (pts == null) {
-      return `<div class="sp-kpi-wrap">
+      return `<div class="sp-kpi-wrap${clickableClass}"${clickableAttrs}>
         <div class="sp-kpi-label">${label} <span class="sp-kpi-pct">pending</span></div>
         <div class="sp-kpi-track"><div class="sp-kpi-fill sp-kpi-fill-pending" style="width:100%"></div></div>
         <div class="sp-kpi-pts">— / ${maxpts}</div>
+        ${hintHtml}
       </div>`;
     }
     const pctDisp = pctText != null ? pctText : (pct != null ? pct.toFixed(1) + "%" : "—");
@@ -580,10 +597,11 @@
     const visualWidth = isZeroFloor ? 4 : width;
     const fillClass = isZeroFloor ? "sp-kpi-fill sp-kpi-fill-zero" : "sp-kpi-fill";
     const zeroNote = isZeroFloor ? ` <span class="sp-kpi-zero-note" title="Below this KPI's scoring curve this period -- 0 pts earned even though the raw % above may be greater than 0">below curve floor</span>` : "";
-    return `<div class="sp-kpi-wrap">
+    return `<div class="sp-kpi-wrap${clickableClass}"${clickableAttrs}>
         <div class="sp-kpi-label">${label} <span class="sp-kpi-pct">${pctDisp}</span></div>
         <div class="sp-kpi-track"><div class="${fillClass}" style="width:${visualWidth.toFixed(0)}%"></div></div>
         <div class="sp-kpi-pts">${pts.toFixed(1)} / ${maxpts}${zeroNote}</div>
+        ${hintHtml}
       </div>`;
   }
 
@@ -734,7 +752,7 @@
   // computeRepMedianData/computeLineWinnerPools still uses ONLY the
   // Median fields -- Average is display/comparison-only until Ahmed
   // explicitly says to switch the rule itself.
-  function computeLineMedians(reps) {
+  function computeLineMedians(reps, allPositionsForSales) {
     const byLine = {};
     (reps || []).forEach(r => {
       const key = r.canonLine || "—";
@@ -743,6 +761,29 @@
       byLine[key].coverage.push(r.coveragePct);
       byLine[key].rf.push(r.rightFreqPct);
     });
+    // EXTENDED 2026-09-07 (Ahmed: "only Sales Average should be all
+    // positions included either active or not probation or not") --
+    // when a wider population is passed (ranked + excluded, i.e. every
+    // position on the Line regardless of active/probation status), the
+    // Sales bucket is rebuilt from THAT population instead of `reps`.
+    // Coverage/RF are deliberately left untouched -- they still come
+    // only from `reps` (the normal active+probation-passed population),
+    // exactly as before this change. allPositionsForSales already
+    // IS the full set (it's built by callers as reps.concat(excluded)),
+    // so this replaces rather than merges -- merging would double-count
+    // every already-eligible rep.
+    if (allPositionsForSales) {
+      const bySalesLine = {};
+      allPositionsForSales.forEach(r => {
+        const key = r.canonLine || r.line || "—";
+        if (r.achPct == null) return;
+        (bySalesLine[key] = bySalesLine[key] || []).push(r.achPct);
+      });
+      Object.keys(bySalesLine).forEach(line => {
+        if (!byLine[line]) byLine[line] = { sales: [], coverage: [], rf: [] };
+        byLine[line].sales = bySalesLine[line];
+      });
+    }
     const out = {};
     Object.keys(byLine).forEach(line => {
       out[line] = {
@@ -1174,7 +1215,7 @@
   // at all (no teamSize field, individual KPIs only, see brandManagerRow)
   // so its callers pass `() => true` instead -- every scored BM in the
   // roster counts.
-  function computeHierarchyAverages(reps, groupFn, scopeFn) {
+  function computeHierarchyAverages(reps, groupFn, scopeFn, extraForKey) {
     const inScope = scopeFn || (r => r.teamSize > 0);
     const groups = {};
     (reps || []).forEach(r => {
@@ -1189,6 +1230,24 @@
         groups[g][k.key].push(k.raw);
       });
     });
+    // EXTENDED 2026-09-07 (Ahmed: "only Sales Average should be all
+    // positions included either active or not probation or not") --
+    // folds additional raw values into ONE named KPI bucket, from a
+    // population that bypassed the normal active/probation scoping
+    // above (e.g. excluded Brand Managers' raw Sales Achievement %).
+    // Every other KPI bucket (teamAvg, fieldDays, etc.) is untouched --
+    // this only ever widens the single named key's own average.
+    if (extraForKey && extraForKey.records && extraForKey.records.length) {
+      extraForKey.records.forEach(rec => {
+        const g = (extraForKey.groupFn || groupFn)(rec);
+        if (g == null) return;
+        if (!groups[g]) groups[g] = { teamAvg: [] };
+        const val = extraForKey.valueFn ? extraForKey.valueFn(rec) : rec[extraForKey.key];
+        if (val == null) return;
+        if (!groups[g][extraForKey.key]) groups[g][extraForKey.key] = [];
+        groups[g][extraForKey.key].push(val);
+      });
+    }
     const out = {};
     Object.keys(groups).forEach(g => {
       out[g] = {};
@@ -2033,10 +2092,17 @@
 
   function renderMedicalRep() {
     const all = cache.medicalRepSalesRep.ranked.filter(r => r.role === "Medical Rep").filter(repInScope);
+    // Widened Sales-only population (2026-09-07): every Medical Rep
+    // position on the roster, active or not, probation or not --
+    // computeLineMedians() uses this ONLY to build the Sales Average,
+    // never Coverage/RF. See sprint_scoring_rules_reference.md.
+    const allPositionsForSales = all.concat(
+      cache.medicalRepSalesRep.excluded.filter(e => e.role === "Medical Rep").filter(excludedInScope)
+    );
     // Per-Line medians, recomputed every render, read by kpiMedianBlock
     // (via computeRepMedianData) and lineMedianPanelHtml() -- see their
     // doc comments above (Ahmed 2026-08-18 Line Median Rule).
-    msrLineMedians = computeLineMedians(all);
+    msrLineMedians = computeLineMedians(all, allPositionsForSales);
     // Single derived-data pass, per Ahmed 2026-08-18 section 14: every
     // rep's Layer 1 (median gate) + Layer 2 (points, read verbatim) +
     // Layer 3 (Winner Pool rank, per-Line) computed exactly once here --
@@ -2084,6 +2150,10 @@
   function renderSalesRep() {
     const all = cache.medicalRepSalesRep.ranked.filter(r => r.role === "Sales Rep (CHC)").filter(repInScope);
     const sorted = [...all].sort((a, b) => b.totalPts - a.totalPts);
+    // Widened Sales-only population (2026-09-07) -- see renderMedicalRep().
+    const allPositionsForSales = all.concat(
+      cache.medicalRepSalesRep.excluded.filter(e => e.role === "Sales Rep (CHC)").filter(excludedInScope)
+    );
     // Line Median Rule extended to CHC Sales Rep per Ahmed 2026-08-18
     // ("apply also for chc rep"). CHC Sales Rep is a single Line
     // ("CHC_SALES" -- confirmed, every CHC Sales Rep record shares it),
@@ -2101,7 +2171,7 @@
     // this call passed `true` to winnerPoolSummaryCardsHtml specifically
     // to keep showing RF as an "eligibility-only" KPI -- no longer
     // applicable, RF plays no role in CHC at all now).
-    const medians = computeLineMedians(all);
+    const medians = computeLineMedians(all, allPositionsForSales);
     const { derivedByCode, lineSummary } = computeLineWinnerPools(all, medians);
     const ls = lineSummary["CHC_SALES"] || { medians, winner: null, runnerUp: null, poolRest: [], poolSize: 0, nearWinners: [], noWinnerThisCycle: true, tieAtRank1: false, tieAtRank2: false };
     // scenarioCompareHtml() call REMOVED 2026-08-19 ("remove show only avg
@@ -2212,7 +2282,7 @@
     dvCoverage: {
       label: "DV Coverage",
       formula: "Team members who received ≥ 1 Double Visit (D.V.) this period ÷ total team members",
-      detail: "Measures how much of the DM/DSM's own team they personally double-visited/coached this period, not how many total visits were made.",
+      detail: "Measures how much of the DM/DSM's own team they personally double-visited/coached this period, not how many total visits were made. Auto-sourced from Coaching Intelligence's own DV Coverage % (built from the joint/coached field-visit log) as of 2026-09-01 -- falls back to Ahmed's manual KPI template only for a DM/DSM Coaching Intelligence has no match for that period.",
     },
     callsPerDv: {
       label: "Calls per DV",
@@ -2248,14 +2318,34 @@
     </details>`;
   }
 
-  function kpiSlotCell(kpi) {
-    const shortLabel = kpiShortLabel(kpi.label) + (kpi.source === "auto" ? " (auto)" : "");
+  function kpiSlotCell(kpi, coachingDetail, mgrCode) {
+    const isAutoSourced = kpi.source === "auto" || kpi.source === "coaching";
+    // DV Coverage (2026-09-01): kpi.source === "coaching" means Coaching
+    // Intelligence supplied this value (cache/coaching.json), not Ahmed's
+    // manual KPI template -- see etl/build_sprint_cache.py's
+    // load_coaching_dv_coverage(). Shown with the same "(auto)" tag as
+    // Brand Manager's auto-calculated National Sales, for the same reason:
+    // it did not come from the manual template.
+    const shortLabel = kpiShortLabel(kpi.label) + (isAutoSourced ? " (auto)" : "");
+    // coachingDetail/mgrCode (2026-09-01, Ahmed: "DV Coverage Calls per DV
+    // pop up like in coaching intel"): only ever passed for a DM/DSM
+    // record with a real coachingDetail object (see
+    // etl/build_sprint_cache.py's load_coaching_data()) -- makes the DV
+    // Coverage and Calls per DV bars clickable to a Coaching Intelligence
+    // detail popup, same idea as Coaching Intelligence's own "click a DV
+    // Coverage cell to see who was/wasn't coached" popup. Calls per DV's
+    // SCORE is still the manual template either way -- this only adds a
+    // supporting-context popup, see openCoachingDetailModal().
+    const isCoachingClickable = !!coachingDetail && (kpi.key === "dvCoverage" || kpi.key === "callsPerDv");
+    const coachingAttrs = isCoachingClickable
+      ? `data-coaching-code="${esc(mgrCode)}" data-coaching-kpi="${esc(kpi.key)}"`
+      : null;
     if (kpi.key === "regionCount") {
       const pctText = kpi.raw != null ? `${kpi.raw} region${kpi.raw === 1 ? "" : "s"}` : null;
-      return kpiBar(shortLabel, null, kpi.pts, kpi.weight, pctText);
+      return kpiBar(shortLabel, null, kpi.pts, kpi.weight, pctText, coachingAttrs);
     }
     const pctText = kpi.raw != null ? (kpi.raw * 100).toFixed(1) + "% actual" : null;
-    return kpiBar(shortLabel, null, kpi.pts, kpi.weight, pctText);
+    return kpiBar(shortLabel, null, kpi.pts, kpi.weight, pctText, coachingAttrs);
   }
 
   function teamDrilldown(r) {
@@ -2405,7 +2495,7 @@
       const lineBu = [r.line, r.bu].filter(Boolean).join(" · ");
       const noun = r.memberNoun === "DM/DSM" ? "DM/DSM" : "rep";
       kpisHtml = kpiBar("Team Avg", r.teamAvgRaw, r.teamAvgPts, r.teamAvgWeight)
-        + r.kpis.map(k => kpiSlotCell(k)).join("");
+        + r.kpis.map(k => kpiSlotCell(k, r.coachingDetail, r.code)).join("");
       subInfo = `#${esc(r.code)}${lineBu ? ` · ${esc(lineBu)}` : ""} · ${r.teamSize} eligible ${esc(noun)}${r.teamSize === 1 ? "" : "s"} in team`;
     }
 
@@ -2420,10 +2510,129 @@
         ${r.isPartial ? `<div class="sp-partial-note">Some KPIs are still pending your data sheet — not yet counted in this total.</div>` : ""}
       </div>`;
 
-    window.DS.openModal({ title: r.name, bodyHtml });
+    if (_spModalOverlay && typeof window.DS.closeModal === "function") window.DS.closeModal(_spModalOverlay);
+    _spModalOverlay = window.DS.openModal({ title: r.name, bodyHtml });
+  }
+
+  /** Coached / Not Coached name breakdown (DV Coverage) or visit-activity
+   * summary (Calls per DV) for one DM/DSM -- 2026-09-01, Ahmed: "DV
+   * Coverage Calls per DV pop up like in coaching intel". Mirrors
+   * Coaching Intelligence's own DV Coverage cell popup (js/coaching.js
+   * renderRosterPopup) for the coached/not-coached list; Calls per DV has
+   * no per-name breakdown in Coaching Intelligence (it's a manager-level
+   * visit-log stat, not a per-rep flag), so that branch instead shows the
+   * manager's real visits/coachingDays/avgVisitsPerDay as supporting
+   * context -- explicitly labeled as context, not the score, since
+   * Coaching Intelligence's own avgVisitsPerDay target (flat 7/day) is
+   * NOT the same target Sprint's Calls per DV KPI scores against (8/day,
+   * 12/day for CHC_SALES -- see etl/build_sprint_cache.py's
+   * load_coaching_data() docstring for why the two aren't interchangeable). */
+  // rankLineHtml itself (both call sites -- Calls per DV, then this DV
+  // Coverage one) removed 2026-09-01 per Ahmed's explicit "remove it" on
+  // each rendered rank line. dvCoverageRank/dvCoverageRankOf and
+  // callsPerDvRank/callsPerDvRankOf are still computed and attached to
+  // coachingDetail by etl/build_sprint_cache.py's load_coaching_data()
+  // (see its 2026-09-01 SCHEMA_VERSION 11 comment) -- only this UI
+  // rendering was cut, so the numbers are still there in the cache if
+  // Ahmed wants them back.
+
+  // repBreakdownTableHtml (2026-09-01, Ahmed: "show coched rep how many
+  // days visits per each day make the best practice"): per coached rep,
+  // this month's own coaching days / visits / visits-per-day cadence, with
+  // whoever has the best cadence flagged as the Best Practice example --
+  // a concrete "coach like this" reference inside the same popup, not
+  // just the manager-level aggregate above it.
+  function repBreakdownTableHtml(repBreakdown) {
+    const rows = repBreakdown || [];
+    if (!rows.length) return "";
+    const trs = rows.map(row => `<tr class="${row.isBestPractice ? "sp-coaching-best-row" : ""}">
+        <td>${esc(row.name)}${row.isBestPractice ? ' <span class="sp-coaching-best-badge" title="Highest visits/day cadence on this team this period">&#11088; Best Practice</span>' : ""}</td>
+        <td>${row.coachingDays != null ? row.coachingDays : "—"}</td>
+        <td>${row.visits != null ? row.visits : "—"}</td>
+        <td>${row.avgVisitsPerDay != null ? row.avgVisitsPerDay.toFixed(2) : "—"}</td>
+      </tr>`).join("");
+    return `<div class="sp-coaching-col-title">Coached Reps &mdash; Visit Cadence This Period</div>
+      <table class="sp-coaching-rep-table">
+        <thead><tr><th>Rep</th><th>Coaching Days</th><th>Visits</th><th>Avg/Day</th></tr></thead>
+        <tbody>${trs}</tbody>
+      </table>`;
+  }
+
+  function coachingDetailModalBody(mgrCode, mgrName, detail, kpiKey) {
+    let inner;
+    if (kpiKey === "dvCoverage") {
+      function byName(a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); }
+      const coached = (detail.coachedNames || []).slice().sort(byName);
+      const notCoached = (detail.notCoachedNames || []).slice().sort(byName);
+      function listHtml(items, emptyMsg) {
+        if (!items.length) return `<div class="sp-coaching-empty">${esc(emptyMsg)}</div>`;
+        return `<ul class="sp-coaching-namelist">${items.map(it => {
+          const metaBits = [];
+          if (it.position) metaBits.push(esc(it.position));
+          if (it.note) metaBits.push(`<span class="sp-coaching-note">${esc(it.note)}</span>`);
+          const metaHtml = metaBits.length ? `<div class="sp-coaching-namemeta">${metaBits.join(" &middot; ")}</div>` : "";
+          return `<li>${esc(it.name)}${metaHtml}</li>`;
+        }).join("")}</ul>`;
+      }
+      const covLabel = detail.dvCoveragePct != null ? detail.dvCoveragePct.toFixed(1) + "%" : "—";
+      inner = `
+        <div class="sp-coaching-detail-summary">DV Coverage ${covLabel} &middot; ${coached.length} of ${coached.length + notCoached.length} roster reps double-visited this period</div>
+        <div class="sp-coaching-detail-cols">
+          <div><div class="sp-coaching-col-title sp-coaching-col-coached">Coached (${coached.length})</div>${listHtml(coached, "No roster reps were coached this period.")}</div>
+          <div><div class="sp-coaching-col-title sp-coaching-col-notcoached">Not Coached (${notCoached.length})</div>${listHtml(notCoached, "Every roster rep was coached this period.")}</div>
+        </div>
+        ${repBreakdownTableHtml(detail.repBreakdown)}
+        <div class="sp-coaching-detail-source">Source: Coaching Intelligence &middot; this is the exact same data this KPI is now scored from.</div>`;
+    } else if (kpiKey === "callsPerDv") {
+      const visits = detail.visits, days = detail.coachingDays, avg = detail.avgVisitsPerDay;
+      // sp-coaching-detail-note (the "score still comes from Ahmed's manual
+      // worksheet... target mismatch" explainer) removed 2026-09-01 per
+      // Ahmed's explicit "remove this" -- the underlying fact (Calls per DV
+      // is still template-scored, coaching's own 7/day target isn't the
+      // score) is unchanged in etl/build_sprint_cache.py's load_coaching_data()
+      // docstring; only this UI copy was cut.
+      // rankLineHtml call removed 2026-09-01 per Ahmed's explicit "remove
+      // this" (quoting the rendered "Ranked #14 of 165 ... Calls per DV"
+      // line) -- Calls per DV's rank line specifically; DV Coverage's own
+      // rankLineHtml call above is untouched, Ahmed only flagged this one.
+      inner = `
+        <div class="sp-coaching-detail-summary">${visits != null ? visits : "—"} double visits over ${days != null ? days : "—"} coaching day${days === 1 ? "" : "s"} this period &middot; ${avg != null ? avg.toFixed(2) : "—"} visits/day average</div>
+        ${repBreakdownTableHtml(detail.repBreakdown)}
+        <div class="sp-coaching-detail-source">Source: Coaching Intelligence visit log (Visits Details S1 DM.xlsx).</div>`;
+    } else {
+      inner = `<div class="sp-coaching-empty">No Coaching Intelligence detail for this KPI.</div>`;
+    }
+    return `<div class="sp-coaching-detail">${inner}
+      <button type="button" class="sp-coaching-back-link" data-back-code="${esc(mgrCode)}">&larr; Back to ${esc(mgrName)}</button>
+    </div>`;
+  }
+
+  function openCoachingDetailModal(code, kpiKey) {
+    if (!window.DS || typeof window.DS.openModal !== "function") {
+      console.error("[Sprint] DS.openModal is unavailable -- cannot show Coaching Intelligence detail popup.");
+      return;
+    }
+    const found = findMemberRecord(code);
+    const r = found && found.data;
+    if (!r || !r.coachingDetail) return;
+    if (_spModalOverlay && typeof window.DS.closeModal === "function") window.DS.closeModal(_spModalOverlay);
+    const titleSuffix = kpiKey === "dvCoverage" ? "DV Coverage detail" : "Calls per DV detail";
+    const bodyHtml = coachingDetailModalBody(code, r.name, r.coachingDetail, kpiKey);
+    _spModalOverlay = window.DS.openModal({ title: `${r.name} — ${titleSuffix}`, bodyHtml });
   }
 
   function onSprintDocumentClick(e) {
+    const backBtn = e.target.closest(".sp-coaching-back-link");
+    if (backBtn) {
+      if (_spModalOverlay && window.DS && typeof window.DS.closeModal === "function") window.DS.closeModal(_spModalOverlay);
+      openMemberModal(backBtn.dataset.backCode);
+      return;
+    }
+    const coachingLink = e.target.closest(".sp-kpi-coaching-clickable");
+    if (coachingLink) {
+      openCoachingDetailModal(coachingLink.dataset.coachingCode, coachingLink.dataset.coachingKpi);
+      return;
+    }
     const btn = e.target.closest(".sp-member-link");
     if (btn) openMemberModal(btn.dataset.code);
   }
@@ -2442,7 +2651,18 @@
   // does. val/avg/pass come straight from computeHierarchyGateData's own
   // `checks` array (the same numbers gating eligibility), never
   // recomputed here.
-  function hierarchyKpiBlock(label, val, avg, pass, pts, maxPts, isFraction) {
+  function hierarchyKpiBlock(label, val, avg, pass, pts, maxPts, isFraction, coachingAttrs) {
+    // coachingAttrs (2026-09-01, Ahmed: "i mean make this popo in zeta
+    // sprint"): same convention as kpiBar()'s own coachingAttrs param --
+    // a pre-built `data-coaching-code="..." data-coaching-kpi="..."`
+    // string, passed only for the DM/DSM leaderboard table's DV Coverage
+    // / Calls per DV cells when that manager has real Coaching
+    // Intelligence detail. Makes this block clickable via the SAME
+    // onSprintDocumentClick .sp-kpi-coaching-clickable handler kpiBar's
+    // version uses -- one popup implementation, two KPI-cell renderers.
+    const clickableClass = coachingAttrs ? " sp-kpi-coaching-clickable" : "";
+    const clickableAttrs = coachingAttrs ? ` ${coachingAttrs} role="button" tabindex="0"` : "";
+    const hintHtml = coachingAttrs ? '<div class="sp-kpi-coaching-hint">🔍 Coaching Intelligence detail</div>' : "";
     const fmt = v => v == null ? "—" : (isFraction ? (v * 100).toFixed(1) + "%" : v.toFixed(1) + " pts");
     const valStr = fmt(val);
     const avgStr = fmt(avg);
@@ -2459,7 +2679,7 @@
     }
     const ptsStr = maxPts == null ? null : (pts != null ? `${pts.toFixed(1)} / ${maxPts} pts` : `— / ${maxPts} pts`);
     const floorHtml = pass == null ? "" : `<div class="sp-median-floor-status ${pass ? "sp-floor-above" : "sp-floor-below"}">${pass ? "✓" : "✗"} ${pass ? "Above" : "Below"} Peer Average</div>`;
-    return `<div class="sp-kpi-median-block">
+    return `<div class="sp-kpi-median-block${clickableClass}"${clickableAttrs}>
       <div class="sp-kpi-median-label">${esc(label)}</div>
       <div class="sp-kpi-median-val">${valStr}</div>
       <div class="sp-kpi-median-vsmed">vs Peer Avg ${avgStr}</div>
@@ -2467,6 +2687,7 @@
       <div class="sp-kpi-median-pctofmed">${vsStr}</div>
       ${ptsStr != null ? `<div class="sp-kpi-median-pts">${ptsStr}</div>` : ""}
       ${floorHtml}
+      ${hintHtml}
     </div>`;
   }
 
@@ -2556,7 +2777,17 @@
       <td>${teamAvgCellHtml}</td>
       ${r.kpis.map(k => {
         const c = checksByKey[k.key];
-        return `<td>${c ? hierarchyKpiBlock(kpiShortLabel(k.label), k.raw, c.avg, c.pass, k.pts, k.weight, true) : kpiSlotCell(k)}</td>`;
+        // 2026-09-01 (Ahmed: "i mean make this popo in zeta sprint"): this
+        // is the main leaderboard table's own KPI cell renderer -- the
+        // earlier popup wiring only reached the member-detail modal's
+        // kpiSlotCell, missing this table entirely. Same isCoachingClickable
+        // rule as kpiSlotCell (dvCoverage/callsPerDv keys, only when this
+        // manager has coachingDetail).
+        const isCoachingClickable = !!r.coachingDetail && (k.key === "dvCoverage" || k.key === "callsPerDv");
+        const coachingAttrs = isCoachingClickable
+          ? `data-coaching-code="${esc(r.code)}" data-coaching-kpi="${esc(k.key)}"`
+          : null;
+        return `<td>${c ? hierarchyKpiBlock(kpiShortLabel(k.label), k.raw, c.avg, c.pass, k.pts, k.weight, true, coachingAttrs) : kpiSlotCell(k, r.coachingDetail, r.code)}</td>`;
       }).join("")}
       <td class="sp-total">
         <!-- "Winner Pool #N", added 2026-08-19 ("add it to asm nsm dm"),
@@ -2783,7 +3014,17 @@
     // Always computed from the FULL unscoped roster (data.ranked), never
     // the viewer-scoped `ranked`, same "true peer group" rule as every
     // other tier.
-    const bmGroupAverages = computeHierarchyAverages(data.ranked, () => "__ALL__", () => true);
+    // Widened Sales population (2026-09-07, Ahmed: "only Sales Average
+    // should be all positions included either active or not probation or
+    // not") -- excluded Brand Managers (not-active-resigned or
+    // probation-not-passed) still carry a raw achPct (see
+    // etl/build_sprint_cache.py), folded into the national "salesAch"
+    // KPI average only. Regions Covered / Tactical Plan are untouched --
+    // excluded BMs never had those computed at all.
+    const bmExcludedForSales = (data.excluded || []).filter(e => e.achPct != null);
+    const bmGroupAverages = computeHierarchyAverages(data.ranked, () => "__ALL__", () => true, {
+      key: "salesAch", groupFn: () => "__ALL__", records: bmExcludedForSales, valueFn: e => e.achPct
+    });
     const { derivedByCode, groupSummary } = computeHierarchyWinnerPools(data.ranked, () => "__ALL__", bmGroupAverages, 1, () => true);
     const companyGroup = groupSummary["__ALL__"];
     const companyWinnerCodes = companyGroup ? companyGroup.winners.map(x => x.r.code) : [];
@@ -2870,7 +3111,7 @@
   // just a search box; filterAttr/isEligible/winnersPanelId/
   // buildPanelHtml are simply unused in that case (val stays "__ALL__",
   // isEligible falls through to "always eligible" same as no gate).
-  function wireRankFilter(selectEl, bodySelector, filterAttr, cascadePrefixes, isEligible, winnersPanelId, buildPanelHtml, searchInputEl) {
+  function wireRankFilter(selectEl, bodySelector, filterAttr, cascadePrefixes, isEligible, winnersPanelId, buildPanelHtml, searchInputEl, skipBadges) {
     if (!selectEl && !searchInputEl) return;
     const recompute = () => {
       const val = selectEl ? selectEl.value : "__ALL__";
@@ -2891,9 +3132,30 @@
       document.querySelectorAll(`${bodySelector} > tr`).forEach(tr => {
         const show = (val === "__ALL__" || tr.getAttribute(filterAttr) === val) && matchesSearch(tr, term);
         tr.style.display = show ? "" : "none";
+        const rankCell = tr.querySelector(".sp-rank");
+        if (skipBadges) {
+          // ASM/NSM (added 2026-09-02, "still flagged as winner Mahmoud
+          // Mokhtar" bug fix): these two tiers have no BU dropdown and are
+          // wired here ONLY to power the search box -- there is no live
+          // re-ranking to do (a single company-wide WINNER, already
+          // correctly computed once by computeHierarchyWinnerPools and
+          // baked into the initial hierarchyRow() HTML). The generic
+          // rank-1/rank-2-of-currently-visible-rows badge logic below is
+          // WRONG for these two tiers: with isEligible passed as null it
+          // ignores the peer-Average gate entirely and just badges the
+          // top-2 rows by raw Total Points -- exactly the bug Ahmed
+          // reported (a gate-FAILING top-scorer shown as WINNER, and a
+          // "WINNER 2" badge that should never exist outside DM/DSM at
+          // all). So: only update the rank counter here and leave every
+          // row's winner/runner-up badge exactly as server-rendered.
+          if (show) {
+            rank += 1;
+            if (rankCell) rankCell.textContent = rank;
+          }
+          return;
+        }
         const winnerBadge = tr.querySelector(".sp-winner-badge");
         const runnerUpBadge = tr.querySelector(".sp-runnerup-badge");
-        const rankCell = tr.querySelector(".sp-rank");
         if (show) {
           rank += 1;
           if (rankCell) rankCell.textContent = rank;
@@ -3053,9 +3315,14 @@
     const nsmAverages = computeHierarchyAverages(nsmFullScored, () => "__ALL__");
     const { groupSummary: nsmGroupSummary } = computeHierarchyWinnerPools(nsmFullScored, () => "__ALL__", nsmAverages, 1);
 
+    const msrExcludedAll = cache.medicalRepSalesRep.excluded || [];
     [["Medical Rep", medicalReps], ["CHC Sales Rep", salesReps]].forEach(([title, records]) => {
       const cashKey = title === "CHC Sales Rep" ? "Sales Rep (CHC)" : title;
-      const medians = computeLineMedians(records);
+      // Widened Sales population (2026-09-07) -- same rule as the
+      // on-screen tabs, so the CSV's Winner/Winner 2 determination can
+      // never drift from what the dashboard itself shows.
+      const recordsForSales = records.concat(msrExcludedAll.filter(e => e.role === cashKey));
+      const medians = computeLineMedians(records, recordsForSales);
       const { lineSummary } = computeLineWinnerPools(records, medians);
       Object.keys(lineSummary).forEach(line => {
         const ls = lineSummary[line];
@@ -3289,8 +3556,8 @@
       "sp-dm-winners-panel", dmWinnersPanelHtml, document.getElementById("sp-dm-search"));
     // ASM/NSM: no BU dropdown, search-only -- see wireRankFilter's
     // searchInputEl doc comment above.
-    wireRankFilter(null, "#sp-asm-body", "data-bu", [], null, null, null, document.getElementById("sp-asm-search"));
-    wireRankFilter(null, "#sp-nsm-body", "data-bu", [], null, null, null, document.getElementById("sp-nsm-search"));
+    wireRankFilter(null, "#sp-asm-body", "data-bu", [], null, null, null, document.getElementById("sp-asm-search"), true);
+    wireRankFilter(null, "#sp-nsm-body", "data-bu", [], null, null, null, document.getElementById("sp-nsm-search"), true);
     wireSearchClearButtons();
     // Peer Averages panel, recomputed live on the same BU filter change --
     // added 2026-08-19 ("make charts and illustration like [you] made in

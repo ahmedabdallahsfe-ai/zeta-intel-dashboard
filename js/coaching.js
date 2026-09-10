@@ -11,7 +11,7 @@
  * with an analytical hierarchy a manager can actually use:
  *   Executive KPIs -> Key Insights -> Monthly Trend -> Attention
  *   Required -> ranked/sortable/searchable table -> Other Levels table
- *   -> click-through Manager Profile (S1 summary + Feb..Jun
+ *   -> click-through Manager Profile (YTD summary + Feb..Jul
  *   reconciliation table + coached-employee list).
  *   (2026-08-31 follow-up: the 2x2 Coverage x Visits/Day Performance
  *   Matrix that originally sat between Monthly Trend and Attention
@@ -22,7 +22,7 @@
  *
  * DATA SOURCE / SCOPE -- UNCHANGED from v1, still locked:
  *   cache/coaching.data.js, built by etl/build_coaching_cache.py from
- *   "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Jun30 2026 S1) joined
+ *   "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Jul31 2026 YTD) joined
  *   against Database Shortcut.xlsx. See that script's header for the
  *   full field list, exclusions and the confirmed 7-alias name-match
  *   table (757/757 reps, 165/165 coaching managers matched -- verified
@@ -64,10 +64,14 @@
  *     the manager's top-level activeTeamCount, which is a current-roster
  *     snapshot, not a per-period figure (see the 2026-08-31 roster-
  *     denominator fix note in etl/build_coaching_cache.py's header).
- *   - Coverage only exists for District Manager / Field force
- *     supervisor -- the two levels with a real "own team". Every other
- *     level (Sr. DM, NSM, Area Manager, BUM, Brand Manager, FF
- *     Trainer, Group Brand lead) never gets a coverage % or a target.
+ *   - Coverage exists for District Manager / Field force supervisor /
+ *     Senior District Manager -- the levels with a real "own team"
+ *     (Senior District Manager added 2026-09-08, Ahmed-requested: all
+ *     3 current Sr. DMs have a real active roster with visit history --
+ *     see etl/build_coaching_cache.py's COVERAGE_TITLES comment for the
+ *     verification). Every other level (NSM, Area Manager, BUM, Brand
+ *     Manager, FF Trainer, Group Brand lead) never gets a coverage % or
+ *     a target.
  *   - A manager whose name could not be matched to Database
  *     Shortcut.xlsx at all would show "Coverage: pending org match"
  *     rather than a computed number -- see coverageDisplay(). This
@@ -165,7 +169,11 @@
   "use strict";
 
   var FULL_ACCESS_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager"];
-  var OWN_ONLY_TITLES = ["District Manager", "Field force supervisor"];
+  // 2026-09-08: Senior District Manager added -- see
+  // etl/build_coaching_cache.py's COVERAGE_TITLES comment (kept in
+  // lockstep with that set) for why. Moves all 3 current Sr. DMs from
+  // the Other Coaching Levels table into this ranked/targeted one.
+  var OWN_ONLY_TITLES = ["District Manager", "Field force supervisor", "Senior District Manager"];
   var TARGET_COVERAGE_DEFAULT = 75;
   var TARGET_AVG_DAY_DEFAULT = 7;
 
@@ -178,7 +186,7 @@
   var _visible = [];       // managers this signed-in user may see (after AUTH scoping)
   var _chartInstances = {}; // canvasId -> Chart.js instance, owned entirely by this file
   var _state = {
-    period: "ALL",          // "ALL" (S1 cumulative) or a "YYYY-MM" key
+    period: "ALL",          // "ALL" (YTD cumulative) or a "YYYY-MM" key
     drillManagerId: null,   // manager id whose profile is open
     visitLogFor: null,      // { managerId, empIndex } -- detailed-visits modal, on top of the profile drawer
     rosterPopupFor: null,   // { managerId, period } -- coached/not-coached-by-name popup for a clicked DV Coverage cell
@@ -272,6 +280,34 @@
     return manager.monthly[period] || null; // null = no visits that manager that month
   }
 
+  // 2026-09-03, Ahmed ("so any dsm resgned in specific month reomve him
+  // from analysis" -> "Remove from that month's table + KPI averages"):
+  // true unless this manager's OWN Last Day of Work / Hiring date
+  // (etl/build_coaching_cache.py's activeHalfMonth flag, stamped on
+  // manager.monthly[m] the same way it already is on a coached rep's
+  // ce.monthly[m]) falls inside this specific month. "ALL"/YTD Cumulative
+  // is never gated by this -- a manager who was genuinely active for part
+  // of S1/YTD still belongs in the cumulative view; only the exact
+  // month(s) they weren't employed are affected. activeHalfMonth
+  // undefined (older cache, or a month bucket that somehow lacks it) is
+  // never exclusionary, same rule as everywhere else in this file.
+  function managerActiveInPeriod(manager, period) {
+    if (period === "ALL") return true;
+    var mm = manager.monthly[period];
+    if (!mm) return true;
+    // Two independent signals, either one excludes: activeHalfMonth
+    // (not yet hired, or resigned in the FIRST half of this month --
+    // etl/build_coaching_cache.py's active_in_month()) and
+    // resignedThisMonth (Last Day of Work falls anywhere in this exact
+    // month, any day -- catches a manager who left on day 28-31, which
+    // activeHalfMonth alone reads as still active for that month by
+    // design; see Eslam AbdelLatif Aly Ibrahim ElSabagh, Last Day of
+    // Work 2026-07-31).
+    if (mm.activeHalfMonth === false) return false;
+    if (mm.resignedThisMonth === true) return false;
+    return true;
+  }
+
   var EMPTY_METRICS = {
     visits: 0, coachingDays: 0, avgVisitsPerDay: 0, coachedOnRoster: 0,
     coachedOffRoster: 0, zones: 0, dvCoveragePct: null, activeTeamSize: 0,
@@ -293,7 +329,7 @@
       // Shortcut's current Status snapshot -- see
       // etl/build_coaching_cache.py's "Currently-active manager flag"
       // note) is excluded from this aggregate ENTIRELY, for every
-      // period including S1 Cumulative -- not just the periods after
+      // period including YTD Cumulative -- not just the periods after
       // they left. This keeps the company-wide Executive KPI row /
       // ranked-table totals reading as "how is the CURRENT org
       // performing", never diluted by a former employee's fragmentary
@@ -302,6 +338,7 @@
       // it still reads straight from manager.monthly/cumulative and
       // shows their accurate individual history when opened directly.
       if (m.currentlyActive === false) return;
+      if (!managerActiveInPeriod(m, period)) return;
       var mm = metricsFor(m, period) || EMPTY_METRICS;
       visits += mm.visits;
       days += mm.coachingDays;
@@ -328,11 +365,30 @@
     };
   }
 
+  // 2026-09-01, Ahmed: "i mean in this if you remember he will not count
+  // resigned 1-15 and new hired 15-30" -- applies the SAME half-month
+  // hire/resignation rule the DV Coverage roster denominator already
+  // uses (etl/build_coaching_cache.py's active_in_month(): resigned in
+  // the FIRST half of the month, or hired in the SECOND half, doesn't
+  // count for that month) to the REP side of "Reps Coached" -- a rep
+  // genuinely double-visited that month but who resigned day 1-15 or
+  // joined day 16-30 is now excluded from that month's count.
+  // ce.monthly[m].activeHalfMonth carries this (computed in the ETL,
+  // where the rep's real Hiring date / Last Day of Work live) --
+  // `!== false` so a rep with no HR date evidence either way (undefined,
+  // same as active_in_month()'s own None-is-never-exclusionary rule, or
+  // an older cache built before this field existed) still counts, same
+  // as before this change.
   function collectRepsForPeriod(manager, period) {
     var out = [];
+    function qualifies(mm) {
+      return mm && (mm.visits || 0) > 0 && mm.activeHalfMonth !== false;
+    }
     manager.coachedEmployees.forEach(function (ce) {
-      var v = period === "ALL" ? ce.visits : ((ce.monthly[period] || {}).visits || 0);
-      if (v > 0) out.push(normName(ce.name));
+      var ok = period === "ALL"
+        ? Object.keys(ce.monthly || {}).some(function (m) { return qualifies(ce.monthly[m]); })
+        : qualifies(ce.monthly[period]);
+      if (ok) out.push(normName(ce.name));
     });
     return out;
   }
@@ -380,7 +436,7 @@
   }
 
   function periodLabel(period) {
-    if (period === "ALL") return "S1 cumulative (Feb–Jun)";
+    if (period === "ALL") return "YTD cumulative (Feb–Jul)";
     var d = new Date(period + "-01T00:00:00");
     return d.toLocaleString("en-US", { month: "long", year: "numeric" });
   }
@@ -451,7 +507,7 @@
   // Render: header + period control
   // ---------------------------------------------------------------
   function renderPeriodControl(data) {
-    var btns = ['<button class="tb-btn' + (_state.period === "ALL" ? " tb-btn-active" : "") + '" data-period="ALL">S1 Cumulative</button>'];
+    var btns = ['<button class="tb-btn' + (_state.period === "ALL" ? " tb-btn-active" : "") + '" data-period="ALL">YTD Cumulative</button>'];
     data.period.months.forEach(function (m) {
       btns.push('<button class="tb-btn' + (_state.period === m ? " tb-btn-active" : "") + '" data-period="' + m + '">' + monthShort(m) + '</button>');
     });
@@ -512,6 +568,53 @@
       '</div>' +
       (_filters.bu || _filters.line ? '<button class="tb-btn" id="coaching-filter-reset" type="button">Reset</button>' : '') +
       activeNote +
+      '</div>';
+  }
+
+  // renderRepsCoachedMethodologyBox (2026-09-01, Ahmed: "Coaching
+  // Intelligence make box of how active coached employee calculated and
+  // source of this calculation") -- plain-language explainer for the
+  // "Reps Coached" Executive KPI card, matching exactly what
+  // aggregateOwnTier()/collectRepsForPeriod() above actually compute:
+  // the count of DISTINCT reps (deduplicated by normName()) with at
+  // least one double-visit in the selected period, summed across every
+  // CURRENTLY-ACTIVE District Manager / Field force supervisor in scope
+  // -- a rep coached by more than one manager, or coached on more than
+  // one day, is still counted once, and a manager who has since left the
+  // company is excluded entirely (see the m.currentlyActive === false
+  // comment in aggregateOwnTier above).
+  function renderRepsCoachedMethodologyBox(data) {
+    var r = data.reconciliation || {};
+    return '<div class="ci-methodology-box">' +
+      '<div class="ci-methodology-title">&#8505;&#65039; How &ldquo;Reps Coached&rdquo; is calculated</div>' +
+      '<div class="ci-methodology-body">' +
+        'Count of <b>distinct</b> reps with at least one double/joint visit logged in the selected period, ' +
+        'summed across every currently-active District Manager / Field force supervisor in scope (a rep coached ' +
+        'by more than one manager, or on more than one day, is still counted once). A manager who has since left ' +
+        'the company is excluded from this count entirely, for every period.' +
+      '</div>' +
+      // 2026-09-01, Ahmed: first asked whether hire/resignation dates
+      // factor into this count (they didn't) -- then, follow-up ("i mean
+      // in this if you remember he will not count resigned 1-15 and new
+      // hired 15-30"), asked for the SAME half-month roster rule DV
+      // Coverage's denominator already uses to actually apply here too.
+      // Now implemented, not just documented: etl/build_coaching_cache.py
+      // stamps ce.monthly[m].activeHalfMonth via active_in_month() (the
+      // exact same function used for team_as_of_month()'s roster), and
+      // collectRepsForPeriod() above now requires it to be true (or
+      // absent -- no HR date evidence either way is never exclusionary,
+      // same as active_in_month()'s own rule). "Reps Coached" and DV
+      // Coverage's denominator now use the SAME half-month join/leave
+      // rule -- they used to diverge (visit-based-only vs. roster-based)
+      // until this change.
+      '<div class="ci-methodology-body">' +
+        '<b>Half-month hire/resignation rule applies.</b> A rep who resigned in the first half of a month (Last Day ' +
+        'of Work day 1&ndash;14) or was hired in the second half (Hiring date day 16&ndash;30/31) is excluded from ' +
+        'that month, even if a real visit was logged &mdash; the same half-month roster rule the DV Coverage % ' +
+        'denominator uses. A rep with no hire/resignation date on record either way is still counted normally.' +
+      '</div>' +
+      '<div class="ci-methodology-source">Source: ' + esc(data.sourceFiles && data.sourceFiles.join(" &middot; ") || "Visits Details S1 DM.xlsx (Total sheet)") +
+        ' &middot; matched against Database Shortcut.xlsx by employee Code &middot; ' + r.rowsProcessed + '/' + r.totalVisitRowsInSheet + ' visit rows processed &middot; generated ' + esc(data.generatedAt) + '.</div>' +
       '</div>';
   }
 
@@ -640,6 +743,17 @@
   // ---------------------------------------------------------------
   // Render: Attention Required
   // ---------------------------------------------------------------
+  // 2026-09-01, Ahmed: "Reps Not Coached in 30+ Days remove this" --
+  // the section, its buildInsights summary line, and its render()
+  // wiring were removed. It surfaced roster reps not double-visited by
+  // their own DM/FFS manager in 30+ days (added earlier the same
+  // session, then refined to exclude reps hired after the period
+  // ends). etl/build_coaching_cache.py's activeTeamHireDates field,
+  // added to support it, was left in place unused in cache/coaching.json
+  // -- same precedent as the earlier dvCoverageRank/callsPerDvRank
+  // removal (see sprint_dvcoverage_coaching_source project-memory note)
+  // -- so no ETL rerun was needed for this removal.
+  // -----------------------------------------------------------------
   function renderAttentionRequired(data, ownTier) {
     var t = data.targets;
     var rows = ownTier.map(function (m) {
@@ -724,12 +838,12 @@
       var dayVar = signed(r.mm.avgVisitsPerDay - t.avgVisitsPerDay);
       var covDisplay = coverageDisplay(r.m, r.mm);
       var leftBadge = r.m.currentlyActive === false
-        ? '<span class="badge badge-neutral" title="No longer with the company -- excluded from the Executive KPI row and this table\'s totals for every period, including S1 Cumulative. This row still shows their own accurate historical numbers.">Left company</span>'
+        ? '<span class="badge badge-neutral" title="No longer with the company -- excluded from the Executive KPI row and this table\'s totals for every period, including YTD Cumulative. This row still shows their own accurate historical numbers.">Left company</span>'
         : "";
       return '<tr class="coaching-drill-row" data-drill="' + esc(r.m.id) + '" style="cursor:pointer;">' +
         '<td>' + (i + 1) + '</td>' +
         '<td>' + esc(r.m.name) + (leftBadge ? " " + leftBadge : "") + '</td>' +
-        '<td>' + esc(r.m.title === "District Manager" ? "DM" : "FFS") + '</td>' +
+        '<td>' + esc(r.m.title === "District Manager" ? "DM" : (r.m.title === "Senior District Manager" ? "Sr. DM" : "FFS")) + '</td>' +
         '<td>' + esc(r.m.line || "—") + '</td>' +
         '<td>' + (covDisplay ? '<span class="badge ' + covDisplay.cls + '">' + covDisplay.text + '</span>' : fmtPct1(r.mm.dvCoveragePct)) + '</td>' +
         '<td>' + covVar + '</td>' +
@@ -775,7 +889,7 @@
         '</tr>';
     }).join("");
     return '' +
-      '<div class="section-title" style="margin-top:22px;font-size:16px;">Other Coaching Levels <span style="font-weight:400;font-size:.65em;opacity:.7;">Sr. DM, NSM, Area Manager, BUM, Brand Manager, FF Trainer — no coverage target</span></div>' +
+      '<div class="section-title" style="margin-top:22px;font-size:16px;">Other Coaching Levels <span style="font-weight:400;font-size:.65em;opacity:.7;">NSM, Area Manager, BUM, Brand Manager, FF Trainer — no coverage target</span></div>' +
       '<div class="coaching-table-wrap"><table class="data-table" id="coaching-otherlevels-table-el">' +
       '<thead><tr><th>Manager</th><th>Level</th><th>Line</th><th>Visits</th><th>Coaching Days</th><th>Avg/Day</th><th>Coached Reps</th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table></div>';
@@ -794,14 +908,14 @@
       '<div class="kpi-grid">' +
       kpiCard("DV Coverage", fmtPct1(cum.dvCoveragePct), "Target " + t.dvCoveragePct + "% &middot; " + (cum.dvCoveragePct === null ? "—" : signed(cum.dvCoveragePct - t.dvCoveragePct, " pp")), st.label, st.cls, "green") +
       kpiCard("Avg Visits/Day", cum.avgVisitsPerDay.toFixed(1), "Target " + t.avgVisitsPerDay + " &middot; " + signed(cum.avgVisitsPerDay - t.avgVisitsPerDay), cum.avgVisitsPerDay >= t.avgVisitsPerDay ? "ON TARGET" : "BELOW TARGET", cum.avgVisitsPerDay >= t.avgVisitsPerDay ? "badge-up" : "badge-down", "blue") +
-      kpiCard("Coaching Days", String(cum.coachingDays), "S1 total", null, null, "purple") +
-      kpiCard("Visits", String(cum.visits), "S1 total", null, null, "orange") +
+      kpiCard("Coaching Days", String(cum.coachingDays), "YTD total", null, null, "purple") +
+      kpiCard("Visits", String(cum.visits), "YTD total", null, null, "orange") +
       kpiCard("Reps Coached", String(cum.coachedOnRoster + cum.coachedOffRoster), cum.coachedOffRoster + " cross-team", null, null, "cyan") +
       '</div>'
     ) : (
       '<div class="kpi-grid">' +
-      kpiCard("Coaching Days", String(cum.coachingDays), "S1 total", null, null, "purple") +
-      kpiCard("Visits", String(cum.visits), "S1 total", null, null, "orange") +
+      kpiCard("Coaching Days", String(cum.coachingDays), "YTD total", null, null, "purple") +
+      kpiCard("Visits", String(cum.visits), "YTD total", null, null, "orange") +
       kpiCard("Reps Coached", String(cum.coachedOnRoster + cum.coachedOffRoster), "no target at this level", null, null, "cyan") +
       '</div>'
     );
@@ -817,10 +931,10 @@
     // The DV Coverage row's cells are clickable -- 2026-08-31,
     // user-requested ("popup to see with whom made coached and not") --
     // opening renderRosterPopup() for that exact period (a "YYYY-MM" key,
-    // or "ALL" for the S1 column) via wireEvents' [data-dv-period]
+    // or "ALL" for the YTD column) via wireEvents' [data-dv-period]
     // handler. Only wired when a value is actually present, so a "—" cell
     // (no roster that period) never looks clickable.
-    var monthTable = '<table class="data-table"><thead><tr><th>Metric</th>' + monthHead + '<th>S1</th></tr></thead><tbody>' +
+    var monthTable = '<table class="data-table"><thead><tr><th>Metric</th>' + monthHead + '<th>YTD</th></tr></thead><tbody>' +
       monthRows.filter(function (r) { return !r.skip; }).map(function (r) {
         var isDvRow = r.key === "dvCoveragePct";
         var cells = data.period.months.map(function (m) {
@@ -888,7 +1002,7 @@
       '</div>' +
       '<button class="tb-btn" id="coaching-profile-close">&times; Close</button>' +
       '</div>' +
-      '<div class="section-title" style="margin-top:16px;font-size:14px;">S1 Performance</div>' +
+      '<div class="section-title" style="margin-top:16px;font-size:14px;">YTD Performance</div>' +
       summaryHtml +
       '<div class="section-title" style="margin-top:16px;font-size:14px;">Monthly Performance</div>' +
       '<div class="coaching-table-wrap">' + monthTable + '</div>' +
@@ -904,7 +1018,61 @@
 
   /** Coached / Not Coached name breakdown for one DV Coverage cell --
    * 2026-08-31, user-requested ("popup to see with whome made coached
-   * and not"). `period` is a "YYYY-MM" key or "ALL" for the S1
+  /** Per-coached-rep visit cadence for one period, mirroring Sprint's own
+   * repBreakdown/isBestPractice logic (etl/build_sprint_cache.py's
+   * load_coaching_data()) but computed HERE, client-side, straight off
+   * cache/coaching.json's existing coachedEmployees[].monthly[period] /
+   * .visits+.coachingDays cumulative totals -- 2026-09-03, Ahmed: "for
+   * Coaching Intelligence BEST PRACTICE to make it dynamic according
+   * months based on database". Sprint's own Best Practice badge is baked
+   * at ETL build time for a single hardcoded month (EVAL_MONTH_STR); this
+   * version instead recomputes live for WHICHEVER month/period the tab's
+   * own selector (_state.period, already "ALL" or "YYYY-MM") is showing --
+   * no ETL change or rebuild needed, since every month's coachedEmployees
+   * data was already in the cache. */
+  function repCadenceForPeriod(emp, period) {
+    var days, visits;
+    if (period === "ALL") {
+      days = emp.coachingDays || 0;
+      visits = emp.visits || 0;
+    } else {
+      var m = (emp.monthly || {})[period];
+      if (!m) return null;
+      days = m.coachingDays || 0;
+      visits = m.visits || 0;
+    }
+    if (days <= 0) return null;
+    return { name: emp.name, position: emp.position, coachingDays: days, visits: visits,
+      avgVisitsPerDay: Math.round((visits / days) * 100) / 100 };
+  }
+
+  /** Table of every coached rep's cadence for the given period, with
+   * whoever has the highest visits/coaching-day average flagged (ties all
+   * flagged) as the Best Practice example -- same "do what this rep's
+   * coach did" concept as Sprint's popup, now available for every month
+   * in the database, not just one. */
+  function bestPracticeTableHtml(coachedEmployees, period) {
+    var rows = (coachedEmployees || []).map(function (emp) { return repCadenceForPeriod(emp, period); }).filter(Boolean);
+    if (!rows.length) return "";
+    rows.sort(function (a, b) { return (b.avgVisitsPerDay - a.avgVisitsPerDay) || (b.visits - a.visits); });
+    var bestAvg = rows[0].avgVisitsPerDay;
+    rows.forEach(function (r) { r.isBest = r.avgVisitsPerDay === bestAvg; });
+    var trs = rows.map(function (r) {
+      return "<tr" + (r.isBest ? ' style="background:rgba(255,193,7,.12);"' : "") + ">" +
+        "<td>" + esc(r.name) +
+        (r.isBest ? ' <span style="color:#e0a800;font-weight:600;" title="Highest visits/day cadence on this team this period">&#11088; Best Practice</span>' : "") +
+        "</td>" +
+        "<td>" + r.coachingDays + "</td>" +
+        "<td>" + r.visits + "</td>" +
+        "<td>" + r.avgVisitsPerDay.toFixed(2) + "</td>" +
+        "</tr>";
+    }).join("");
+    return '<div style="font-size:12px;font-weight:600;color:var(--acc2);margin-top:16px;">Coached Reps &mdash; Visit Cadence This Period</div>' +
+      '<table class="data-table" style="margin-top:6px;"><thead><tr><th>Rep</th><th>Coaching Days</th><th>Visits</th><th>Avg/Day</th></tr></thead><tbody>' + trs + "</tbody></table>";
+  }
+
+  /**
+   * and not"). `period` is a "YYYY-MM" key or "ALL" for the YTD
    * cumulative column; both carry pre-computed coachedNames/
    * notCoachedNames from etl/build_coaching_cache.py (see that file's
    * header) -- each entry is {name, position, note}, not a bare string
@@ -935,7 +1103,7 @@
     function byName(a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); }
     var coached = (bucket.coachedNames || []).slice().sort(byName);
     var notCoached = (bucket.notCoachedNames || []).slice().sort(byName);
-    var periodLabel = isCum ? "S1 (Cumulative, Feb–Jun)" : monthShort(period) + " " + period.slice(0, 4);
+    var periodLabel = isCum ? "YTD (Cumulative, Feb–Jul)" : monthShort(period) + " " + period.slice(0, 4);
     var covLabel = fmtPct1(bucket.dvCoveragePct);
     function listHtml(items, emptyMsg) {
       if (!items.length) return '<div style="font-size:12px;color:var(--txt2);padding:6px 0;">' + esc(emptyMsg) + "</div>";
@@ -970,6 +1138,7 @@
       '<div><div style="font-size:12px;font-weight:600;color:var(--acc3);">Not Coached (' + notCoached.length + ")</div>" +
       listHtml(notCoached, "Every roster rep was coached this period.") + "</div>" +
       "</div>" +
+      bestPracticeTableHtml(manager.coachedEmployees, period) +
       "</div>";
   }
 
@@ -1028,8 +1197,18 @@
     var scoped = applyFilters(_visible); // AUTH scope, then the interactive BU/Line filter
     var ownTier = scoped.filter(function (m) { return OWN_ONLY_TITLES.indexOf(m.title) >= 0; });
     var otherTier = scoped.filter(function (m) { return OWN_ONLY_TITLES.indexOf(m.title) < 0; });
+    // 2026-09-03, Ahmed: a manager who resigned/was hired such that
+    // they weren't active for the SPECIFIC month currently selected
+    // (managerActiveInPeriod()) is dropped from the tables and
+    // Executive KPI averages for that month only -- never from "ALL"/
+    // YTD Cumulative, and never from ownTier/otherTier themselves
+    // (aggregateOwnTier and the trend chart still need the full list to
+    // correctly compute earlier/later months). Used for anything that
+    // reads/renders ONLY the currently-selected single period.
+    var ownTierInPeriod = ownTier.filter(function (m) { return managerActiveInPeriod(m, _state.period); });
+    var otherTierInPeriod = otherTier.filter(function (m) { return managerActiveInPeriod(m, _state.period); });
     var agg = aggregateOwnTier(ownTier, _state.period);
-    var onTargetCount = ownTier.filter(function (m) {
+    var onTargetCount = ownTierInPeriod.filter(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
       return statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, data.targets).label === "ON TARGET";
     }).length;
@@ -1037,20 +1216,21 @@
     var months = data.period.months;
     var idx = months.indexOf(_state.period);
     var prevAgg = (idx > 0) ? aggregateOwnTier(ownTier, months[idx - 1]) : null;
-    var insights = buildInsights(data, ownTier, agg, prevAgg);
+    var insights = buildInsights(data, ownTierInPeriod, agg, prevAgg);
 
     var html = '<div class="iqvia-dashboard-wrap" data-theme="light" style="height:auto;overflow:visible;padding:var(--pad-section);">' +
       '<div class="section active">' +
       '<div class="section-title">Coaching Intelligence</div>' +
-      '<div class="section-sub">S1 2026 &middot; Feb 1 – Jun 30 &middot; Joint / Coached Field Visits</div>' +
+      '<div class="section-sub">YTD 2026 &middot; Feb 1 – Jul 31 &middot; Joint / Coached Field Visits</div>' +
       renderFilterRow(_visible, scoped.length, _visible.length) +
       renderPeriodControl(data) +
-      renderExecKPIRow(data, ownTier, agg, onTargetCount) +
+      renderExecKPIRow(data, ownTierInPeriod, agg, onTargetCount) +
+      renderRepsCoachedMethodologyBox(data) +
       renderInsights(insights) +
       renderMonthlyTrendShell(data) +
-      renderAttentionRequired(data, ownTier) +
-      renderOwnTierTable(data, ownTier) +
-      renderOtherLevelsTable(otherTier) +
+      renderAttentionRequired(data, ownTierInPeriod) +
+      renderOwnTierTable(data, ownTierInPeriod) +
+      renderOtherLevelsTable(otherTierInPeriod) +
       renderFootnote(data) +
       '</div></div>';
 
@@ -1243,7 +1423,7 @@
   function renderNoAccess(root) {
     root.innerHTML = '<div class="iqvia-dashboard-wrap" data-theme="light" style="height:auto;padding:var(--pad-section);">' +
       '<div class="section active"><div class="section-title">Coaching Intelligence</div>' +
-      '<p style="opacity:.7;">No coaching records are visible for your account/BU/Line scope for S1 2026.</p></div></div>';
+      '<p style="opacity:.7;">No coaching records are visible for your account/BU/Line scope for YTD 2026.</p></div></div>';
   }
 
   function init(rootId) {

@@ -25,6 +25,37 @@
   // place in this file that reads Bit 5 directly; every accumulation
   // site below goes through includeTargetRow()/buildLineScenarioMap(),
   // never the raw bit, per the single-source-of-truth requirement.
+  // 2026-09-06 (Ahmed: "MoM -100.0% check it and fix"): a single source
+  // row with an unparseable/missing date gets bucketed by the ETL's
+  // parse_month() into a literal '2026-Unknown' placeholder (see
+  // refresh_sales.py) so one bad row never crashes/drops the whole
+  // build. Every "last two months" MoM/asOfDate calculation in this file
+  // used to trust cache.lookups.months.length-1 as automatically being
+  // "the most recently closed real month" -- the moment ANY row anywhere
+  // in 646K+ source rows has a bad date, that placeholder gets appended
+  // to the months lookup and EVERY one of these calculations silently
+  // starts comparing real data (e.g. June) against an (almost always
+  // empty, for any given BU/Line) placeholder bucket, producing a false
+  // "-100% MoM" across nearly every card/filter at once. Filtering to
+  // well-formed YYYY-MM keys before picking "last"/"previous" makes this
+  // immune to it, regardless of where in the lookup array a placeholder
+  // bucket lands.
+  function isRealMonthKey(m) { return typeof m === "string" && /^\d{4}-\d{2}$/.test(m); }
+  function realMonthIndices(monthsLk) {
+    const idxs = [];
+    for (let i = 0; i < monthsLk.length; i++) {
+      if (isRealMonthKey(monthsLk[i])) idxs.push(i);
+    }
+    return {
+      lastIdx: idxs.length >= 1 ? idxs[idxs.length - 1] : -1,
+      prevIdx: idxs.length >= 2 ? idxs[idxs.length - 2] : -1,
+    };
+  }
+  function lastRealMonthLabel(monthsLk) {
+    const r = realMonthIndices(monthsLk);
+    return r.lastIdx >= 0 ? monthsLk[r.lastIdx] : null;
+  }
+
   function rowIsOfficialScenario(mask) { return (mask & 32) > 0; }
 
   /**
@@ -3162,8 +3193,9 @@
       const wantScenarioByLine = buildLineScenarioMap(scenario);
       const lines = cache.lookups.lines;
       const months = cache.lookups.months;
-      const lastIdx = months.length - 1;
-      const prevIdx = months.length - 2;
+      const _rmi = realMonthIndices(months);
+      const lastIdx = _rmi.lastIdx;
+      const prevIdx = _rmi.prevIdx;
 
       const totals = {};
       const byMonth = {}; // bu -> { monthIdx -> actualVal }
@@ -3320,7 +3352,7 @@
       return {
         ok: true,
         status: 'ready',
-        asOfDate: months[months.length - 1] || null,
+        asOfDate: lastRealMonthLabel(months),
         source: 'sales',
         bu: bu,
         line: line || 'All',
@@ -3516,8 +3548,9 @@
       const wantScenarioByLine = buildLineScenarioMap(scenario);
       const linesLk = cache.lookups.lines;
       const months = cache.lookups.months;
-      const lastIdx = months.length - 1;
-      const prevIdx = months.length - 2;
+      const _rmi = realMonthIndices(months);
+      const lastIdx = _rmi.lastIdx;
+      const prevIdx = _rmi.prevIdx;
 
       let actualYTD = 0, targetYTD = 0;
       const byMonth = {};
@@ -3558,6 +3591,17 @@
         targetYTD: targetYTD,
         achievementPct: achievementPct,
         momGrowthPct: momGrowthPct,
+        // 2026-09-06 (Ahmed "MoM -100.0% check it and fix", follow-up fix):
+        // exposed so executive.js's corporateSalesAchievementSummary() can
+        // sum these across BUs to reconstruct a company-wide MoM figure at
+        // All-BU grain -- it was already trying to read fields named
+        // exactly this (lastMonthValue/prevMonthValue) but this function
+        // never returned them, so that summation silently always saw 0
+        // for every BU and the All-BU card's MoM trend was always "MoM
+        // trend unavailable" (a separate, quieter bug from the -100%
+        // display bug fixed above, caught while investigating it).
+        lastMonthValue: lastVal,
+        prevMonthValue: prevVal,
         confidence: months.length >= 3 ? 'high' : 'low',
       };
     },
@@ -3671,7 +3715,7 @@
       return {
         ok: true,
         status: 'ready',
-        asOfDate: months[months.length - 1] || null,
+        asOfDate: lastRealMonthLabel(months),
         source: 'sales',
         bu: bu,
         brand: brandName || null,
@@ -3931,7 +3975,7 @@
       return {
         ok: true,
         status: 'ready',
-        asOfDate: months[months.length - 1] || null,
+        asOfDate: lastRealMonthLabel(months),
         source: 'sales',
         bu: bu,
         line: line || 'All',
@@ -4377,12 +4421,12 @@
         });
 
       const monthsLk = cache.lookups.months;
-      const lastIdx = monthsLk.length - 1;
+      const lastIdx = realMonthIndices(monthsLk).lastIdx;
 
       return {
         ok: true,
         status: 'ready',
-        asOfDate: monthsLk[lastIdx] || null,
+        asOfDate: (lastIdx >= 0 ? monthsLk[lastIdx] : null),
         source: 'sales',
         bu: bu,
         line: line || 'All',
@@ -4613,7 +4657,7 @@
       return {
         ok: true,
         status: 'ready',
-        asOfDate: months[months.length - 1] || null,
+        asOfDate: lastRealMonthLabel(months),
         source: 'sales',
         bu: bu,
         line: line || 'All',

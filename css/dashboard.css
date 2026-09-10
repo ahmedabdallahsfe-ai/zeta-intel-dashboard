@@ -2468,7 +2468,21 @@ body {
 .sprint-mode #topbar-export-pdf,
 .coaching-mode #filter-bar-container,
 .coaching-mode .filter-bar-wrap,
-.coaching-mode #topbar-export-pdf {
+.coaching-mode #topbar-export-pdf,
+.working-days-mode #filter-bar-container,
+.working-days-mode .filter-bar-wrap,
+.working-days-mode #topbar-export-pdf,
+.marketnews-mode #filter-bar-container,
+.marketnews-mode .filter-bar-wrap,
+.marketnews-mode #topbar-export-pdf {
+  display: none !important;
+}
+
+/* 2026-09-10: Regulatory & Egypt Registration Intelligence tab -- same
+   "owns its own filtering" pattern as .marketnews-mode above. */
+.regulatory-mode #filter-bar-container,
+.regulatory-mode .filter-bar-wrap,
+.regulatory-mode #topbar-export-pdf {
   display: none !important;
 }
 

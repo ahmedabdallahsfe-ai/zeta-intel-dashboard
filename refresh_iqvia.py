@@ -24,7 +24,8 @@ OUTPUT_JS     = os.path.join(ROOT_DIR, 'cache', 'iqvia.data.js')
 SHEET_NAME    = 'Egypt Combined Data'
 NEEDED_COLS   = ['ATC4','Corporation','Product','Period',
                  'LC Value','Standard Units Sales',
-                 'Line','BU','DEFIND Market_1','DEFIND Market_2','Pack Size']
+                 'Line','BU','DEFIND Market_1','DEFIND Market_2','Pack Size','Molecule',
+                 'standard dosage form']
 
 def parse_period(s):
     if hasattr(s, 'strftime'):
@@ -66,6 +67,8 @@ log(f'Loaded {len(all_rows)-1:,} rows in {time.time()-t0:.1f}s')
 print('\n[2/4] Processing IQVIA rows...', flush=True)
 corps_r, prods_r, periods_r, atc4s_r = [], [], [], []
 dm1s_r, dm2s_r, lines_r, bus_r, lcvs_r, sus_r = [], [], [], [], [], []
+molecules_r = []
+doses_r = []
 from collections import defaultdict as _dd
 _prod_su_by_pack = _dd(lambda: _dd(float))
 
@@ -83,6 +86,8 @@ for row in all_rows[1:]:
     periods_r.append(parse_period(period)); atc4s_r.append(atc4)
     dm1s_r.append(g('DEFIND Market_1') or '(none)')
     dm2s_r.append(g('DEFIND Market_2') or '(none)')
+    molecules_r.append(g('Molecule') or '(none)')
+    doses_r.append(g('standard dosage form') or '(none)')
     lines_r.append(g('Line') or '(none)'); bus_r.append(g('BU') or '(none)')
     lcvs_r.append(int(lcv)); sus_r.append(int(su))
     try:
@@ -92,6 +97,83 @@ for row in all_rows[1:]:
 
 log(f'{len(corps_r):,} rows after cleaning')
 
+# ── 2b. ATC4 HISTORICAL BACKFILL (2026-09-04) ───────────────────────────────
+# 9 ATC4 categories were found to have only the latest month (2026-07) of
+# history in IQVIA_SOURCE.xlsx -- growth/trend were structurally impossible
+# for them (no prior period to compare against). A raw IQVIA export
+# ("Egypt_Combined_Data monthly report_Sep-02-2026 (1).xlsx") was confirmed
+# to contain the FULL correct history (2021-08..2026-07) for exactly these
+# 9 categories, but that raw export lacks the DEFIND Market_1/2, Line, BU
+# and Molecule columns Zeta's own mapping process adds. Since every single
+# row already in IQVIA_SOURCE.xlsx for these 9 ATC4s maps to DM1=DM2=
+# 'OTHER MARKET' (confirmed 100% consistent across 146 products / 325 rows --
+# these are all non-target/residual therapeutic categories), missing
+# historical rows are backfilled with that same mapping, keyed by Product
+# name against products already seen for these ATC4s in the current data.
+# Products with no match here (discontinued/renamed brands, ~13% of backfill
+# rows) fall back to DM1=DM2='OTHER MARKET', Line=BU='Other Markets',
+# Molecule='(none)' -- consistent with this script's existing missing-value
+# convention -- rather than guessing at a molecule from the brand name.
+BACKFILL_XLSX = os.path.join(ROOT_DIR, 'iqvia_source', 'Egypt_Combined_Data monthly report_Sep-02-2026 (1).xlsx')
+BACKFILL_ATC4 = {
+    'B03A1 IRON PLAIN', 'C09D9 AT2 ANTG COMB OTH DRUGS', 'G03A1 MONOPHAS PREPS<50MCG OEST',
+    'H01C1 GONADOTROP-RELEAS HORM', 'L02A3 CYTO GONAD HORMON ANALOG', 'L04D0 JAK INHIBITORS',
+    'M01C0 SPEC ANTIRHEUMATIC AGENT', 'N02A0 NARCOTIC ANALGESICS', 'N07X0 ALL OTHER CNS DRUGS',
+}
+if os.path.exists(BACKFILL_XLSX):
+    print('\n[2b/4] Backfilling missing ATC4 history...', flush=True)
+    from collections import Counter as _Counter
+    _prod_map = _dd(lambda: {'dm1': _Counter(), 'dm2': _Counter(), 'line': _Counter(), 'bu': _Counter(), 'mol': _Counter(), 'dose': _Counter()})
+    _existing_atc4_periods = set()
+    for i in range(len(corps_r)):
+        if atc4s_r[i] in BACKFILL_ATC4:
+            _existing_atc4_periods.add((atc4s_r[i], periods_r[i]))
+            m = _prod_map[prods_r[i]]
+            m['dm1'][dm1s_r[i]] += 1; m['dm2'][dm2s_r[i]] += 1
+            m['line'][lines_r[i]] += 1; m['bu'][bus_r[i]] += 1
+            m['mol'][molecules_r[i]] += 1; m['dose'][doses_r[i]] += 1
+    try:
+        _bwb = CalamineWorkbook.from_path(BACKFILL_XLSX)
+        _bws = _bwb.get_sheet_by_name(SHEET_NAME)
+        _brows = _bws.to_python(skip_empty_area=False)
+        _bheader = [str(c).strip() if c else '' for c in _brows[0]]
+        _bcol = {n: _bheader.index(n) if n in _bheader else -1 for n in ['ATC4','Corporation','Product','Period','LC Value','Units']}
+        def _bg(row, n):
+            c = _bcol[n]; return str(row[c]).strip() if c >= 0 and len(row) > c and row[c] is not None else ''
+        _added, _added_periods, _unmapped_rows = 0, set(), 0
+        for row in _brows[1:]:
+            atc4 = _bg(row, 'ATC4')
+            if atc4 not in BACKFILL_ATC4: continue
+            period = parse_period(_bg(row, 'Period'))
+            if (atc4, period) in _existing_atc4_periods: continue  # already covered by master file
+            corp = _bg(row, 'Corporation'); prod = _bg(row, 'Product')
+            if not corp or not prod: continue
+            try: lcv = float(_bg(row, 'LC Value') or 0)
+            except: lcv = 0
+            if lcv <= 0: continue
+            try: su = float(_bg(row, 'Units') or 0)
+            except: su = 0
+            m = _prod_map.get(prod)
+            if m:
+                dm1 = m['dm1'].most_common(1)[0][0]; dm2 = m['dm2'].most_common(1)[0][0]
+                line = m['line'].most_common(1)[0][0]; bu = m['bu'].most_common(1)[0][0]
+                mol = m['mol'].most_common(1)[0][0]; dose = m['dose'].most_common(1)[0][0]
+            else:
+                dm1, dm2, line, bu, mol, dose = 'OTHER MARKET', 'OTHER MARKET', 'Other Markets', 'Other Markets', '(none)', '(none)'
+                _unmapped_rows += 1
+            corps_r.append(corp); prods_r.append(prod)
+            periods_r.append(period); atc4s_r.append(atc4)
+            dm1s_r.append(dm1); dm2s_r.append(dm2)
+            molecules_r.append(mol); doses_r.append(dose)
+            lines_r.append(line); bus_r.append(bu)
+            lcvs_r.append(int(lcv)); sus_r.append(int(su))
+            _added += 1; _added_periods.add(period)
+        log(f'Backfilled {_added:,} rows across {len(_added_periods)} periods for {len(BACKFILL_ATC4)} ATC4 markets ({_unmapped_rows:,} rows used default OTHER MARKET/(none) mapping, no product match)')
+    except Exception as e:
+        log(f'WARNING: ATC4 backfill skipped ({e})')
+else:
+    log('Backfill source file not found -- skipping ATC4 historical backfill')
+
 corp_codes, corps_list   = build_lookup(corps_r)
 prod_codes, prods_list   = build_lookup(prods_r)
 per_codes,  periods_list = build_lookup(periods_r)
@@ -100,6 +182,8 @@ dm1_codes,  dm1s_list    = build_lookup(dm1s_r)
 dm2_codes,  dm2s_list    = build_lookup(dm2s_r)
 line_codes, lines_list   = build_lookup(lines_r)
 bu_codes,   bus_list     = build_lookup(bu_raw_list := bus_r) # reference
+mol_codes,  molecules_list = build_lookup(molecules_r)
+dose_codes, doses_list    = build_lookup(doses_r)
 
 log(f'Corps:{len(corps_list)}  Prods:{len(prods_list)}  Periods:{len(periods_list)}  ATC4:{len(atc4s_list)}')
 
@@ -110,7 +194,7 @@ flat = []
 for i in range(n):
     flat += [corp_codes[i], prod_codes[i], per_codes[i], atc4_codes[i],
              dm1_codes[i],  dm2_codes[i],  lcvs_r[i],    sus_r[i],
-             line_codes[i], bu_codes[i]]
+             line_codes[i], bu_codes[i],   mol_codes[i], dose_codes[i]]
 
 flat_json  = json.dumps(flat, separators=(',',':'))
 compressed = gzip.compress(flat_json.encode('utf-8'), compresslevel=9)
@@ -120,7 +204,8 @@ log(f'Flat: {n:,} rows  Compressed: {len(b64_data)//1024} KB')
 lookups = {
     'corps': corps_list, 'prods': prods_list, 'periods': periods_list,
     'atc4s': atc4s_list, 'dm1s': dm1s_list, 'dm2s': dm2s_list,
-    'lines': lines_list, 'bus': bus_list
+    'lines': lines_list, 'bus': bus_list, 'molecules': molecules_list,
+    'doses': doses_list
 }
 
 # Pack sizes
@@ -241,7 +326,7 @@ try:
     latest_ti = NP - 1
     prior_ti  = NP - 2
     zeta_idx  = corps_list.index('ZETA PHARM*') if 'ZETA PHARM*' in corps_list else -1
-    STRIDE    = 10
+    STRIDE    = 12  # 2026-09-04: 12th field (Dosage Form) appended; existing indices 0-9 unchanged
     CI,PI,TI,AI,D1I,D2I,LI,SI,LINEI,BUCI = 0,1,2,3,4,5,6,7,8,9
 
     def sum_lcv(ti, corp_i=None, dm1_set=None):

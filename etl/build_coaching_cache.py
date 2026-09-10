@@ -9,10 +9,14 @@ cache/coaching.json + cache/coaching.data.js in the same gzip+base64
 "window.<NAME>_CACHE = {b64Data:...}" shape as every other cache in this
 project.
 
-Scope (confirmed 2026-08-31):
-  - Source file: "Visits Details S1 DM.xlsx", sheet "Total" only.
-  - Period: Feb 1 - Jun 30 2026 (S1). Both monthly and S1-cumulative
-    aggregates are produced for every manager.
+Scope (confirmed 2026-08-31, period extended to YTD 2026-09-02):
+  - Source file: "Visits Details S1 DM.xlsx" (filename kept as-is; the
+    source now carries Feb-Jul data, no longer just S1), sheet "Total"
+    only.
+  - Period: Feb 1 - Jul 31 2026 (YTD, renamed 2026-09-02 from "S1" now
+    that July is included -- "S1" no longer accurately describes a
+    Feb-Jul range). Both monthly and YTD-cumulative aggregates are
+    produced for every manager.
   - Fields used: Employee, Coach Employee 1, Title 1, Date, Team, Area,
     Customer (customer name only, used solely inside the coached-employee
     drill-down popup -- never in the main KPI tables).
@@ -163,8 +167,8 @@ OUTPUT_JS = os.path.join(ROOT_DIR, "cache", "coaching.data.js")
 JS_VAR_NAME = "COACHING_CACHE"
 
 PERIOD_START = datetime.date(2026, 2, 1)
-PERIOD_END = datetime.date(2026, 6, 30)
-MONTHS = ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]
+PERIOD_END = datetime.date(2026, 7, 31)
+MONTHS = ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07"]
 
 # 2026-08-31 (user-set): DV Coverage target raised from 75% to 100% --
 # full roster coverage is the actual bar, not 3-in-4. This single
@@ -176,7 +180,20 @@ TARGET_DV_COVERAGE_PCT = 100
 TARGET_AVG_VISITS_PER_DAY = 7
 
 # Levels with a real "own active team" -> get DV Coverage %.
-COVERAGE_TITLES = {"District Manager", "Field force supervisor"}
+# 2026-09-08, Ahmed ("senior district manager include with district
+# manager and ffs performance not within Other Coaching Levels"):
+# Senior District Manager added. It was excluded from v1 through
+# 2026-09-03 as one of the "no real own team" levels (see js/
+# coaching.js's DATA SOURCE/SCOPE header, since updated) -- but all 3
+# current Senior District Managers (Karim Mohamed Nagib Mohamed
+# Eldemerdash, Mohamed Rezk Aly Nour, Ahmed Fathy Ahmed Hamed Nada) DO
+# have a real active_direct_reports roster (2, 7 and 7 reps respectively,
+# each with real S1 visit history) -- verified before this change, not
+# assumed. They now get a computed DV Coverage % / target exactly like
+# District Manager and Field force supervisor, move into the main
+# ranked table (js/coaching.js OWN_ONLY_TITLES, kept in lockstep with
+# this set), and drop out of Other Coaching Levels.
+COVERAGE_TITLES = {"District Manager", "Field force supervisor", "Senior District Manager"}
 
 # Confirmed manual aliases (visits-file spelling -> Database Shortcut
 # spelling). Verified 2026-08-31 by candidate search against Database
@@ -193,6 +210,8 @@ COACHING_NAME_ALIASES = {
     "MAHMOUD HASSAN ABDELRAOUF MOHAMED EL-BADAWY": "MAHMOUD HASSAN ABDELRAOUF MOHAMED ELBADAWY",
     "YASMIN ALY MOURSY ISMAIL MOURSY": "YASMIN ALY MOURSY ESMAIL MOURSY",
     "BESHOY BALAMON FELBS TADRES": "BESHOY BALAMON FELBS TADROS",
+    "LAMIAA SAMIR KHALIL ABDEL RAHMAN": "LAMIAA SAMIR KHALIL ABDELRAHMAN",
+    "LAMIAA SAMIR KHALIL ABD EL RAHMAN ZAGHDAN": "LAMIAA SAMIR KHALIL ABDELRAHMAN",
 }
 
 
@@ -226,6 +245,46 @@ def norm_line(raw):
     if not trimmed:
         return None
     return LINE_RENAMES.get(trimmed.upper(), trimmed)
+
+
+# CHC_SALES split (2026-09-01, user-reported: "CHC_Sales check this line i
+# cannt see" -- confirmed root cause, fix approved by the user via
+# clarifying question). Database Shortcut's own "Line" column is never
+# granular enough to separate CHC's two genuinely distinct teams -- every
+# CHC-BU record says Line="CHC" whether the person is on the Medical/
+# Doctor-facing channel or the Pharmacy-facing Sales channel (verified:
+# 0/92 CHC-line rows ever say "CHC_SALES"), even though the rest of this
+# platform already treats "CHC_SALES" as a distinct, well-established
+# line that must never be merged with plain "CHC" (see js/semantic-
+# model.js's BU_ROLLUP_EXCLUDED_LINES / LINE_ALIASES and its comment
+# about a past bug that inflated CHC's own numbers +43.8% by summing the
+# two). Coaching Intelligence's ETL sourced "line" purely from that flat
+# HR column, so CHC_SALES could never appear in the BU/Line filter or any
+# BU/Line column here -- both teams' managers and reps (confirmed: e.g.
+# Mahmoud Mohamed ElSayed AbdelMoula and Rimon Shohdy Makeen Gabriel, both
+# coaching District Managers, both HR Position "Sales Supervisor") were
+# silently shown as plain "CHC".
+#
+# Fix: within the CHC BU only, re-derive the effective line from HR's own
+# "Position (English)" field -- the one field that actually separates the
+# two channels. CHC_SALES_POSITIONS are confirmed Sales-channel titles;
+# everything else (the Medical channel's own titles, plus the BU-wide/
+# cross-channel roles that oversee both teams together -- National Sales
+# Manager, Business Unit Manager, Brand Manager, Area Sales Manager --
+# none of which is itself Sales-channel-only) stays plain "CHC". Applies
+# ONLY within CHC -- every other BU's line is left exactly as Database
+# Shortcut states it, since this Medical/Sales channel split is CHC's own
+# and does not exist elsewhere in the org.
+CHC_SALES_POSITIONS = {"SALES REPRESENTATIVE", "SALES SUPERVISOR", "DISTRICT SALES MANAGER"}
+
+
+def resolve_chc_line(bu, line, position):
+    if bu != "CHC" or line != "CHC":
+        return line
+    pos_upper = (str(position).strip().upper()) if position is not None else ""
+    if pos_upper in CHC_SALES_POSITIONS:
+        return "CHC_SALES"
+    return line
 
 
 def safe_date(v):
@@ -359,13 +418,16 @@ def main():
         hire_date = safe_date(r[hi["Hiring date"]])
         last_day_of_work = safe_date(r[hi["Last Day of Work"]])
         n = norm_name(name)
+        raw_bu = r[hi["Business Unit"]]
+        raw_position = r[hi["Position (English)"]]
         hr_by_norm[n] = {
             "name": name,
             "code": r[hi["Code"]],
             "status": status,
-            "line": norm_line(r[hi["Line"]]),
-            "bu": r[hi["Business Unit"]],
-            "position": safe_position(r[hi["Position (English)"]]),
+            # CHC_SALES split, see resolve_chc_line()'s comment above.
+            "line": resolve_chc_line(raw_bu, norm_line(r[hi["Line"]]), raw_position),
+            "bu": raw_bu,
+            "position": safe_position(raw_position),
             "directManager": dm,
             "hireDate": hire_date,
             "lastDayOfWork": last_day_of_work,
@@ -675,7 +737,7 @@ def main():
             note = "Resigned " + last_day.strftime("%b %d, %Y")
         return {"name": name, "position": position, "note": note}
 
-    S1_START, S1_END = MONTH_START[MONTHS[0]], MONTH_END[MONTHS[-1]]
+    YTD_START, YTD_END = MONTH_START[MONTHS[0]], MONTH_END[MONTHS[-1]]
 
     print("\n[2/5] Loading Visits Details S1 DM.xlsx (Total sheet)...", flush=True)
     if not os.path.exists(SOURCE_VISITS):
@@ -778,7 +840,7 @@ def main():
         rows_processed += 1
 
     log(f"rows processed: {rows_processed} | skipped (no coach): {rows_skipped_no_coach} | "
-        f"out of Feb1-Jun30 period: {rows_out_of_period}")
+        f"out of Feb1-Jul31 period: {rows_out_of_period}")
 
     print("\n[4/5] Building manager records...", flush=True)
     managers_out = []
@@ -788,6 +850,21 @@ def main():
         team = active_direct_reports.get(coach_norm, set())  # CURRENT roster -- display only, see below
         is_cov = title in COVERAGE_TITLES
         team_size = len(team)
+
+        # 2026-09-01, Ahmed (after asking Ingy Mousa Guirgis Mashrqay's
+        # Hiring date and finding it's 2026-07-18, AFTER S1 ends
+        # 2026-06-30): a rep hired after the period closes can never have
+        # a real S1 visit, so flagging them in the front-end's "Reps Not
+        # Coached in 30+ Days" section as a coaching gap is misleading --
+        # it's a pending new hire, not a missed coach. Ships each CURRENT
+        # roster rep's Hiring date (ISO date string, or None if unknown)
+        # alongside activeTeam so js/coaching.js's buildNotSeenRows() can
+        # exclude anyone hired after data.period.end from that list.
+        team_hire_dates = {}
+        for rep_name in team:
+            rep_hr = hr_by_norm.get(norm_name(rep_name), {})
+            hd = rep_hr.get("hireDate")
+            team_hire_dates[rep_name] = hd.isoformat() if hd else None
 
         month_teams = manager_month_teams.get(coach_norm, {m: set() for m in MONTHS})
         # S1 cumulative roster = the UNION of all five monthly rosters.
@@ -823,11 +900,11 @@ def main():
             # rather than being silently absent.
             coached_norm_all = buckets_by_key["ALL"]["onRoster"]
             cumulative["coachedNames"] = sorted(
-                (roster_name_detail(n, S1_START, S1_END) for n in cumulative_roster_names if norm_name(n) in coached_norm_all),
+                (roster_name_detail(n, YTD_START, YTD_END) for n in cumulative_roster_names if norm_name(n) in coached_norm_all),
                 key=lambda d: d["name"],
             )
             cumulative["notCoachedNames"] = sorted(
-                (roster_name_detail(n, S1_START, S1_END) for n in cumulative_roster_names if norm_name(n) not in coached_norm_all),
+                (roster_name_detail(n, YTD_START, YTD_END) for n in cumulative_roster_names if norm_name(n) not in coached_norm_all),
                 key=lambda d: d["name"],
             )
         # Always emit all 5 months, even ones with zero visits -- a
@@ -840,6 +917,58 @@ def main():
         monthly = {}
         for m in MONTHS:
             monthly[m] = bucket_to_metrics(buckets_by_key[m], len(month_teams[m]), is_cov)
+            # 2026-09-03, Ahmed ("so any dsm resgned in specific month
+            # reomve him from analysis", scope confirmed as "Remove from
+            # that month's table + KPI averages"): stamp this MANAGER's
+            # own monthly bucket with the SAME half-month
+            # hire/resignation rule already used for their REPS' roster
+            # (team_as_of_month() above) and for reps' own
+            # activeHalfMonth flag (emp_monthly[m], further below) -- so
+            # js/coaching.js can drop a manager's row entirely from that
+            # month's own-tier table, Other Coaching Levels list, and
+            # Executive KPI averages when their Last Day of Work (or
+            # Hiring date) falls inside that specific month, while every
+            # earlier month they were genuinely active is left
+            # untouched. Applies to every manager tier (DM/DSM, ASM,
+            # NSM, Sr. DM, etc.) since Coaching Intelligence tracks all
+            # of them the same way -- not just DM/DSM. Reuses this
+            # manager's own `hr` dict (Database Shortcut's Hiring date /
+            # Last Day of Work for THIS person), which is distinct from
+            # the coach-side gate above (that gate only zeroes their
+            # REPS' roster for a month they weren't employed -- it never
+            # removed their OWN row, which is exactly the gap this
+            # closes; see Eslam AbdelLatif Aly Ibrahim ElSabagh's case,
+            # resigned 2026-07-31, whose July row showed a misleading 0%
+            # before this fix).
+            monthly[m]["activeHalfMonth"] = active_in_month(
+                hr.get("hireDate"), hr.get("lastDayOfWork"),
+                MONTH_START[m], MONTH_END[m],
+            )
+            # activeHalfMonth alone under-covers resignation: a manager
+            # who worked most of a month and left on, say, day 28-31
+            # still reads as active_in_month()==True for that month (by
+            # design -- the half-month rule exists so a rep/manager who
+            # worked the bulk of a month still counts toward that
+            # month's ROSTER SIZE). But Eslam AbdelLatif Aly Ibrahim
+            # ElSabagh's exact case -- Last Day of Work 2026-07-31,
+            # genuinely on payroll nearly all of July, yet 0 visits --
+            # is precisely what looked like a data error to Ahmed and is
+            # what this feature exists to stop showing as a bare
+            # "0%" row. So stamp a second, independent flag: does this
+            # month CONTAIN this manager's Last Day of Work at all,
+            # regardless of which half. js/coaching.js's
+            # managerActiveInPeriod() drops the manager's row from that
+            # month's own-tier table / Other Coaching Levels list / KPI
+            # averages when EITHER flag says "not really here" --
+            # activeHalfMonth catches not-yet-hired and resigned-in-the-
+            # first-half months (and, as a side effect, every month
+            # after this one once they're gone), resignedThisMonth
+            # additionally catches the resignation month itself no
+            # matter which half of it they left in.
+            last_day = hr.get("lastDayOfWork")
+            monthly[m]["resignedThisMonth"] = bool(
+                last_day is not None and MONTH_START[m] <= last_day <= MONTH_END[m]
+            )
             if is_cov:
                 roster_names_m = month_teams[m]
                 coached_norm_m = buckets_by_key[m]["onRoster"]
@@ -856,12 +985,18 @@ def main():
         coached_employees = []
         for emp_norm, meta in manager_emp_meta[coach_norm].items():
             eb_all = manager_emp_buckets[coach_norm][emp_norm]["ALL"]
+            emp_hr = hr_by_norm.get(emp_norm, {})
             emp_monthly = {}
             for m in MONTHS:
                 if m in manager_emp_buckets[coach_norm][emp_norm]:
                     mb = manager_emp_buckets[coach_norm][emp_norm][m]
-                    emp_monthly[m] = {"visits": mb["visits"], "coachingDays": len(mb["days"])}
-            emp_hr = hr_by_norm.get(emp_norm, {})
+                    emp_monthly[m] = {
+                        "visits": mb["visits"], "coachingDays": len(mb["days"]),
+                        "activeHalfMonth": active_in_month(
+                            emp_hr.get("hireDate"), emp_hr.get("lastDayOfWork"),
+                            MONTH_START[m], MONTH_END[m],
+                        ),
+                    }
             emp_status = emp_hr.get("status")
             # A handful of Database Shortcut rows have a malformed/blank
             # Status cell that openpyxl reads back as a bare
@@ -954,6 +1089,7 @@ def main():
             "bu": hr.get("bu"),
             "activeTeamCount": team_size,
             "activeTeam": sorted(team),
+            "activeTeamHireDates": team_hire_dates,
             "currentlyActive": currently_active,
             "cumulative": cumulative,
             "monthly": monthly,

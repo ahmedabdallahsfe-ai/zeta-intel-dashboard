@@ -1949,6 +1949,9 @@
         "<li><strong>Cell value:</strong> that corporation's LC Value in that class. The tooltip's " +
           "percentage is of the corporation's <em>entire</em> business in scope — not of the " +
           "columns shown — so it is comparable across rows.</li>" +
+        "<li><strong>Products:</strong> the Therapeutic Area grid also names the top brands behind " +
+          "each cell — inline once a corporation filter narrows the rows to three or fewer, and " +
+          "always on hover via the cell's tooltip.</li>" +
         "<li><strong>Colour intensity:</strong> scaled against the single largest cell in the grid, " +
           "with a gamma curve (^0.45) applied. A linear ramp collapses everything below the " +
           "leader into near-white; the curve keeps mid-range values legible. Colour shows " +
@@ -2119,6 +2122,13 @@
     // threefold overstatement of concentration, because the 12 shown
     // columns are only a third of their business.
     var rowTotAll = new Map(), rowTotShown = new Map();
+    // Therapeutic Area heatmap only: which brands make up each cell, so a
+    // corp+TA square can name its actual products rather than leaving the
+    // reader to guess what's inside a big number. Shown inline once the
+    // corporation filter narrows the rows down, and always available on
+    // hover (Ahmed, 2026-09-02).
+    var wantProducts = field === F_TA;
+    var cellBrand = wantProducts ? new Map() : null;
     scanAnnual(function (o, u, v) {
       if (A.rows[o + F_YEAR] !== cmp.cur.i) return;
       var c = A.rows[o + F_CORP];
@@ -2126,8 +2136,15 @@
       rowTotAll.set(c, (rowTotAll.get(c) || 0) + v);
       var d = A.rows[o + field];
       if (!dimSet.has(d)) return;
-      cell.set(c + "|" + d, (cell.get(c + "|" + d) || 0) + v);
+      var key = c + "|" + d;
+      cell.set(key, (cell.get(key) || 0) + v);
       rowTotShown.set(c, (rowTotShown.get(c) || 0) + v);
+      if (wantProducts) {
+        var b = A.rows[o + F_BRAND];
+        var bm = cellBrand.get(key);
+        if (!bm) { bm = new Map(); cellBrand.set(key, bm); }
+        bm.set(b, (bm.get(b) || 0) + v);
+      }
     });
     var max = 0;
     cell.forEach(function (v) { if (v > max) max = v; });
@@ -2140,6 +2157,9 @@
       h += '<div class="mi-heat-colh" title="' + esc(dimNames[d]) + '">' +
         esc(String(dimNames[d]).slice(0, 18)) + "</div>";
     });
+    // Filtered down to a handful of corporations -- there's room to name
+    // products inline instead of making the reader hover for them.
+    var showProductsInline = wantProducts && corps.length <= 3;
     corps.forEach(function (c) {
       var zeta = isZetaCorp(c);
       // Coverage: how much of this corporation's business the shown
@@ -2154,7 +2174,8 @@
         (zeta ? '<span class="mi-zeta-tag">US</span>' : "") +
         '<span class="mi-heat-cov">' + cov.toFixed(0) + "%</span></div>";
       dims.forEach(function (d) {
-        var v = cell.get(c + "|" + d) || 0;
+        var key = c + "|" + d;
+        var v = cell.get(key) || 0;
         // Gamma-lifted so mid-range values stay visible; a linear ramp
         // collapses everything below the leader into near-white.
         var intensity = max > 0 ? Math.pow(v / max, 0.45) : 0;
@@ -2162,13 +2183,41 @@
         // Zeta's own row is tinted in the Zeta blue rather than the house
         // navy, so our footprint reads as ours at a glance.
         var rgb = zeta ? "14,165,233" : "15,76,129";
-        h += '<div class="mi-heat-cell" style="background:rgba(' + rgb + "," +
+        var topBrands = [];
+        if (wantProducts && v > 0) {
+          var bm = cellBrand.get(key);
+          if (bm && bm.size) {
+            var brandNames = CACHE.lookups.brands;
+            bm.forEach(function (bv, bi) {
+              if (brandNames[bi]) topBrands.push({ n: brandNames[bi], v: bv });
+            });
+            topBrands.sort(function (a, b2) { return b2.v - a.v; });
+          }
+        }
+        var tipTop = topBrands.slice(0, 5);
+        var productLine = tipTop.length
+          ? "\nTop products: " + tipTop.map(function (p) {
+              return p.n + " (" + fmtLC(p.v) + ")";
+            }).join(", ") + (topBrands.length > 5 ? " +" + (topBrands.length - 5) + " more" : "")
+          : "";
+        var lightText = intensity > 0.32;
+        var valueSpan = v > 0
+          ? '<span style="color:' + (lightText ? "#fff" : "inherit") + '">' + fmtLC(v) + "</span>"
+          : "";
+        var prodSpan = "";
+        if (showProductsInline && v > 0 && topBrands.length) {
+          var inline = topBrands.slice(0, 3).map(function (p) { return p.n; }).join(", ") +
+            (topBrands.length > 3 ? " +" + (topBrands.length - 3) : "");
+          prodSpan = '<span class="mi-heat-cell-prod" style="color:' +
+            (lightText ? "rgba(255,255,255,0.85)" : "rgba(51,65,85,0.75)") + '">' +
+            esc(inline) + "</span>";
+        }
+        h += '<div class="mi-heat-cell' + (showProductsInline ? " mi-heat-cell-tall" : "") +
+          '" style="background:rgba(' + rgb + "," +
           (0.06 + intensity * 0.88).toFixed(3) + ')" title="' +
           esc(corpNames[c] + " · " + dimNames[d] + "\n" + fmtLC(v) + " LC · " +
-              pctOfCorp.toFixed(1) + "% of this corporation's total business") + '">' +
-          (v > 0 && intensity > 0.32
-            ? '<span style="color:#fff">' + fmtLC(v) + "</span>"
-            : v > 0 ? "<span>" + fmtLC(v) + "</span>" : "") +
+              pctOfCorp.toFixed(1) + "% of this corporation's total business" + productLine) + '">' +
+          valueSpan + prodSpan +
           "</div>";
       });
     });
