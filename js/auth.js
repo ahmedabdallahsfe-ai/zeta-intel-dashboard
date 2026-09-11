@@ -490,8 +490,12 @@
   function isLineAllowed(rawLine) {
     var s = getScope();
     if (s.lines === null) return true;
-    var canon = (global.SEMANTIC && global.SEMANTIC.normalizeLine) ? global.SEMANTIC.normalizeLine(rawLine) : rawLine;
-    return s.lines.indexOf(canon) >= 0;
+    if (!rawLine) return false;
+    var parts = String(rawLine).split(/[,/]/).map(function (p) { return p.trim(); });
+    return parts.some(function (p) {
+      var canon = (global.SEMANTIC && global.SEMANTIC.normalizeLine) ? global.SEMANTIC.normalizeLine(p) : p;
+      return s.lines.indexOf(canon) >= 0;
+    });
   }
 
   /** Filter an array of BU names down to the ones this user may see. */
