@@ -476,6 +476,15 @@ function startAppBody() {
     coachingMenuItem.style.display = allowed ? "" : "none";
   }
 
+  // Regulatory & Egypt Registration: CEO / VP / BEX / Admin / SFE Manager / Commercial Director / Marketing Consultant only (2026-09-11).
+  // Excluded for BU Manager and NSM (Line Manager) users per explicit user directive.
+  const regulatoryMenuItem = document.getElementById("menu-item-regulatory");
+  if (regulatoryMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewRegulatory === "function"
+      ? window.AUTH.canViewRegulatory() : false;
+    regulatoryMenuItem.style.display = allowed ? "" : "none";
+  }
+
   // REMOVED 2026-08-09 (Ahmed): the Control Panel and Expense vs Sales tabs
   // were taken out of the shell. Their modules (js/control-panel.js,
   // js/expense.js, js/expense-interface.js) are still on disk and unmodified,
@@ -941,6 +950,20 @@ function renderMarketNewsTab(container) {
 // Egypt-status/TA filter controls (js/regulatory-pipeline.js).
 function renderRegulatoryTab(container) {
   if (!container) return;
+
+  if (window.AUTH && typeof window.AUTH.canViewRegulatory === "function" && !window.AUTH.canViewRegulatory()) {
+    container.innerHTML = `
+      <div style="padding: 60px 20px; text-align: center; color: #64748B;">
+        <div style="font-size: 36px; margin-bottom: 12px;">🔒</div>
+        <div style="font-size: 18px; font-weight: 700; color: #0F172A; margin-bottom: 6px;">Access Restricted</div>
+        <div style="font-size: 13px; max-width: 460px; margin: 0 auto; line-height: 1.5;">
+          Global & Egypt Regulatory Intelligence is available to CEO, VP, BEx, Admin, SFE Manager, Commercial Director, and Marketing Consultant roles only. Excluded for BU Manager and NSM accounts.
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   document.body.classList.add("regulatory-mode");
   if (window.RegulatoryPipelineDashboard) {
     window.RegulatoryPipelineDashboard.init("app-root");

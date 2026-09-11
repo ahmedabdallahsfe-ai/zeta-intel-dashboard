@@ -199,6 +199,20 @@
   }
 
   // -------------------------------------------------------------------
+  // REGULATORY & EGYPT REGISTRATION ACCESS (2026-09-11)
+  // -------------------------------------------------------------------
+  // "Regulatory & Egypt Registration remove it from bu nsm users"
+  // Excluded for BU Manager and NSM (Line Manager) users per explicit directive.
+  // Gated to CEO, VP, BEX, Admin, SFE Manager, Commercial Director, Marketing Consultant.
+  var REGULATORY_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Commercial Director", "Marketing Consultant"];
+
+  function canViewRegulatory() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return REGULATORY_ROLES.indexOf(u.role) >= 0;
+  }
+
+  // -------------------------------------------------------------------
   // IMS RX MARKET INTELLIGENCE ACCESS (2026-08-16)
   // -------------------------------------------------------------------
   // "show IMS Rx for only sfe vp ceo admin and bex" + 2026-08-16: "let rx and
@@ -497,6 +511,8 @@
     ALL_BU_ROLES: ALL_BU_ROLES,
     canViewMarketIntel: canViewMarketIntel,
     MARKET_INTEL_ROLES: MARKET_INTEL_ROLES,
+    canViewRegulatory: canViewRegulatory,
+    REGULATORY_ROLES: REGULATORY_ROLES,
     canViewImsRx: canViewImsRx,
     IMS_RX_ROLES: IMS_RX_ROLES,
     canViewSprint: canViewSprint,
