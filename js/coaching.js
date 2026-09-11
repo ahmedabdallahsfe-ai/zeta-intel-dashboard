@@ -259,7 +259,13 @@
     var isLineAllowed = (global.AUTH && global.AUTH.isLineAllowed) || function () { return true; };
 
     var scoped = data.managers.filter(function (m) {
-      return isBuAllowed(m.bu) && isLineAllowed(m.line);
+      var bu = m.bu;
+      if (!bu || bu === "0" || bu === 0 || bu === "Unassigned") {
+        if (m.line && global.SEMANTIC && global.SEMANTIC.lineToBU) {
+          bu = global.SEMANTIC.lineToBU(m.line);
+        }
+      }
+      return isBuAllowed(bu) && isLineAllowed(m.line);
     });
 
     if (FULL_ACCESS_ROLES.indexOf(u.role) >= 0) return scoped;

@@ -204,6 +204,17 @@
     return s;
   }
 
+  function normalizeBu(rawBu) {
+    if (!rawBu) return null;
+    var s = String(rawBu).trim();
+    var upper = s.toUpperCase();
+    if (upper === "DIABETES" || upper === "DIAB") return "DIAB";
+    if (upper === "CLUSTER" || upper === "CARDIOVASCULAR" || upper === "CARDIO" || upper === "CVM") return "Cluster";
+    if (upper === "CHC" || upper === "CONSUMER HEALTH" || upper === "CONSUMER HEALTHCARE") return "CHC";
+    if (upper === "GIT" || upper === "GASTRO" || upper === "GASTROENTEROLOGY") return "GIT";
+    return s;
+  }
+
   /**
    * Resolve a raw line value (from Sales/Coverage/SFE/IQVIA, any
    * spelling) to one of the 4 in-scope Business Units, or null if the
@@ -215,7 +226,8 @@
     return CANONICAL_LINE_TO_BU.hasOwnProperty(canon) ? CANONICAL_LINE_TO_BU[canon] : null;
   }
 
-  function isInScope(bu) {
+  function isInScope(rawBu) {
+    var bu = normalizeBu(rawBu);
     return BU_LIST.indexOf(bu) >= 0;
   }
 
@@ -459,6 +471,7 @@
     CANONICAL_LINE_TO_BU: CANONICAL_LINE_TO_BU,
     classifyLine: classifyLine,
     normalizeLine: normalizeLine,
+    normalizeBu: normalizeBu,
     isInScope: isInScope,
     groupByBU: groupByBU,
     TARGET_SCENARIOS: TARGET_SCENARIOS,

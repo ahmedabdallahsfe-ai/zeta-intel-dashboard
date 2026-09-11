@@ -481,10 +481,27 @@
     };
   }
 
+  function normalizeBuFallback(rawBu) {
+    if (!rawBu) return null;
+    var s = String(rawBu).trim();
+    var upper = s.toUpperCase();
+    if (upper === "DIABETES" || upper === "DIAB") return "DIAB";
+    if (upper === "CLUSTER" || upper === "CARDIOVASCULAR" || upper === "CARDIO" || upper === "CVM") return "Cluster";
+    if (upper === "CHC" || upper === "CONSUMER HEALTH" || upper === "CONSUMER HEALTHCARE") return "CHC";
+    if (upper === "GIT" || upper === "GASTRO" || upper === "GASTROENTEROLOGY") return "GIT";
+    return s;
+  }
+
   function isBuAllowed(bu) {
     var s = getScope();
     if (s.bus === null) return true;
-    return s.bus.indexOf(bu) >= 0;
+    if (!bu) return false;
+    var getNorm = (global.SEMANTIC && global.SEMANTIC.normalizeBu) ? global.SEMANTIC.normalizeBu : normalizeBuFallback;
+    var targetCanon = getNorm(bu);
+    return s.bus.some(function (userBu) {
+      var userCanon = getNorm(userBu);
+      return userBu === bu || (userCanon && targetCanon && userCanon === targetCanon) || String(userBu).toUpperCase() === String(bu).toUpperCase();
+    });
   }
 
   function isLineAllowed(rawLine) {
@@ -492,9 +509,16 @@
     if (s.lines === null) return true;
     if (!rawLine) return false;
     var parts = String(rawLine).split(/[,/]/).map(function (p) { return p.trim(); });
+    var getNormLine = (global.SEMANTIC && global.SEMANTIC.normalizeLine) ? global.SEMANTIC.normalizeLine : function (l) { return l; };
     return parts.some(function (p) {
-      var canon = (global.SEMANTIC && global.SEMANTIC.normalizeLine) ? global.SEMANTIC.normalizeLine(p) : p;
-      return s.lines.indexOf(canon) >= 0;
+      var canon = getNormLine(p);
+      return s.lines.some(function (userLine) {
+        var userCanon = getNormLine(userLine);
+        return userLine === p ||
+               (userCanon && canon && userCanon === canon) ||
+               userLine.toUpperCase() === p.toUpperCase() ||
+               userLine.replace(/[\s\-]/g, "").toUpperCase() === p.replace(/[\s\-]/g, "").toUpperCase();
+      });
     });
   }
 
@@ -502,7 +526,7 @@
   function filterAllowedBUs(buArray) {
     var s = getScope();
     if (s.bus === null) return buArray.slice();
-    return buArray.filter(function (b) { return s.bus.indexOf(b) >= 0; });
+    return buArray.filter(function (b) { return isBuAllowed(b); });
   }
 
   /** Filter an array of (raw or canonical) line names down to the ones

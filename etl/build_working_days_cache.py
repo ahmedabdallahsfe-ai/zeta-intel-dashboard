@@ -127,9 +127,50 @@ def main():
     log(f'reading {os.path.basename(TEMPLATE_PATH)} ...')
     wb = openpyxl.load_workbook(TEMPLATE_PATH, data_only=True)
 
-    log('reading canonical BU/Line from cache/sprint.json ...')
-    with open(SPRINT_JSON_PATH) as f:
+    log('reading canonical BU/Line from cache/sprint.json and cache/coaching.json ...')
+    with open(SPRINT_JSON_PATH, encoding='utf-8') as f:
         sp = json.load(f)
+
+    coaching_path = os.path.join(BASE_DIR, 'cache', 'coaching.json')
+    coaching_data = {}
+    if os.path.exists(coaching_path):
+        with open(coaching_path, encoding='utf-8') as f:
+            coaching_data = json.load(f)
+
+    # Build global fallback maps across all sprint tiers & coaching
+    global_code_map = {}
+    global_name_map = {}
+
+    def norm_name(s):
+        return ' '.join(str(s or '').upper().split()) if s else ''
+
+    for tk in ['dmDsm', 'asm', 'nsm', 'bm']:
+        if tk in sp:
+            tier_obj = sp[tk]
+            for list_name in ['ranked', 'excluded']:
+                for rec in tier_obj.get(list_name, []):
+                    c = str(rec.get('code'))
+                    n = norm_name(rec.get('name'))
+                    bu = rec.get('bu')
+                    line = rec.get('line')
+                    if c and c != 'None' and c != '0':
+                        if c not in global_code_map or not global_code_map[c].get('bu'):
+                            global_code_map[c] = {'bu': bu, 'line': line, 'name': rec.get('name')}
+                    if n and (n not in global_name_map or not global_name_map[n].get('bu')):
+                        global_name_map[n] = {'bu': bu, 'line': line, 'name': rec.get('name')}
+
+    for m in coaching_data.get('managers', []):
+        c = str(m.get('code'))
+        n = norm_name(m.get('name'))
+        bu = m.get('bu')
+        if bu == 'Diabetes':
+            bu = 'DIAB'
+        line = m.get('line')
+        if c and c != 'None' and c != '0':
+            if c not in global_code_map or not global_code_map[c].get('bu'):
+                global_code_map[c] = {'bu': bu, 'line': line, 'name': m.get('name')}
+        if n and (n not in global_name_map or not global_name_map[n].get('bu')):
+            global_name_map[n] = {'bu': bu, 'line': line, 'name': m.get('name')}
 
     log('reading hire/resignation dates from Database Shortcut.xlsx ...')
     wb_db = openpyxl.load_workbook(DB_PATH, data_only=True, read_only=True)
@@ -145,14 +186,9 @@ def main():
     bu_line_by_sheet_code = {}
     for sheet_name, tier_key in SHEET_TO_TIERKEY.items():
         m = {}
-        for rec in sp[tier_key]['ranked']:
+        for rec in sp.get(tier_key, {}).get('ranked', []):
             m[str(rec['code'])] = dict(bu=rec.get('bu'), line=rec.get('line'))
-        # also fold in `excluded` (probation-not-passed, resigned, etc.) --
-        # most of these still carry a real bu/line and were showing as
-        # 'Unassigned' on the working-days leaderboard for no reason; a
-        # resigned employee with bu=None/line=None correctly stays
-        # Unassigned either way.
-        for rec in sp[tier_key].get('excluded', []):
+        for rec in sp.get(tier_key, {}).get('excluded', []):
             code_s = str(rec['code'])
             if code_s not in m:
                 m[code_s] = dict(bu=rec.get('bu'), line=rec.get('line'))
@@ -208,9 +244,16 @@ def main():
                 v = row[idx]
                 deducts[lbl] = float(v) if isinstance(v, (int, float)) else 0.0
             bl = bu_line_map.get(code_s, {})
+            bu_val = bl.get('bu')
+            line_val = bl.get('line')
+            if not bu_val or bu_val == 'Unassigned' or not line_val or line_val == 'Unassigned':
+                fb = global_code_map.get(code_s) or global_name_map.get(norm_name(name))
+                if fb:
+                    bu_val = bu_val or fb.get('bu')
+                    line_val = line_val or fb.get('line')
             rows_by_month.setdefault(m, []).append(dict(
                 code=code_s, name=name, profile=profile,
-                bu=bl.get('bu'), line=bl.get('line'),
+                bu=bu_val, line=line_val,
                 calendarDays=cal, targetDays=target, fieldPct=fd,
                 allVisitDays=allvisit, deducts=deducts,
                 hireDate=code_to_hire.get(code_s), lastDay=code_to_lastday.get(code_s)))
