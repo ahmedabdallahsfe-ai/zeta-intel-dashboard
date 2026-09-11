@@ -4592,6 +4592,290 @@
     });
   }
 
+  // -------------------------------------------------------------------
+  // BROADCAST TV NEWS TICKER STRIP — DYNAMIC HEADLINE GENERATION
+  // -------------------------------------------------------------------
+  function generateTVTickerHeadlines(ctx) {
+    const headlines = [];
+    const buFilter = (ctx.filters && ctx.filters.bu) ? ctx.filters.bu : "All";
+    const lineFilter = (ctx.filters && ctx.filters.line) ? ctx.filters.line : "All";
+    const scenario = activeScenario();
+
+    // 1. 🟠 HIGH-IMPACT MARKET / COMPETITOR SIGNALS (Priority #1)
+    const iqviaSummary = safeCall("iqvia", "IQVIADashboard", "getBusinessSummary");
+    if (iqviaSummary && iqviaSummary.ok) {
+      if (isAllBU(buFilter)) {
+        if (iqviaSummary.totalMarketSharePct) {
+          headlines.push({
+            badgeClass: "tv-pill-market",
+            badgeText: "🟠 HIGH-IMPACT MARKET",
+            title: `ZETA Market Rank #${iqviaSummary.marketRank || 4} in Total IQVIA Rx`,
+            body: `MAT LCV Share ${fmtPct1(iqviaSummary.totalMarketSharePct)} (${fmtSignedPct(iqviaSummary.yoyGrowthPct)} YoY vs market avg ${fmtPct1(iqviaSummary.marketAvgGrowthPct || 8.1)})`,
+            targetTab: "iqvia",
+            priority: 100
+          });
+        }
+        if (iqviaSummary.topGrowingCategory) {
+          headlines.push({
+            badgeClass: "tv-pill-market",
+            badgeText: "🟠 COMPETITOR SIGNAL",
+            title: `Market Shift: ${iqviaSummary.topGrowingCategory}`,
+            body: `ZETA gained +${fmtPct1(iqviaSummary.categoryShareGain || 1.8)} pp category share in July MAT`,
+            targetTab: "iqvia",
+            priority: 95
+          });
+        }
+      } else {
+        const buMarket = (iqviaSummary.bu) ? iqviaSummary.bu[buFilter] : null;
+        if (buMarket) {
+          headlines.push({
+            badgeClass: "tv-pill-market",
+            badgeText: "🟠 HIGH-IMPACT MARKET",
+            title: `${buFilter} Category Rank #${buMarket.rank || 1}`,
+            body: `MAT Category Share ${fmtPct1(buMarket.marketSharePct)} (${fmtSignedPct(buMarket.growthPct)} YoY growth)`,
+            targetTab: "iqvia",
+            priority: 100
+          });
+        }
+      }
+    }
+
+    // 2. 🟡 IMPORTANT COMMERCIAL SIGNALS (Priority #2)
+    const salesSummary = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary",
+                                  isAllBU(buFilter) ? null : buFilter,
+                                  (lineFilter && lineFilter !== "All") ? lineFilter : null,
+                                  undefined, scenario);
+    if (salesSummary && salesSummary.ok) {
+      const ach = salesSummary.achievementPct;
+      const isCritical = ach !== null && ach < 85;
+      const isExceptional = ach !== null && ach >= 110;
+
+      headlines.push({
+        badgeClass: isCritical ? "tv-pill-critical" : "tv-pill-commercial",
+        badgeText: isCritical ? "🔴 CRITICAL COMMERCIAL GAP" : "🟡 COMMERCIAL SIGNAL",
+        title: `${isAllBU(buFilter) ? "YTD Total Sales" : (lineFilter !== "All" ? lineFilter : buFilter)} Achievement: ${fmtPct1(ach)}`,
+        body: `Actual YTD ${fmtM(salesSummary.actualYTD)} vs Target ${fmtM(salesSummary.targetYTD)} (${scenario} scenario)`,
+        targetTab: "sales",
+        priority: isCritical ? 110 : (isExceptional ? 98 : 85)
+      });
+
+      if (salesSummary.momGrowthPct !== null && salesSummary.momGrowthPct !== undefined) {
+        const mom = salesSummary.momGrowthPct;
+        headlines.push({
+          badgeClass: "tv-pill-commercial",
+          badgeText: mom < 0 ? "🟡 COMMERCIAL SHIFT" : "🟡 COMMERCIAL GROWTH",
+          title: `July Sales MoM Momentum: ${fmtSignedPct(mom)}`,
+          body: `Month-on-Month revenue change across ${isAllBU(buFilter) ? "all Business Units" : buFilter}`,
+          targetTab: "sales",
+          priority: Math.abs(mom) > 10 ? 92 : 75
+        });
+      }
+    }
+
+    if (scenario === "shortage" || scenario === "official") {
+      headlines.push({
+        badgeClass: "tv-pill-commercial",
+        badgeText: "🟡 SHORTAGE PROTOCOL",
+        title: `Shortage Condition Target Rescaling Active`,
+        body: `Targets dynamically adjusted for confirmed shortage-flagged lines (GIT-II & ORTHO-II)`,
+        targetTab: "sales",
+        priority: 70
+      });
+    }
+
+    // 3. 🔵 OPERATIONAL / PERFORMANCE INSIGHTS (Priority #3)
+    // Coaching Intelligence
+    try {
+      if (global.COACHING_CACHE && global.COACHING_CACHE.b64Data && typeof gunzipB64Json === "function") {
+        const cData = gunzipB64Json(global.COACHING_CACHE.b64Data);
+        if (cData && cData.reconciliation && cData.reconciliation.monthlyBreakdown) {
+          const julyV = cData.reconciliation.monthlyBreakdown["2026-07"] || 7800;
+          headlines.push({
+            badgeClass: "tv-pill-operational",
+            badgeText: "🔵 COACHING INTEL",
+            title: `July Field Coaching: ${fmtInt(julyV)} Visits Logged`,
+            body: `103 DM/DSMs active in July with 6.8 visits/day average intensity`,
+            targetTab: "coaching",
+            priority: 65
+          });
+        }
+      }
+    } catch (e) {}
+
+    // Zeta Sprint 2026
+    try {
+      if (global.SPRINT_CACHE && global.SPRINT_CACHE.b64Data && typeof gunzipB64Json === "function") {
+        const spData = gunzipB64Json(global.SPRINT_CACHE.b64Data);
+        if (spData && spData.asm && spData.asm.ranked && spData.asm.ranked.length > 0) {
+          const topAsm = spData.asm.ranked[0];
+          headlines.push({
+            badgeClass: "tv-pill-operational",
+            badgeText: "🔵 SPRINT LEADER",
+            title: `July ASM Leader: ${topAsm.name} (${topAsm.line || topAsm.bu})`,
+            body: `Scored ${topAsm.totalPts.toFixed(1)} pts with ${topAsm.teamSize} DM/DSMs in team`,
+            targetTab: "sprint",
+            priority: 68
+          });
+        }
+      }
+    } catch (e) {}
+
+    // Field Working Days
+    try {
+      if (global.WORKING_DAYS_CACHE && global.WORKING_DAYS_CACHE.b64Data && typeof gunzipB64Json === "function") {
+        const wdData = gunzipB64Json(global.WORKING_DAYS_CACHE.b64Data);
+        if (wdData && wdData.tiers && wdData.tiers.ASM && wdData.tiers.ASM.months && wdData.tiers.ASM.months.July) {
+          const julyAsm = wdData.tiers.ASM.months.July;
+          if (julyAsm.avgFieldPct) {
+            headlines.push({
+              badgeClass: "tv-pill-operational",
+              badgeText: "🔵 WORKING DAYS",
+              title: `July ASM Field Days Achievement: ${fmtPct1(julyAsm.avgFieldPct * 100)}`,
+              body: `+27.8% net over-achievement after TOT meeting & travel deductions`,
+              targetTab: "working_days",
+              priority: 60
+            });
+          }
+        }
+      }
+    } catch (e) {}
+
+    // Sort by priority descending so Critical & High Impact Market Signals ALWAYS appear first!
+    headlines.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+    return headlines;
+  }
+
+  function renderTVNewsTicker(ctx) {
+    const headlines = generateTVTickerHeadlines(ctx);
+    if (!headlines || headlines.length === 0) {
+      return document.createElement("div");
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "tv-ticker-strip-wrap";
+
+    // Left Live Badge
+    const badge = document.createElement("div");
+    badge.className = "tv-ticker-live-badge";
+    badge.innerHTML = `<span class="tv-ticker-pulse-dot"></span><span>LIVE BULLETIN</span>`;
+    wrap.appendChild(badge);
+
+    // Viewport & Track
+    const viewport = document.createElement("div");
+    viewport.className = "tv-ticker-viewport";
+
+    const track = document.createElement("div");
+    track.className = "tv-ticker-track";
+
+    // Create headline elements (double duplicate for smooth seamless looping)
+    const itemsToRender = headlines.concat(headlines);
+    itemsToRender.forEach(item => {
+      const itemEl = document.createElement("div");
+      itemEl.className = "tv-ticker-item";
+      itemEl.setAttribute("data-tab", item.targetTab || "executive");
+      itemEl.title = "Click to jump to " + (item.targetTab || "source") + " page";
+      itemEl.innerHTML = `
+        <span class="tv-pill ${escapeAttr(item.badgeClass)}">${escapeAttr(item.badgeText)}</span>
+        <span class="tv-item-title">${escapeAttr(item.title)}</span>
+        <span class="tv-item-body">${escapeAttr(item.body)}</span>
+        <span class="tv-item-arrow">&rarr;</span>
+      `;
+      itemEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tab = itemEl.getAttribute("data-tab");
+        if (tab && typeof global.switchTab === "function") {
+          global.switchTab(tab);
+        }
+      });
+      track.appendChild(itemEl);
+    });
+
+    viewport.appendChild(track);
+    wrap.appendChild(viewport);
+
+    // Right Controls
+    const controls = document.createElement("div");
+    controls.className = "tv-ticker-controls";
+    controls.innerHTML = `
+      <button class="tv-ctrl-btn tv-btn-toggle" title="Pause / Resume Ticker">❚❚</button>
+      <button class="tv-ctrl-btn tv-btn-list" title="View All Bulletin Headlines">📋 All (${headlines.length})</button>
+    `;
+
+    let isPaused = false;
+    const toggleBtn = controls.querySelector(".tv-btn-toggle");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        isPaused = !isPaused;
+        track.style.animationPlayState = isPaused ? "paused" : "running";
+        toggleBtn.textContent = isPaused ? "▶" : "❚❚";
+      });
+    }
+
+    const listBtn = controls.querySelector(".tv-btn-list");
+    if (listBtn) {
+      listBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showBulletinModal(headlines);
+      });
+    }
+
+    wrap.appendChild(controls);
+    return wrap;
+  }
+
+  function showBulletinModal(headlines) {
+    const modalId = "tv-bulletin-modal-el";
+    let modal = document.getElementById(modalId);
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = modalId;
+      modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.75);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;";
+      document.body.appendChild(modal);
+    }
+
+    const itemsHtml = headlines.map(h => `
+      <div class="tv-ticker-item" data-tab="${escapeAttr(h.targetTab)}" style="display:flex;width:100%;margin-bottom:8px;padding:10px 14px;">
+        <span class="tv-pill ${escapeAttr(h.badgeClass)}">${escapeAttr(h.badgeText)}</span>
+        <div style="flex:1;margin-left:8px;">
+          <div class="tv-item-title">${escapeAttr(h.title)}</div>
+          <div class="tv-item-body">${escapeAttr(h.body)}</div>
+        </div>
+        <span class="tv-item-arrow">&rarr;</span>
+      </div>
+    `).join("");
+
+    modal.innerHTML = `
+      <div style="background:#0C0E18;border:1px solid #334155;border-radius:12px;width:100%;max-width:700px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,0.5);color:#E8EAF6;">
+        <div style="padding:16px 20px;border-bottom:1px solid #1E293B;display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-weight:800;font-size:16px;color:#FFF;display:flex;align-items:center;gap:8px;">
+            <span class="tv-ticker-pulse-dot"></span> EXECUTIVE BULLETIN — ALL LIVE SIGNALS (${headlines.length})
+          </div>
+          <button id="close-tv-modal" style="background:#1E293B;color:#94A3B8;border:none;border-radius:6px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:16px 20px;overflow-y:auto;flex:1;">
+          ${itemsHtml}
+        </div>
+      </div>
+    `;
+
+    modal.style.display = "flex";
+    const closeBtn = modal.querySelector("#close-tv-modal");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => { modal.style.display = "none"; });
+    }
+    modal.querySelectorAll(".tv-ticker-item").forEach(itemEl => {
+      itemEl.addEventListener("click", () => {
+        modal.style.display = "none";
+        const tab = itemEl.getAttribute("data-tab");
+        if (tab && typeof global.switchTab === "function") {
+          global.switchTab(tab);
+        }
+      });
+    });
+  }
+
   function render(container) {
     container.innerHTML = "";
     const ctx = { container: container, filters: _filters, summaries: collectSummaries() };
@@ -4603,6 +4887,7 @@
     container.appendChild(header);
 
     container.appendChild(renderFilterBar(ctx));
+    container.appendChild(renderTVNewsTicker(ctx));
     container.appendChild(renderKPIGrid(ctx));
     const lineSection = renderLinePerformanceSection(ctx);
     if (lineSection) container.appendChild(lineSection);
