@@ -308,16 +308,16 @@
         '<h1 class="nws-title">Commercial & Competitive Intelligence Feed</h1>' +
         '<p class="nws-subtitle">Offline strategic intelligence tracking Egyptian Drug Authority (EDA) decrees, competitor launches, clinical outcomes, pricing revisions, and incretin/CRM market trends across Zeta business units.</p>' +
       '</div>' +
-      '<div class="nws-sync-status" style="display:flex; align-items:center; gap:14px;">' +
-        '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<div class="nws-sync-card">' +
+        '<div class="nws-sync-info">' +
           '<span class="' + healthDotClass + '"></span>' +
           '<div>' +
             '<div>Last sync: <strong id="nws-last-sync-time">' + esc(meta.syncLabel || "Unknown") + '</strong></div>' +
             (healthLine ? '<div class="nws-sync-detail">' + esc(healthLine) + '</div>' : '') +
           '</div>' +
         '</div>' +
-        '<button id="nws-refresh-btn" class="nws-refresh-btn" style="background:#0F4C81; color:#FFFFFF; border:1px solid #38BDF8; padding:7px 14px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;" title="Fetch latest live market intelligence updates">' +
-          '<span id="nws-refresh-icon">🔄</span> <span id="nws-refresh-text">Live Sync</span>' +
+        '<button id="nws-refresh-btn" class="nws-live-sync-btn" title="Fetch latest live market intelligence updates">' +
+          '<span id="nws-refresh-icon">🔄</span> <span id="nws-refresh-text">Live Sync Feed</span>' +
         '</button>' +
       '</div>' +
     '</div>';
@@ -358,10 +358,13 @@
         }).join("") +
       '</div>' +
 
-      // Search Box
-      '<div class="nws-search-row">' +
-        '<input type="text" id="nws-search-box" class="nws-search-input" placeholder="Search by molecule (Semaglutide, Empagliflozin, Apixaban, Vonoprazan), brand, competitor (Eva, Sanofi, Lilly), EDA decree, or topic..." value="' + esc(STATE.searchQuery) + '" />' +
-      '</div>' +
+      // Search Box Row with Integrated Live Sync
+      '<div class="nws-search-row" style="display:flex; gap:10px; align-items:center;">' +
+        '<input type="text" id="nws-search-box" class="nws-search-input" style="flex:1;" placeholder="Search by molecule (Semaglutide, Empagliflozin, Apixaban, Vonoprazan), brand, competitor (Eva, Sanofi, Lilly), EDA decree, or topic..." value="' + esc(STATE.searchQuery) + '" />' +
+        '<button id="nws-refresh-btn-bar" class="nws-live-sync-btn" style="width:auto; padding:10px 18px; white-space:nowrap; flex-shrink:0;" title="Fetch latest live market intelligence updates">' +
+          '<span class="nws-bar-refresh-icon">🔄</span> <span>Live Sync</span>' +
+        '</button>' +
+      '</div>';
 
       // Therapeutic Area Filters (Tier 1, Tier 2, Tier 3)
       '<div class="nws-filter-row" style="margin-bottom:8px;">' +
@@ -490,30 +493,33 @@
       });
     });
 
-    // Live Sync Refresh Button
-    var refreshBtn = container.querySelector("#nws-refresh-btn");
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", function () {
-        var icon = container.querySelector("#nws-refresh-icon");
-        var text = container.querySelector("#nws-refresh-text");
-        if (icon) icon.classList.add("spin-anim");
-        if (text) text.textContent = "Syncing Live...";
-        refreshBtn.disabled = true;
+    // Live Sync Refresh Buttons (Header Card & Search Bar)
+    var triggerSync = function(btnEl) {
+      var icon = btnEl.querySelector("span:first-child");
+      var text = btnEl.querySelector("span:last-child");
+      if (icon) icon.classList.add("spin-anim");
+      if (text) text.textContent = "Syncing Live...";
+      btnEl.disabled = true;
 
-        setTimeout(function () {
-          var now = new Date();
-          var timeStr = "Live Sync: Today, " + now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-          var data = getFeedData();
-          if (data && data.meta) {
-            data.meta.syncLabel = timeStr;
-          }
-          if (global.DS && typeof global.DS.toast === "function") {
-            global.DS.toast({ message: "✅ Market Intelligence Feed live synced at " + now.toLocaleTimeString(), variant: "success" });
-          }
-          render();
-        }, 700);
-      });
-    }
+      setTimeout(function () {
+        var now = new Date();
+        var timeStr = "Live Sync: Today, " + now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        var data = getFeedData();
+        if (data && data.meta) {
+          data.meta.syncLabel = timeStr;
+        }
+        if (global.DS && typeof global.DS.toast === "function") {
+          global.DS.toast({ message: "✅ Market Intelligence Feed live synced at " + now.toLocaleTimeString(), variant: "success" });
+        }
+        render();
+      }, 700);
+    };
+
+    var btn1 = container.querySelector("#nws-refresh-btn");
+    if (btn1) btn1.addEventListener("click", function() { triggerSync(btn1); });
+
+    var btn2 = container.querySelector("#nws-refresh-btn-bar");
+    if (btn2) btn2.addEventListener("click", function() { triggerSync(btn2); });
   }
 
   function init(containerId) {
