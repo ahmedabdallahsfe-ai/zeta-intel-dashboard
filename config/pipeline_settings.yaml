@@ -1,0 +1,69 @@
+# =====================================================================
+# ZETA PHARMA — MARKET INTELLIGENCE FEED: PIPELINE SETTINGS
+# =====================================================================
+# Added 2026-09-10 as part of the P0/P1 trustworthiness fixes.
+# Centralizes everything that used to be hard-coded: the recency cutoff,
+# per-source article caps, and the eligibility bar an article must clear
+# before it can appear as Breaking / Critical / High-Impact / in the
+# Executive ticker. Change values here — do not hard-code them in .py.
+# =====================================================================
+
+recency:
+  # Articles with a valid publication date older than this NEVER appear
+  # in the live feed (cache/news_latest.*) at all — they are written to
+  # the archive cache instead (cache/news_archive.*), not deleted.
+  # This is the fix for PharmaBoardroom serving 2014-2021 items mixed
+  # into a feed labeled "latest".
+  live_feed_max_age_days: 180
+
+  # An article with a missing or unparseable publication date is treated
+  # as archive-only (never live, never eligible for Breaking/Critical/
+  # High-Impact) rather than defaulting to "now" — an unknown date must
+  # never be able to masquerade as fresh.
+  treat_missing_date_as_archive: true
+
+source_caps:
+  # Maximum live-feed articles any single source may contribute per
+  # refresh, applied AFTER scoring so the highest-relevance items from
+  # that source are kept. This is the fix for PharmaBoardroom supplying
+  # ~70% of the feed by raw volume alone.
+  default_max_per_run: 20
+  overrides:
+    pharma_boardroom: 15
+    pubmed_dynamic: 25   # 7 topic queries x up to 6 results = up to 42 raw; cap after scoring
+
+safety_relevance:
+  # 2026-09-10, confirmed in production: fda_drug_enforcement (openFDA
+  # drug recalls) queries ALL recent US drug recalls, not just Zeta-
+  # relevant ones (there is no molecule/company filter in the openFDA
+  # query itself -- see config/news_sources.yaml). Every other category
+  # of source is filtered downstream by dedup/recency/cap, but nothing
+  # ever excluded an article for being commercially irrelevant to Zeta.
+  # That was invisible while other sources were healthy and diluted the
+  # feed; the run at 2026-09-10T09:58Z had 5 of 8 sources FAIL/EMPTY/
+  # DISABLED, leaving fda_drug_enforcement as 100% of the live feed --
+  # 20/20 articles were recalls of drugs with zero relationship to Zeta's
+  # portfolio (Levothyroxine, Ramipril, Zicam, ibuprofen, Acthar Gel...),
+  # which is what "Market Intelligence Feed" being reported as broken
+  # actually was. A SAFETY-category article with no matched molecule,
+  # company, or brand is now excluded entirely (not shown live, not kept
+  # in archive) rather than treated as market intelligence by default.
+  exclude_if_no_taxonomy_match: true
+
+ticker_eligibility:
+  # An article must satisfy ALL of these before it can be flagged
+  # `breaking: true` or contribute to the Executive ticker / Critical /
+  # High-Impact quick views — regardless of its raw relevance score.
+  min_relevance: 70
+  require_live_window: true          # must be within recency.live_feed_max_age_days
+  require_valid_url: true            # must have a real http(s) source link
+  exclude_low_signal_academic: true  # PubMed items with no matched molecule/
+                                      # company/brand and no real therapeutic
+                                      # area (still "General Strategic
+                                      # Intelligence") are excluded — these are
+                                      # generic academic noise, not commercial
+                                      # intelligence, even if a stray keyword
+                                      # matched "Egypt".
+
+logging:
+  log_file: "logs/news_refresh.log"

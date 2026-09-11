@@ -1,0 +1,109 @@
+# =====================================================================
+# ZETA PHARMA — COMPETITOR MONITORING REGISTRY
+# =====================================================================
+
+competitors:
+  - name: "Eva Pharma"
+    country: "Egypt"
+    type: "Local National Champion"
+    tier: 1
+    relevance_weight: 1.5
+    keywords: ["eva pharma", "eva", "limitless"]
+
+  - name: "Amoun Pharmaceutical"
+    country: "Egypt"
+    type: "Local / Multinational (ADQ)"
+    tier: 1
+    relevance_weight: 1.4
+    keywords: ["amoun", "amoun pharmaceutical"]
+
+  - name: "Marcyrl Pharmaceutical"
+    country: "Egypt"
+    type: "Local Generic Leader"
+    tier: 1
+    relevance_weight: 1.4
+    keywords: ["marcyrl", "marcyrl pharmaceutical"]
+
+  - name: "Pharco Pharmaceuticals"
+    country: "Egypt"
+    type: "Local Group"
+    tier: 1
+    relevance_weight: 1.3
+    keywords: ["pharco", "amriya", "european egyptian"]
+
+  - name: "Devart Lab"
+    country: "Egypt"
+    type: "Local CHC / Specialty"
+    tier: 1
+    relevance_weight: 1.3
+    keywords: ["devart", "devart lab", "ferro duodenal"]
+
+  - name: "Sedico"
+    country: "Egypt"
+    type: "Local Manufacturer"
+    tier: 2
+    relevance_weight: 1.2
+    keywords: ["sedico", "sedico pharma"]
+
+  - name: "AstraZeneca"
+    country: "Multinational"
+    type: "MNC"
+    tier: 1
+    relevance_weight: 1.4
+    keywords: ["astrazeneca", "az", "forxiga", "tagrisso", "farxiga"]
+
+  - name: "Sanofi"
+    country: "Multinational"
+    type: "MNC"
+    tier: 1
+    relevance_weight: 1.4
+    keywords: ["sanofi", "lantus", "toujeo", "winthrop", "plavix"]
+
+  - name: "Novartis"
+    country: "Multinational"
+    type: "MNC"
+    tier: 1
+    relevance_weight: 1.4
+    keywords: ["novartis", "sandoz", "entresto", "galvus", "leqvio"]
+
+  - name: "Boehringer Ingelheim"
+    country: "Multinational"
+    type: "MNC"
+    tier: 1
+    relevance_weight: 1.5
+    keywords: ["boehringer", "boehringer ingelheim", "jardiance", "trajenta"]
+
+  - name: "Novo Nordisk"
+    country: "Multinational"
+    type: "MNC"
+    tier: 1
+    relevance_weight: 1.5
+    keywords: ["novo nordisk", "novo", "ozempic", "wegovy", "victoza", "rybelsus"]
+
+  - name: "Eli Lilly"
+    country: "Multinational"
+    type: "MNC"
+    tier: 1
+    relevance_weight: 1.5
+    keywords: ["eli lilly", "lilly", "mounjaro", "zepbound", "trulicity"]
+
+  - name: "Pfizer"
+    country: "Multinational"
+    type: "MNC"
+    tier: 2
+    relevance_weight: 1.2
+    keywords: ["pfizer", "eliquis", "lyrica", "upjohn", "viatris"]
+
+  - name: "Bayer"
+    country: "Multinational"
+    type: "MNC"
+    tier: 2
+    relevance_weight: 1.2
+    keywords: ["bayer", "xarelto", "kerendia"]
+
+  - name: "Hikma Pharmaceuticals"
+    country: "Regional (MENA)"
+    type: "Regional MNC"
+    tier: 2
+    relevance_weight: 1.2
+    keywords: ["hikma", "hikma pharma"]

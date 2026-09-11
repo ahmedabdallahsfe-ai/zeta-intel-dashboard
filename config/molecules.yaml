@@ -1,0 +1,166 @@
+# =====================================================================
+# ZETA PHARMA — KEY MOLECULES & MECHANISMS MASTER DICTIONARY
+# =====================================================================
+
+molecules:
+  # Incretin / Obesity & Diabetes
+  - name: "Semaglutide"
+    class: "GLP-1 Receptor Agonist"
+    mechanism: "GLP-1"
+    brand_originators: ["Ozempic", "Wegovy", "Rybelsus"]
+    primary_ta: "obesity_incretin"
+    secondary_tas: ["diabetes_metabolic", "cardio_renal_metabolic"]
+    business_unit: "DIAB"
+    is_zeta_portfolio: false
+
+  - name: "Tirzepatide"
+    class: "Dual GIP/GLP-1 Receptor Agonist"
+    mechanism: "GLP-1/GIP"
+    brand_originators: ["Mounjaro", "Zepbound"]
+    primary_ta: "obesity_incretin"
+    secondary_tas: ["diabetes_metabolic", "cardio_renal_metabolic"]
+    business_unit: "DIAB"
+    is_zeta_portfolio: false
+
+  - name: "Liraglutide"
+    class: "GLP-1 Receptor Agonist"
+    mechanism: "GLP-1"
+    brand_originators: ["Victoza", "Saxenda"]
+    primary_ta: "obesity_incretin"
+    secondary_tas: ["diabetes_metabolic"]
+    business_unit: "DIAB"
+    is_zeta_portfolio: false
+
+  - name: "Retatrutide"
+    class: "Triple GGG Agonist"
+    mechanism: "GLP-1/GIP/GCG"
+    brand_originators: ["Retatrutide (Phase 3)"]
+    primary_ta: "obesity_incretin"
+    secondary_tas: ["diabetes_metabolic", "cardio_renal_metabolic"]
+    business_unit: "DIAB"
+    is_zeta_portfolio: false
+
+  - name: "Empagliflozin"
+    class: "SGLT2 Inhibitor"
+    mechanism: "SGLT2"
+    brand_originators: ["Jardiance", "Synjardy", "Trijardy"]
+    zeta_brands: ["Empacoza", "Empacoza Plus", "Empacoza Trio"]
+    primary_ta: "diabetes_metabolic"
+    secondary_tas: ["cardio_renal_metabolic"]
+    business_unit: "DIAB"
+    is_zeta_portfolio: true
+
+  - name: "Dapagliflozin"
+    class: "SGLT2 Inhibitor"
+    mechanism: "SGLT2"
+    brand_originators: ["Forxiga", "Xigduo"]
+    primary_ta: "diabetes_metabolic"
+    secondary_tas: ["cardio_renal_metabolic"]
+    business_unit: "DIAB"
+    is_zeta_portfolio: false
+
+  - name: "Linagliptin"
+    class: "DPP-4 Inhibitor"
+    mechanism: "DPP-4"
+    brand_originators: ["Trajenta", "Jentadueto"]
+    primary_ta: "diabetes_metabolic"
+    secondary_tas: []
+    business_unit: "DIAB"
+    is_zeta_portfolio: true
+
+  - name: "Vildagliptin"
+    class: "DPP-4 Inhibitor"
+    mechanism: "DPP-4"
+    brand_originators: ["Galvus", "Galvumet"]
+    primary_ta: "diabetes_metabolic"
+    secondary_tas: []
+    business_unit: "DIAB"
+    is_zeta_portfolio: true
+
+  # Cardio-Renal
+  - name: "Apixaban"
+    class: "DOAC / Factor Xa Inhibitor"
+    mechanism: "Factor Xa inhibition"
+    brand_originators: ["Eliquis"]
+    zeta_brands: ["Elimbosis 2.5", "Elimbosis 5"]
+    primary_ta: "cardio_renal_metabolic"
+    secondary_tas: []
+    business_unit: "Cluster"
+    is_zeta_portfolio: true
+
+  - name: "Rivaroxaban"
+    class: "DOAC / Factor Xa Inhibitor"
+    mechanism: "Factor Xa inhibition"
+    brand_originators: ["Xarelto"]
+    primary_ta: "cardio_renal_metabolic"
+    secondary_tas: []
+    business_unit: "Cluster"
+    is_zeta_portfolio: false
+
+  - name: "Rosuvastatin"
+    class: "HMG-CoA Reductase Inhibitor (Statin)"
+    mechanism: "Lipid lowering"
+    brand_originators: ["Crestor"]
+    zeta_brands: ["Zetacolest", "Zetacolest Plus"]
+    primary_ta: "cardio_renal_metabolic"
+    secondary_tas: []
+    business_unit: "Cluster"
+    is_zeta_portfolio: true
+
+  - name: "Finerenone"
+    class: "Non-steroidal MRA"
+    mechanism: "Mineralocorticoid receptor antagonism"
+    brand_originators: ["Kerendia"]
+    primary_ta: "cardio_renal_metabolic"
+    secondary_tas: ["diabetes_metabolic"]
+    business_unit: "Cluster"
+    is_zeta_portfolio: false
+
+  - name: "Sacubitril/valsartan"
+    class: "ARNI"
+    mechanism: "Neprilysin inhibition + ARB"
+    brand_originators: ["Entresto"]
+    primary_ta: "cardio_renal_metabolic"
+    secondary_tas: []
+    business_unit: "Cluster"
+    is_zeta_portfolio: false
+
+  # Gastroenterology
+  - name: "Vonoprazan"
+    class: "P-CAB"
+    mechanism: "Potassium-competitive acid blocking"
+    brand_originators: ["Vocinti", "Voquezna"]
+    zeta_brands: ["Vonseca"]
+    primary_ta: "gastroenterology"
+    secondary_tas: []
+    business_unit: "GIT"
+    is_zeta_portfolio: true
+
+  - name: "Esomeprazole"
+    class: "Proton Pump Inhibitor"
+    mechanism: "Acid suppression"
+    brand_originators: ["Nexium"]
+    zeta_brands: ["Nexicure", "Nexirozova"]
+    primary_ta: "gastroenterology"
+    secondary_tas: []
+    business_unit: "GIT"
+    is_zeta_portfolio: true
+
+  # Neuroscience & Pain
+  - name: "Pregabalin"
+    class: "Alpha-2-delta ligand"
+    mechanism: "GABA analog"
+    brand_originators: ["Lyrica"]
+    primary_ta: "neuroscience_pain"
+    secondary_tas: ["diabetes_metabolic"]
+    business_unit: "GIT"
+    is_zeta_portfolio: true
+
+  - name: "Duloxetine"
+    class: "SNRI"
+    mechanism: "Serotonin-norepinephrine reuptake inhibition"
+    brand_originators: ["Cymbalta"]
+    primary_ta: "neuroscience_pain"
+    secondary_tas: ["diabetes_metabolic"]
+    business_unit: "GIT"
+    is_zeta_portfolio: false

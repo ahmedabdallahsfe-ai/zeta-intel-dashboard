@@ -1,0 +1,117 @@
+# =====================================================================
+# ZETA PHARMA — GLOBAL & EGYPT NEW DRUG REGISTRATION INTELLIGENCE
+# Pipeline configuration
+# =====================================================================
+# 2026-09-10: Phase 1 build. Two Level-1 (official regulatory authority)
+# sources are wired: FDA Novel Drug Approvals (scraped table, genuinely
+# novel drugs only) and EMA's official bulk medicines dataset (JSON,
+# updated twice daily, 42 fields/record incl. every regulatory date).
+#
+# EDA (Egypt) is NOT wired as an automated source. Its public search
+# (https://eservices.edaegypt.gov.eg/EDASearch/SearchRegDrugs.aspx) is
+# CAPTCHA-protected with no bulk export — confirmed by direct inspection.
+# It cannot be crawled by an unattended script. Per section C/J of the
+# spec ("never infer Egypt registration from global approval alone",
+# "never store a status without evidence"), every product therefore
+# defaults to egypt_status = "REGISTRATION STATUS UNKNOWN" unless a
+# human (or a future browser-automated, CAPTCHA-cleared session) records
+# real evidence into cache/egypt_registration.data.js — see that file's
+# header for the exact record schema. This is a deliberate scope
+# decision, not an oversight; see the QA report for detail.
+#
+# MHRA / PMDA / Health Canada / TGA / Swissmedic are not wired in Phase 1
+# — no structured bulk source was verified for them yet. Adding one is a
+# Phase 2 item, source-by-source, following the same evidence-first rule.
+
+sources:
+  fda_novel_approvals:
+    enabled: true
+    name: "FDA Novel Drug Approvals"
+    # One page per calendar year; both the current and prior year are
+    # fetched every run so a milestone from December still shows up
+    # after a January rollover.
+    url_template: "https://www.fda.gov/drugs/novel-drug-approvals-fda/novel-drug-approvals-{year}"
+    evidence_level: 1
+    weight: 1.0
+
+  ema_medicines:
+    enabled: true
+    name: "EMA Medicines Dataset"
+    url: "https://www.ema.europa.eu/en/documents/report/medicines-output-medicines_json-report_en.json"
+    evidence_level: 1
+    weight: 1.0
+
+  eda_egypt_registration:
+    enabled: false
+    name: "Egyptian Drug Authority — Registered Drug Search"
+    url: "https://eservices.edaegypt.gov.eg/EDASearch/SearchRegDrugs.aspx"
+    status_note: >
+      CAPTCHA-protected search form, 3-character minimum per field,
+      no bulk listing or export found. Not automatable as an unattended
+      ETL source. Confirmed 2026-09-10. Egypt status is evidence-only —
+      see cache/egypt_registration.data.js.
+    evidence_level: 1
+
+# --- Standardized pipeline stages (spec section B) ---
+# Order matters for display only; eligibility logic below is explicit,
+# never inferred from list position.
+pipeline_stages:
+  - DISCOVERY
+  - PRECLINICAL
+  - PHASE_1
+  - PHASE_2
+  - PHASE_3
+  - PHASE_3_COMPLETED
+  - REGULATORY_SUBMITTED
+  - REGULATORY_ACCEPTED
+  - PRIORITY_REVIEW
+  - UNDER_REGULATORY_REVIEW
+  - POSITIVE_REGULATORY_OPINION
+  - APPROVED
+  - REJECTED
+  - WITHDRAWN
+
+egypt_stages:
+  - REGISTERED
+  - UNDER_REGISTRATION
+  - STATUS_UNKNOWN
+  - NOT_DETECTED
+
+# --- Registration Readiness Score (spec section E) ---
+# Component points only ever apply when the underlying evidence field is
+# actually present on the record — never inferred. Overlapping milestones
+# (e.g. "submitted" implied by "accepted") are deduplicated in
+# etl/score_regulatory.py, not by omitting rows here.
+readiness_score:
+  components:
+    regulatory_submission: 30
+    regulatory_acceptance: 20
+    priority_review: 15
+    pdufa_or_action_date: 15
+    positive_phase_3: 15
+    ema_under_evaluation: 10
+    chmp_positive_opinion: 10
+    announced_submission: 10
+    eda_under_registration_evidence: 20
+  buckets:
+    - { min: 90, max: 100, label: "IMMINENT" }
+    - { min: 75, max: 89, label: "HIGH PROBABILITY" }
+    - { min: 50, max: 74, label: "ADVANCED PIPELINE" }
+    - { min: 25, max: 49, label: "EARLY/MID PIPELINE" }
+    - { min: 0, max: 24, label: "EARLY DEVELOPMENT" }
+
+# --- Executive Command Center integration (spec section H) ---
+executive_signals:
+  # Only a completed, evidenced milestone (APPROVED / POSITIVE_REGULATORY_OPINION)
+  # for a Zeta-taxonomy-relevant product, within this many days, is offered
+  # to the Executive ticker. Speculative "expected Egypt entry" language is
+  # never generated for the ticker — see js/regulatory-pipeline.js header.
+  max_age_days: 30
+  eligible_stages: ["APPROVED", "POSITIVE_REGULATORY_OPINION"]
+
+# --- Refresh cadence (spec section L; advisory only — this ETL is run
+# manually, same as etl/build_news_cache.py; no scheduler is wired) ---
+refresh:
+  regulatory_daily_sources: ["fda_novel_approvals", "ema_medicines"]
+  deeper_pipeline_weekly: []
+  log_file: "logs/regulatory_refresh.log"

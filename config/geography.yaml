@@ -1,0 +1,51 @@
+# =====================================================================
+# ZETA PHARMA — GEOGRAPHY TAXONOMY & PRIORITY WEIGHTING
+# =====================================================================
+# Priority: Egypt > MENA > Global
+# =====================================================================
+
+geographies:
+  - id: "Egypt"
+    label: "Egypt"
+    priority: 1
+    score_bonus: 30
+    keywords:
+      - "egypt"
+      - "egyptian"
+      - "cairo"
+      - "alexandria"
+      - "eda"
+      - "upa"
+      - "uhis"
+      - "uhs"
+      - "mohp"
+      - "egyptian drug authority"
+
+  - id: "MENA"
+    label: "MENA / Regional"
+    priority: 2
+    score_bonus: 15
+    keywords:
+      - "mena"
+      - "middle east"
+      - "gulf"
+      - "saudi"
+      - "uae"
+      - "emirates"
+      - "kuwait"
+      - "jordan"
+      - "lebanon"
+      - "north africa"
+
+  - id: "Global"
+    label: "Global"
+    priority: 3
+    score_bonus: 5
+    keywords:
+      - "global"
+      - "fda"
+      - "ema"
+      - "who"
+      - "united states"
+      - "europe"
+      - "international"

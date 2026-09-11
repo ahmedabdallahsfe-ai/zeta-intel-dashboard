@@ -1,0 +1,65 @@
+# =====================================================================
+# ZETA PHARMA — RELEVANCE & IMPACT SCORING RULES
+# =====================================================================
+# Deterministic scoring algorithm:
+# Score (1-100) = Egypt + BU + TA + Competitor + Molecule + Recency
+# =====================================================================
+
+scoring_weights:
+  egypt_relevance: 30
+  zeta_bu_relevance: 20
+  zeta_therapeutic_relevance: 20
+  competitor_relevance: 15
+  molecule_relevance: 10
+  recency_bonus: 5
+
+max_score: 100
+
+impact_thresholds:
+  CRITICAL:
+    min_score: 90
+    max_score: 100
+    label: "CRITICAL MARKET ALERT"
+    badge_color: "#BE123C"
+    badge_bg: "#FFE4E6"
+    alert_icon: "🚨"
+  HIGH:
+    min_score: 75
+    max_score: 89
+    label: "HIGH-IMPACT SIGNAL"
+    badge_color: "#B45309"
+    badge_bg: "#FEF3C7"
+    alert_icon: "⚡"
+  MEDIUM:
+    min_score: 50
+    max_score: 74
+    label: "MARKET SIGNAL"
+    badge_color: "#0369A1"
+    badge_bg: "#E0F2FE"
+    alert_icon: "📊"
+  LOW:
+    min_score: 0
+    max_score: 49
+    label: "MARKET UPDATE"
+    badge_color: "#475569"
+    badge_bg: "#F1F5F9"
+    alert_icon: "ℹ️"
+
+urgency_triggers:
+  - trigger: "EDA Pricing Decree"
+    pattern: "pricing|price increase|repricing"
+    condition_geo: "Egypt"
+    force_importance: 5
+    score_boost: 25
+
+  - trigger: "Major Competitor Launch in Core Class"
+    pattern: "launch|first generic|generic entry"
+    condition_molecules: ["Empagliflozin", "Apixaban", "Vonoprazan", "Semaglutide"]
+    force_importance: 4
+    score_boost: 20
+
+  - trigger: "Critical Drug Shortage"
+    pattern: "shortage|out of stock|stockout"
+    condition_geo: "Egypt"
+    force_importance: 5
+    score_boost: 20

@@ -1,0 +1,84 @@
+# =====================================================================
+# ZETA PHARMA — 16 STANDARDIZED INTELLIGENCE TYPES
+# =====================================================================
+
+types:
+  - id: "Regulatory"
+    label: "Regulatory"
+    icon: "🏛️"
+    keywords: ["regulatory", "decree", "circular", "eda", "egyptian drug authority", "fda approval", "ema", "inspection", "gmp"]
+
+  - id: "Competitor Move"
+    label: "Competitor Move"
+    icon: "⚔️"
+    keywords: ["competitor", "market share", "commercial expansion", "sales force", "field force", "promotional campaign"]
+
+  - id: "New Launch"
+    label: "New Launch"
+    icon: "🚀"
+    keywords: ["launch", "new product", "generic entry", "generic launch", "first generic", "biosimilar", "commercialization"]
+
+  - id: "Clinical Trial"
+    label: "Clinical Trial"
+    icon: "🔬"
+    keywords: ["clinical trial", "phase 1", "phase 2", "phase 3", "phase iii", "randomized", "double-blind", "trial enrollment"]
+
+  - id: "Clinical Result"
+    label: "Clinical Result"
+    icon: "🧪"
+    keywords: ["clinical result", "study results", "efficacy", "endpoint", "primary endpoint", "outcome trial", "meta-analysis"]
+
+  - id: "Guideline"
+    label: "Guideline"
+    icon: "📜"
+    keywords: ["guideline", "recommendation", "consensus", "ada guideline", "easd", "esc guideline", "kdigo", "treatment algorithm"]
+
+  - id: "Pricing"
+    label: "Pricing"
+    icon: "💰"
+    keywords: ["pricing", "price increase", "price revision", "repricing", "price hike", "currency devaluation", "price adjustment"]
+
+  - id: "Reimbursement"
+    label: "Reimbursement"
+    icon: "💳"
+    keywords: ["reimbursement", "formulary", "covered by insurance", "reimbursed", "health insurance coverage"]
+
+  - id: "Patent"
+    label: "Patent"
+    icon: "🛡️"
+    keywords: ["patent", "loss of exclusivity", "loe", "patent expiry", "intellectual property", "ip litigation"]
+
+  - id: "Supply / Shortage"
+    label: "Supply / Shortage"
+    icon: "⚠️"
+    keywords: ["shortage", "drug shortage", "supply chain", "raw material", "api shortage", "out of stock", "stockout"]
+
+  - id: "M&A"
+    label: "M&A"
+    icon: "🤝"
+    keywords: ["merger", "acquisition", "m&a", "takeover", "buyout", "strategic alliance", "joint venture"]
+
+  - id: "Manufacturing"
+    label: "Manufacturing"
+    icon: "🏭"
+    keywords: ["manufacturing", "plant", "facility", "production line", "sterile area", "local manufacturing", "capacity expansion"]
+
+  - id: "Safety"
+    label: "Safety"
+    icon: "🚨"
+    keywords: ["safety alert", "black box warning", "adverse event", "recall", "safety signal", "pharmacovigilance", "contraindication"]
+
+  - id: "Market Access"
+    label: "Market Access"
+    icon: "🌐"
+    keywords: ["market access", "universal health insurance", "uhis", "uhs", "hospital listing", "pharmacy listing"]
+
+  - id: "Tender"
+    label: "Tender"
+    icon: "📑"
+    keywords: ["tender", "upa tender", "unified procurement", "government tender", "institutional bid", "procurement award"]
+
+  - id: "Technology"
+    label: "Technology"
+    icon: "🧬"
+    keywords: ["technology", "mrna", "oral delivery", "device", "auto-injector", "ai in pharma", "biotechnology"]

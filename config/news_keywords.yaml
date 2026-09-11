@@ -1,0 +1,327 @@
+# =====================================================================
+# ZETA PHARMA — MARKET INTELLIGENCE KEYWORDS & CLASSIFICATION RULES
+# =====================================================================
+# Multi-dimensional matching for:
+#   1. Business Units (DIAB, GIT, Cluster, CHC)
+#   2. Therapeutic Areas
+#   3. Key Molecules
+#   4. Major Competitors (Egypt & Global)
+#   5. Intelligence Categories
+#   6. Deterministic "Why It Matters" Commercial Templates
+# =====================================================================
+
+business_units:
+  DIAB:
+    label: "DIAB"
+    name: "Diabetes Business Unit"
+    therapeutic_areas: ["Diabetes", "Endocrinology", "Metabolic Diseases"]
+    molecules:
+      - "Empagliflozin"
+      - "Dapagliflozin"
+      - "Linagliptin"
+      - "Vildagliptin"
+      - "Sitagliptin"
+      - "Metformin"
+      - "Semaglutide"
+      - "Tirzepatide"
+      - "Insulin"
+      - "Pioglitazone"
+    brands:
+      - "Empacoza"
+      - "Empacoza Plus"
+      - "Empacoza Trio"
+      - "Jardiance"
+      - "Forxiga"
+      - "Galvus"
+      - "Trajenta"
+      - "Januvia"
+    keywords:
+      - "diabetes"
+      - "sglt2"
+      - "dpp-4"
+      - "dpp4"
+      - "glp-1"
+      - "glp1"
+      - "hba1c"
+      - "glycemic"
+      - "antidiabetic"
+      - "hyperglycemia"
+
+  GIT:
+    label: "GIT"
+    name: "Gastroenterology, CNS & Derma Business Unit"
+    therapeutic_areas: ["Gastroenterology", "Hepatology", "Central Nervous System", "Dermatology"]
+    molecules:
+      - "Esomeprazole"
+      - "Vonoprazan"
+      - "Omeprazole"
+      - "Pantoprazole"
+      - "Pregabalin"
+      - "Gabapentin"
+      - "Duloxetine"
+      - "Isotretinoin"
+      - "Clindamycin"
+      - "Terbinafine"
+    brands:
+      - "Nexicure"
+      - "Vonseca"
+      - "Nexirozova"
+      - "Nexium"
+      - "Vocinti"
+      - "Lyrica"
+      - "Cymbalta"
+    keywords:
+      - "gastro"
+      - "gerd"
+      - "ppi"
+      - "reflux"
+      - "p-cab"
+      - "pcab"
+      - "peptic"
+      - "ulcer"
+      - "neuropathy"
+      - "neuropathic"
+      - "dermatology"
+      - "acne"
+      - "fungal"
+
+  Cluster:
+    label: "Cluster"
+    name: "Cardiovascular, Orthopedics & Pediatrics Business Unit"
+    therapeutic_areas: ["Cardiology", "Cardiovascular", "Orthopedics", "Rheumatology", "Pediatrics"]
+    molecules:
+      - "Apixaban"
+      - "Rivaroxaban"
+      - "Rosuvastatin"
+      - "Atorvastatin"
+      - "Valsartan"
+      - "Sacubitril"
+      - "Amlodipine"
+      - "Clopidogrel"
+      - "Celecoxib"
+      - "Diacerein"
+      - "Glucosamine"
+      - "Amoxicillin"
+      - "Cefixime"
+    brands:
+      - "Elimbosis"
+      - "Zetacolest"
+      - "Zetacolest Plus"
+      - "Zetakardoval"
+      - "Eliquis"
+      - "Xarelto"
+      - "Crestor"
+      - "Lipitor"
+      - "Entresto"
+      - "Celebrex"
+    keywords:
+      - "cardio"
+      - "cardiovascular"
+      - "thrombosis"
+      - "doac"
+      - "noac"
+      - "anticoagulant"
+      - "afib"
+      - "atrial fibrillation"
+      - "statin"
+      - "hypertension"
+      - "heart failure"
+      - "orthopedic"
+      - "osteoarthritis"
+      - "joint pain"
+      - "pediatric"
+      - "antibiotic"
+
+  CHC:
+    label: "CHC"
+    name: "Consumer Health Care"
+    therapeutic_areas: ["Consumer Health", "OTC", "Nutraceuticals", "Vitamins & Supplements"]
+    molecules:
+      - "Vitamin C"
+      - "Zinc"
+      - "Vitamin D3"
+      - "Omega-3"
+      - "Magnesium"
+      - "Paracetamol"
+      - "Ibuprofen"
+      - "Lactoferrin"
+    brands:
+      - "Panadol"
+      - "Brufen"
+      - "Centrum"
+    keywords:
+      - "chc"
+      - "otc"
+      - "consumer health"
+      - "supplement"
+      - "multivitamin"
+      - "pharmacy retail"
+      - "wellness"
+      - "cough"
+      - "cold"
+      - "immunity"
+
+competitors:
+  - name: "Eva Pharma"
+    country: "Egypt"
+    tier: 1
+    keywords: ["eva pharma", "eva"]
+  - name: "Amoun Pharmaceutical"
+    country: "Egypt"
+    tier: 1
+    keywords: ["amoun", "amoun pharmaceutical"]
+  - name: "Novartis"
+    country: "Multinational"
+    tier: 1
+    keywords: ["novartis", "sandoz"]
+  - name: "AstraZeneca"
+    country: "Multinational"
+    tier: 1
+    keywords: ["astrazeneca", "az"]
+  - name: "Sanofi"
+    country: "Multinational"
+    tier: 1
+    keywords: ["sanofi", "winthrop"]
+  - name: "Boehringer Ingelheim"
+    country: "Multinational"
+    tier: 1
+    keywords: ["boehringer", "boehringer ingelheim", "bi"]
+  - name: "Bayer"
+    country: "Multinational"
+    tier: 2
+    keywords: ["bayer"]
+  - name: "Pfizer"
+    country: "Multinational"
+    tier: 1
+    keywords: ["pfizer", "upjohn", "viatris"]
+  - name: "Hikma Pharmaceuticals"
+    country: "Regional"
+    tier: 2
+    keywords: ["hikma"]
+  - name: "Pharco Pharmaceuticals"
+    country: "Egypt"
+    tier: 2
+    keywords: ["pharco", "amriya", "european egyptian"]
+  - name: "Marcyrl Pharmaceutical"
+    country: "Egypt"
+    tier: 2
+    keywords: ["marcyrl"]
+  - name: "Sedico"
+    country: "Egypt"
+    tier: 2
+    keywords: ["sedico"]
+
+categories:
+  REGULATORY:
+    label: "Regulatory"
+    icon: "🏛️"
+    keywords:
+      - "egyptian drug authority"
+      - "eda"
+      - "ministry of health"
+      - "mohp"
+      - "regulatory"
+      - "decree"
+      - "circular"
+      - "upa"
+      - "unified procurement authority"
+      - "inspection"
+      - "gmp"
+      - "pharmacovigilance"
+
+  PRICING:
+    label: "Pricing & Tenders"
+    icon: "💰"
+    keywords:
+      - "pricing"
+      - "price increase"
+      - "price revision"
+      - "repricing"
+      - "reimbursement"
+      - "tender"
+      - "universal health insurance"
+      - "uhis"
+      - "currency devaluation"
+      - "devaluation"
+      - "price adjustment"
+
+  COMPETITOR:
+    label: "Competitor Moves"
+    icon: "⚔️"
+    keywords:
+      - "competitor"
+      - "market share"
+      - "commercial expansion"
+      - "sales force"
+      - "field force"
+      - "promotional"
+      - "market penetration"
+
+  PRODUCT_LAUNCH:
+    label: "Product Launch"
+    icon: "🚀"
+    keywords:
+      - "launch"
+      - "new product"
+      - "generic entry"
+      - "generic launch"
+      - "first generic"
+      - "biosimilar"
+      - "approval"
+      - "commercialization"
+
+  SUPPLY_SHORTAGE:
+    label: "Supply & Shortages"
+    icon: "⚠️"
+    keywords:
+      - "shortage"
+      - "drug shortage"
+      - "supply chain"
+      - "raw material"
+      - "api shortage"
+      - "out of stock"
+      - "stockout"
+      - "import restrictions"
+
+  CLINICAL:
+    label: "Clinical & Guidelines"
+    icon: "🧪"
+    keywords:
+      - "clinical trial"
+      - "phase 3"
+      - "phase iii"
+      - "study"
+      - "efficacy"
+      - "safety"
+      - "guideline"
+      - "ada"
+      - "easd"
+      - "esc"
+      - "fda approval"
+      - "ema approval"
+
+commercial_impact_templates:
+  REGULATORY:
+    EDA_PRICING: "Direct impact on gross margin & pricing strategy across Egyptian commercial portfolio."
+    EDA_APPROVAL: "Regulatory milestone influencing speed-to-market and competition dynamics in Egypt."
+    DEFAULT: "Regulatory policy shift requiring compliance alignment and territory monitoring."
+  PRICING:
+    PRICE_HIKE: "Potential portfolio revenue upside if matched; monitor patient affordability & distributor credit."
+    TENDER_UPDATE: "Direct bearing on institutional volume commitments and UPA supply fulfillment."
+    DEFAULT: "Pricing pressure signal — review commercial discounts and reimbursement status."
+  COMPETITOR:
+    LAUNCH: "Direct competitive threat to market share in key therapeutic classes; alert SFE & marketing teams."
+    EXPANSION: "Heightened share of voice from competitor sales rep deployment in priority territories."
+    DEFAULT: "Competitor activity requiring counter-detailing and targeted KOL engagement."
+  PRODUCT_LAUNCH:
+    SGLT2: "Shifts market share dynamics in oral antidiabetic segment; impacts Empacoza brand positioning."
+    DOAC: "Expands anticoagulant market volume; evaluate Elimbosis penetration in cardiology centers."
+    PPI_PCAB: "New generation acid suppression entry; assess impact on Nexicure/Vonseca prescription trends."
+    DEFAULT: "New entrant in target market; evaluate therapeutic differentiation and doctor perception."
+  SUPPLY_SHORTAGE:
+    LOCAL_SHORTAGE: "Immediate commercial opportunity to capture displaced prescription volume and pharmacy demand."
+    API_SHORTAGE: "Supply chain vulnerability — assess safety stock buffer and raw material sourcing."
+    DEFAULT: "Market supply gap — mobilize field force to ensure continuous pharmacy fulfillment."
+  CLINICAL:
+    GUIDELINE: "New clinical recommendations expanding first-line indication and physician prescribing habits."
+    DEFAULT: "Evidence-based clinical data to integrate into brand promotional decks and CME programs."

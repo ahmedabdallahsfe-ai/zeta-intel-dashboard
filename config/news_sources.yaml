@@ -1,0 +1,134 @@
+# =====================================================================
+# ZETA PHARMA — EXTERNAL MARKET INTELLIGENCE FEED SOURCES
+# =====================================================================
+# Configured RSS / API intelligence sources for Egyptian pharma market,
+# regional regulatory authorities, therapeutic updates, and competitor
+# moves.
+#
+# NOTE: The browser NEVER contacts these URLs.
+# They are ingested exclusively during the Python ETL refresh.
+#
+# 2026-09-10 — Source health audit (see logs/news_refresh.log for live
+# results, and the "Market Intelligence Feed — P0/P1 fix QA report" for
+# the full test matrix). Every source below was individually tested
+# before this file was changed:
+#   - eda_regulatory: DISABLED. https://www.edaegypt.gov.eg/en/rss/ and
+#     /en/rss both return the site's own 404 page. No RSS/Atom
+#     auto-discovery tag exists on the real news page
+#     (edaegypt.gov.eg/en/media-center/news/) either. No official
+#     machine-readable feed could be found. Left configured (so it can
+#     be re-tested later) but disabled, rather than silently guessing
+#     at a scraper.
+#   - fierce_pharma: kept, URL confirmed valid (24 items, reverse-
+#     chronological, current). In production this returned 0 articles
+#     via plain urllib — almost certainly anti-bot/Cloudflare blocking
+#     on that specific request path, not a dead feed. Fetch now logs a
+#     structured failure if this happens again instead of failing
+#     silently.
+#   - fierce_marketing: URL FIXED. The configured path
+#     (/marketing/rss/xml) was a 404 — wrong path. The correct current
+#     path is /rss/marketing/xml (confirmed valid, 25 items, Aug 24 -
+#     Sep 9 2026).
+#   - pharma_boardroom: kept, URL valid, but confirmed NOT reliably
+#     reverse-chronological (items from 2026, 2024 and 2021 interleaved
+#     in the first 10 entries). This is why the hard recency cutoff
+#     (config/pipeline_settings.yaml) and the per-source cap below both
+#     exist — this source is capped and recency-filtered rather than
+#     trusted at face value.
+#   - who_emro: DISABLED. The configured URL and two alternate
+#     candidate endpoints (emro.who.int/media/news/rss.xml,
+#     emro.who.int/entity/media/feed/rss/Page-1.html) all returned
+#     HTTP 502 across repeated tests. The WHO EMRO RSS index page
+#     (emro.who.int/rss-feeds.html) lists feed categories but does not
+#     expose working feed URLs. Disabled until a working endpoint is
+#     confirmed — flagged for periodic re-test, not silently dropped.
+#   - fda_medwatch: REPLACED. The general MedWatch RSS feed was valid
+#     but 10/10 sampled items were medical-device recalls/corrections
+#     (ventilators, catheters, spinal stimulators) — Zeta sells drugs,
+#     not devices. Replaced with the official openFDA Drug Enforcement
+#     API (api.fda.gov/drug/enforcement.json), which is drug-recall-only
+#     by construction, no keyword filtering needed. Confirmed live and
+#     current (Aug 2026 dated real drug recalls) during testing.
+#   - pubmed_dynamic / pubmed_cardio_diab: kept. Confirmed working —
+#     real dated articles already reached the production cache. Query
+#     scope for the Egypt topic was narrowed (see etl/fetch_news.py) —
+#     it previously matched almost any Egyptian-authored clinical paper
+#     instead of genuine commercial/regulatory intelligence.
+# =====================================================================
+
+sources:
+  - id: eda_regulatory
+    name: "Egyptian Drug Authority (EDA)"
+    url: "https://www.edaegypt.gov.eg/en/rss/"
+    type: "rss"
+    category: "REGULATORY"
+    country: "Egypt"
+    default_importance: 5
+    default_weight: 1.5
+    enabled: false
+    status_note: "DISABLED 2026-09-10: no working RSS/Atom endpoint found (404 on /en/rss/ and /en/rss; no autodiscovery tag on the real news page). Re-test periodically; do not silently scrape the HTML news listing."
+
+  - id: fierce_pharma
+    name: "FiercePharma"
+    url: "https://www.fiercepharma.com/rss/xml"
+    type: "rss"
+    category: "COMPETITOR"
+    country: "Global"
+    default_importance: 4
+    default_weight: 1.2
+    enabled: true
+    status_note: "Feed confirmed valid and current 2026-09-10. If articles_returned is repeatedly 0 in logs/news_refresh.log, suspect anti-bot blocking on the fetch path, not a dead source."
+
+  - id: fierce_marketing
+    name: "FiercePharma Marketing & Sales"
+    url: "https://www.fiercepharma.com/rss/marketing/xml"
+    type: "rss"
+    category: "PRODUCT_LAUNCH"
+    country: "Global"
+    default_importance: 3
+    default_weight: 1.1
+    enabled: true
+    status_note: "URL FIXED 2026-09-10 (was /marketing/rss/xml, a 404; correct path is /rss/marketing/xml). Confirmed valid, 25 items, Aug 24 - Sep 9 2026."
+
+  - id: pharma_boardroom
+    name: "PharmaBoardroom (MENA & Emerging Markets)"
+    url: "https://pharmaboardroom.com/feed/"
+    type: "rss"
+    category: "MARKET_ACCESS"
+    country: "MENA"
+    default_importance: 3
+    default_weight: 1.0
+    enabled: true
+    status_note: "Feed valid but NOT reliably reverse-chronological (verified 2026-09-10: entries from 2026, 2024 and 2021 interleaved). Subject to hard recency cutoff + per-source cap (config/pipeline_settings.yaml) — do not trust its own ordering."
+
+  - id: who_emro
+    name: "WHO Eastern Mediterranean (EMRO)"
+    url: "https://www.emro.who.int/rss.xml"
+    type: "rss"
+    category: "HEALTH_POLICY"
+    country: "Regional"
+    default_importance: 3
+    default_weight: 0.9
+    enabled: false
+    status_note: "DISABLED 2026-09-10: configured URL and 2 alternate candidate endpoints all returned HTTP 502 on repeated tests. Re-test periodically."
+
+  - id: fda_drug_enforcement
+    name: "FDA Drug Enforcement (openFDA)"
+    url: "https://api.fda.gov/drug/enforcement.json?limit=50&sort=report_date:desc"
+    type: "api_openfda_drug_enforcement"
+    category: "SAFETY"
+    country: "Global"
+    default_importance: 3
+    default_weight: 1.0
+    enabled: true
+    status_note: "REPLACED 2026-09-10 — previously fda_medwatch (general MedWatch RSS), which returned 10/10 medical-device items in a sampled test. openFDA drug/enforcement is official, JSON, and drug-recall-only by construction. Confirmed live 2026-09-10 with real Aug 2026 dated drug recalls (Dicyclomine, Cyclophosphamide, Mirabegron, etc)."
+
+  - id: pubmed_cardio_diab
+    name: "PubMed Cardio-Metabolic & Diabetes Intelligence"
+    url: "https://pubmed.ncbi.nlm.nih.gov/rss/search/1yQ7m9L5H0/?limit=20&utm_campaign=pubmed-2"
+    type: "rss"
+    category: "CLINICAL"
+    country: "Global"
+    default_importance: 2
+    default_weight: 0.8
+    enabled: true
