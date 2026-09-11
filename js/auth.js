@@ -265,12 +265,25 @@
   // here. This function only answers "can this person open the tab at
   // all".
   var COACHING_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "BU Manager",
-                         "Commercial Director", "Marketing Consultant", "Line Manager"];
+                         "Commercial Director", "Marketing Consultant", "Line Manager", "NSM", "National Sales Manager"];
 
   function canViewCoaching() {
     var u = getValidSessionUser();
     if (!u) return false;
     return COACHING_ROLES.indexOf(u.role) >= 0;
+  }
+
+  // -------------------------------------------------------------------
+  // FIELD WORKING DAYS INTELLIGENCE ACCESS (2026-09-11)
+  // -------------------------------------------------------------------
+  // Visible to management-tier roles, Line Managers, and NSMs.
+  var WORKING_DAYS_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "BU Manager",
+                             "Commercial Director", "Marketing Consultant", "Line Manager", "NSM", "National Sales Manager"];
+
+  function canViewWorkingDays() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return WORKING_DAYS_ROLES.indexOf(u.role) >= 0;
   }
 
   // -------------------------------------------------------------------
@@ -517,6 +530,8 @@
     IMS_RX_ROLES: IMS_RX_ROLES,
     canViewSprint: canViewSprint,
     SPRINT_ROLES: SPRINT_ROLES,
+    canViewWorkingDays: canViewWorkingDays,
+    WORKING_DAYS_ROLES: WORKING_DAYS_ROLES,
     canViewCoaching: canViewCoaching,
     COACHING_ROLES: COACHING_ROLES,
     canViewExpense: canViewExpense,

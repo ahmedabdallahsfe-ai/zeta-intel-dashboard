@@ -448,16 +448,11 @@ function startAppBody() {
     sprintMenuItem.style.display = allowed ? "" : "none";
   }
 
-  // Field Working Days Intelligence (2026-09-05, Ahmed "implmement to zeta
-  // intell"): same audience as Zeta Sprint 2026 for now -- reuses
-  // AUTH.canViewSprint() rather than a dedicated AUTH.canViewWorkingDays(),
-  // since it is built from the same Sprint KPI template data and Ahmed
-  // hasn't asked for different gating. Swap this (and js/working-days.js's
-  // own canViewPage()) to a dedicated check if that is ever needed.
+  // Field Working Days Intelligence (2026-09-05/11): visible to management-tier roles, Line Managers, and NSMs.
   const workingDaysMenuItem = document.getElementById("menu-item-workingdays");
   if (workingDaysMenuItem) {
-    const allowed = window.AUTH && typeof window.AUTH.canViewSprint === "function"
-      ? window.AUTH.canViewSprint() : false;
+    const allowed = window.AUTH && typeof window.AUTH.canViewWorkingDays === "function"
+      ? window.AUTH.canViewWorkingDays() : false;
     workingDaysMenuItem.style.display = allowed ? "" : "none";
   }
 
@@ -896,15 +891,15 @@ function renderSprintTab(container) {
 
 function renderWorkingDaysTab(container) {
   if (!container) return;
-  const allowed = window.AUTH && typeof window.AUTH.canViewSprint === "function"
-    ? window.AUTH.canViewSprint() : false;
+  const allowed = window.AUTH && typeof window.AUTH.canViewWorkingDays === "function"
+    ? window.AUTH.canViewWorkingDays() : false;
   if (!allowed) {
     document.body.classList.add("working-days-mode");
     container.innerHTML = window.DS
       ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
           icon: "\u{1F512}",
           title: "Access restricted",
-          hint: "Field Working Days Intelligence is available to BU Manager, BEx, VP, SFE Manager, Admin and CEO roles only.",
+          hint: "Field Working Days Intelligence is available to management roles, Line Managers, and NSMs.",
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;

@@ -62,6 +62,9 @@
   }
 
   function canViewPage() {
+    if (window.AUTH && typeof window.AUTH.canViewWorkingDays === "function") {
+      return window.AUTH.canViewWorkingDays();
+    }
     return !!(window.AUTH && typeof window.AUTH.canViewSprint === "function" && window.AUTH.canViewSprint());
   }
 
