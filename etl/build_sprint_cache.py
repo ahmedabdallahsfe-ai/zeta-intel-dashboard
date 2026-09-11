@@ -1372,6 +1372,27 @@ def main():
                                                        TEMPLATE_SHEETS['NSM'], 'NSM', 'NSM', asmnsm_curves,
                                                        member_noun='DM/DSM')
 
+    # Ensure any manager who is scored as an ASM or NSM in a higher tier is NOT
+    # also scored as a DM/DSM for the same period (e.g. Mohamed Yakn Hamed Abuelenein, code 799).
+    # Ahmed explicit directive: "consider it as aarea manager in zeta sprint not as dm
+    # and for nsm or asm consider dsm only reported to them"
+    higher_tier_codes = {
+        rec['code'] for rec in (asm_results + nsm_results)
+        if rec.get('code') and rec.get('totalPts') is not None
+    }
+    if higher_tier_codes:
+        filtered_dm_results = []
+        for dm in dm_results:
+            if dm.get('code') in higher_tier_codes:
+                dm_excluded.append(dict(
+                    name=dm['name'], code=dm['code'], reason='promoted-higher-tier',
+                    detail=f"Scored as Area Manager / NSM in higher tier for period {EVAL_PERIOD_NAME}",
+                    line=dm['line'], bu=dm['bu']
+                ))
+            else:
+                filtered_dm_results.append(dm)
+        dm_results = filtered_dm_results
+
     log(f'  DM/DSM: {len(dm_results)} scored, {len(dm_excluded)} excluded')
     log(f'  ASM:    {len(asm_results)} scored, {len(asm_excluded)} excluded')
     log(f'  NSM:    {len(nsm_results)} scored, {len(nsm_excluded)} excluded')
