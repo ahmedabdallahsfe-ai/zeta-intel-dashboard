@@ -417,6 +417,7 @@
         '<div class="nws-empty-icon">🔍</div>' +
         '<div class="nws-empty-title">No matching intelligence signals found</div>' +
         '<div class="nws-empty-sub">Try broadening your search query or resetting the Therapeutic Area and Business Unit filters.</div>' +
+        '<div style="margin-top:12px;"><button id="nws-reset-filters-btn" class="nws-pill active" style="padding:6px 16px; font-weight:700; cursor:pointer;">Reset All Filters</button></div>' +
       '</div>';
     }
 
@@ -515,11 +516,25 @@
       }, 700);
     };
 
+    var resetBtn = container.querySelector("#nws-reset-filters-btn");
+    if (resetBtn) resetBtn.addEventListener("click", resetFilters);
+
     var btn1 = container.querySelector("#nws-refresh-btn");
     if (btn1) btn1.addEventListener("click", function() { triggerSync(btn1); });
 
     var btn2 = container.querySelector("#nws-refresh-btn-bar");
     if (btn2) btn2.addEventListener("click", function() { triggerSync(btn2); });
+  }
+
+  function resetFilters() {
+    STATE.quickView = "All";
+    STATE.taFilter = "All";
+    STATE.buFilter = "All";
+    STATE.impactFilter = "All";
+    STATE.geoFilter = "All";
+    STATE.typeFilter = "All";
+    STATE.searchQuery = "";
+    render();
   }
 
   function init(containerId) {
@@ -540,6 +555,7 @@
   global.MarketNewsDashboard = {
     init: init,
     destroy: destroy,
+    resetFilters: resetFilters,
     getLatestBreakingHeadline: getLatestBreakingHeadline,
     getFeedData: getFeedData
   };
