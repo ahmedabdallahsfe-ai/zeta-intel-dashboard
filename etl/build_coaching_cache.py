@@ -847,6 +847,18 @@ def main():
     for coach_norm, buckets_by_key in manager_buckets.items():
         title = manager_title_votes[coach_norm].most_common(1)[0][0]
         hr = hr_by_norm.get(coach_norm, {})
+        hr_pos = hr.get("position")
+        if hr_pos:
+            hr_pos_clean = str(hr_pos).replace("\ufffd", "").strip()
+            pos_upper = hr_pos_clean.upper()
+            if "AREA SALES MANAGER" in pos_upper or "AREA MANAGER" in pos_upper:
+                title = "Area Manager"
+            elif "NATIONAL SALES MANAGER" in pos_upper:
+                title = "National Sales Manager"
+            elif "BUSINESS UNIT MANAGER" in pos_upper:
+                title = "Business Unit Manager"
+            elif "BRAND MANAGER" in pos_upper:
+                title = "Brand Manager"
         team = active_direct_reports.get(coach_norm, set())  # CURRENT roster -- display only, see below
         is_cov = title in COVERAGE_TITLES
         team_size = len(team)

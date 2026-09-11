@@ -1,1 +1,1 @@
-window.SPRINT_HISTORY_INDEX = [{"key":"2026-06","name":"June","file":"cache/sprint_history/sprint_2026-06.data.js","generatedAt":"2026-09-07 10:46:46"},{"key":"2026-07","name":"July","file":"cache/sprint_history/sprint_2026-07.data.js","generatedAt":"2026-09-11 23:31:45"}];
+window.SPRINT_HISTORY_INDEX = [{"key":"2026-06","name":"June","file":"cache/sprint_history/sprint_2026-06.data.js","generatedAt":"2026-09-07 10:46:46"},{"key":"2026-07","name":"July","file":"cache/sprint_history/sprint_2026-07.data.js","generatedAt":"2026-09-11 23:56:16"}];

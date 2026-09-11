@@ -1350,19 +1350,29 @@ def main():
     dm_name_to_asm = {dm: votes.most_common(1)[0][0] for dm, votes in dm_asm_votes.items()}
     dm_name_to_nsm = {dm: votes.most_common(1)[0][0] for dm, votes in dm_nsm_votes.items()}
 
+    higher_tier_manager_names = {norm_name(m) for m in (dims['areaManagers'] + dims['nsms']) if m}
+    higher_tier_manager_codes = {name_to_code.get(norm_name(m)) for m in (dims['areaManagers'] + dims['nsms']) if m and name_to_code.get(norm_name(m))}
+
     asm_team_pool = defaultdict(list)
     nsm_team_pool = defaultdict(list)
     for dm in dm_results:
         if dm['totalPts'] is None:
             continue
+        dm_code = dm.get('code')
+        dm_norm = norm_name(dm['name'])
+
+        # Skip placing any manager who is active in higher tier (ASM/NSM) into a DM/DSM team pool
+        if dm_code in higher_tier_manager_codes or dm_norm in higher_tier_manager_names:
+            continue
+
         member = dict(name=dm['name'], code=dm['code'], line=dm['line'], bu=dm['bu'],
                       role='DM/DSM', totalPts=dm['totalPts'],
                       salesVal=dm['teamSalesVal'], salesTgt=dm['teamSalesTgt'])
         asm_name = dm_name_to_asm.get(dm['name'])
-        if asm_name:
+        if asm_name and norm_name(asm_name) != dm_norm and name_to_code.get(norm_name(asm_name)) != dm_code:
             asm_team_pool[asm_name].append(dict(member))
         nsm_name = dm_name_to_nsm.get(dm['name'])
-        if nsm_name:
+        if nsm_name and norm_name(nsm_name) != dm_norm and name_to_code.get(norm_name(nsm_name)) != dm_code:
             nsm_team_pool[nsm_name].append(dict(member))
 
     asm_results, asm_excluded = score_hierarchy_tier(dims['areaManagers'], asm_team_pool, 80,
