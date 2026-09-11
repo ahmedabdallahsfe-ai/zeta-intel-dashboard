@@ -2858,20 +2858,21 @@
     let buLeaders = null;
     const searchId = opts.searchId || `sp-${tierKey}-search`;
     let buFilterHtml = "";
+    const bus = [...new Set(scored.map(r => r.bu).filter(Boolean))].sort();
+    const initialBuVal = bus.length === 1 ? bus[0] : "__ALL__";
     if (opts.buFilter) {
       buLeaders = new Set();
-      const bus = [...new Set(scored.map(r => r.bu).filter(Boolean))].sort();
       bus.forEach(bu => {
         const gs = groupSummary[bu];
         const top = gs && gs.pool.length ? gs.pool[0].r : null;
         if (top) buLeaders.add(top.code);
       });
-      const buOptions = bus.map(bu => `<option value="${esc(bu)}">${esc(bu)}</option>`).join("");
+      const buOptions = bus.map(bu => `<option value="${esc(bu)}"${bu === initialBuVal ? " selected" : ""}>${esc(bu)}</option>`).join("");
       buFilterHtml = `
         <div class="sp-filter-row">
           <label>BU:</label>
           <select id="${esc(opts.buFilter)}">
-            <option value="__ALL__">All BUs (${scored.length} scored)</option>
+            ${bus.length > 1 ? `<option value="__ALL__">All BUs (${scored.length} scored)</option>` : ""}
             ${buOptions}
           </select>
           ${searchBoxHtml(searchId)}
@@ -2930,7 +2931,7 @@
         ${bannerText ? hierarchyGateRuleBannerHtml(bannerText.title, bannerText.en1, bannerText.en2, bannerText.ar1, bannerText.ar2) : ""}
         ${winnersPanel}
         ${tierKey === "dmDsm"
-          ? `<div id="sp-dm-averages-panel">${hierarchyAveragesPanelHtml("__ALL__", groupAverages, data.ranked[0] ? data.ranked[0].kpis : [], false, title)}</div>`
+          ? `<div id="sp-dm-averages-panel">${hierarchyAveragesPanelHtml(initialBuVal, groupAverages, data.ranked[0] ? data.ranked[0].kpis : [], false, title)}</div>`
           : hierarchyAveragesPanelHtml(null, groupAverages, data.ranked[0] ? data.ranked[0].kpis : [], true, title)}
         ${kpiMethodologyDetailsHtml(kpiKeys, tierKey)}
         ${buFilterHtml}
