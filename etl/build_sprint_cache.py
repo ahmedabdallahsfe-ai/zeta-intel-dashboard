@@ -1382,21 +1382,29 @@ def main():
                                                        TEMPLATE_SHEETS['NSM'], 'NSM', 'NSM', asmnsm_curves,
                                                        member_noun='DM/DSM')
 
-    # Ensure any manager who is scored as an ASM or NSM in a higher tier is NOT
-    # also scored as a DM/DSM for the same period (e.g. Mohamed Yakn Hamed Abuelenein, code 799).
+    # Ensure any manager who is scored as an ASM or NSM in a higher tier, or whose HR Position
+    # indicates higher tier (Area Sales Manager, Business Unit Manager, NSM, Brand Manager), is NOT
+    # also scored as a DM/DSM for the same period (e.g. Mohamed Yakn code 799, Karim Nagib code 188, Ahmed Othman code 1278).
     # Ahmed explicit directive: "consider it as aarea manager in zeta sprint not as dm
     # and for nsm or asm consider dsm only reported to them"
+    hr_higher_tier_codes = set()
+    for code_val, pos_val in code_to_position.items():
+        pos_upper = str(pos_val or '').replace('\ufffd', '').upper()
+        if ('AREA' in pos_upper or 'NATIONAL' in pos_upper or 'BUSINESS UNIT' in pos_upper or 'BRAND' in pos_upper) and 'REPRESENTATIVE' not in pos_upper and 'SPECIALIST' not in pos_upper:
+            hr_higher_tier_codes.add(code_val)
+
     higher_tier_codes = {
         rec['code'] for rec in (asm_results + nsm_results)
         if rec.get('code') and rec.get('totalPts') is not None
-    }
+    } | higher_tier_manager_codes | hr_higher_tier_codes
+
     if higher_tier_codes:
         filtered_dm_results = []
         for dm in dm_results:
             if dm.get('code') in higher_tier_codes:
                 dm_excluded.append(dict(
                     name=dm['name'], code=dm['code'], reason='promoted-higher-tier',
-                    detail=f"Scored as Area Manager / NSM in higher tier for period {EVAL_PERIOD_NAME}",
+                    detail=f"Scored as Area Manager / NSM / Higher Tier in period {EVAL_PERIOD_NAME}",
                     line=dm['line'], bu=dm['bu']
                 ))
             else:
