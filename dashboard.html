@@ -320,11 +320,8 @@
   <script defer src="cache/regulatory_pipeline.data.js?v=20260910_v1"></script>
   <script defer src="cache/egypt_registration.data.js?v=20260910_v1"></script>
 
-  <!-- App-wide authentication (2026-07-29): self-contained platform asset
-       (same pattern as semantic-model.js below), no dependency on any
-       workspace module. Must load after cache/iqvia.data.js (reads
-       IQVIA_CACHE.users) and before js/app.js (the boot sequence gates
-       on it first). See js/auth.js for the full rationale. -->
+  <!-- App-wide authentication roster & loader -->
+  <script defer src="cache/auth.data.js?v=20260816_mc_access"></script>
   <script defer src="js/auth.js?v=20260816_mc_access"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
@@ -337,6 +334,9 @@
   <!-- Enterprise semantic layer (Phase 4-lite): Line -> Business Unit crosswalk.
        Self-contained (no cache dependency) -- shared by every getBusinessSummary(). -->
   <script defer src="js/semantic-model.js?v=20260804_tomarket_bumgr"></script>
+
+  <!-- Cache Loader for lazy loading heavy optional caches -->
+  <script defer src="js/cache-loader.js?v=20260808_lazy"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
