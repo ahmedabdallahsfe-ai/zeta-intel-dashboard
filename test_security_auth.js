@@ -191,7 +191,7 @@ async function runTests() {
         if (c.items) {
           c.items.forEach(item => {
             const up = item.toUpperCase();
-            if (up.indexOf('VONSECA') < 0 && up.indexOf('ULCEBISMO') < 0 && up.indexOf('BUTAZORELLA') < 0) {
+            if (up.indexOf('VONSECA') < 0 && up.indexOf('ULCEBISMO') < 0 && up.indexOf('BUTAZORELLA') < 0 && up.indexOf('GASTROCOL') < 0) {
               outOfScopeSkus.push(item);
             }
           });

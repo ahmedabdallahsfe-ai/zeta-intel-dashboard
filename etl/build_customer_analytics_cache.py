@@ -32,7 +32,7 @@ into the final compact structures below -- it does NOT dump raw rows to an
 intermediate file first, which is what makes a single run of this script
 tractable. Do not refactor this into "extract then aggregate" as two passes.
 """
-import os, sys, time, json, gzip, base64, re
+import os, sys, time, json, gzip, base64, re, datetime
 from collections import defaultdict
 
 # Path setup (2026-07-30 FIX): these were previously hardcoded to this
@@ -61,14 +61,12 @@ SOURCE_SHEET = 'Tota_SALES_2026'
 # where there is no 45s sandbox cap forcing a chunked/resumable design.
 JUNE_XLSX = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'june.xlsx')
 JUNE_SHEET = 'SalesPerDistributor'
+Q3_XLSX = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'Q3_SALES.xlsx')
+Q3_SHEET = 'April-June'
+CHC_YTD_XLSX = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'CHC_BU_YTD_PERFROMANCE.xlsx')
+CHC_YTD_SHEET = 'CHC_YTD_PERFROMANCE'
 OUT_JSON = os.path.join(ROOT_DIR, 'cache', 'customer_analytics.json')
 OUT_DATA_JS = os.path.join(ROOT_DIR, 'cache', 'customer_analytics.data.js')
-# Checkpoint (2026-07-28): the xlsx parse+aggregate step and the JSON+gzip
-# write step are split across a disk checkpoint because together they can
-# exceed the sandbox's 45s hard command timeout once skuPenetrationByBU
-# roughly quadruples the per-cluster SKU payload. If this file exists, main()
-# skips straight to serialization instead of re-parsing the ~1M-row source.
-# Delete it (or let a fresh run overwrite it) to force a full re-parse.
 CHECKPOINT_PKL = os.path.join(ROOT_DIR, 'cache', '.customer_analytics_checkpoint.pkl')
 
 # Mirrors js/sales.js's SUBTYPE_TO_CLUSTER exactly -- keep both in sync.
@@ -160,6 +158,39 @@ def canon_line(raw):
     return LINE_SYNONYMS.get(s, s)
 
 
+def normalize_date(d):
+    if d is None:
+        return None
+    if isinstance(d, datetime.datetime):
+        return d.date()
+    if isinstance(d, datetime.date):
+        return d
+    s = str(d).strip()
+    if not s:
+        return None
+    if len(s) == 6 and s.isdigit():
+        try:
+            return datetime.date(int(s[:4]), int(s[4:6]), 1)
+        except Exception:
+            return None
+    if len(s) == 8 and s.isdigit():
+        try:
+            return datetime.date(int(s[:4]), int(s[4:6]), int(s[6:8]))
+        except Exception:
+            return None
+    if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+        try:
+            return datetime.date(int(s[:4]), int(s[5:7]), int(s[8:10]))
+        except Exception:
+            return None
+    if len(s) >= 7 and s[4] == '-':
+        try:
+            return datetime.date(int(s[:4]), int(s[5:7]), 1)
+        except Exception:
+            return None
+    return None
+
+
 def fmt_date(d):
     """ISO-format a date/datetime value for JSON output; None-safe. Source
     dates come back from python_calamine as datetime.date/datetime objects
@@ -180,8 +211,14 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
     column count/order (June's export is missing a couple of trailing
     columns this script never reads anyway -- see JUNE_XLSX's comment)."""
     rows_iter = sheet.iter_rows()
-    header = next(rows_iter)
-    idx = {name: i for i, name in enumerate(header)}
+    header = None
+    for r in rows_iter:
+        if any(r):
+            header = r
+            break
+    if not header:
+        return 0
+    idx = {name: i for i, name in enumerate(header) if name is not None}
     required = ['Date', 'Line', 'SubType', 'CustomerID', 'CustomerName', 'Item', 'Quantity', 'Value', 'IsTender']
     missing = [c for c in required if c not in idx]
     if missing:
@@ -192,13 +229,6 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
         idx['Date'], idx['Line'], idx['SubType'], idx['CustomerID'], idx['CustomerName'],
         idx['Item'], idx['Quantity'], idx['Value'], idx['IsTender']
     )
-    # Brick/Position (2026-07-31, "give brick name position name only"):
-    # OPTIONAL, not required -- both TOTAL_SALES_2026.xlsx and june.xlsx
-    # were confirmed (2026-07-31) to carry 'Brick' and 'Position' columns,
-    # but treating them as optional here (rather than adding to `required`
-    # above) means a future source variant missing them degrades to an
-    # empty Brick/Position on the grid instead of the whole sheet being
-    # skipped.
     ci_brick = idx.get('Brick')
     ci_region = idx.get('Region')
     ci_position = idx.get('Position')
@@ -225,14 +255,6 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
                          'bricksByBU': defaultdict(set), 'regionsByBU': defaultdict(set),
                          'positionsByBU': defaultdict(set),
                          'lastPurchase': None, 'lastPurchaseByBU': {},
-                         # Per-BU-per-Line breakdown (2026-08-03, "position of
-                         # chosen line"): mirrors every *ByBU accumulator one
-                         # dimension deeper so the Customer Health grid can
-                         # scope Status/Frequency/Basket/Distinct SKUs/Value/
-                         # Position/Brick/Region/Last Purchase to the SPECIFIC
-                         # Line selected in the Executive filter bar, not just
-                         # the BU it belongs to -- see by_bu[bu]['byLine'] in
-                         # main() below.
                          'itemValueByBULine': defaultdict(lambda: defaultdict(lambda: defaultdict(float))),
                          'monthsByBULine': defaultdict(lambda: defaultdict(set)),
                          'bricksByBULine': defaultdict(lambda: defaultdict(set)),
@@ -240,7 +262,18 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
                          'positionsByBULine': defaultdict(lambda: defaultdict(set)),
                          'lastPurchaseByBULine': defaultdict(dict)}
         c = cust[cid]
-        m = str(row[ci_date])[:7]
+        raw_date_val = row[ci_date]
+        raw_date = normalize_date(raw_date_val)
+        if raw_date is not None:
+            m = f"{raw_date.year:04d}-{raw_date.month:02d}"
+        else:
+            raw_m = str(raw_date_val).strip() if raw_date_val is not None else ''
+            if len(raw_m) == 6 and raw_m.isdigit():
+                m = f"{raw_m[:4]}-{raw_m[4:]}"
+            elif len(raw_m) == 8 and raw_m.isdigit():
+                m = f"{raw_m[:4]}-{raw_m[4:6]}"
+            else:
+                m = raw_m[:7]
         c['months'].add(m)
         item = row[ci_item]
         c['items'].add(item)
@@ -251,7 +284,6 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
         # tracked globally here (all-BU fallback) regardless of whether the
         # row's line resolves to an in-scope BU -- the BU-scoped version is
         # tracked separately below, inside the `if bu:` block.
-        raw_date = row[ci_date]
         if raw_date is not None and (c['lastPurchase'] is None or raw_date > c['lastPurchase']):
             c['lastPurchase'] = raw_date
         bu = LINE_TO_BU.get(row[ci_line])
@@ -305,48 +337,30 @@ def main():
     import pickle
 
     if os.path.exists(CHECKPOINT_PKL):
-        with open(CHECKPOINT_PKL, 'rb') as f:
-            output = pickle.load(f)
-        print(f'[{time.time()-t0:.1f}s] loaded checkpoint {CHECKPOINT_PKL}, skipping xlsx parse', file=sys.stderr, flush=True)
-        write_outputs(output, t0)
-        return
+        try:
+            os.remove(CHECKPOINT_PKL)
+        except Exception:
+            pass
 
     from python_calamine import CalamineWorkbook
 
-    # cluster -> custId -> {name, months:set, items:set, value, qty, txn, bus:set,
-    #                        itemValueByBU: {bu: {item: value}}}
-    # itemValueByBU (2026-07-30, "actual item/SKU related the BU chosen"):
-    # per customer, per BU, which items they actually bought and how much --
-    # lets the Customer Health full-list grid show real SKU names scoped to
-    # whichever BU the Executive filter/modal is narrowed to, instead of just
-    # a "Business Units" tag and a bare Distinct-SKUs count.
     clusters = {c: {} for c in CLUSTERS_TO_BUILD}
-    # cluster -> item -> value / set(custIds) -- all-BU view (KPI 6/7 default)
     item_value = {c: defaultdict(float) for c in CLUSTERS_TO_BUILD}
     item_customers = {c: defaultdict(set) for c in CLUSTERS_TO_BUILD}
-    # cluster -> bu -> item -> value / set(custIds) -- BU-scoped view, added
-    # 2026-07-28 so "Top SKU Penetration" can be filtered to the selected BU
-    # instead of always showing the all-BU-combined list. bu_customers is the
-    # penetration denominator: distinct customers in this cluster who have
-    # ANY transaction under that BU (matches getClusterCustomerHealth()'s own
-    # BU-narrowing logic in js/sales.js -- same definition, just precomputed).
     item_value_by_bu = {c: defaultdict(lambda: defaultdict(float)) for c in CLUSTERS_TO_BUILD}
     item_customers_by_bu = {c: defaultdict(lambda: defaultdict(set)) for c in CLUSTERS_TO_BUILD}
     bu_customers = {c: defaultdict(set) for c in CLUSTERS_TO_BUILD}
-    # cluster -> bu -> line -> item -> value (2026-08-03, "position of chosen
-    # line"): mirrors item_value_by_bu one dimension deeper -- used only to
-    # compute core_set_by_bu_line below (the per-BU-per-Line "top items
-    # covering 80% of value" definition for the Basket segment).
     item_value_by_bu_line = {c: defaultdict(lambda: defaultdict(lambda: defaultdict(float))) for c in CLUSTERS_TO_BUILD}
 
     scanned = 0
 
-    wb = CalamineWorkbook.from_path(SOURCE_XLSX)
-    sheet = wb.get_sheet_by_name(SOURCE_SHEET)
-    print(f'[{time.time()-t0:.1f}s] main sheet parsed', file=sys.stderr, flush=True)
-    scanned += scan_sheet(sheet, 'main (' + SOURCE_XLSX + ')', t0, clusters, item_value, item_customers,
-                          item_value_by_bu, item_customers_by_bu, bu_customers, item_value_by_bu_line)
-    del wb, sheet
+    if os.path.exists(SOURCE_XLSX):
+        wb = CalamineWorkbook.from_path(SOURCE_XLSX)
+        sheet = wb.get_sheet_by_name(SOURCE_SHEET)
+        print(f'[{time.time()-t0:.1f}s] main sheet parsed', file=sys.stderr, flush=True)
+        scanned += scan_sheet(sheet, 'main (' + SOURCE_XLSX + ')', t0, clusters, item_value, item_customers,
+                              item_value_by_bu, item_customers_by_bu, bu_customers, item_value_by_bu_line)
+        del wb, sheet
 
     if os.path.exists(JUNE_XLSX):
         june_wb = CalamineWorkbook.from_path(JUNE_XLSX)
@@ -355,9 +369,22 @@ def main():
         scanned += scan_sheet(june_sheet, 'june (' + JUNE_XLSX + ')', t0, clusters, item_value, item_customers,
                               item_value_by_bu, item_customers_by_bu, bu_customers, item_value_by_bu_line)
         del june_wb, june_sheet
-    else:
-        print(f'[{time.time()-t0:.1f}s] WARNING: June source not found at {JUNE_XLSX} -- '
-              f'output will be missing June data.', file=sys.stderr, flush=True)
+
+    if os.path.exists(Q3_XLSX):
+        q3_wb = CalamineWorkbook.from_path(Q3_XLSX)
+        q3_sheet = q3_wb.get_sheet_by_name(Q3_SHEET)
+        print(f'[{time.time()-t0:.1f}s] Q3 (July) sheet parsed', file=sys.stderr, flush=True)
+        scanned += scan_sheet(q3_sheet, 'q3 (' + Q3_XLSX + ')', t0, clusters, item_value, item_customers,
+                              item_value_by_bu, item_customers_by_bu, bu_customers, item_value_by_bu_line)
+        del q3_wb, q3_sheet
+
+    if os.path.exists(CHC_YTD_XLSX):
+        chc_wb = CalamineWorkbook.from_path(CHC_YTD_XLSX)
+        chc_sheet = chc_wb.get_sheet_by_name(CHC_YTD_SHEET)
+        print(f'[{time.time()-t0:.1f}s] CHC YTD sheet parsed', file=sys.stderr, flush=True)
+        scanned += scan_sheet(chc_sheet, 'chc (' + CHC_YTD_XLSX + ')', t0, clusters, item_value, item_customers,
+                              item_value_by_bu, item_customers_by_bu, bu_customers, item_value_by_bu_line)
+        del chc_wb, chc_sheet
 
     print(f'[{time.time()-t0:.1f}s] all sources scanned: {scanned} total rows, clusters built: '
           f'{[(c, len(cust)) for c, cust in clusters.items()]}', file=sys.stderr, flush=True)
