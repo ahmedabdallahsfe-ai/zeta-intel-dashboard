@@ -55,6 +55,16 @@
     },
 
     getData() {
+      if (window.DASHBOARD_ORGANOGRAM && window.DASHBOARD_ORGANOGRAM.b64Data && typeof pako !== "undefined") {
+        try {
+          var strData = atob(window.DASHBOARD_ORGANOGRAM.b64Data);
+          var bytes = new Uint8Array(strData.length);
+          for (var i = 0; i < strData.length; i++) bytes[i] = strData.charCodeAt(i);
+          window.DASHBOARD_ORGANOGRAM = JSON.parse(pako.ungzip(bytes, { to: "string" }));
+        } catch (e) {
+          console.error("[SFE] Failed to decompress organogram cache", e);
+        }
+      }
       if (window.DASHBOARD_ORGANOGRAM) {
         return window.DASHBOARD_ORGANOGRAM;
       }

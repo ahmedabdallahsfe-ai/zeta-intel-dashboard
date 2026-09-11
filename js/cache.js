@@ -57,9 +57,6 @@ const CacheStore = (() => {
       rawRecords = decompressB64Gzip(rawRecords.b64Data);
       window[CONFIG.cache.recordsVar] = rawRecords;
     }
-    if (window.DASHBOARD_ORGANOGRAM && window.DASHBOARD_ORGANOGRAM.b64Data) {
-      window.DASHBOARD_ORGANOGRAM = decompressB64Gzip(window.DASHBOARD_ORGANOGRAM.b64Data);
-    }
 
     dashboard = rawDashboard;
     records = rawRecords;
