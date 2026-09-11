@@ -3593,3 +3593,201 @@ body {
 }
 /* Summary card gets special treatment */
 .sfe-hc-summary .sfe-kpi-info { width: 100%; }
+
+/* =====================================================================
+   NOTIFICATION CENTER & RELEASE NOTES MODAL STYLES (v2.5)
+   ===================================================================== */
+.notif-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.notif-modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.notif-modal-card {
+  background: #0F172A;
+  color: #F8FAFC;
+  width: 660px;
+  max-width: 92vw;
+  max-height: 85vh;
+  border-radius: 14px;
+  border: 1px solid #334155;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateY(12px) scale(0.98);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.notif-modal-overlay.open .notif-modal-card {
+  transform: translateY(0) scale(1);
+}
+
+.notif-modal-header {
+  padding: 16px 20px;
+  background: #1E293B;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notif-modal-close {
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.notif-modal-close:hover {
+  color: #F8FAFC;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.notif-alert-banner {
+  background: #FFFBEB;
+  border-bottom: 1px solid #FCD34D;
+  padding: 12px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.notif-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.notif-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #38BDF8;
+  margin-bottom: 14px;
+}
+
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #1E293B;
+}
+.notif-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.notif-item-icon {
+  font-size: 18px;
+  background: #1E293B;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+}
+
+.notif-item-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #F1F5F9;
+  margin-bottom: 2px;
+}
+
+.notif-item-desc {
+  font-size: 12px;
+  color: #94A3B8;
+  line-height: 1.5;
+}
+
+.best-practice-quote-box {
+  background: linear-gradient(135deg, rgba(15, 76, 129, 0.25) 0%, rgba(56, 189, 248, 0.1) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-top: 16px;
+}
+.quote-header {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #38BDF8;
+  margin-bottom: 4px;
+}
+.quote-text {
+  font-size: 12.5px;
+  font-style: italic;
+  color: #E2E8F0;
+  line-height: 1.5;
+}
+
+.notif-modal-footer {
+  padding: 12px 20px;
+  background: #1E293B;
+  border-top: 1px solid #334155;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.notif-btn-primary {
+  background: #0F4C81;
+  color: #FFF;
+  border: none;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.notif-btn-primary:hover {
+  background: #0284C7;
+}
+
+/* Status Pill for July 2026 Sales Draft */
+.july-v1-status-pill {
+  background: #FFFBEB;
+  color: #B45309;
+  border: 1px solid #FCD34D;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 1px 2px rgba(180, 83, 9, 0.08);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin-anim {
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+

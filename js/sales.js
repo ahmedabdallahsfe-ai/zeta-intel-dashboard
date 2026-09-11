@@ -1491,7 +1491,12 @@
                 ${STATE.collapsedFilters ? '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg>' : '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'}
               </button>
               <div>
-                <div style="font-size:17px; font-weight:700; color:#0f172a; line-height:1.2;">Sales Performance</div>
+                <div style="font-size:17px; font-weight:700; color:#0f172a; line-height:1.2; display:flex; align-items:center; gap:8px;">
+                  Sales Performance
+                  <span class="july-v1-status-pill" title="July 2026 Sales data (v1 Draft) is currently pending final validation from National Sales Managers (NSMs)">
+                    ⚠️ July 2026 Sales: v1 (Draft — Pending NSM Validation)
+                  </span>
+                </div>
                 <div style="font-size:11px; color:#64748b; font-weight:500; margin-top:1px;">Commercial Analytics · Zeta Pharmaceutical</div>
               </div>
             </div>

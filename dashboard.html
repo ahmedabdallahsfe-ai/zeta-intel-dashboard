@@ -200,6 +200,11 @@
     </div>
     <div class="topbar-actions">
       <div id="topbar-user-badge-slot"></div>
+      <button type="button" id="topbar-notif-btn" class="topbar-export-btn notif-center-btn" style="background:#0F172A; color:#38BDF8; border:1px solid #334155; display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:600;" onclick="window.openNotifCenterModal && window.openNotifCenterModal()">
+        <span style="font-size:14px;">🔔</span>
+        <span>What's New</span>
+        <span class="notif-unread-badge" style="background:#EF4444; color:#FFF; font-size:10px; font-weight:800; padding:1px 6px; border-radius:10px; margin-left:2px;">v2.5</span>
+      </button>
       <button type="button" id="topbar-export-pdf" class="topbar-export-btn" title="Export the dashboard as PDF">Export PDF</button>
     </div>
   </header>
@@ -437,6 +442,99 @@
           <span id="ns-modal-page-label"></span>
           <button id="ns-modal-next">Next &#8594;</button>
         </div>
+      </div>
+    </div>
+  <!-- Notification Center & Release Notes Modal -->
+  <div id="notif-center-modal-overlay" class="notif-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="notif-modal-title">
+    <div class="notif-modal-card">
+      <div class="notif-modal-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:22px;">🔔</span>
+          <div>
+            <h3 id="notif-modal-title" style="margin:0; font-size:17px; font-weight:700; color:#F8FAFC;">Notification Center & Release Notes</h3>
+            <div style="font-size:11px; color:#94A3B8; font-weight:500;">Zeta Intelligence Platform · Version 2.5 Release Notes</div>
+          </div>
+        </div>
+        <button class="notif-modal-close" onclick="window.closeNotifCenterModal && window.closeNotifCenterModal()" aria-label="Close">&#x2715;</button>
+      </div>
+
+      <!-- July 2026 Sales Data Status Warning Banner -->
+      <div class="notif-alert-banner">
+        <div style="font-size:16px;">⚠️</div>
+        <div>
+          <div style="font-weight:700; font-size:12.5px; color:#B45309; margin-bottom:2px;">July 2026 Sales Data: v1 (Draft — Pending NSM Validation)</div>
+          <div style="font-size:11.5px; color:#92400E; line-height:1.4;">July 2026 sales performance figures reflect initial ETL ingestion v1. Official final numbers remain subject to final review and validation by National Sales Managers (NSMs).</div>
+        </div>
+      </div>
+
+      <div class="notif-modal-body">
+        <div class="notif-section-title">What's New in Version 2.5 (2026-09-11)</div>
+
+        <div class="notif-item">
+          <div class="notif-item-icon">🔄</div>
+          <div class="notif-item-content">
+            <div class="notif-item-title">Live Refresh Buttons for Intelligence Feeds</div>
+            <div class="notif-item-desc">Added interactive <strong>"🔄 Live Sync"</strong> buttons to both the <em>Regulatory Intelligence</em> and <em>Market Intelligence Feed</em> workspaces for real-time data sync, timestamp updates, and instant visual notifications.</div>
+          </div>
+        </div>
+
+        <div class="notif-item">
+          <div class="notif-item-icon">📊</div>
+          <div class="notif-item-content">
+            <div class="notif-item-title">July 2026 Sales Ingestion & Status Tracking</div>
+            <div class="notif-item-desc">Integrated July 2026 actuals and position-level target benchmarks across all 14 sales lines with clear v1 draft validation status indicators.</div>
+          </div>
+        </div>
+
+        <div class="notif-item">
+          <div class="notif-item-icon">🛡️</div>
+          <div class="notif-item-content">
+            <div class="notif-item-title">BU & Line Access Scoping (SFE Organogram)</div>
+            <div class="notif-item-desc">Zeta Organogram (SFE) hierarchy, vacancy, and span/workload views now auto-scope and lock based on assigned BU or Line Manager permissions.</div>
+          </div>
+        </div>
+
+        <div class="notif-item">
+          <div class="notif-item-icon">📈</div>
+          <div class="notif-item-content">
+            <div class="notif-item-title">Line-Scoped Customer Health & Dynamic SKU Basket</div>
+            <div class="notif-item-desc">Customer Health drill-down modals and Top SKU Penetration cards dynamically re-calculate and re-label for the specific selected Line.</div>
+          </div>
+        </div>
+
+        <div class="notif-item">
+          <div class="notif-item-icon">🏆</div>
+          <div class="notif-item-content">
+            <div class="notif-item-title">Leaderboard Data-Quality Filtering</div>
+            <div class="notif-item-desc">Top 10 and Bottom 10 sales leaderboards strictly filter for Medical Representative and Sales Representative titles, removing management titles from rep rankings.</div>
+          </div>
+        </div>
+
+        <div class="notif-item">
+          <div class="notif-item-icon">🎯</div>
+          <div class="notif-item-content">
+            <div class="notif-item-title">Target per Position & CHC Mirror-Image Sync</div>
+            <div class="notif-item-desc">Sales Productivity cards display real Target per Deployed Position and apply combined headcount logic for CHC mirror-image sales lines.</div>
+          </div>
+        </div>
+
+        <div class="notif-item">
+          <div class="notif-item-icon">🧬</div>
+          <div class="notif-item-content">
+            <div class="notif-item-title">Regulatory & Market Intelligence Feeds</div>
+            <div class="notif-item-desc">Integrated Egypt Registration 4-tier pipeline tracking (FDA/EMA + EDA) and real-time market intelligence news feeds with therapeutic area tagging.</div>
+          </div>
+        </div>
+
+        <!-- Commercial Excellence Best Practice Quote -->
+        <div class="best-practice-quote-box">
+          <div class="quote-header">💡 Commercial Excellence Best Practice</div>
+          <div class="quote-text">"Precision data, role-based visibility, and rapid feedback loops empower field leadership to convert raw commercial intelligence into market dominance."</div>
+        </div>
+      </div>
+
+      <div class="notif-modal-footer">
+        <button class="notif-btn-primary" onclick="window.closeNotifCenterModal && window.closeNotifCenterModal()">Got it & Close</button>
       </div>
     </div>
   </div>

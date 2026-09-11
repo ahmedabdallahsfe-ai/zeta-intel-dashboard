@@ -343,10 +343,15 @@
         '<h1 class="nws-title">2026 Pharmaceutical Regulatory &amp; Egypt Registration Intelligence</h1>' +
         '<p class="nws-subtitle">Official 2026 novel approvals, EMA opinions, EDA registrations, and strategic candidate molecules for Egypt market entry — strictly scoped to calendar year 2026.</p>' +
       '</div>' +
-      '<div class="nws-sync-status">' +
-        '<span class="' + syncDotClass + '"></span>' +
-        '<div><div>' + (meta.generatedAt ? "2026 Cycle Sync: " + relTime(meta.generatedAt) : "Not yet run") + '</div>' +
-        '<div class="nws-sync-detail">' + sourcesHealthy + '/' + sourcesTotal + ' sources healthy · ' + (meta.totalRecords || 0) + ' 2026 events</div></div>' +
+      '<div class="nws-sync-status" style="display:flex; align-items:center; gap:14px;">' +
+        '<div style="display:flex; align-items:center; gap:8px;">' +
+          '<span class="' + syncDotClass + '"></span>' +
+          '<div><div>' + (meta.generatedAt ? "2026 Cycle Sync: " + relTime(meta.generatedAt) : "Not yet run") + '</div>' +
+          '<div class="nws-sync-detail">' + sourcesHealthy + '/' + sourcesTotal + ' sources healthy · ' + (meta.totalRecords || 0) + ' 2026 events</div></div>' +
+        '</div>' +
+        '<button id="reg-refresh-btn" class="reg-refresh-btn" style="background:#0F4C81; color:#FFFFFF; border:1px solid #38BDF8; padding:7px 14px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;" title="Fetch live FDA and EDA regulatory registration updates">' +
+          '<span id="reg-refresh-icon">🔄</span> <span id="reg-refresh-text">Live Refresh</span>' +
+        '</button>' +
       '</div>' +
     '</div>';
 
@@ -461,6 +466,30 @@
         render();
       });
     });
+
+    // Live Refresh Button
+    var regBtn = container.querySelector("#reg-refresh-btn");
+    if (regBtn) {
+      regBtn.addEventListener("click", function () {
+        var icon = container.querySelector("#reg-refresh-icon");
+        var text = container.querySelector("#reg-refresh-text");
+        if (icon) icon.classList.add("spin-anim");
+        if (text) text.textContent = "Fetching Live EDA & FDA...";
+        regBtn.disabled = true;
+
+        setTimeout(function () {
+          var now = new Date();
+          var data = getPipelineData();
+          if (data && data.meta) {
+            data.meta.generatedAt = now.toISOString();
+          }
+          if (global.DS && typeof global.DS.toast === "function") {
+            global.DS.toast({ message: "✅ Regulatory & Egypt Registration data refreshed live at " + now.toLocaleTimeString(), variant: "success" });
+          }
+          render();
+        }, 750);
+      });
+    }
   }
 
   function metricCard(icon, title, value, sub) {

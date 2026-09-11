@@ -204,6 +204,27 @@ function renderTopbarUserBadge() {
   if (signoutBtn) signoutBtn.addEventListener("click", () => window.AUTH.logout());
 }
 
+window.openNotifCenterModal = function() {
+  const modal = document.getElementById("notif-center-modal-overlay");
+  if (modal) {
+    modal.classList.add("open");
+  }
+};
+
+window.closeNotifCenterModal = function() {
+  const modal = document.getElementById("notif-center-modal-overlay");
+  if (modal) {
+    modal.classList.remove("open");
+  }
+};
+
+// Close modal on Escape key
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") {
+    window.closeNotifCenterModal();
+  }
+});
+
 function startApp() {
   Loader.init();
   Loader.show("Loading dashboard...");
