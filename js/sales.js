@@ -336,7 +336,14 @@
   function decompressCustomerAnalyticsCache() {
     if (customerAnalyticsCache !== null) return;
     if (typeof window.CUSTOMER_ANALYTICS_CACHE === 'undefined') {
-      customerAnalyticsCache = false; // sentinel: "checked, not available" (not null = "not yet checked")
+      // 2026-09-11: do NOT latch to false here. This cache is now lazy
+      // (js/cache-loader.js + CacheLoader.preload on idle, restored after
+      // being found reverted to an eager <script> tag) -- someone opening
+      // the Customer Health drill before the background preload lands
+      // must get retried on their NEXT call, not a permanent "unavailable"
+      // for the rest of the session. false is reserved for the catch
+      // block below: arrived and failed to decode. Leaving the sentinel
+      // at null here means "not yet checked."
       return;
     }
     try {

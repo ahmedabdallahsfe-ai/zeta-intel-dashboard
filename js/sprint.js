@@ -574,7 +574,13 @@
     // .sp-kpi-coaching-clickable handler opens the popup.
     const clickableClass = coachingAttrs ? " sp-kpi-coaching-clickable" : "";
     const clickableAttrs = coachingAttrs ? ` ${coachingAttrs} role="button" tabindex="0"` : "";
-    const hintHtml = coachingAttrs ? '<div class="sp-kpi-coaching-hint">🔍 Coaching Intelligence detail</div>' : "";
+    // 2026-09-11: Field Working Days reuses this exact same clickable-bar
+    // mechanism (see kpiSlotCell's isWorkingDaysClickable) -- detected here
+    // by which data attribute the caller built, so the hover hint reads
+    // correctly without a second bar renderer.
+    const hintHtml = !coachingAttrs ? "" : (coachingAttrs.indexOf("data-workingdays-kpi") !== -1
+      ? '<div class="sp-kpi-coaching-hint">📅 Field Working Days detail</div>'
+      : '<div class="sp-kpi-coaching-hint">🔍 Coaching Intelligence detail</div>');
     if (pts == null) {
       return `<div class="sp-kpi-wrap${clickableClass}"${clickableAttrs}>
         <div class="sp-kpi-label">${label} <span class="sp-kpi-pct">pending</span></div>
@@ -2318,14 +2324,17 @@
     </details>`;
   }
 
-  function kpiSlotCell(kpi, coachingDetail, mgrCode) {
-    const isAutoSourced = kpi.source === "auto" || kpi.source === "coaching";
+  function kpiSlotCell(kpi, coachingDetail, mgrCode, workingDaysDetail) {
+    const isAutoSourced = kpi.source === "auto" || kpi.source === "coaching" || kpi.source === "workingdays";
     // DV Coverage (2026-09-01): kpi.source === "coaching" means Coaching
     // Intelligence supplied this value (cache/coaching.json), not Ahmed's
     // manual KPI template -- see etl/build_sprint_cache.py's
     // load_coaching_dv_coverage(). Shown with the same "(auto)" tag as
     // Brand Manager's auto-calculated National Sales, for the same reason:
-    // it did not come from the manual template.
+    // it did not come from the manual template. kpi.source === "workingdays"
+    // (2026-09-11) is the same idea for Field Working Days -- see
+    // load_working_days_data() -- though the raw/pts value itself is
+    // unchanged either way (still the manual template's own column).
     const shortLabel = kpiShortLabel(kpi.label) + (isAutoSourced ? " (auto)" : "");
     // coachingDetail/mgrCode (2026-09-01, Ahmed: "DV Coverage Calls per DV
     // pop up like in coaching intel"): only ever passed for a DM/DSM
@@ -2337,8 +2346,17 @@
     // SCORE is still the manual template either way -- this only adds a
     // supporting-context popup, see openCoachingDetailModal().
     const isCoachingClickable = !!coachingDetail && (kpi.key === "dvCoverage" || kpi.key === "callsPerDv");
+    // workingDaysDetail/mgrCode (2026-09-11, Ahmed: "i need field working
+    // days to be like [DV Coverage/Calls per DV] and also for asm and nsm
+    // source is field working days page") -- same idea, but present for
+    // ALL THREE hierarchy tiers (DM/DSM, ASM, NSM), not DM/DSM only, since
+    // that's what the Field Working Days Intelligence page itself covers.
+    // See openWorkingDaysDetailModal().
+    const isWorkingDaysClickable = !!workingDaysDetail && kpi.key === "fieldDays";
     const coachingAttrs = isCoachingClickable
       ? `data-coaching-code="${esc(mgrCode)}" data-coaching-kpi="${esc(kpi.key)}"`
+      : isWorkingDaysClickable
+      ? `data-workingdays-code="${esc(mgrCode)}" data-workingdays-kpi="${esc(kpi.key)}"`
       : null;
     if (kpi.key === "regionCount") {
       const pctText = kpi.raw != null ? `${kpi.raw} region${kpi.raw === 1 ? "" : "s"}` : null;
@@ -2495,7 +2513,7 @@
       const lineBu = [r.line, r.bu].filter(Boolean).join(" · ");
       const noun = r.memberNoun === "DM/DSM" ? "DM/DSM" : "rep";
       kpisHtml = kpiBar("Team Avg", r.teamAvgRaw, r.teamAvgPts, r.teamAvgWeight)
-        + r.kpis.map(k => kpiSlotCell(k, r.coachingDetail, r.code)).join("");
+        + r.kpis.map(k => kpiSlotCell(k, r.coachingDetail, r.code, r.workingDaysDetail)).join("");
       subInfo = `#${esc(r.code)}${lineBu ? ` · ${esc(lineBu)}` : ""} · ${r.teamSize} eligible ${esc(noun)}${r.teamSize === 1 ? "" : "s"} in team`;
     }
 
@@ -2621,6 +2639,82 @@
     _spModalOverlay = window.DS.openModal({ title: `${r.name} — ${titleSuffix}`, bodyHtml });
   }
 
+  // ---- Field Working Days detail popup (2026-09-11) --------------------
+  // Ahmed: "in zeta sprint dsm dv coverage and calls per dv is clickable
+  // and pop up with details i need field working days to be like it and
+  // also for asm and nsm source is field working days page." Same popup
+  // mechanism as Coaching Intelligence's DV Coverage/Calls per DV above
+  // (same .sp-kpi-coaching-clickable bar, same DS.openModal, same
+  // back-to-member-modal link) but for the fieldDays KPI, and for ALL
+  // THREE hierarchy tiers (DM/DSM, ASM, NSM) since that's what the Field
+  // Working Days Intelligence page (js/working-days.js) itself covers --
+  // not DM/DSM only. Content comes from r.workingDaysDetail, attached by
+  // etl/build_sprint_cache.py's load_working_days_data() straight from
+  // cache/working_days.json -- the exact same breakdown that page's own
+  // per-employee calculation modal shows, per Ahmed's explicit "source is
+  // field working days page".
+  function workingDaysDeductLabelOrder(deducts) {
+    // Fixed, readable order rather than object key order (which can vary
+    // by tier -- DM_DSM has Gathering Meeting, ASM/NSM don't; ASM has no
+    // Training column either -- see DEDUCT_LABELS in
+    // etl/build_working_days_cache.py). Only labels actually present (with
+    // a real column on that tier's sheet) are shown.
+    const order = ["Weekends", "Leave Days", "Holidays", "AV Confrance", "Business Travel",
+      "Confrance", "Gathering Meeting", "Group Meeting (RTD)", "Sales Meeting", "Training"];
+    return order.filter(lbl => Object.prototype.hasOwnProperty.call(deducts || {}, lbl));
+  }
+
+  function workingDaysDetailModalBody(mgrCode, mgrName, detail) {
+    const fmtDays = v => v == null ? "—" : (Math.round(v * 100) / 100).toString();
+    const fmtPct = v => v == null ? "—" : (v * 100).toFixed(1) + "%";
+    const deducts = detail.deducts || {};
+    const deductRows = workingDaysDeductLabelOrder(deducts)
+      .map(lbl => `<tr><td>${esc(lbl)}</td><td>${fmtDays(deducts[lbl])}</td></tr>`)
+      .join("");
+    const multiplierStr = detail.multiplier != null ? `× ${detail.multiplier}` : "";
+    const tierAvgHtml = detail.tierAvgFieldPct != null
+      ? ` &middot; tier average this period: ${fmtPct(detail.tierAvgFieldPct)}`
+      : "";
+    const leftBannerHtml = detail.leftCompany
+      ? `<div class="sp-wd-left-banner">Left the company during this period (Last Day of Work ${esc(detail.lastDay || "—")}) -- the % below reflects a partial month only, not a full-period shortfall.</div>`
+      : "";
+    const hireLastRow = (detail.hireDate || detail.lastDay)
+      ? `<div class="sp-coaching-detail-summary">${detail.hireDate ? `Hire Date: ${esc(detail.hireDate)}` : ""}${detail.hireDate && detail.lastDay ? " &middot; " : ""}${detail.lastDay ? `Last Day of Work: ${esc(detail.lastDay)}` : ""}</div>`
+      : "";
+    const inner = `
+      <div class="sp-coaching-detail-summary">Field Working Days ${fmtPct(detail.fieldPct)} achieved &middot; Target ${fmtDays(detail.targetDays)} days &middot; ${fmtDays(detail.allVisitDays)} visit days actual${tierAvgHtml}</div>
+      ${leftBannerHtml}
+      ${hireLastRow}
+      <table class="sp-wd-detail-table">
+        <tbody>
+          <tr><td>Calendar Days</td><td>${fmtDays(detail.calendarDays)}</td></tr>
+          <tr><td colspan="2" class="sp-wd-detail-subhead">Deductions (Time Out of Territory)</td></tr>
+          ${deductRows}
+          <tr class="sp-wd-detail-total"><td>Total Deductions</td><td>${fmtDays(detail.deductSum)}</td></tr>
+          <tr class="sp-wd-detail-target"><td>Target Working Days = (Calendar Days − Deductions) ${esc(multiplierStr)}</td><td>${fmtDays(detail.targetDays)}</td></tr>
+          <tr><td>All Visit Days (actual)</td><td>${fmtDays(detail.allVisitDays)}</td></tr>
+          <tr class="sp-wd-detail-pct"><td>Field Working Days % Achieved</td><td>${fmtPct(detail.fieldPct)}</td></tr>
+        </tbody>
+      </table>
+      <div class="sp-coaching-detail-source">Source: Field Working Days Intelligence &middot; this is the exact same breakdown that page shows for this employee this period.</div>`;
+    return `<div class="sp-coaching-detail">${inner}
+      <button type="button" class="sp-coaching-back-link" data-back-code="${esc(mgrCode)}">&larr; Back to ${esc(mgrName)}</button>
+    </div>`;
+  }
+
+  function openWorkingDaysDetailModal(code) {
+    if (!window.DS || typeof window.DS.openModal !== "function") {
+      console.error("[Sprint] DS.openModal is unavailable -- cannot show Field Working Days detail popup.");
+      return;
+    }
+    const found = findMemberRecord(code);
+    const r = found && found.data;
+    if (!r || !r.workingDaysDetail) return;
+    if (_spModalOverlay && typeof window.DS.closeModal === "function") window.DS.closeModal(_spModalOverlay);
+    const bodyHtml = workingDaysDetailModalBody(code, r.name, r.workingDaysDetail);
+    _spModalOverlay = window.DS.openModal({ title: `${r.name} — Field Working Days detail`, bodyHtml });
+  }
+
   function onSprintDocumentClick(e) {
     const backBtn = e.target.closest(".sp-coaching-back-link");
     if (backBtn) {
@@ -2630,7 +2724,15 @@
     }
     const coachingLink = e.target.closest(".sp-kpi-coaching-clickable");
     if (coachingLink) {
-      openCoachingDetailModal(coachingLink.dataset.coachingCode, coachingLink.dataset.coachingKpi);
+      // 2026-09-11: this same class now covers two popup kinds -- Coaching
+      // Intelligence (dvCoverage/callsPerDv) and Field Working Days
+      // (fieldDays) -- dispatched by which data attribute kpiSlotCell/
+      // hierarchyRow actually built for this cell.
+      if (coachingLink.dataset.workingdaysCode) {
+        openWorkingDaysDetailModal(coachingLink.dataset.workingdaysCode);
+      } else {
+        openCoachingDetailModal(coachingLink.dataset.coachingCode, coachingLink.dataset.coachingKpi);
+      }
       return;
     }
     const btn = e.target.closest(".sp-member-link");
@@ -2662,7 +2764,12 @@
     // version uses -- one popup implementation, two KPI-cell renderers.
     const clickableClass = coachingAttrs ? " sp-kpi-coaching-clickable" : "";
     const clickableAttrs = coachingAttrs ? ` ${coachingAttrs} role="button" tabindex="0"` : "";
-    const hintHtml = coachingAttrs ? '<div class="sp-kpi-coaching-hint">🔍 Coaching Intelligence detail</div>' : "";
+    // 2026-09-11: same generalization as kpiBar() above -- Field Working
+    // Days uses this same clickable block for DM/DSM/ASM/NSM's leaderboard
+    // table cell, distinguished by the data attribute hierarchyRow() built.
+    const hintHtml = !coachingAttrs ? "" : (coachingAttrs.indexOf("data-workingdays-kpi") !== -1
+      ? '<div class="sp-kpi-coaching-hint">📅 Field Working Days detail</div>'
+      : '<div class="sp-kpi-coaching-hint">🔍 Coaching Intelligence detail</div>');
     const fmt = v => v == null ? "—" : (isFraction ? (v * 100).toFixed(1) + "%" : v.toFixed(1) + " pts");
     const valStr = fmt(val);
     const avgStr = fmt(avg);
@@ -2784,10 +2891,19 @@
         // rule as kpiSlotCell (dvCoverage/callsPerDv keys, only when this
         // manager has coachingDetail).
         const isCoachingClickable = !!r.coachingDetail && (k.key === "dvCoverage" || k.key === "callsPerDv");
+        // 2026-09-11 (Ahmed: "i need field working days to be like [DV
+        // Coverage/Calls per DV] and also for asm and nsm source is field
+        // working days page"): same rule, but for ALL THREE hierarchy tiers
+        // (r.workingDaysDetail is populated for DM/DSM, ASM, and NSM alike
+        // -- see etl/build_sprint_cache.py's load_working_days_data()),
+        // not DM/DSM only.
+        const isWorkingDaysClickable = !!r.workingDaysDetail && k.key === "fieldDays";
         const coachingAttrs = isCoachingClickable
           ? `data-coaching-code="${esc(r.code)}" data-coaching-kpi="${esc(k.key)}"`
+          : isWorkingDaysClickable
+          ? `data-workingdays-code="${esc(r.code)}" data-workingdays-kpi="${esc(k.key)}"`
           : null;
-        return `<td>${c ? hierarchyKpiBlock(kpiShortLabel(k.label), k.raw, c.avg, c.pass, k.pts, k.weight, true, coachingAttrs) : kpiSlotCell(k, r.coachingDetail, r.code)}</td>`;
+        return `<td>${c ? hierarchyKpiBlock(kpiShortLabel(k.label), k.raw, c.avg, c.pass, k.pts, k.weight, true, coachingAttrs) : kpiSlotCell(k, r.coachingDetail, r.code, r.workingDaysDetail)}</td>`;
       }).join("")}
       <td class="sp-total">
         <!-- "Winner Pool #N", added 2026-08-19 ("add it to asm nsm dm"),

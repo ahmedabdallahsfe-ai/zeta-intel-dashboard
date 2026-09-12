@@ -228,6 +228,21 @@ tr.sp-row.sp-is-winner:hover { background: linear-gradient(90deg, rgba(180,83,9,
 .sp-coaching-best-row td { background: var(--color-surface-alt); }
 .sp-coaching-best-badge { display: inline-block; font-size: 10px; font-weight: 700; color: var(--color-success); margin-left: 4px; white-space: nowrap; }
 
+/* Field Working Days detail popup (2026-09-11) -- reuses .sp-coaching-detail/
+   -detail-summary/-detail-source/-back-link above (same modal shell, same
+   "Source: ..." footer convention); these are just the breakdown table +
+   left-company banner specific to this popup. See
+   workingDaysDetailModalBody() in js/sprint.js. */
+.sp-wd-detail-table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 12.5px; }
+.sp-wd-detail-table td { padding: 5px 8px; border-bottom: 1px solid var(--color-border); }
+.sp-wd-detail-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sp-wd-detail-table tr:last-child td { border-bottom: none; }
+.sp-wd-detail-subhead td { padding-top: 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--color-text-tertiary); border-bottom: 1px solid var(--color-border); }
+.sp-wd-detail-total td { font-weight: 600; }
+.sp-wd-detail-target td { font-weight: 700; background: var(--color-surface-alt); }
+.sp-wd-detail-pct td { font-weight: 700; color: var(--color-primary); }
+.sp-wd-left-banner { font-size: 11.5px; color: var(--color-warning); margin-bottom: 10px; padding: 8px 10px; background: var(--color-surface-alt); border-radius: 6px; border-left: 3px solid var(--color-warning); }
+
 
 /* =====================================================================
    Access scoping + personal performance card

@@ -90,12 +90,32 @@ COACHING_CACHE_PATH = os.path.join(CACHE_DIR, 'coaching.json')
 # manual-template column asks him to pre-compute by hand.
 CALLS_PER_DV_TARGET_DEFAULT = 8.0
 CALLS_PER_DV_TARGET_CHC_SALES = 12.0
+# Field Working Days Intelligence's own cache (2026-09-11, Ahmed: "i need
+# field working days to be like [DV Coverage/Calls per DV, i.e. clickable
+# with a detail popup] and also for asm and nsm source is field working
+# days page") -- see load_working_days_data() below.
+WORKING_DAYS_CACHE_PATH = os.path.join(CACHE_DIR, 'working_days.json')
 OUT_JS = os.path.join(CACHE_DIR, 'sprint.data.js')
 OUT_JSON = os.path.join(CACHE_DIR, 'sprint.json')
 HISTORY_DIR = os.path.join(CACHE_DIR, 'sprint_history')
 HISTORY_INDEX_JS = os.path.join(HISTORY_DIR, 'index.js')
 
-SCHEMA_VERSION = 12  # 12 (2026-09-10): DM/DSM Calls per DV now sourced from
+SCHEMA_VERSION = 13  # 13 (2026-09-11): fieldDays KPI (DM/DSM, ASM, AND NSM)
+                      # gains a workingDaysDetail record + source='workingdays'
+                      # wherever cache/working_days.json has a matching
+                      # code+month -- makes the Field Working Days KPI cell
+                      # clickable with a breakdown popup (Calendar Days, each
+                      # deduction, Target Working Days, All Visit Days, hire/
+                      # last-day/left-company), mirroring the existing DV
+                      # Coverage/Calls per DV popup. Does NOT change any
+                      # scored raw/pts value -- both this script and
+                      # etl/build_working_days_cache.py read the identical
+                      # xlsx column for the identical code+month, so this is
+                      # purely additive detail + a UI hook. Ahmed 2026-09-11:
+                      # "i need field working days to be like [DV Coverage/
+                      # Calls per DV] and also for asm and nsm source is
+                      # field working days page".
+                      # 12 (2026-09-10): DM/DSM Calls per DV now sourced from
                       # Coaching Intelligence (avgVisitsPerDay) wherever it has
                       # a match for the eval month, rescored against Sprint's
                       # own target (8/day, 12/day for a majority-CHC_SALES
@@ -1146,6 +1166,74 @@ def main():
 
     coaching_dv_by_code, coaching_calls_by_code, coaching_detail_by_code = load_coaching_data()
 
+    def load_working_days_data():
+        """Field Working Days Intelligence's own cache
+        (etl/build_working_days_cache.py, cache/working_days.json) is now the
+        SOURCE for the fieldDays KPI's popup detail across ALL THREE
+        hierarchy tiers -- DM/DSM, ASM, AND NSM (2026-09-11, Ahmed: "i need
+        field working days to be like [DV Coverage/Calls per DV] and also
+        for asm and nsm source is field working days page").
+
+        Deliberately reuses that page's own already-computed per-employee
+        breakdown rather than re-deriving it a second time here: both
+        scripts read the IDENTICAL xlsx header/column for the IDENTICAL
+        code+month (TARGET_HEADER / FIELDDAYS_HEADER in
+        etl/build_working_days_cache.py match this file's own
+        TEMPLATE_SHEETS['fieldDays'] column label exactly), so this changes
+        NOTHING about the score -- raw/pts still come from
+        load_kpi_template() exactly as before. It only supplies the detail
+        a popup needs (Calendar Days, each deduction category, Target
+        Working Days, All Visit Days, hire/last-day/left-company) and tags
+        source='workingdays' so js/sprint.js knows to make the cell
+        clickable -- mirroring the DV Coverage/Calls per DV precedent
+        (see load_coaching_data() above), but at record level for every
+        tier this time, not DM/DSM only.
+
+        Returns {sheet_name: {code_str: detail_dict}} for EVAL_PERIOD_NAME
+        only. Missing/unreadable cache degrades gracefully: the fieldDays
+        KPI simply stays non-clickable (source='template'), exactly like
+        today, for everyone.
+        """
+        if not os.path.exists(WORKING_DAYS_CACHE_PATH):
+            log(f'  WARNING: {WORKING_DAYS_CACHE_PATH} not found -- Field Working '
+                f'Days popup detail unavailable this run (fieldDays KPI itself '
+                f'still scores from the manual template as before).')
+            return {}
+        try:
+            with open(WORKING_DAYS_CACHE_PATH, encoding='utf-8') as f:
+                wd = json.load(f)
+        except (OSError, ValueError) as e:
+            log(f'  WARNING: could not read {WORKING_DAYS_CACHE_PATH} ({e}) -- Field '
+                f'Working Days popup detail unavailable this run.')
+            return {}
+        multiplier = wd.get('multiplier') or {}
+        out = {}
+        for sheet_name in ('DM_DSM', 'ASM', 'NSM'):
+            month_rows = ((wd.get('employees') or {}).get(sheet_name) or {}).get(EVAL_PERIOD_NAME, [])
+            tier_month = ((wd.get('tiers') or {}).get(sheet_name, {}).get('months') or {}).get(EVAL_PERIOD_NAME, {})
+            tier_avg_pct = tier_month.get('avgFieldPct')
+            sheet_out = {}
+            for row in month_rows:
+                code_str = str(row.get('code'))
+                sheet_out[code_str] = dict(
+                    calendarDays=row.get('calendarDays'),
+                    deducts=row.get('deducts') or {},
+                    deductSum=row.get('deductSum'),
+                    targetDays=row.get('targetDays'),
+                    allVisitDays=row.get('allVisitDays'),
+                    fieldPct=row.get('fieldPct'),
+                    hireDate=row.get('hireDate'),
+                    lastDay=row.get('lastDay'),
+                    leftCompany=row.get('leftCompany'),
+                    multiplier=multiplier.get(sheet_name),
+                    tierAvgFieldPct=tier_avg_pct,
+                )
+            out[sheet_name] = sheet_out
+            log(f'  Field Working Days detail: {len(sheet_out)} {sheet_name} matched for {EVAL_PERIOD_NAME}')
+        return out
+
+    working_days_by_sheet = load_working_days_data()
+
     def normalize_raw(key, val):
         """Defensive guard against a common fill-in mistake: entering a
         whole-number percent (e.g. 85) instead of the requested decimal
@@ -1270,6 +1358,16 @@ def main():
                     target = CALLS_PER_DV_TARGET_CHC_SALES if primary_line == 'CHC_SALES' else CALLS_PER_DV_TARGET_DEFAULT
                     raw = coaching_calls_by_code[code] / target
                     source = 'coaching'
+                # Field Working Days (2026-09-11, Ahmed: "i need field working
+                # days to be like [DV Coverage/Calls per DV] and also for asm
+                # and nsm source is field working days page") -- same
+                # source-tagging precedent as the two KPIs above, but the raw
+                # score itself is UNCHANGED (still `provided.get('fieldDays')`
+                # from the manual template): working_days_by_sheet reads the
+                # identical xlsx column, so this only tags the cell as
+                # clickable and supplies the popup's breakdown detail below.
+                if key == 'fieldDays' and raw is not None and code in working_days_by_sheet.get(template_sheet, {}):
+                    source = 'workingdays'
                 pts = None
                 if raw is not None:
                     raw = normalize_raw(key, raw)
@@ -1306,6 +1404,17 @@ def main():
                 # decide whether the DV Coverage / Calls per DV KPI cells
                 # are clickable at all -- see load_coaching_data() above.
                 coachingDetail=coaching_detail_by_code.get(code),
+                # Field Working Days popup detail (2026-09-11, Ahmed: "i need
+                # field working days to be like [DV Coverage/Calls per DV]
+                # and also for asm and nsm source is field working days
+                # page") -- unlike coachingDetail above, present for ALL
+                # THREE tiers (DM/DSM, ASM, NSM), since Field Working Days
+                # Intelligence covers all three. None wherever
+                # cache/working_days.json has no matching code+month --
+                # js/sprint.js uses that same source=='workingdays' /
+                # workingDaysDetail presence to decide whether the Field
+                # Working Days KPI cell is clickable.
+                workingDaysDetail=working_days_by_sheet.get(template_sheet, {}).get(code),
             ))
         return out, excl
 

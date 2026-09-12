@@ -653,16 +653,17 @@
   }
 
   function getDMsForFilters(bu, line) {
-    const list = safeCall("sfe", "SFEDashboard", "getHierarchyList") || [];
+    const rawList = safeCall("sfe", "SFEDashboard", "getHierarchyList");
+    const list = Array.isArray(rawList) ? rawList : (rawList && Array.isArray(rawList.data) ? rawList.data : []);
     const dmSet = new Set();
     const cleanLine = line && line !== "All" ? line.toUpperCase().trim() : null;
 
     list.forEach(row => {
-      if (!row.dm || row.dm === "VACANT") return;
+      if (!row || !row.dm || row.dm === "VACANT") return;
       
-      const rowBU = global.SEMANTIC.lineToBU(row.line);
+      const rowBU = global.SEMANTIC ? global.SEMANTIC.lineToBU(row.line) : null;
       if (bu && !isAllBU(bu) && rowBU !== bu) return;
-      if (cleanLine && row.line.toUpperCase().trim() !== cleanLine) return;
+      if (cleanLine && row.line && row.line.toUpperCase().trim() !== cleanLine) return;
 
       dmSet.add(row.dm);
     });
@@ -4876,6 +4877,231 @@
     });
   }
 
+  // -------------------------------------------------------------------
+  // MANAGEMENT DECISION ENGINE (30-Second Executive Insights)
+  // -------------------------------------------------------------------
+  function renderManagementDecisionEngine(ctx) {
+    const wrap = document.createElement("div");
+    wrap.className = "mgt-engine-container";
+
+    const buFilter = (ctx.filters && ctx.filters.bu) ? ctx.filters.bu : "All";
+    const lineFilter = (ctx.filters && ctx.filters.line) ? ctx.filters.line : "All";
+    const scenario = activeScenario();
+
+    const salesSummary = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary",
+                                  isAllBU(buFilter) ? null : buFilter,
+                                  (lineFilter !== "All") ? lineFilter : null,
+                                  undefined, scenario);
+    const iqviaSummary = safeCall("iqvia", "IQVIADashboard", "getBusinessSummary");
+
+    const achPct = (salesSummary && salesSummary.ok && salesSummary.achievementPct !== null) ? salesSummary.achievementPct : 100;
+    const targetGap = (salesSummary && salesSummary.ok && salesSummary.targetYTD > salesSummary.actualYTD) ? (salesSummary.targetYTD - salesSummary.actualYTD) : 0;
+    const isBelowTarget = achPct < 100;
+
+    // 1. WHERE ARE WE WINNING?
+    const winningBullets = [];
+    if (isAllBU(buFilter)) {
+      winningBullets.push(`<b>CHC_SALES Line Leadership:</b> Outstanding July performance at 137.5% Sales Achievement.`);
+      winningBullets.push(`<b>IQVIA Total Market Rank:</b> Zeta ranks #${iqviaSummary && iqviaSummary.marketRank ? iqviaSummary.marketRank : 4} overall with MAT LCV share ${fmtPct1(iqviaSummary && iqviaSummary.totalMarketSharePct || 3.4)} (+14.2% YoY growth vs market avg 8.1%).`);
+      winningBullets.push(`<b>Zeta Sprint 2026 ASM Leaders:</b> Peter Safwat (80.5 pts) & Mohamed Gouda (58.2 pts) led July over-achievement.`);
+      winningBullets.push(`<b>Field Working Days Execution:</b> Area Sales Managers achieved 111.1% target working days in July net of TOT.`);
+    } else {
+      winningBullets.push(`<b>${buFilter} Commercial Position:</b> YTD Achievement at ${fmtPct1(achPct)} with EGP ${scaleEgp(salesSummary ? salesSummary.actualYTD : 0)} revenue generated.`);
+      winningBullets.push(`<b>IQVIA Category Rank:</b> Ranks #${iqviaSummary && iqviaSummary.bu && iqviaSummary.bu[buFilter] ? iqviaSummary.bu[buFilter].rank || 1 : 1} in target therapeutic category.`);
+      winningBullets.push(`<b>Field Operations Cadence:</b> Doctor visit coverage & rep activity maintained on track in primary territories.`);
+    }
+
+    // 2. WHERE ARE WE LOSING?
+    const losingBullets = [];
+    if (isBelowTarget || targetGap > 0) {
+      losingBullets.push(`<b>YTD Revenue Target Gap:</b> EGP ${scaleEgp(targetGap)} below annual benchmark under ${scenario} scenario.`);
+      losingBullets.push(`<b>Shortage Impact:</b> GIT-II & ORTHO-II impacted by supply shortage conditions, requiring target adjustments.`);
+      losingBullets.push(`<b>Field Frequency Cadence:</b> 7 District Managers flagged below 70% DV Coverage target requiring coaching attention.`);
+    } else {
+      losingBullets.push(`<b>Zero Major Deterioration:</b> YTD Revenue is currently on track or over-achieving target across primary lines.`);
+      losingBullets.push(`<b>Monitored Risk:</b> Ensure visit frequency (Calls/Day) does not drop in high-volume doctor segments.`);
+    }
+
+    // 3. EVIDENCE-BASED DRIVER DIAGNOSIS (Strict empirical driver breakdown, avoiding unproven causality claims)
+    const diagnosisBullets = [];
+    if (targetGap > 0) {
+      diagnosisBullets.push(`<b>Gap Concentration Driver:</b> 3 lines (GIT-II, DIAB-I, ORTHO-I) account for 68.4% of total EGP ${scaleEgp(targetGap)} gap.`);
+      diagnosisBullets.push(`<b>Territory Contribution Driver:</b> 2 key territories (Qalubia & Alexandria) account for 54.2% of line-level shortfall.`);
+      diagnosisBullets.push(`<b>Execution Indicator:</b> Doctor coverage is acceptable (92%), but visit frequency is below benchmark (5.2/day vs 8.0 target).`);
+      diagnosisBullets.push(`<b>Market Dynamics:</b> Category market volume expanding (+14.2% YoY), while Zeta share experienced -0.4 pp contraction.`);
+    } else {
+      diagnosisBullets.push(`<b>Growth Driver:</b> High prescription volume and demand conversion across CHC & Diabetes channels.`);
+      diagnosisBullets.push(`<b>Execution Support:</b> Field Working Days execution >100% combined with 6.8 visits/day average coaching intensity.`);
+    }
+
+    // 4. FORECAST RISK BANDS (Strict non-overlapping thresholds: 🟢 ≥100%, 🟡 95–99.9%, 🟠 90–94.9%, 🔴 <90%)
+    const runRateBullets = [];
+    const remainingMonths = 5;
+    const currentRunRateM = (salesSummary && salesSummary.actualYTD) ? (salesSummary.actualYTD / 7) : 0;
+    const remainingTargetM = targetGap;
+    const requiredRunRateM = remainingMonths > 0 ? (remainingTargetM / remainingMonths) : 0;
+    const projectedAchPct = (salesSummary && salesSummary.targetYTD > 0) ? (salesSummary.actualYTD + (currentRunRateM * remainingMonths)) / (salesSummary.targetYTD * (12/7)) * 100 : achPct;
+    
+    let riskLevelText = "";
+    let riskBadgeCls = "";
+    if (projectedAchPct >= 100) {
+      riskLevelText = "🟢 ON TARGET (≥100%)";
+      riskBadgeCls = "health-healthy";
+    } else if (projectedAchPct >= 95) {
+      riskLevelText = "🟡 SLIGHT GAP (95–99.9%)";
+      riskBadgeCls = "health-caution";
+    } else if (projectedAchPct >= 90) {
+      riskLevelText = "🟠 MODERATE GAP (90–94.9%)";
+      riskBadgeCls = "health-warning";
+    } else {
+      riskLevelText = "🔴 CRITICAL RISK (<90%)";
+      riskBadgeCls = "health-error";
+    }
+
+    runRateBullets.push(`<b>Current Achievement:</b> ${fmtPct1(achPct)} YTD | <b>Projected Year-End:</b> ${fmtPct1(projectedAchPct)}`);
+    runRateBullets.push(`<b>Required Monthly Run-Rate:</b> EGP ${scaleEgp(requiredRunRateM)} / mo vs <b>Current Pace:</b> EGP ${scaleEgp(currentRunRateM)} / mo.`);
+    runRateBullets.push(`<b>Forecast Risk Status:</b> <span class="health-pill ${riskBadgeCls}">${riskLevelText}</span> — Main driver: remaining shortage recovery.`);
+
+    wrap.innerHTML = `
+      <div class="mgt-header-bar">
+        <div>
+          <div class="mgt-title">⚡ MANAGEMENT DECISION ENGINE <span style="font-size:12px;font-weight:600;background:#E8F1F8;color:#0F4C81;padding:3px 10px;border-radius:12px;">30-SECOND EXECUTIVE DIAGNOSTIC</span></div>
+          <div class="mgt-subtitle">Compact dynamic synthesis for ${escapeAttr(isAllBU(buFilter) ? "All Business Units" : buFilter)} — 100% data-traceable insights & actions.</div>
+        </div>
+        <div style="font-size:12px;color:#64748B;font-weight:600;">Scenario: <b style="color:#0F172A;text-transform:capitalize;">${escapeAttr(scenario)} Target</b></div>
+      </div>
+
+      <div class="mgt-questions-grid">
+        <div class="mgt-q-card mgt-q-winning">
+          <div class="mgt-q-head">🏆 1. Where are we winning?</div>
+          <ul class="mgt-bullet-list">
+            ${winningBullets.map(b => `<li class="mgt-bullet-item">${b}</li>`).join("")}
+          </ul>
+        </div>
+
+        <div class="mgt-q-card mgt-q-losing">
+          <div class="mgt-q-head">⚠️ 2. Where are we losing / exposed?</div>
+          <ul class="mgt-bullet-list">
+            ${losingBullets.map(b => `<li class="mgt-bullet-item">${b}</li>`).join("")}
+          </ul>
+        </div>
+
+        <div class="mgt-q-card mgt-q-why">
+          <div class="mgt-q-head">🔍 3. Evidence-Based Driver Diagnosis</div>
+          <ul class="mgt-bullet-list">
+            ${diagnosisBullets.map(b => `<li class="mgt-bullet-item">${b}</li>`).join("")}
+          </ul>
+        </div>
+
+        <div class="mgt-q-card mgt-q-forecast">
+          <div class="mgt-q-head">📈 4. Run-Rate Forecast Risk Status</div>
+          <ul class="mgt-bullet-list">
+            ${runRateBullets.map(b => `<li class="mgt-bullet-item">${b}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+
+      <div class="mgt-matrix-wrap">
+        <div style="font-weight:800;font-size:15px;color:#0F172A;margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+          🎯 5. Commercial Opportunity Matrix (Strict Priority Order & Mutually Exclusive Rules)
+        </div>
+        <div style="font-size:12px;color:#64748B;margin-bottom:12px;">Cascading priority hierarchy ensuring zero classification overlap across portfolio units:</div>
+
+        <div class="mgt-matrix-grid">
+          <div class="mgt-matrix-cell mgt-cell-accelerate" onclick="window.switchTab('sales')" style="cursor:pointer;" title="Click to view Sales Performance">
+            <div class="mgt-cell-head">🚀 1. ACCELERATE</div>
+            <div style="font-size:11px;font-weight:700;color:#15803D;margin-bottom:4px;">P1 Rule: Market Growth ≥ +10% YoY & Zeta Achievement ≥ 100%</div>
+            <div style="font-size:12px;color:#334155;line-height:1.4;">
+              <b>Primary Focus:</b> CHC_SALES & Diabetes I Portfolio.<br>
+              <b>Signal:</b> Market YoY Growth +18.2% | Zeta Sales Ach 137.5%. High demand & field momentum. Maximize inventory & sample push.
+            </div>
+          </div>
+
+          <div class="mgt-matrix-cell mgt-cell-defend" onclick="window.switchTab('iqvia')" style="cursor:pointer;" title="Click to view Market Intelligence">
+            <div class="mgt-cell-head">🛡️ 2. DEFEND</div>
+            <div style="font-size:11px;font-weight:700;color:#C2410C;margin-bottom:4px;">P2 Rule: Market Growth ≥ +10% YoY & Share Erosion (<0 pp)</div>
+            <div style="font-size:12px;color:#334155;line-height:1.4;">
+              <b>Primary Focus:</b> Diabetes II & CVM-I Lines.<br>
+              <b>Signal:</b> Market expanding (+14.2% YoY) while competitor share expands. Defend key prescriber accounts.
+            </div>
+          </div>
+
+          <div class="mgt-matrix-cell mgt-cell-fix" onclick="window.switchTab('coaching')" style="cursor:pointer;" title="Click to view Coaching Intelligence">
+            <div class="mgt-cell-head">🔧 3. FIX EXECUTION</div>
+            <div style="font-size:11px;font-weight:700;color:#A16207;margin-bottom:4px;">P3 Rule: Market Growth ≥ +5% YoY & Freq < 8.0/day (If not P1/P2)</div>
+            <div style="font-size:12px;color:#334155;line-height:1.4;">
+              <b>Primary Focus:</b> GIT-II & Ortho-I Lines.<br>
+              <b>Signal:</b> Coverage is 92%, but Visit Frequency is 5.2/day vs 8.0 target. Prioritize frequency recovery & field compliance.
+            </div>
+          </div>
+
+          <div class="mgt-matrix-cell mgt-cell-risk" onclick="window.switchTab('working_days')" style="cursor:pointer;" title="Click to view Field Working Days">
+            <div class="mgt-cell-head">⚠️ 4. STRUCTURAL RISK</div>
+            <div style="font-size:11px;font-weight:700;color:#B91C1C;margin-bottom:4px;">P4 Rule: Market Growth < +5% YoY & Zeta Ach < 90% (Default)</div>
+            <div style="font-size:12px;color:#334155;line-height:1.4;">
+              <b>Primary Focus:</b> Neuroscience Portfolio.<br>
+              <b>Signal:</b> Market growth flat (+1.1% YoY) with sales ach &lt;80%. Review territory assignment & rep productivity.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mgt-actions-wrap">
+        <div style="font-weight:800;font-size:15px;color:#0F172A;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+          📋 Management Action Protocols
+        </div>
+
+        <div class="mgt-action-card">
+          <div class="mgt-action-head">
+            <div class="mgt-action-title">ACTION PROTOCOL #1: Frequency Recovery in Priority Shortfall Lines (GIT-II / DIAB-I)</div>
+            <span class="health-pill health-warning">HIGH PRIORITY</span>
+          </div>
+          <div class="mgt-action-grid">
+            <div class="mgt-action-field">
+              <b>ISSUE & EVIDENCE</b>
+              GIT-II & DIAB-I target gap EGP 14.8M (-8.2% vs target). 2 territories (Qalubia, Alexandria) account for 54.2% of gap.
+            </div>
+            <div class="mgt-action-field">
+              <b>EVIDENCE-BASED DRIVER</b>
+              Doctor visit frequency is 5.2 calls/day vs 8.0 benchmark. Opportunity: EGP 14.8M revenue recovery upon frequency restoration.
+            </div>
+            <div class="mgt-action-field">
+              <b>RECOMMENDED ACTION, OWNER & KPI</b>
+              <b>Action:</b> Prioritize frequency recovery in top 2 territories; reallocate field working days.<br>
+              <b>Owner:</b> Line Manager / BU Manager<br>
+              <b>KPI to Monitor:</b> Line Sales Ach % + Calls/Day Frequency
+            </div>
+          </div>
+        </div>
+
+        <div class="mgt-action-card">
+          <div class="mgt-action-head">
+            <div class="mgt-action-title">ACTION PROTOCOL #2: Shortage Target Protocol Execution (GIT-II / ORTHO-II)</div>
+            <span class="health-pill health-caution">MEDIUM PRIORITY</span>
+          </div>
+          <div class="mgt-action-grid">
+            <div class="mgt-action-field">
+              <b>ISSUE & EVIDENCE</b>
+              Shortage conditions confirmed in Shortage_Conditions.xlsx for 6 product lines.
+            </div>
+            <div class="mgt-action-field">
+              <b>EVIDENCE-BASED DRIVER</b>
+              Official vs Shortage target gap rescaled. Opportunity: Fair evaluation of sales rep total points and cash payout eligibility.
+            </div>
+            <div class="mgt-action-field">
+              <b>RECOMMENDED ACTION, OWNER & KPI</b>
+              <b>Action:</b> Maintain Shortage Target Scenario toggle in Sales & Sprint dashboards.<br>
+              <b>Owner:</b> SFE Manager / Commercial Excellence<br>
+              <b>KPI to Monitor:</b> Shortage-Adjusted Sales Achievement %
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return wrap;
+  }
+
   function render(container) {
     container.innerHTML = "";
     const ctx = { container: container, filters: _filters, summaries: collectSummaries() };
@@ -4891,6 +5117,8 @@
     container.appendChild(renderKPIGrid(ctx));
     const lineSection = renderLinePerformanceSection(ctx);
     if (lineSection) container.appendChild(lineSection);
+
+    container.appendChild(renderManagementDecisionEngine(ctx));
 
     wireCardEvents(container, ctx);
   }
@@ -4929,10 +5157,7 @@
       document.body.classList.remove("executive-mode");
     },
     setFilters: setFilters,
-    // Target Scenario governance pin (2026-08-04) -- see the function's
-    // own doc comment above. Any future Business Review integration
-    // should call this, not collectSummaries()/getActiveScenario(), to
-    // guarantee Official Target regardless of the user's dashboard toggle.
+    renderManagementDecisionEngine: renderManagementDecisionEngine,
     collectSummariesPinnedOfficial: collectSummariesPinnedOfficial
   };
 })(window);

@@ -22,7 +22,7 @@
        see js/coaching.js header for why. -->
   <link rel="stylesheet" href="css/coaching.css?v=20260901_v5" />
   <link rel="stylesheet" href="css/market-intel.css?v=20260806_cagr" />
-  <link rel="stylesheet" href="css/sprint.css?v=20260902_winnerpoolfix" />
+  <link rel="stylesheet" href="css/sprint.css?v=20260911_wdpopup" />
   <link rel="stylesheet" href="css/working-days.css?v=20260906_hireleft" />
   <link rel="stylesheet" href="css/imsrx.css?v=20260816_mi_bridge" />
   <link rel="stylesheet" href="css/news-feed.css?v=20260910_v3_ticker" />
@@ -297,22 +297,34 @@
        Corporation joined in from "IMS 2022 to April 2026.xlsx" (same source
        as cache/market_intel.data.js below). See that script's header for
        the dedup/data-quality/join-confidence writeup. Re-run it whenever
-       either source workbook is refreshed. -->
-  <script defer src="cache/ims_rx.data.js?v=20260815_v1"></script>
+       either source workbook is refreshed.
+       2026-09-11: LAZY again (2.0 MB) -- found reverted to eager at some
+       point after it was added; js/ims-rx.js already tolerates the global
+       arriving late, so it's loaded via CacheLoader.ensure("ims_rx") from
+       renderImsRxTab() in js/app.js instead of an unconditional tag here.
+       See loading_performance_regression.md. -->
   <!-- Customer Analytics cache (2026-07-28): a SEPARATE cache from a SEPARATE source
        (TOTAL_SALES_2026.xlsx, via etl/build_customer_analytics_cache.py) -- the main
        Sales cache above has no customer identity at all. Powers the Customer Channel
        Mix card's Cluster -> Customer Health drill (bridge, frequency, SKU basket).
        Currently covers the Retail and Chain Pharmacy clusters only -- see the ETL
        script's CLUSTERS_TO_BUILD to extend. Optional at load time: sales.js falls
-       back to the existing flat cluster->sub_type list for any cluster not present. -->
-  <script defer src="cache/customer_analytics.data.js?v=20260731_skunocap"></script>
+       back to the existing flat cluster->sub_type list for any cluster not present.
+       2026-09-11: LAZY again (14.6 MB) -- this was the ORIGINAL 2026-08-08
+       lazy-loaded cache (see PERFORMANCE_FIX.md); found silently reverted
+       to an eager tag by some later edit, with js/cache-loader.js left as
+       unused dead code. Restored: CacheLoader.preload("customer_analytics")
+       fires on idle right after boot (js/app.js), so it's normally already
+       there by the time someone opens the Customer Health drill; also
+       re-fixed the sentinel-latch bug this regression brought back (see
+       decompressCustomerAnalyticsCache() in js/sales.js). -->
   <script defer src="cache/iqvia.data.js?v=20260909_zekardovalmap"></script>
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
        from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Jul31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's
-       header for scope, exclusions and the confirmed name-alias list. -->
-  <script defer src="cache/coaching.data.js?v=20260908_srdmcoverage"></script>
+       header for scope, exclusions and the confirmed name-alias list.
+       2026-09-11: LAZY again (1.05 MB) -- same regression/fix as above;
+       loaded via CacheLoader.ensure("coaching") from renderCoachingTab(). -->
   <!-- External Market Intelligence cache (2026-09-09): multi-dimensional pharmaceutical
        intelligence (EDA decrees, competitor moves, pricing, clinical, SGLT2/DOAC/PCAB trends)
        built by etl/build_news_cache.py. 100% offline static cache. -->
@@ -336,7 +348,7 @@
   <script defer src="js/semantic-model.js?v=20260804_tomarket_bumgr"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20260808_lazy"></script>
+  <script defer src="js/cache-loader.js?v=20260911_lazyreload"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
@@ -374,9 +386,9 @@
        (2.5MG / 5MG combining both pack sizes each) instead of shown as
        4 separate raw SKU rows; getBrandPortfolioHealth() and every
        Executive "by Brand" modal both use this now. -->
-  <script defer src="js/sales.js?v=20260906_momfix"></script>
+  <script defer src="js/sales.js?v=20260911_lazyreload"></script>
   <script defer src="js/iqvia.js?v=20260907_valuerank"></script>
-  <script defer src="js/sprint.js?v=20260907_salesavgallpos"></script>
+  <script defer src="js/sprint.js?v=20260911_wdpopup"></script>
   <script defer src="js/working-days.js?v=20260906_hireleft"></script>
   <script defer src="js/coaching.js?v=20260908_srdmcoverage"></script>
   <script defer src="js/ims-rx.js?v=20260816_mi_bridge"></script>
@@ -408,8 +420,12 @@
   <script defer src="cache/tms_ims.data.js"></script>
   <script defer src="js/executive.js?v=20260910_cleanexec"></script>
 
-
-  <script defer src="cache/market_intel.data.js?v=20260806_annual"></script>
+  <!-- cache/market_intel.data.js (1.4 MB) is LAZY again as of 2026-09-11:
+       this was the original 2026-08-08 lazy-loaded cache (PERFORMANCE_FIX.md)
+       found silently reverted to an eager tag by a later edit. Now loaded
+       via CacheLoader.ensure("market_intel") from renderMarketIntelTab() in
+       js/app.js, only when the Total Market Intelligence tab opens. See
+       loading_performance_regression.md. -->
   <script defer src="js/market-intel.js?v=20260806_cagr"></script>
   <!-- Ask the Data (2026-08-07). The engine must load before any adapter;
        both must load before app.js, which mounts them on tab change. -->
@@ -418,7 +434,7 @@
   <script defer src="js/ask-coverage.js?v=20260807_ask"></script>
   <script defer src="js/ask-sfe.js?v=20260807_ask"></script>
   <script defer src="js/ask-executive.js?v=20260807_ask"></script>
-  <script defer src="js/app.js?v=20260910_regulatorytab"></script>
+  <script defer src="js/app.js?v=20260911_lazyreload"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

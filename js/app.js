@@ -498,6 +498,16 @@ function startAppBody() {
   }
   mountAskPanel(currentTab);
 
+  // 2026-09-11 (loading-performance fix, restoring the 2026-08-08 design
+  // documented in PERFORMANCE_FIX.md): kick off the Customer Analytics
+  // cache (14.6 MB) in the background once the landing page has painted,
+  // so it's already there by the time anyone opens the Customer Health
+  // drill on the Sales tab, without costing first paint. CacheLoader
+  // schedules this on requestIdleCallback; ensure() never rejects.
+  if (window.CacheLoader) {
+    window.CacheLoader.preload("customer_analytics");
+  }
+
   // Expose global switchTab helper for Executive widget, ticker, and modal click-throughs
   window.switchTab = function(targetTab) {
     const tabBtn = document.querySelector(`#sidebar-nav .menu-item[data-tab="${targetTab}"]`);
@@ -593,7 +603,11 @@ function startAppBody() {
       // THEN do the render work. No logic below changed, only wrapped.
       Loader.show("Loading...");
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+        // 2026-09-11: async so the marketintel/imsrx/coaching branches below
+        // can `await CacheLoader.ensure(...)` before their tab renders --
+        // Loader.hide() at the bottom still only fires once that resolves,
+        // same as it always waited for the synchronous render before.
+        requestAnimationFrame(async () => {
           if (tab === "coverage") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
@@ -644,12 +658,12 @@ function startAppBody() {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
-            renderMarketIntelTab(document.getElementById("app-root"));
+            await renderMarketIntelTab(document.getElementById("app-root"));
           } else if (tab === "imsrx") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
-            renderImsRxTab(document.getElementById("app-root"));
+            await renderImsRxTab(document.getElementById("app-root"));
           } else if (tab === "sprint") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
@@ -664,7 +678,7 @@ function startAppBody() {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
-            renderCoachingTab(document.getElementById("app-root"));
+            await renderCoachingTab(document.getElementById("app-root"));
           } else if (tab === "marketnews") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
@@ -826,7 +840,7 @@ function mountAskPanel(tab) {
   }
 }
 
-function renderMarketIntelTab(container) {
+async function renderMarketIntelTab(container) {
   if (!container) return;
   const allowed = window.AUTH && typeof window.AUTH.canViewMarketIntel === "function"
     ? window.AUTH.canViewMarketIntel() : false;
@@ -844,12 +858,19 @@ function renderMarketIntelTab(container) {
   // Borrows the full-bleed body class -- this workspace ships its own,
   // far richer filter surface and does not want Coverage's filter bar.
   document.body.classList.add("tomarket-mode");
+  // 2026-09-11: market_intel.data.js (1.4 MB) is lazy again -- loaded here,
+  // on tab open, via CacheLoader (js/cache-loader.js), not as an eager
+  // <script defer> tag on every page load. Loader.show() is already up
+  // from the caller (see switchTab's rAF wrapper); ensure() never rejects.
+  if (window.CacheLoader) {
+    await window.CacheLoader.ensure("market_intel");
+  }
   if (window.MarketIntelligence) {
     window.MarketIntelligence.init("app-root");
   }
 }
 
-function renderImsRxTab(container) {
+async function renderImsRxTab(container) {
   if (!container) return;
   const allowed = window.AUTH && typeof window.AUTH.canViewImsRx === "function"
     ? window.AUTH.canViewImsRx() : false;
@@ -863,6 +884,13 @@ function renderImsRxTab(container) {
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;
+  }
+  // 2026-09-11: ims_rx.data.js (2.0 MB) is lazy -- loaded here, on tab
+  // open, via CacheLoader. js/ims-rx.js's own decompressCache() already
+  // guards for window.IMS_RX_CACHE being absent, so this is safe even if
+  // ensure() resolves false.
+  if (window.CacheLoader) {
+    await window.CacheLoader.ensure("ims_rx");
   }
   if (window.ImsRxDashboard) {
     window.ImsRxDashboard.init("app-root");
@@ -909,7 +937,7 @@ function renderWorkingDaysTab(container) {
   }
 }
 
-function renderCoachingTab(container) {
+async function renderCoachingTab(container) {
   if (!container) return;
   const allowed = window.AUTH && typeof window.AUTH.canViewCoaching === "function"
     ? window.AUTH.canViewCoaching() : false;
@@ -923,6 +951,12 @@ function renderCoachingTab(container) {
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;
+  }
+  // 2026-09-11: coaching.data.js (1.05 MB) is lazy -- loaded here, on tab
+  // open, via CacheLoader. js/coaching.js's loadCache() already guards for
+  // window.COACHING_CACHE being absent.
+  if (window.CacheLoader) {
+    await window.CacheLoader.ensure("coaching");
   }
   if (window.CoachingDashboard) {
     window.CoachingDashboard.init("app-root");

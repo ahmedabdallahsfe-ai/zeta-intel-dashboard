@@ -45,26 +45,46 @@
   // key -> { file, globalVar, label }
   // `globalVar` is what the consumer actually reads; it is also how we detect
   // a cache that is already present (eagerly loaded, or loaded earlier).
+  // NOTE (2026-09-11): iqvia is deliberately NOT in this table. js/iqvia.js
+  // reads window.IQVIA_CACHE.b64Data/.lookups/etc into its OWN top-level
+  // `var`s the instant that script executes (not inside a function), so
+  // cache/iqvia.data.js must still finish loading before js/iqvia.js's
+  // <script> tag runs -- lazy-loading the cache without also lazy-loading
+  // and restructuring iqvia.js itself would throw on every page load.
+  // That is a real fix worth doing (4.85 MB), just a bigger one -- flagged
+  // to Ahmed, not done in this pass. See loading_performance_regression.md.
   var CACHES = {
-    iqvia: {
-      file: "cache/iqvia.data.js",
-      globalVar: "IQVIA_CACHE",
-      label: "IQVIA market share",
-    },
     customer_analytics: {
       file: "cache/customer_analytics.data.js",
       globalVar: "CUSTOMER_ANALYTICS_CACHE",
       label: "Customer analytics",
+      version: "20260731_skunocap",
     },
     market_intel: {
       file: "cache/market_intel.data.js",
       globalVar: "MARKET_INTEL_CACHE",
       label: "Market intelligence",
+      version: "20260806_annual",
+    },
+    coaching: {
+      file: "cache/coaching.data.js",
+      globalVar: "COACHING_CACHE",
+      label: "Coaching intelligence",
+      version: "20260908_srdmcoverage",
+    },
+    ims_rx: {
+      file: "cache/ims_rx.data.js",
+      globalVar: "IMS_RX_CACHE",
+      label: "IMS Rx",
+      version: "20260815_v1",
     },
   };
 
-  // Cache-busting version, kept in one place. Must be bumped when a cache is
-  // rebuilt in a way the browser must not serve from its HTTP cache.
+  // Fallback cache-busting version, used only for an entry that doesn't set
+  // its own `version` above. Each cache normally carries its own, matching
+  // whatever the ETL/ dashboard.html comment last bumped it to -- keeping
+  // them independent means adding a cache here never forces a redundant
+  // reload of the other three.
   var VERSION = "20260808_lazy";
 
   var _promises = {};   // key -> Promise<boolean>, so N callers cause 1 fetch
@@ -92,7 +112,7 @@
     _promises[key] = new Promise(function (resolve) {
       var t0 = (global.performance && performance.now) ? performance.now() : 0;
       var el = document.createElement("script");
-      el.src = spec.file + "?v=" + VERSION;
+      el.src = spec.file + "?v=" + (spec.version || VERSION);
       el.async = false;   // preserve execution order if several are queued
 
       el.onload = function () {
