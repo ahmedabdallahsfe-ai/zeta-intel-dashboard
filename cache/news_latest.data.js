@@ -1,46 +1,48 @@
 window.ZETA_NEWS_FEED = {
   "meta": {
-    "generatedAt": "2026-09-12T00:39:13.288650+00:00",
-    "syncLabel": "2026-09-12 00:39 UTC",
-    "totalArticles": 36,
+    "generatedAt": "2026-09-12T12:57:01.581119+00:00",
+    "syncLabel": "2026-09-12 12:57 UTC",
+    "totalArticles": 56,
     "criticalCount": 0,
     "highImpactCount": 0,
     "breakingCount": 0,
     "buDistribution": {
-      "DIAB": 18,
+      "DIAB": 19,
       "GIT": 11,
-      "Cluster": 10,
+      "Cluster": 13,
       "CHC": 3,
-      "Corporate": 2
+      "Corporate": 18
     },
     "impactDistribution": {
       "CRITICAL": 0,
       "HIGH": 0,
-      "MEDIUM": 34,
-      "LOW": 2
+      "MEDIUM": 35,
+      "LOW": 21
     },
     "geoDistribution": {
       "Egypt": 1,
       "MENA": 2,
-      "Global": 33
+      "Global": 53
     },
     "taDistribution": {
       "Regulatory & Egypt Healthcare": 1,
       "Obesity & Incretin Therapies": 12,
-      "Diabetes & Metabolic Disease": 5,
+      "Diabetes & Metabolic Disease": 6,
       "Cardio-Renal-Metabolic": 4,
       "Gastroenterology": 4,
       "Dermatology": 5,
       "CHC / Consumer Health": 2,
       "Emerging Technologies & Pipeline": 1,
-      "General Strategic Intelligence": 2
+      "Pediatrics": 3,
+      "General Strategic Intelligence": 18
     },
     "typeDistribution": {
       "Clinical Trial": 25,
       "Clinical Result": 25,
-      "Market Access": 3,
+      "Market Access": 19,
       "Safety": 9,
-      "Regulatory": 1
+      "Regulatory": 2,
+      "Technology": 3
     },
     "competitorIntelCount": 0,
     "obesityIncretinCount": 12,
@@ -48,8 +50,8 @@ window.ZETA_NEWS_FEED = {
     "dateRangeOldest": "2026-05-01T00:00:00+00:00",
     "dateRangeNewest": "2026-12-01T00:00:00+00:00",
     "sourcesTotal": 7,
-    "sourcesEnabled": 4,
-    "sourcesHealthy": 11,
+    "sourcesEnabled": 6,
+    "sourcesHealthy": 13,
     "sourceHealth": [
       {
         "id": "eda_regulatory",
@@ -88,12 +90,21 @@ window.ZETA_NEWS_FEED = {
         "errorType": null
       },
       {
-        "id": "who_emro",
-        "name": "WHO Eastern Mediterranean (EMRO)",
-        "status": "DISABLED",
-        "articlesReturned": 0,
-        "newestDate": null,
-        "oldestDate": null,
+        "id": "who_global",
+        "name": "World Health Organization (WHO Global & Regional News)",
+        "status": "PASS",
+        "articlesReturned": 25,
+        "newestDate": "2026-02-25T18:06:55+00:00",
+        "oldestDate": "2024-04-12T13:57:53+00:00",
+        "errorType": null
+      },
+      {
+        "id": "fda_press",
+        "name": "FDA Press Releases & Drug Approvals",
+        "status": "PASS",
+        "articlesReturned": 20,
+        "newestDate": "2026-09-04T20:18:49+00:00",
+        "oldestDate": "2026-07-22T13:10:58+00:00",
         "errorType": null
       },
       {
@@ -103,15 +114,6 @@ window.ZETA_NEWS_FEED = {
         "articlesReturned": 50,
         "newestDate": "2026-09-02T00:00:00+00:00",
         "oldestDate": "2026-08-19T00:00:00+00:00",
-        "errorType": null
-      },
-      {
-        "id": "pubmed_cardio_diab",
-        "name": "PubMed Cardio-Metabolic & Diabetes Intelligence",
-        "status": "DISABLED",
-        "articlesReturned": 0,
-        "newestDate": null,
-        "oldestDate": null,
         "errorType": null
       },
       {
@@ -185,27 +187,9 @@ window.ZETA_NEWS_FEED = {
         "newestDate": null,
         "oldestDate": null,
         "errorType": "DISABLED 2026-09-10: no working RSS/Atom endpoint found (404 on /en/rss/ and /en/rss; no autodiscovery tag on the real news page). Re-test periodically; do not silently scrape the HTML news listing."
-      },
-      {
-        "id": "who_emro",
-        "name": "WHO Eastern Mediterranean (EMRO)",
-        "status": "DISABLED",
-        "articlesReturned": 0,
-        "newestDate": null,
-        "oldestDate": null,
-        "errorType": "DISABLED 2026-09-10: configured URL and 2 alternate candidate endpoints all returned HTTP 502 on repeated tests. Re-test periodically."
-      },
-      {
-        "id": "pubmed_cardio_diab",
-        "name": "PubMed Cardio-Metabolic & Diabetes Intelligence",
-        "status": "DISABLED",
-        "articlesReturned": 0,
-        "newestDate": null,
-        "oldestDate": null,
-        "errorType": "DISABLED 2026-09-12: NCBI static user RSS search link returns HTTP 500 on NCBI's server. Cardio-Metabolic & Diabetes clinical evidence is fetched live via NCBI E-Utilities API dynamic queries in etl/fetch_news.py."
       }
     ],
-    "removedByRecency": 1749,
+    "removedByRecency": 1774,
     "removedByDuplicate": 66,
     "removedBySourceCap": 13,
     "removedUntargetedSafety": 41,
@@ -1654,12 +1638,152 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "Antidiabetic therapy update; evaluate positioning versus standard of care."
     },
     {
+      "id": "zeta_intel_20260825_f4f0811b",
+      "title": "FDA Authorizes First Wearable Device That Continuously Monitors Both Ketone Levels and Blood Sugar",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-25T18:21:22+00:00",
+      "age_days": 17,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-authorizes-first-wearable-device-continuously-monitors-both-ketone-levels-and-blood-sugar",
+      "summary": "The U.S. Food and Drug Administration today authorized the Libre Duo 10 Day Continuous Dual Glucose Ketone Monitoring System for people aged 2 years and older living with diabetes.",
+      "primary_therapeutic_area": "Diabetes & Metabolic Disease",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Technology"
+      ],
+      "tags": [
+        "Diabetes & Metabolic Disease",
+        "Global",
+        "Technology"
+      ],
+      "importance": 3,
+      "relevance": 54,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Antidiabetic therapy update; evaluate positioning versus standard of care."
+    },
+    {
+      "id": "zeta_intel_20260903_e8861669",
+      "title": "FDA Approves First Drug to Treat Alexander Disease",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-09-03T19:48:27+00:00",
+      "age_days": 8,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-drug-treat-alexander-disease",
+      "summary": "The U.S. Food and Drug Administration has approved Zanvastro (zilganersen) injection for the treatment of Alexander disease in pediatric and adult patients.",
+      "primary_therapeutic_area": "Pediatrics",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Cluster"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "Global",
+        "Market Access",
+        "Pediatrics"
+      ],
+      "importance": 2,
+      "relevance": 47,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Cluster commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260819_49c5c5b9",
+      "title": "FDA Approves First Therapy for Patients aged 8 years and older with Glycogen Storage Disease Type Ia",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-19T21:33:10+00:00",
+      "age_days": 23,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-therapy-patients-aged-8-years-and-older-glycogen-storage-disease-type-ia",
+      "summary": "The U.S. Food and Drug Administration today issued an accelerated approval for Genglycos (pariglasgene brecaparvovec-opnr) as the first-ever treatment for adults and children 8 years of age and older with glycogen storage disease type Ia (GSDIa)",
+      "primary_therapeutic_area": "Pediatrics",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Cluster"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "Global",
+        "Market Access",
+        "Pediatrics"
+      ],
+      "importance": 2,
+      "relevance": 46,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Cluster commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260807_925cce3f",
+      "title": "FDA Issues Emergency Use Authorization for Drug to Prevent New World Screwworm in Multiple Species, Including Sheep, Cattle, Goats, and Swine",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-07T13:00:09+00:00",
+      "age_days": 35,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-issues-emergency-use-authorization-drug-prevent-new-world-screwworm-multiple-species-including",
+      "summary": "FDA today issued an Emergency Use Authorization (EUA) for CLiK Extra (dicyclanil topical suspension) wound spray for application on or around wounds for the prevention of New World screwworm (NWS) infestations (myiasis).",
+      "primary_therapeutic_area": "Pediatrics",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Cluster"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "Global",
+        "Market Access",
+        "Pediatrics"
+      ],
+      "importance": 2,
+      "relevance": 46,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Cluster commercial planning and territory execution."
+    },
+    {
       "id": "zeta_intel_20260731_f0283658",
       "title": "ISPOR Announces the Healthcare Investment Summit 2026",
       "source": "PharmaBoardroom (MENA & Emerging Markets)",
       "source_id": "pharma_boardroom",
       "published_at": "2026-07-31T11:31:21+00:00",
-      "age_days": 42,
+      "age_days": 43,
       "url": "https://pharmaboardroom.com/ispor-announces-the-healthcare-investment-summit-2026/",
       "summary": "Held September 22–23 in San Francisco, CA; the Summit will convene healthcare investors, industry leaders, and innovators to discuss the latest investment strategies and advances shaping the healthcare landscape Lawrenceville, NJ, USA—July 20, 2026—ISPOR—The Professional Society for Health Economics and Outcomes...",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -1689,12 +1813,572 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
     },
     {
+      "id": "zeta_intel_20260904_52b98885",
+      "title": "FDA Takes Steps to Maintain Newborn Access to Life-Saving Starter Nutrition Products",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-09-04T20:18:49+00:00",
+      "age_days": 7,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-takes-steps-maintain-newborn-access-life-saving-starter-nutrition-products",
+      "summary": "The U.S. Food and Drug Administration today announced it is taking action, consistent with the Trump administration’s commitment to protecting vulnerable patients and maintaining access to critical medical products, to help address a potential supply gap of neonatal starter parenteral nutrition (PN)",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 35,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260904_3f0acd88",
+      "title": "FDA Grants Accelerated Approval to a New Breast Cancer Treatment",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-09-04T19:38:04+00:00",
+      "age_days": 7,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-grants-accelerated-approval-new-breast-cancer-treatment",
+      "summary": "The U.S. Food and Drug Administration today expanded treatment options for adult patients with advanced breast cancer, reflecting the FDA’s commitment to advancing medical innovation and getting new treatments to patients who need them.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 35,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260903_2251315d",
+      "title": "FDA Issues Emergency Use Authorization for Drugs to Prevent and Treat New World Screwworm in Dogs and Cats",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-09-03T15:01:02+00:00",
+      "age_days": 8,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-issues-emergency-use-authorization-drugs-prevent-and-treat-new-world-screwworm-dogs-and-cats",
+      "summary": "The U.S. Food and Drug Administration today issued an Emergency Use Authorization (EUA) for Capstar (nitenpyram) tablets and revised the EUA for Nitenpyram Tablets, the generic version of Capstar",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 35,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260903_11399669",
+      "title": "FDA Seeks Public Input to Advance Development of Botanical Drug Products",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-09-03T12:52:49+00:00",
+      "age_days": 9,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-seeks-public-input-advance-development-botanical-drug-products",
+      "summary": "The U.S. Food and Drug Administration today announced a request for information (RFI) to gather public input on opportunities to advance the development of botanical drug products.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 35,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260828_77d56486",
+      "title": "FDA Approves First Drug of Its Kind for Polycythemia Vera, a Rare Blood Disorder",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-28T21:22:41+00:00",
+      "age_days": 14,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-drug-its-kind-polycythemia-vera-rare-blood-disorder",
+      "summary": "The U.S. Food and Drug Administration today approved Mimrylo (rusfertide), a new treatment for adults with polycythemia vera, a rare blood disorder that causes the body to make too many red blood cells.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 35,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260827_44b73e4d",
+      "title": "FDA Approves First Oral Drug Indicated to Treat Dermatomyositis in Adults",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-27T19:11:11+00:00",
+      "age_days": 15,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-oral-drug-indicated-treat-dermatomyositis-adults",
+      "summary": "The U.S. Food and Drug Administration has approved Lisraya (brepocitinib) tablets for the treatment of dermatomyositis in adults.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260827_cc64ed87",
+      "title": "FDA Issues Emergency Use Authorization for Generic Drug to Prevent New World Screwworm in Cattle",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-27T16:55:38+00:00",
+      "age_days": 15,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-issues-emergency-use-authorization-generic-drug-prevent-new-world-screwworm-cattle",
+      "summary": "FDA issues Emergency Use Authorization (EUA) for Bimectin (ivermectin) injection for the prevention of New World screwworm (NWS) infestations (myiasis) in cattle when administered within 24 hours of birth, at the time of castration, or at the appearance of a wound.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260826_9ccca81b",
+      "title": "FDA Approves First in Class Targeted Therapy for Metastatic Pancreatic Cancer",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-26T14:33:36+00:00",
+      "age_days": 16,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-class-targeted-therapy-metastatic-pancreatic-cancer",
+      "summary": "The U.S. Food and Drug Administration today approved Rasonque (daraxonrasib), a RAS inhibitor for the most common form of pancreatic cancer—delivering a new treatment option to patients with advanced pancreatic cancer months ahead of schedule.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260819_a1853602",
+      "title": "FDA Authorizes First-Of-Its-Kind Robotic Blood Draw Device",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-19T16:48:13+00:00",
+      "age_days": 23,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-authorizes-first-its-kind-robotic-blood-draw-device",
+      "summary": "The U.S. Food and Drug Administration today authorized the Aletta, the first standalone robotic device that can draw blood from a patient’s arm without hands-on operator intervention.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Technology"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Technology"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260818_8ba5980f",
+      "title": "FDA Seeks Public Feedback to Inform Regulatory Approach for Generative AI-Enabled Medical Devices",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-18T14:10:03+00:00",
+      "age_days": 24,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-seeks-public-feedback-inform-regulatory-approach-generative-ai-enabled-medical-devices",
+      "summary": "The U.S. Food and Drug Administration today issued a discussion paper on considerations for the regulation of generative artificial intelligence (GenAI)-enabled medical devices, seeking feedback from interested parties on risk assessment, premarket evaluation, postmarket monitoring, and other topics",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Regulatory"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Regulatory"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Regulatory development in General Strategic Intelligence; monitor international guideline harmonization."
+    },
+    {
+      "id": "zeta_intel_20260813_ac1462a5",
+      "title": "FDA Issues Emergency Use Authorization for Drug to Treat New World Screwworm in Dogs and Puppies",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-13T17:02:58+00:00",
+      "age_days": 29,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-issues-emergency-use-authorization-drug-treat-new-world-screwworm-dogs-and-puppies",
+      "summary": "The U.S. Food and Drug Administration today issued an Emergency Use Authorization (EUA) for Simparica TRIO (sarolaner, moxidectin, and pyrantel chewable tablets) for the treatment of New World screwworm (NWS) infestations (myiasis) in dogs and puppies.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260806_fc0527b0",
+      "title": "FDA Approves New Engineered Viral Immunotherapy for Patients with Treatment-Resistant Advanced Melanoma",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-06T19:56:59+00:00",
+      "age_days": 36,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-new-engineered-viral-immunotherapy-patients-treatment-resistant-advanced-melanoma",
+      "summary": "The U.S. Food and Drug Administration today granted accelerated approval to Tudriqev (vusolimogene oderparepvec-wtpg), a genetically modified oncolytic viral therapy for the treatment of advanced, refractory melanoma.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260805_3ddc9a9d",
+      "title": "FDA Approves First Drug to Treat the Full Range of Narcolepsy Type 1 Symptoms",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-08-05T19:42:58+00:00",
+      "age_days": 37,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-drug-treat-full-range-narcolepsy-type-1-symptoms",
+      "summary": "The FDA approved Orzeyful (oveporexton) tablets for the treatment of narcolepsy type 1 in adults.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260729_edad0a04",
+      "title": "FDA Licenses First-Ever Freeze-Dried Plasma Product in the U.S.",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-07-29T16:10:31+00:00",
+      "age_days": 44,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-licenses-first-ever-freeze-dried-plasma-product-us",
+      "summary": "FDA today licensed Ezplaz Freeze Dried Plasma (FDP), making it the first freeze-dried plasma product licensed for use in the United States. Ezplaz is intended for transfusion in adult patients who need plasma and for whom other plasma products are not available.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260722_ed562f30",
+      "title": "FDA Announces First Participant Selected for TEMPO for Digital Health Devices Pilot",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-07-22T17:57:57+00:00",
+      "age_days": 51,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-announces-first-participant-selected-tempo-digital-health-devices-pilot",
+      "summary": "The U.S. Food and Drug Administration today announced the first manufacturer selected for the Technology-Enabled Meaningful Patient Outcomes (TEMPO) for Digital Health Devices Pilot.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Technology"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Technology"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260722_c454d932",
+      "title": "FDA Takes Further Steps to Remove Outdated Authorizations for Color Additives in Food",
+      "source": "FDA Press Releases & Drug Approvals",
+      "source_id": "fda_press",
+      "published_at": "2026-07-22T13:10:58+00:00",
+      "age_days": 51,
+      "url": "http://www.fda.gov/news-events/press-announcements/fda-takes-further-steps-remove-outdated-authorizations-color-additives-food",
+      "summary": "The U.S. Food and Drug Administration today announced two actions targeting petroleum-based color additives in food, continuing the agency’s broader efforts to Make America Healthy Again.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "importance": 2,
+      "relevance": 34,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
       "id": "zeta_intel_20260507_6f329899",
       "title": "International Healthcare Week Opens in Hong Kong from May",
       "source": "PharmaBoardroom (MENA & Emerging Markets)",
       "source_id": "pharma_boardroom",
       "published_at": "2026-05-07T11:53:42+00:00",
-      "age_days": 127,
+      "age_days": 128,
       "url": "https://pharmaboardroom.com/international-healthcare-week-opens-in-hong-kong-from-may/",
       "summary": "International Healthcare Week Opens in Hong Kong from May Showcasing Investment Opportunities and Innovative Technologies Organized by the Hong Kong Trade Development Council (HKTDC), the 5th International Healthcare Week (IHW) will be held in Hong Kong from May 11 to 31, 2026.",
       "primary_therapeutic_area": "General Strategic Intelligence",

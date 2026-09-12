@@ -101,16 +101,27 @@ sources:
     enabled: true
     status_note: "Feed valid but NOT reliably reverse-chronological (verified 2026-09-10: entries from 2026, 2024 and 2021 interleaved). Subject to hard recency cutoff + per-source cap (config/pipeline_settings.yaml) — do not trust its own ordering."
 
-  - id: who_emro
-    name: "WHO Eastern Mediterranean (EMRO)"
-    url: "https://www.emro.who.int/rss.xml"
+  - id: who_global
+    name: "World Health Organization (WHO Global & Regional News)"
+    url: "https://www.who.int/rss-feeds/news-english.xml"
     type: "rss"
     category: "HEALTH_POLICY"
     country: "Regional"
     default_importance: 3
-    default_weight: 0.9
-    enabled: false
-    status_note: "DISABLED 2026-09-10: configured URL and 2 alternate candidate endpoints all returned HTTP 502 on repeated tests. Re-test periodically."
+    default_weight: 1.0
+    enabled: true
+    status_note: "REPLACED WHO EMRO 2026-09-12 — official WHO Global & Regional Health News RSS feed. Confirmed live and current."
+
+  - id: fda_press
+    name: "FDA Press Releases & Drug Approvals"
+    url: "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml"
+    type: "rss"
+    category: "REGULATORY"
+    country: "Global"
+    default_importance: 4
+    default_weight: 1.2
+    enabled: true
+    status_note: "ADDED 2026-09-12 — official FDA Press Releases & Drug Approval Announcements RSS feed. Confirmed live."
 
   - id: fda_drug_enforcement
     name: "FDA Drug Enforcement (openFDA)"
@@ -121,15 +132,6 @@ sources:
     default_importance: 3
     default_weight: 1.0
     enabled: true
-    status_note: "REPLACED 2026-09-10 — previously fda_medwatch (general MedWatch RSS), which returned 10/10 medical-device items in a sampled test. openFDA drug/enforcement is official, JSON, and drug-recall-only by construction. Confirmed live 2026-09-10 with real Aug 2026 dated drug recalls (Dicyclomine, Cyclophosphamide, Mirabegron, etc)."
+    status_note: "REPLACED 2026-09-10 — previously fda_medwatch (general MedWatch RSS), which returned 10/10 medical-device items in a sampled test. openFDA drug/enforcement is official, JSON, and drug-recall-only by construction."
 
-  - id: pubmed_cardio_diab
-    name: "PubMed Cardio-Metabolic & Diabetes Intelligence"
-    url: "https://pubmed.ncbi.nlm.nih.gov/rss/search/1yQ7m9L5H0/?limit=20&utm_campaign=pubmed-2"
-    type: "rss"
-    category: "CLINICAL"
-    country: "Global"
-    default_importance: 2
-    default_weight: 0.8
-    enabled: false
-    status_note: "DISABLED 2026-09-12: NCBI static user RSS search link returns HTTP 500 on NCBI's server. Cardio-Metabolic & Diabetes clinical evidence is fetched live via NCBI E-Utilities API dynamic queries in etl/fetch_news.py."
+
