@@ -502,14 +502,28 @@
     // network request. Every viewer clicking it was told a live sync had
     // just happened when nothing had been fetched at all.
     //
-    // It now re-fetches the published cache/news_latest.json (cache-busted
-    // so the browser can't serve a stale copy) and reports the REAL
-    // last-build timestamp from that file's own meta.syncLabel/generatedAt
-    // -- never a claim manufactured client-side. This does NOT re-run the
-    // Python ETL or pull fresh external articles on demand (that still
-    // only happens when someone runs etl/build_news_cache.py and pushes,
-    // per refresh.bat); it checks whether a newer build has already been
-    // published and pulls it in if so, and says plainly when it hasn't.
+    // 2026-09-12b fix: the first honest version fetched cache/news_latest.json
+    // with fetch()+.json(). That file is a LOCAL-ONLY ETL intermediate --
+    // cache/ is gitignored, and refresh.bat only force-adds the wrapped
+    // cache/news_latest.data.js (see the file header above), so
+    // news_latest.json was never pushed to the repo at all. That made this
+    // button fail with "couldn't reach the server" on EVERY load, including
+    // the live https:// GitHub Pages site, not just the file:// test case as
+    // originally assumed. Even fixing only the filename wouldn't have been
+    // enough: news_latest.data.js is `window.ZETA_NEWS_FEED = {...};`, a JS
+    // statement, not bare JSON, so resp.json() would still throw.
+    //
+    // Fixed the right way: reload it exactly like the initial page load
+    // does -- inject a cache-busted <script src="cache/news_latest.data.js">
+    // and let it execute, which overwrites window.ZETA_NEWS_FEED itself. No
+    // fetch(), no JSON parsing of a non-JSON file. As a side benefit this
+    // also works from file:// (script tags can load file:// resources; only
+    // fetch() cannot), so the "check for updates" feature now genuinely
+    // works in both places. This does NOT re-run the Python ETL or pull
+    // fresh external articles on demand (that still only happens when
+    // someone runs etl/build_news_cache.py and pushes, per refresh.bat); it
+    // checks whether a newer build has already been published and pulls it
+    // in if so, and says plainly when it hasn't.
     var triggerSync = function(btnEl) {
       var icon = btnEl.querySelector("span:first-child");
       var text = btnEl.querySelector("span:last-child");
@@ -541,45 +555,43 @@
         });
       };
 
-      // NOTE: fetch() cannot load file:// URLs in Chrome at all (not a CORS
-      // issue -- the Fetch spec simply doesn't define the file: scheme, so
-      // every attempt throws "Failed to fetch"). That means this check will
-      // ALWAYS report "couldn't reach the server" while testing dashboard.html
-      // by opening it directly from disk, exactly as it should -- there is no
-      // server to check in that case, and saying so honestly is the whole
-      // point of this fix (see the block comment above). Once the file is
-      // served over http(s) (GitHub Pages), the same code fetches normally.
-      fetch("cache/news_latest.json?_=" + Date.now(), { cache: "no-store" })
-        .then(function (resp) {
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
-          return resp.json();
-        })
-        .then(function (freshData) {
-          var oldMeta = getFeedData().meta || {};
-          var newMeta = freshData.meta || {};
-          var isNewer = !!(newMeta.generatedAt && newMeta.generatedAt !== oldMeta.generatedAt);
+      var oldMeta = getFeedData().meta || {};
 
-          global.ZETA_NEWS_FEED = freshData;
-          restoreButtons();
+      var reloadScript = document.createElement("script");
+      reloadScript.src = "cache/news_latest.data.js?_=" + Date.now();
 
-          if (global.DS && typeof global.DS.toast === "function") {
-            if (isNewer) {
-              global.DS.toast({ message: "✅ New intelligence pulled — feed rebuilt " + (newMeta.syncLabel || "just now"), variant: "success" });
-            } else {
-              global.DS.toast({ message: "You're already on the latest published feed (built " + (newMeta.syncLabel || "unknown time") + ")", variant: "info" });
-            }
+      var onDone = function () {
+        if (reloadScript.parentNode) reloadScript.parentNode.removeChild(reloadScript);
+      };
+
+      reloadScript.onload = function () {
+        onDone();
+        // Executing the script just reassigned window.ZETA_NEWS_FEED itself --
+        // nothing to parse or assign here.
+        var newMeta = (global.ZETA_NEWS_FEED && global.ZETA_NEWS_FEED.meta) || {};
+        var isNewer = !!(newMeta.generatedAt && newMeta.generatedAt !== oldMeta.generatedAt);
+
+        restoreButtons();
+
+        if (global.DS && typeof global.DS.toast === "function") {
+          if (isNewer) {
+            global.DS.toast({ message: "✅ New intelligence pulled — feed rebuilt " + (newMeta.syncLabel || "just now"), variant: "success" });
+          } else {
+            global.DS.toast({ message: "You're already on the latest published feed (built " + (newMeta.syncLabel || "unknown time") + ")", variant: "info" });
           }
-          render();
-        })
-        .catch(function () {
-          restoreButtons();
-          if (global.DS && typeof global.DS.toast === "function") {
-            var msg = (global.location && global.location.protocol === "file:")
-              ? "⚠️ Can't check for updates while viewing this file locally — this works once the page is live on the server."
-              : "⚠️ Couldn't reach the server to check for updates — still showing the last loaded feed.";
-            global.DS.toast({ message: msg, variant: "warning" });
-          }
-        });
+        }
+        render();
+      };
+
+      reloadScript.onerror = function () {
+        onDone();
+        restoreButtons();
+        if (global.DS && typeof global.DS.toast === "function") {
+          global.DS.toast({ message: "⚠️ Couldn't reach the server to check for updates — still showing the last loaded feed.", variant: "warning" });
+        }
+      };
+
+      document.head.appendChild(reloadScript);
     };
 
     var resetBtn = container.querySelector("#nws-reset-filters-btn");
