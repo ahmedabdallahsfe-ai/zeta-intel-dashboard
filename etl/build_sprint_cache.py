@@ -640,6 +640,20 @@ def main():
     # auto-calculate each Brand Manager's National Sales Achievement from
     # the specific line/brand they're responsible for (see Step 7).
     line_sales_month = defaultdict(lambda: dict(val=0, tgtVal=0))
+    # Per-rep line-row counts + original display casing -- ADDED 2026-09-12
+    # for the Sales Average widening in Step 4b below (every territory,
+    # including vacant, per Ahmed's confirmation). A rep who never enters
+    # reps_coverage (Step 1) has no `team`/canon line from the Coverage
+    # cube, so Step 4b resolves their line from the Sales cache's own line
+    # field instead -- majority line by row count, for the rare case a
+    # rep's rows span more than one line this month (same majority-vote
+    # pattern already used for a manager's primary_line in
+    # score_hierarchy_tier() below). rep_display_name preserves the Sales
+    # cache's own casing (incl. literal "VACANT <territory>" placeholders)
+    # for the name shown on these new records, since rep_sales_month/
+    # rep_lines_seen are keyed by the upper-cased norm_name().
+    rep_lines_seen = defaultdict(Counter)
+    rep_display_name = {}
     for r in sales_cache['rows']:
         if (r[MASK] & 2) > 0:
             continue
@@ -659,6 +673,8 @@ def main():
         a['val'] += r[VAL] or 0
         if want_official:
             a['tgtVal'] += r[TGT_VAL] or 0
+        rep_lines_seen[key][linesLk[r[LINE]]] += 1
+        rep_display_name.setdefault(key, repName)
 
     def line_sales_achievement(sales_line_name):
         """National actual/target achievement fraction for a Sales-cache line
@@ -854,6 +870,105 @@ def main():
 
     log(f'  Medical Rep + Sales Rep: {len(results)} ranked, {len(excluded)} excluded, '
         f'{len(departing_soon)} departing soon')
+
+    # -----------------------------------------------------------------
+    # 4b. Sales Average widening, part 2 -- "every territory, including
+    #     vacant" (Ahmed, 2026-09-12, confirming after being shown the
+    #     numbers both ways). The widening above (Step 4) already folds
+    #     every Coverage-cube rep into the Sales Average regardless of
+    #     active/probation status -- but that loop's whole population
+    #     (reps_coverage, Step 1) requires at least one matching DVR row
+    #     this period. A territory that was vacant all month, or a rep who
+    #     generated real sales but left/joined without ever logging a DVR
+    #     row, never enters reps_coverage, so Step 4's widening -- correct
+    #     as far as it goes -- still silently dropped them entirely: not
+    #     ranked, not even excluded.
+    #
+    #     Verified against Ahmed's own manual pivot of the Sales cube by
+    #     territory: PEDIA's true "every position, staffed or not" Sales
+    #     Average across all 60 territories is 63%; the dashboard's
+    #     43-position average (66.6%) was overstated because it dropped
+    #     exactly the worst-performing territories -- vacant seats and
+    #     reps who departed without a DVR trail both skew low, so leaving
+    #     them out inflates the average. Folding this population in
+    #     reproduces Ahmed's 63% almost exactly (confirmed in a standalone
+    #     simulation before this code was written).
+    #
+    #     Scope: Sales Average ONLY, exactly like Step 4 -- Coverage/Right
+    #     Frequency are never computed for a record added here (no DVR
+    #     rows exist for them by definition), and none of these records
+    #     are ever ranked or Winner-Pool-eligible.
+    #
+    #     Every Sales-cache rep name with real July sales that Step 4 never
+    #     reached is classified with the SAME Database Shortcut lookup and
+    #     the SAME active/probation rules Step 4 uses -- just entered from
+    #     the Sales cube instead of the Coverage cube:
+    #       - not found in Database Shortcut.xlsx at all -- this is every
+    #         literal "VACANT <territory>" placeholder the Sales cache uses
+    #         for an unstaffed seat, plus any other unmatched name -> reason
+    #         'no-database-match' (same name already used for exactly this
+    #         situation in score_hierarchy_tier(), the DM/ASM/NSM tier,
+    #         below).
+    #       - found, but Last Day of Work / DB status says inactive ->
+    #         'not-active-resigned' (same rule as Step 4).
+    #       - found, active, but still on probation as of period start ->
+    #         'probation-not-passed' (same rule as Step 4).
+    #       - found, active, probation-passed -- a real, currently-working
+    #         rep the Coverage/DVR cube simply has no visit rows for this
+    #         period -> reason 'active-no-coverage-data'. New state: before
+    #         this change such a rep was invisible everywhere (not ranked,
+    #         not excluded, not counted anywhere at all) -- a data-
+    #         completeness gap distinct from the Sales Average question,
+    #         worth Ahmed's attention on its own.
+    # -----------------------------------------------------------------
+    sales_only_added = 0
+    for key, sales in rep_sales_month.items():
+        if key in reps_coverage:
+            continue  # already scored via the Coverage-cube loop above (Step 4)
+        if not sales['tgtVal'] or sales['tgtVal'] <= 0:
+            continue  # no usable target this month -- achPct undefined, nothing to add
+        lines_seen = rep_lines_seen.get(key)
+        if not lines_seen:
+            continue
+        raw_line = max(lines_seen.items(), key=lambda kv: kv[1])[0]
+        canon_line = normalize_line(raw_line)
+        bu = line_to_bu(raw_line)
+        if not bu:
+            continue  # not a Medical Rep / CHC Sales Rep style line -- out of this tier's scope
+        is_sales_rep = (bu == 'CHC' and canon_line == 'CHC_SALES')
+        excl_role = 'Sales Rep (CHC)' if is_sales_rep else 'Medical Rep'
+        ach_pct = sales['val'] / sales['tgtVal']
+
+        code = name_to_code.get(key)
+        if code is None:
+            reason = 'no-database-match'
+            detail = 'Name not found in Database Shortcut.xlsx'
+            last_day, notif = None, None
+        else:
+            last_day = code_to_lastday.get(code)
+            notif = code_to_resignnotif.get(code)
+            active_ok, inactive_reason = is_active_for_period(code, EVAL_PERIOD_END)
+            if not active_ok:
+                reason, detail = 'not-active-resigned', inactive_reason
+            else:
+                prob_ok, pp = is_probation_passed_for_period(code, EVAL_PERIOD_START)
+                if prob_ok is False:
+                    reason = 'probation-not-passed'
+                    detail = f"passes {pp.isoformat()}, ranking period starts {EVAL_PERIOD_START.isoformat()}"
+                else:
+                    reason = 'active-no-coverage-data'
+                    detail = 'Active & probation-passed per Database Shortcut, but zero matching DVR/Coverage rows this period'
+
+        excluded.append(dict(code=code, name=rep_display_name.get(key, key), line=canon_line,
+                              canonLine=canon_line, bu=bu, role=excl_role, achPct=ach_pct,
+                              reason=reason, detail=detail,
+                              lastDay=last_day.isoformat() if last_day else None,
+                              resignationNotif=notif.isoformat() if notif else None))
+        sales_only_added += 1
+
+    log(f'  Sales Average widening, every territory incl. vacant (2026-09-12): '
+        f'{sales_only_added} additional positions added to the Sales Average only '
+        f'(never ranked, never Coverage/Right Frequency)')
 
     # -----------------------------------------------------------------
     # 5. Missing-KPI template: auto-created once (never overwritten, so
