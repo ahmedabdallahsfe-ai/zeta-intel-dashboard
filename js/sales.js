@@ -3572,7 +3572,7 @@
         const r = decodedRows[i];
         const rawLine = linesLk[r[LINE]];
         if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
-        if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
+        if (bu && bu !== 'All' && window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
         // BU rollup exclusion (2026-08-04): only when NO specific line was
         // asked for -- selecting CHC_SALES explicitly still returns its
