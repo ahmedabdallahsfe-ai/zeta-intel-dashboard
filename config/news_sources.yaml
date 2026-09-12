@@ -131,4 +131,5 @@ sources:
     country: "Global"
     default_importance: 2
     default_weight: 0.8
-    enabled: true
+    enabled: false
+    status_note: "DISABLED 2026-09-12: NCBI static user RSS search link returns HTTP 500 on NCBI's server. Cardio-Metabolic & Diabetes clinical evidence is fetched live via NCBI E-Utilities API dynamic queries in etl/fetch_news.py."

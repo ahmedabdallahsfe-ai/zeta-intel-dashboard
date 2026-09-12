@@ -148,9 +148,11 @@ def fetch_rss_feed(source_cfg):
         channel = root.find("channel")
         if channel is not None:
             for item_el in channel.findall("item"):
-                title = (item_el.findtext("title", "") or "").strip()
+                title_el = item_el.find("title")
+                title = "".join(title_el.itertext()).strip() if title_el is not None else ""
                 link = (item_el.findtext("link", "") or "").strip()
-                desc = (item_el.findtext("description", "") or "").strip()
+                desc_el = item_el.find("description")
+                desc = "".join(desc_el.itertext()).strip() if desc_el is not None else ""
                 pub_date = (item_el.findtext("pubDate", "") or "").strip()
                 if title and link and link.startswith("http"):
                     items.append({
@@ -166,18 +168,19 @@ def fetch_rss_feed(source_cfg):
 
         # Atom (<feed><entry>)
         for entry_el in root.findall("{http://www.w3.org/2005/Atom}entry"):
-            title = (entry_el.findtext("{http://www.w3.org/2005/Atom}title", "") or "").strip()
+            title_el = entry_el.find("{http://www.w3.org/2005/Atom}title")
+            title = "".join(title_el.itertext()).strip() if title_el is not None else ""
             link_el = entry_el.find("{http://www.w3.org/2005/Atom}link")
             link = link_el.attrib.get("href", "").strip() if link_el is not None else ""
-            summary = (entry_el.findtext("{http://www.w3.org/2005/Atom}summary", "")
-                       or entry_el.findtext("{http://www.w3.org/2005/Atom}content", "") or "")
+            summary_el = entry_el.find("{http://www.w3.org/2005/Atom}summary") or entry_el.find("{http://www.w3.org/2005/Atom}content")
+            summary = "".join(summary_el.itertext()).strip() if summary_el is not None else ""
             pub_date = (entry_el.findtext("{http://www.w3.org/2005/Atom}updated", "")
                         or entry_el.findtext("{http://www.w3.org/2005/Atom}published", "") or "")
             if title and link and link.startswith("http"):
                 items.append({
                     "title": title,
                     "url": link,
-                    "summary": summary.strip(),
+                    "summary": summary,
                     "published_at": pub_date,
                     "source": name,
                     "category": source_cfg.get("category", "GENERAL"),
