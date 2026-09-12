@@ -259,7 +259,7 @@ def fetch_openfda_drug_enforcement(source_cfg):
             reason = (r.get("reason_for_recall") or "").strip()
             classification = (r.get("classification") or "").strip()
             firm = (r.get("recalling_firm") or "").strip()
-            recall_number = (r.get("recall_number") or r.get("event_id") or "").strip()
+            recall_num_raw = (r.get("recall_number") or r.get("event_id") or "").strip()
 
             if not product or not reason:
                 continue
@@ -269,10 +269,18 @@ def fetch_openfda_drug_enforcement(source_cfg):
                 title += f" — {firm}"
             title = title[:220]
 
-            if recall_number:
-                item_url = f"https://api.fda.gov/drug/enforcement.json?search=recall_number:%22{urllib.parse.quote(recall_number)}%22"
+            # 2026-09-12 URL FIX: do NOT point to raw api.fda.gov JSON endpoints
+            # (which show raw JSON text when clicked and fail with "recall_number:N/A").
+            # Instead, direct users to FDA's official public Drug Recalls & Safety Alerts
+            # portal (fda.gov/safety/recalls-market-withdrawals-safety-alerts), pre-filled
+            # with a clean search query for the specific recall, firm, or drug product.
+            if recall_num_raw and recall_num_raw.upper() not in ("N/A", "NONE", "UNKNOWN", "NULL"):
+                item_url = f"https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext={urllib.parse.quote(recall_num_raw)}"
+            elif firm:
+                item_url = f"https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext={urllib.parse.quote(firm)}"
             else:
-                item_url = "https://open.fda.gov/apis/drug/enforcement/"
+                item_url = "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts"
+
 
             items.append({
                 "title": title,

@@ -1,7 +1,7 @@
 window.ZETA_NEWS_FEED = {
   "meta": {
-    "generatedAt": "2026-09-12T12:57:01.581119+00:00",
-    "syncLabel": "2026-09-12 12:57 UTC",
+    "generatedAt": "2026-09-12T13:01:50.116997+00:00",
+    "syncLabel": "2026-09-12 13:01 UTC",
     "totalArticles": 56,
     "criticalCount": 0,
     "highImpactCount": 0,
@@ -867,7 +867,7 @@ window.ZETA_NEWS_FEED = {
       "source_id": "fda_drug_enforcement",
       "published_at": "2026-08-19T00:00:00+00:00",
       "age_days": 24,
-      "url": "https://api.fda.gov/drug/enforcement.json?search=recall_number:%22D-0755-2026%22",
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0755-2026",
       "summary": "Presence of Particulate Matter; identified as a nylon/polyamide and silk/proteinaceous-type material",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
       "secondary_therapeutic_areas": [
@@ -909,7 +909,7 @@ window.ZETA_NEWS_FEED = {
       "source_id": "fda_drug_enforcement",
       "published_at": "2026-08-19T00:00:00+00:00",
       "age_days": 24,
-      "url": "https://api.fda.gov/drug/enforcement.json?search=recall_number:%22D-0747-2026%22",
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0747-2026",
       "summary": "Presence of Particulate Matter; identified as a nylon/polyamide and silk/proteinaceous-type material",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
       "secondary_therapeutic_areas": [
@@ -951,7 +951,7 @@ window.ZETA_NEWS_FEED = {
       "source_id": "fda_drug_enforcement",
       "published_at": "2026-08-19T00:00:00+00:00",
       "age_days": 24,
-      "url": "https://api.fda.gov/drug/enforcement.json?search=recall_number:%22D-0748-2026%22",
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0748-2026",
       "summary": "Presence of Particulate Matter; identified as a nylon/polyamide and silk/proteinaceous-type material",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
       "secondary_therapeutic_areas": [
@@ -993,7 +993,7 @@ window.ZETA_NEWS_FEED = {
       "source_id": "fda_drug_enforcement",
       "published_at": "2026-08-19T00:00:00+00:00",
       "age_days": 24,
-      "url": "https://api.fda.gov/drug/enforcement.json?search=recall_number:%22D-0753-2026%22",
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0753-2026",
       "summary": "Presence of Particulate Matter; identified as a nylon/polyamide and silk/proteinaceous-type material",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
       "secondary_therapeutic_areas": [
@@ -1035,7 +1035,7 @@ window.ZETA_NEWS_FEED = {
       "source_id": "fda_drug_enforcement",
       "published_at": "2026-08-19T00:00:00+00:00",
       "age_days": 24,
-      "url": "https://api.fda.gov/drug/enforcement.json?search=recall_number:%22D-0749-2026%22",
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0749-2026",
       "summary": "Presence of Particulate Matter; identified as a nylon/polyamide and silk/proteinaceous-type material",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
       "secondary_therapeutic_areas": [
@@ -1077,7 +1077,7 @@ window.ZETA_NEWS_FEED = {
       "source_id": "fda_drug_enforcement",
       "published_at": "2026-08-19T00:00:00+00:00",
       "age_days": 24,
-      "url": "https://api.fda.gov/drug/enforcement.json?search=recall_number:%22D-0752-2026%22",
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0752-2026",
       "summary": "Presence of Particulate Matter; identified as a nylon/polyamide and silk/proteinaceous-type material",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
       "secondary_therapeutic_areas": [
@@ -1285,7 +1285,7 @@ window.ZETA_NEWS_FEED = {
       "source_id": "fda_drug_enforcement",
       "published_at": "2026-09-02T00:00:00+00:00",
       "age_days": 10,
-      "url": "https://api.fda.gov/drug/enforcement.json?search=recall_number:%22D-0790-2026%22",
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0790-2026",
       "summary": "CGMP Deviations; FDA inspection of the contract manufacturer noted out of limit results for microbiological testing",
       "primary_therapeutic_area": "CHC / Consumer Health",
       "secondary_therapeutic_areas": [],
@@ -1325,7 +1325,7 @@ window.ZETA_NEWS_FEED = {
       "source_id": "fda_drug_enforcement",
       "published_at": "2026-09-02T00:00:00+00:00",
       "age_days": 10,
-      "url": "https://api.fda.gov/drug/enforcement.json?search=recall_number:%22N/A%22",
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=Safecor%20Health%2C%20LLC",
       "summary": "Cross Contamination with Other Products",
       "primary_therapeutic_area": "CHC / Consumer Health",
       "secondary_therapeutic_areas": [
@@ -1365,7 +1365,7 @@ window.ZETA_NEWS_FEED = {
       "source_id": "fda_drug_enforcement",
       "published_at": "2026-08-19T00:00:00+00:00",
       "age_days": 24,
-      "url": "https://api.fda.gov/drug/enforcement.json?search=recall_number:%22D-0768-2026%22",
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0768-2026",
       "summary": "Presence of Foreign Substance: presence of particles and white flakes in the reconstituted bottles.",
       "primary_therapeutic_area": "Dermatology",
       "secondary_therapeutic_areas": [],
@@ -1748,7 +1748,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-08-07T13:00:09+00:00",
-      "age_days": 35,
+      "age_days": 36,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-issues-emergency-use-authorization-drug-prevent-new-world-screwworm-multiple-species-including",
       "summary": "FDA today issued an Emergency Use Authorization (EUA) for CLiK Extra (dicyclanil topical suspension) wound spray for application on or around wounds for the prevention of New World screwworm (NWS) infestations (myiasis).",
       "primary_therapeutic_area": "Pediatrics",

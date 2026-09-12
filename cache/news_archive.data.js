@@ -1,7 +1,7 @@
 window.ZETA_NEWS_ARCHIVE = {
   "meta": {
-    "generatedAt": "2026-09-12T12:57:01.581119+00:00",
-    "syncLabel": "2026-09-12 12:57 UTC",
+    "generatedAt": "2026-09-12T13:01:50.116997+00:00",
+    "syncLabel": "2026-09-12 13:01 UTC",
     "note": "Articles older than liveFeedMaxAgeDays, or with an unparseable publication date. Not shown in the live feed by default; preserved here rather than deleted.",
     "totalArticles": 500
   },
@@ -5587,7 +5587,7 @@ window.ZETA_NEWS_ARCHIVE = {
       "source": "PharmaBoardroom (MENA & Emerging Markets)",
       "source_id": "pharma_boardroom",
       "published_at": "2014-06-30T13:00:00+00:00",
-      "age_days": 4456,
+      "age_days": 4457,
       "url": "https://pharmaboardroom.com/myths-and-misconceptions-about-generic-competition-still-prevalent-43199/",
       "summary": "Five years ago, Thomson Reuters published a white paper about the five myths of generic competition that were prevalent at that time: The primary interest of generic companies is in products with sales in excess of $500 million Drug master files, ANDA filings and patent challenges are the first reliable signs of...",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -15337,7 +15337,7 @@ window.ZETA_NEWS_ARCHIVE = {
       "source": "PharmaBoardroom (MENA & Emerging Markets)",
       "source_id": "pharma_boardroom",
       "published_at": "2014-06-10T12:57:39+00:00",
-      "age_days": 4476,
+      "age_days": 4477,
       "url": "https://pharmaboardroom.com/updated-allergan-spurns-valeant-again-but-shareholders-may-have-other-ideas-42456/",
       "summary": "Valeant may have raised its offer–twice–since Allergan spurned its first takeover proposal, but the Botox maker is still singing the same tune. Allergan&#39;s board has unanimously shot down Valeant once again, claiming its sweetened bid still undervalues the company.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -15935,7 +15935,7 @@ window.ZETA_NEWS_ARCHIVE = {
       "source": "PharmaBoardroom (MENA & Emerging Markets)",
       "source_id": "pharma_boardroom",
       "published_at": "2014-06-09T12:59:39+00:00",
-      "age_days": 4477,
+      "age_days": 4478,
       "url": "https://pharmaboardroom.com/court-limits-canada-039s-power-over-generic-drug-prices-42404/",
       "summary": "A federal court in Canada has now agreed with the industry that the country&#39;s price setting board has assumed too much authority and severely curtailed its ability to control prices over generic drugs in a case centered on Novartis&#39; generic drug company Sandoz, and a unit of Teva Pharmaceutical Industries,...",
       "primary_therapeutic_area": "Competitor & Market Moves",
