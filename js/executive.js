@@ -5113,12 +5113,9 @@
     container.appendChild(header);
 
     container.appendChild(renderFilterBar(ctx));
-    container.appendChild(renderTVNewsTicker(ctx));
     container.appendChild(renderKPIGrid(ctx));
     const lineSection = renderLinePerformanceSection(ctx);
     if (lineSection) container.appendChild(lineSection);
-
-    container.appendChild(renderManagementDecisionEngine(ctx));
 
     wireCardEvents(container, ctx);
   }
