@@ -312,12 +312,12 @@
         '<div class="nws-sync-info">' +
           '<span class="' + healthDotClass + '"></span>' +
           '<div>' +
-            '<div>Last sync: <strong id="nws-last-sync-time">' + esc(meta.syncLabel || "Unknown") + '</strong></div>' +
+            '<div>Feed last built: <strong id="nws-last-sync-time">' + esc(meta.syncLabel || "Unknown") + '</strong></div>' +
             (healthLine ? '<div class="nws-sync-detail">' + esc(healthLine) + '</div>' : '') +
           '</div>' +
         '</div>' +
-        '<button id="nws-refresh-btn" class="nws-live-sync-btn" title="Fetch latest live market intelligence updates">' +
-          '<span id="nws-refresh-icon">🔄</span> <span id="nws-refresh-text">Live Sync Feed</span>' +
+        '<button id="nws-refresh-btn" class="nws-live-sync-btn" title="Reload the published feed and check whether it has been rebuilt since this page loaded">' +
+          '<span id="nws-refresh-icon">🔄</span> <span id="nws-refresh-text">Check for Updates</span>' +
         '</button>' +
       '</div>' +
     '</div>';
@@ -361,8 +361,8 @@
       // Search Box Row with Integrated Live Sync
       '<div class="nws-search-row" style="display:flex; gap:10px; align-items:center;">' +
         '<input type="text" id="nws-search-box" class="nws-search-input" style="flex:1;" placeholder="Search by molecule (Semaglutide, Empagliflozin, Apixaban, Vonoprazan), brand, competitor (Eva, Sanofi, Lilly), EDA decree, or topic..." value="' + esc(STATE.searchQuery) + '" />' +
-        '<button id="nws-refresh-btn-bar" class="nws-live-sync-btn" style="width:auto; padding:10px 18px; white-space:nowrap; flex-shrink:0;" title="Fetch latest live market intelligence updates">' +
-          '<span class="nws-bar-refresh-icon">🔄</span> <span>Live Sync</span>' +
+        '<button id="nws-refresh-btn-bar" class="nws-live-sync-btn" style="width:auto; padding:10px 18px; white-space:nowrap; flex-shrink:0;" title="Reload the published feed and check whether it has been rebuilt since this page loaded">' +
+          '<span class="nws-bar-refresh-icon">🔄</span> <span>Check Updates</span>' +
         '</button>' +
       '</div>';
 
@@ -495,25 +495,91 @@
     });
 
     // Live Sync Refresh Buttons (Header Card & Search Bar)
+    //
+    // 2026-09-12 fix: this used to be entirely fake -- a setTimeout that
+    // rewrote meta.syncLabel to the browser's current clock time and
+    // popped a "✅ ... live synced" success toast without ever making a
+    // network request. Every viewer clicking it was told a live sync had
+    // just happened when nothing had been fetched at all.
+    //
+    // It now re-fetches the published cache/news_latest.json (cache-busted
+    // so the browser can't serve a stale copy) and reports the REAL
+    // last-build timestamp from that file's own meta.syncLabel/generatedAt
+    // -- never a claim manufactured client-side. This does NOT re-run the
+    // Python ETL or pull fresh external articles on demand (that still
+    // only happens when someone runs etl/build_news_cache.py and pushes,
+    // per refresh.bat); it checks whether a newer build has already been
+    // published and pulls it in if so, and says plainly when it hasn't.
     var triggerSync = function(btnEl) {
       var icon = btnEl.querySelector("span:first-child");
       var text = btnEl.querySelector("span:last-child");
+      // 2026-09-12 bugfix: restoreButtons() below re-enabled the buttons and
+      // stopped the spin icon on both success AND failure, but only the
+      // success path called render() -- which rebuilds this button from
+      // scratch with its normal label. On failure (e.g. no server to reach,
+      // see the file:// note below), nothing ever put the label back, so it
+      // stayed stuck on "Checking..." forever. Fix: remember each button's
+      // real label before overwriting it, and restore that exact text in
+      // restoreButtons() so both paths recover it, not just re-render.
+      var originalLabels = [];
+      document.querySelectorAll(".nws-live-sync-btn").forEach(function (b) {
+        var t = b.querySelector("span:last-child");
+        originalLabels.push([b, t ? t.textContent : null]);
+      });
       if (icon) icon.classList.add("spin-anim");
-      if (text) text.textContent = "Syncing Live...";
-      btnEl.disabled = true;
+      if (text) text.textContent = "Checking...";
+      document.querySelectorAll(".nws-live-sync-btn").forEach(function (b) { b.disabled = true; });
 
-      setTimeout(function () {
-        var now = new Date();
-        var timeStr = "Live Sync: Today, " + now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-        var data = getFeedData();
-        if (data && data.meta) {
-          data.meta.syncLabel = timeStr;
-        }
-        if (global.DS && typeof global.DS.toast === "function") {
-          global.DS.toast({ message: "✅ Market Intelligence Feed live synced at " + now.toLocaleTimeString(), variant: "success" });
-        }
-        render();
-      }, 700);
+      var restoreButtons = function () {
+        originalLabels.forEach(function (pair) {
+          var b = pair[0], label = pair[1];
+          b.disabled = false;
+          var ic = b.querySelector("span:first-child");
+          if (ic) ic.classList.remove("spin-anim");
+          var t = b.querySelector("span:last-child");
+          if (t && label !== null) t.textContent = label;
+        });
+      };
+
+      // NOTE: fetch() cannot load file:// URLs in Chrome at all (not a CORS
+      // issue -- the Fetch spec simply doesn't define the file: scheme, so
+      // every attempt throws "Failed to fetch"). That means this check will
+      // ALWAYS report "couldn't reach the server" while testing dashboard.html
+      // by opening it directly from disk, exactly as it should -- there is no
+      // server to check in that case, and saying so honestly is the whole
+      // point of this fix (see the block comment above). Once the file is
+      // served over http(s) (GitHub Pages), the same code fetches normally.
+      fetch("cache/news_latest.json?_=" + Date.now(), { cache: "no-store" })
+        .then(function (resp) {
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          return resp.json();
+        })
+        .then(function (freshData) {
+          var oldMeta = getFeedData().meta || {};
+          var newMeta = freshData.meta || {};
+          var isNewer = !!(newMeta.generatedAt && newMeta.generatedAt !== oldMeta.generatedAt);
+
+          global.ZETA_NEWS_FEED = freshData;
+          restoreButtons();
+
+          if (global.DS && typeof global.DS.toast === "function") {
+            if (isNewer) {
+              global.DS.toast({ message: "✅ New intelligence pulled — feed rebuilt " + (newMeta.syncLabel || "just now"), variant: "success" });
+            } else {
+              global.DS.toast({ message: "You're already on the latest published feed (built " + (newMeta.syncLabel || "unknown time") + ")", variant: "info" });
+            }
+          }
+          render();
+        })
+        .catch(function () {
+          restoreButtons();
+          if (global.DS && typeof global.DS.toast === "function") {
+            var msg = (global.location && global.location.protocol === "file:")
+              ? "⚠️ Can't check for updates while viewing this file locally — this works once the page is live on the server."
+              : "⚠️ Couldn't reach the server to check for updates — still showing the last loaded feed.";
+            global.DS.toast({ message: msg, variant: "warning" });
+          }
+        });
     };
 
     var resetBtn = container.querySelector("#nws-reset-filters-btn");

@@ -278,6 +278,39 @@ if not "%MARKETINTEL_EXIT%"=="0" (
     echo.
 )
 
+REM --- run the Market Intelligence Feed (external news) ETL ---------------
+REM Added 2026-09-12. Runs etl\build_news_cache.py, which internally
+REM fetches every enabled source in config\news_sources.yaml plus the
+REM PubMed dynamic queries (etl\fetch_news.py), cleans/dedupes, classifies
+REM and scores each article, and writes cache\news_latest.data.js (live
+REM feed, <=200 articles) and cache\news_archive.data.js (older/undated,
+REM <=500 articles) -- the data layer behind the Market Intelligence Feed
+REM tab (js\news-feed.js). This step was previously NOT part of refresh.bat
+REM at all -- it had to be run by hand, with nothing in this script
+REM reminding anyone that it existed, so the feed could go stale
+REM indefinitely with no signal. Same class of gap the Control Panel's
+REM period-alignment check exists to catch for the other caches.
+REM
+REM NOT FATAL IF IT FAILS. It makes 10+ live HTTP requests (RSS feeds,
+REM openFDA, 7 PubMed queries); the whole network being unreachable on a
+REM given run must not block the git push of everything already rebuilt
+REM above. Each individual source failing is already handled as non-fatal
+REM inside the ETL itself (see etl\fetch_news.py's per-source health
+REM records) -- this outer check only catches the script failing to run
+REM at all (e.g. a missing config file or dependency).
+echo.
+echo Fetching Market Intelligence Feed (external news, regulatory, PubMed)...
+%PYTHON_CMD% etl\build_news_cache.py
+set "NEWSFEED_EXIT=%ERRORLEVEL%"
+
+if not "%NEWSFEED_EXIT%"=="0" (
+    echo.
+    echo   [WARNING] Market Intelligence Feed refresh did not complete.
+    echo   The feed will keep serving its previous cache. Check
+    echo   logs\news_refresh.log and config\news_sources.yaml.
+    echo.
+)
+
 REM --- run the To-Market vs In-Market (TMS/IMS) Aggregation ----------------
 REM Revised 2026-07-31: this workspace is embedded as-is via iframe (see
 REM js/app.js's renderTomarketTab()) rather than rebuilt into this app's
@@ -415,6 +448,13 @@ if "%GIT_CMD%"=="" (
     REM (4.3MB, uncompressed) is deliberately NOT pushed -- the browser only
     REM ever reads the gzipped .data.js.
     "%GIT_CMD%" add -f cache/market_intel.data.js
+    REM Market Intelligence Feed (external news): same -f reason as every
+    REM cache above -- .gitignore line 2 is `cache/`. news_archive.data.js
+    REM is the older/undated overflow the live feed doesn't display by
+    REM default; both are force-added so a rebuild here actually reaches
+    REM the live site instead of silently deploying with the old feed.
+    "%GIT_CMD%" add -f cache/news_latest.data.js
+    "%GIT_CMD%" add -f cache/news_archive.data.js
     REM Same -f reason as every cache above: .gitignore line 2 is `cache/`,
     REM and this file is new so `git add -A` would skip it entirely.
     "%GIT_CMD%" add -f cache/build_manifest.data.js
