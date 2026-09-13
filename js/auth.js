@@ -219,7 +219,7 @@
   // "show IMS Rx for only sfe vp ceo admin and bex" + 2026-08-16: "let rx and
   // Total Market Intelligence appear to Marketing Consultant".
   // Gated to CEO, VP, BEX, Admin, SFE Manager, Marketing Consultant, and BU Manager.
-  var IMS_RX_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "BU Manager"];
+  var IMS_RX_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "BU Manager", "Group Brand Manager"];
 
   function canViewImsRx() {
     var u = getValidSessionUser();
