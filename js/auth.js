@@ -150,6 +150,7 @@
     "SFE Manager":          { canToggleScenario: true,  defaultScenario: "official" },
     "Admin":                { canToggleScenario: true,  defaultScenario: "official" },
     "BU Manager":           { canToggleScenario: true,  defaultScenario: "official" },
+    "Group Brand Manager":  { canToggleScenario: true,  defaultScenario: "official" },
     "Line Manager":         { canToggleScenario: false, defaultScenario: "working" },
     // Not explicitly covered by Ahmed's 2026-08-04 decision list (which
     // named CEO/VP/Commercial Director/BEX/SFE Manager/Admin/BU
