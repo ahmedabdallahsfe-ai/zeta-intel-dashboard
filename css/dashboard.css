@@ -4045,64 +4045,6 @@ body {
   margin-bottom: 3px;
 }
 
-/* =====================================================================
-   EXECUTIVE INTELLIGENCE LAYER (2026-09-13, .eil-*)
-   Reuses .mgt-*/.health-* above wholesale (container, header, matrix
-   cells for the 3 insight cards, action cards for Priority Actions) --
-   only the pieces those don't cover are new, below.
-   ===================================================================== */
-.health-unknown { background: #94A3B8; color: #fff; } /* GREY -- insufficient/unreliable data. #94A3B8 is this dashboard's own existing neutral/tertiary tone, not a new color. */
-
-.eil-container { margin-top: 20px; margin-bottom: 4px; }
-
-.badge-scope {
-  font-size: 10.5px;
-  font-weight: 700;
-  background: #EFF6FF;
-  color: #1D4ED8;
-  border: 1px solid #BFDBFE;
-  padding: 2px 9px;
-  border-radius: 12px;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-
-.eil-health-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px dashed #E2E8F0;
-}
-
-.eil-health-sentence {
-  font-size: 13px;
-  color: #334155;
-  line-height: 1.5;
-}
-
-.eil-evidence-row {
-  font-size: 11px;
-  color: #94A3B8;
-  border-top: 1px solid #E2E8F0;
-  padding-top: 8px;
-  margin-top: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
-.eil-evidence-row a {
-  color: #0F4C81;
-  text-decoration: none;
-  font-weight: 700;
-}
-
-.eil-evidence-row a:hover { text-decoration: underline; }
-
 .tv-ticker-item {
   display: inline-flex;
   align-items: center;

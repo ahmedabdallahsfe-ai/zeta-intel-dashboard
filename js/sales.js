@@ -3596,7 +3596,19 @@
       return {
         ok: true,
         status: 'ready',
-        asOfDate: months[lastIdx] || null,
+        // BUGFIX 2026-09-13 (Ahmed screenshots: Sales Achievement card
+        // "Data unavailable (module_unavailable)", Business Unit
+        // Performance table's Sales columns all "--"): this used to read
+        // `months`, the optional month-FILTER parameter added for the
+        // Business Unit Performance table's per-month view -- undefined/
+        // null on every call site that doesn't pass one (i.e. the default
+        // "all months"/YTD view, which is most of them). `months[lastIdx]`
+        // then threw a TypeError, safeCall() caught it and returned
+        // status:"error", and every caller with zero successful BU/line
+        // calls collapsed to "module_unavailable". The value actually
+        // needed here is `monthsLk` (cache.lookups.months, the full month
+        // list already resolved above) -- unrelated to the months filter.
+        asOfDate: monthsLk[lastIdx] || null,
         source: 'sales',
         bu: bu,
         line: line || 'All',
@@ -3618,7 +3630,9 @@
         // display bug fixed above, caught while investigating it).
         lastMonthValue: lastVal,
         prevMonthValue: prevVal,
-        confidence: months.length >= 3 ? 'high' : 'low',
+        // Same bugfix as asOfDate above: monthsLk (full month list), not
+        // the months filter parameter, which is undefined/null by default.
+        confidence: monthsLk.length >= 3 ? 'high' : 'low',
       };
     },
 
