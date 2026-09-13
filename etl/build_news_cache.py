@@ -237,6 +237,8 @@ def build_cache():
             'geography': classification['geography'],
             'intelligence_types': classification['intelligence_types'],
             'tags': classification['tags'],
+            'opportunity_type': classification.get('opportunity_type'),
+            'opportunity_sublabel': classification.get('opportunity_sublabel'),
             'importance': scoring['importance'],
             'relevance': scoring['relevance'],
             'impact': scoring['impact'],

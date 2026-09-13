@@ -188,6 +188,25 @@
     '</div>';
   }
 
+  // 2026-09-13: Opportunity Type badge (Portfolio Defense / Competitive
+  // Encroachment / Whitespace Opportunity, with sub-labels), computed
+  // server-side in etl/classify_news.py from config/molecules.yaml's
+  // is_zeta_portfolio flag. Purely additive — renders nothing for the
+  // majority of articles that carry no opportunity_type at all.
+  function renderOpportunityBadge(item) {
+    if (!item.opportunity_type) return "";
+    var icon = "🎯", bg = "#F8FAFC", border = "#E2E8F0", color = "#334155";
+    if (item.opportunity_type === "Portfolio Defense") {
+      icon = "🛡️"; bg = "#EFF6FF"; border = "#BFDBFE"; color = "#1D4ED8";
+    } else if (item.opportunity_type === "Competitive Encroachment") {
+      icon = "⚔️"; bg = "#FFF7ED"; border = "#FED7AA"; color = "#C2410C";
+    } else if (item.opportunity_type === "Whitespace Opportunity") {
+      icon = "🌱"; bg = "#F0FDF4"; border = "#BBF7D0"; color = "#15803D";
+    }
+    var label = item.opportunity_type + (item.opportunity_sublabel ? " · " + item.opportunity_sublabel : "");
+    return '<span class="nws-badge-opp" title="Opportunity Type — derived from Zeta\'s own portfolio (config/molecules.yaml)" style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:4px;background:' + bg + ';border:1px solid ' + border + ';color:' + color + ';">' + icon + ' ' + esc(label) + '</span>';
+  }
+
   function renderCardHtml(item) {
     var impactClass = "nws-card-moderate";
     var impactLabel = "MARKET UPDATE";
@@ -229,12 +248,15 @@
       return '<span class="nws-badge-cat">' + esc(t) + '</span>';
     }).join("");
 
+    var oppBadge = renderOpportunityBadge(item);
+
     return '<div class="nws-card ' + impactClass + '">' +
       '<div>' +
         '<div class="nws-card-top-row">' +
           '<div class="nws-badges-left">' +
             '<span class="nws-badge-impact ' + impactBadgeClass + '">' + esc(impactLabel) + (item.relevance ? ' · ' + item.relevance + '/100' : '') + '</span>' +
             '<span class="nws-badge-ta" style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:4px;background:#F8FAFC;border:1px solid #E2E8F0;color:#0F4C81;">' + esc(item.primary_therapeutic_area) + '</span>' +
+            oppBadge +
             typesBadges +
             buBadges +
           '</div>' +

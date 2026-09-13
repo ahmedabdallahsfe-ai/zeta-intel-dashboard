@@ -3549,7 +3549,7 @@
      * momGrowthPct) so the trend indicator is on the same basis as the
      * headline, not silently mixing bases.
      */
-    getSalesAchievementSummary(bu, line, ignoreLineAuth, scenario) {
+    getSalesAchievementSummary(bu, line, ignoreLineAuth, scenario, months) {
       decompressCache();
       if (!cache || !Array.isArray(decodedRows) || decodedRows.length === 0) {
         return { ok: false, status: 'cache_unavailable', asOfDate: null, source: 'sales', bu: bu, line: line || 'All' };
@@ -3561,10 +3561,11 @@
       scenario = window.SEMANTIC.isValidScenario(scenario) ? scenario : window.SEMANTIC.DEFAULT_SCENARIO;
       const wantScenarioByLine = buildLineScenarioMap(scenario);
       const linesLk = cache.lookups.lines;
-      const months = cache.lookups.months;
-      const _rmi = realMonthIndices(months);
+      const monthsLk = cache.lookups.months;
+      const _rmi = realMonthIndices(monthsLk);
       const lastIdx = _rmi.lastIdx;
       const prevIdx = _rmi.prevIdx;
+      const monthFilter = (Array.isArray(months) && months.length > 0) ? new Set(months.map(Number)) : null;
 
       let actualYTD = 0, targetYTD = 0;
       const byMonth = {};
@@ -3578,6 +3579,7 @@
         // asked for -- selecting CHC_SALES explicitly still returns its
         // own full figures. See SEMANTIC.countsInBuRollup().
         if ((!line || line === 'All') && !window.SEMANTIC.countsInBuRollup(rawLine)) continue;
+        if (monthFilter && !monthFilter.has(r[MONTH])) continue;
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only -- see header comment
         actualYTD += r[VAL];

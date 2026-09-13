@@ -2669,7 +2669,7 @@
       let totalSalesValue = 0;
       buList.forEach(b => {
         const bLine = (b === "CHC") ? "CHC" : null;
-        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, bLine, undefined, scenario);
+        const s = safeCall("sales", "SalesDashboard", "getSalesAchievementSummary", b, bLine, undefined, scenario, months);
         if (s && s.ok) { salesByBu.set(b, s); totalSalesValue += s.actualYTD || 0; }
       });
 
@@ -5102,6 +5102,300 @@
     return wrap;
   }
 
+  // =====================================================================
+  // EXECUTIVE INTELLIGENCE LAYER (2026-09-13, Ahmed: "Add a thin Executive
+  // Intelligence Layer ... Data -> KPI -> Intelligence -> Priority -> Action")
+  // ---------------------------------------------------------------------
+  // Deliberately a SYNTHESIS layer, not a new analytical engine: every
+  // figure below is read off the SAME card-builder functions renderKPIGrid()
+  // already calls (buildSalesAchievementCard, buildCoverageFamilyCard,
+  // buildSFECard) and the SAME Market Intelligence feed news-feed.js
+  // already renders (MarketNewsDashboard.getFeedData()) -- so this layer
+  // can never show a number that disagrees with the KPI grid or the
+  // Market Intelligence tab below it. Calling these builders a second
+  // time here (rather than restructuring render()/renderKPIGrid() to
+  // share one cards array) follows this file's own established
+  // precedent for adding a new card safely without touching a proven
+  // path -- see buildMarketShareRankingCard()'s 2026-09-06 doc comment.
+  //
+  // NOTE: this file already contains an OLDER, UNUSED
+  // renderManagementDecisionEngine() (search below) -- built earlier,
+  // never wired into render(), and its content is hardcoded sample text
+  // (fixed names/percentages), not derived from real data. It is left in
+  // place untouched for history; this new layer does not read from or
+  // call it. Only its CSS vocabulary (.mgt-*, .health-*) is reused below,
+  // since that CSS was never live either and matches this file's design
+  // system exactly.
+  // =====================================================================
+
+  var HEALTH_RANK = { "Excellent": 3, "On Track": 2, "At Risk": 1, "Critical": 0 };
+
+  // ---------------------------------------------------------------------
+  // computeExecutiveIntelligence(ctx) -- pure function, no DOM.
+  // Returns { health, insights[], actions[], scopeLabel }.
+  // ---------------------------------------------------------------------
+  function computeExecutiveIntelligence(ctx) {
+    const filters = ctx.filters;
+    const scopeLabel = isAllBU(filters.bu)
+      ? "All Business Units"
+      : (filters.line && filters.line !== "All" ? filters.bu + " · " + filters.line : filters.bu);
+
+    // ---- 1. Re-derive the same 4 execution-driver cards the KPI grid
+    // already shows (identical function calls, identical filters), purely
+    // to read their already-computed .status/.mainValue/.performance --
+    // no new formula, no new threshold. ----
+    const execCards = [
+      buildSalesAchievementCard(filters),
+      buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 100, filters),
+      buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 90, filters),
+      buildSFECard(filters, ctx.summaries),
+    ];
+    const available = execCards.filter(c => c.status !== null && c.status !== undefined);
+
+    // ---- 2. Business Health: worst-of the available pillars. Documented
+    // assumption (same convention as statusFromAchievement()'s own
+    // comment above) -- a strong Sales number never papers over a
+    // Critical Coverage/SFE gap, since those are the drivers Sales
+    // depends on next period. Adjustable on request. ----
+    let health;
+    if (available.length === 0) {
+      health = {
+        color: "unknown", label: "GREY — INSUFFICIENT DATA",
+        sentence: "None of the four execution KPIs (Sales Achievement, Coverage, Right Frequency, Sales Force Fill Rate) have usable data at this filter scope yet.",
+      };
+    } else {
+      const worstRank = Math.min.apply(null, available.map(c => HEALTH_RANK[c.status]));
+      const worstCards = available.filter(c => HEALTH_RANK[c.status] === worstRank);
+      const okCards = available.filter(c => HEALTH_RANK[c.status] >= 2 && worstCards.indexOf(c) === -1);
+      const color = worstRank >= 2 ? "healthy" : (worstRank === 1 ? "caution" : "error");
+      const label = color === "healthy" ? "GREEN — HEALTHY" : color === "caution" ? "AMBER — ATTENTION REQUIRED" : "RED — MATERIAL RISK";
+      const worstText = worstCards.map(c => c.name + " " + c.mainValue + (c.performance ? " vs " + c.performance.target + " target" : "")).join("; ");
+      const okText = okCards.map(c => c.name + " (" + c.mainValue + ")").join(", ");
+      const sentence = worstRank >= 2
+        ? "All available execution KPIs are on track — " + worstText + "."
+        : worstText + " — attention required" + (okText ? "; " + okText + " on track." : ".");
+      health = { color: color, label: label, sentence: sentence };
+    }
+
+    // ---- 3. Top 3 insights: one candidate per dimension, DROPPED (never
+    // padded with a generic filler) when no qualifying signal exists at
+    // this filter scope, per Ahmed's brief. ----
+    const insights = [];
+
+    // Dimension A -- Performance / Execution Risk: the worst of the same
+    // 4 pillars above, surfaced only when genuinely At Risk or Critical.
+    if (available.length) {
+      const worstExec = available.slice().sort((a, b) => HEALTH_RANK[a.status] - HEALTH_RANK[b.status])[0];
+      if (HEALTH_RANK[worstExec.status] <= 1) {
+        insights.push({
+          dim: "PERFORMANCE / EXECUTION RISK", icon: "⚙️", cellClass: "mgt-cell-fix",
+          headline: worstExec.name + " at " + worstExec.mainValue + (worstExec.performance ? " against a " + worstExec.performance.target + " target" : ""),
+          scopeText: scopeLabel + (worstExec.rankUnit ? " · rank #" + worstExec.rank + " of " + worstExec.rankOf + " " + worstExec.rankUnit : ""),
+          why: (worstExec.mainValueSub || "") + (worstExec.performance && worstExec.performance.variance ? " · " + worstExec.performance.variance + " vs target" : ""),
+          evidenceLabel: "Source: Executive Command Center",
+          evidenceKpi: worstExec.kpiId,
+          actionMeta: { kpiName: worstExec.name, targetLabel: worstExec.performance ? worstExec.performance.target : null },
+        });
+      }
+    }
+
+    // Dimension B -- Portfolio / Competitive Risk: highest-impact tagged
+    // Market Intelligence article in scope (reuses the SAME feed +
+    // opportunity_type taxonomy news-feed.js already renders -- see
+    // MarketNewsDashboard.getFeedData()/renderOpportunityBadge()).
+    // Falls back to a real IQVIA MAT share-erosion number, explicitly
+    // noting the absence of a tagged article, rather than being forced.
+    const feed = safeCall("news", "MarketNewsDashboard", "getFeedData");
+    const articles = (feed && feed.articles) ? feed.articles : [];
+    const inScope = a => isAllBU(filters.bu) || (Array.isArray(a.business_units) && a.business_units.indexOf(filters.bu) !== -1);
+    const byMateriality = (a, b) => (b.importance || 0) - (a.importance || 0) || (b.relevance || 0) - (a.relevance || 0);
+    const iqviaSummary = ctx.summaries && ctx.summaries.iqvia;
+
+    const competitiveArticles = articles.filter(a => inScope(a) && (a.opportunity_type === "Competitive Encroachment" || a.opportunity_type === "Portfolio Defense")).sort(byMateriality);
+    if (competitiveArticles.length) {
+      const art = competitiveArticles[0];
+      const artScope = (Array.isArray(art.business_units) && art.business_units.length) ? art.business_units.join(", ") : scopeLabel;
+      insights.push({
+        dim: "PORTFOLIO / COMPETITIVE RISK", icon: "🛡️", cellClass: "mgt-cell-defend",
+        headline: art.title,
+        scopeText: artScope + (art.opportunity_sublabel ? " · " + art.opportunity_sublabel : ""),
+        why: art.why_it_matters || art.summary || ("Tagged " + art.opportunity_type + " against a Zeta-portfolio molecule."),
+        evidenceLabel: "Source: Market Intelligence",
+        evidenceUrl: art.url,
+        actionMeta: { scopeText: artScope },
+      });
+    } else if (!isAllBU(filters.bu) && iqviaSummary && iqviaSummary.ok && iqviaSummary.bu[filters.bu] && iqviaSummary.bu[filters.bu].shareDeltaPts !== null && iqviaSummary.bu[filters.bu].shareDeltaPts < -0.3) {
+      const d = iqviaSummary.bu[filters.bu];
+      insights.push({
+        dim: "PORTFOLIO / COMPETITIVE RISK", icon: "🛡️", cellClass: "mgt-cell-defend",
+        headline: filters.bu + " MAT market share eroded " + fmtSignedPts(d.shareDeltaPts) + " year-over-year",
+        scopeText: filters.bu + " (MAT basis)",
+        why: "Market growth " + fmtSignedPct(d.marketGrowthPct) + " vs Zeta growth " + fmtSignedPct(d.zetaGrowthPct) + ". No Market Intelligence article tagged this signal yet this period.",
+        evidenceLabel: "Source: IQVIA Market Intelligence",
+        evidenceKpi: "marketShare",
+        actionMeta: { scopeText: filters.bu },
+      });
+    }
+
+    // Dimension C -- Market Opportunity: highest-impact Whitespace-tagged
+    // article in scope. Falls back to the largest market-vs-Zeta growth
+    // gap already present in getBusinessSummary()'s per-BU output (an
+    // execution-vs-market read, not a demand problem) when no article is
+    // tagged this period.
+    const whitespaceArticles = articles.filter(a => inScope(a) && a.opportunity_type === "Whitespace Opportunity").sort(byMateriality);
+    if (whitespaceArticles.length) {
+      const wart = whitespaceArticles[0];
+      const wartScope = (Array.isArray(wart.business_units) && wart.business_units.length) ? wart.business_units.join(", ") : scopeLabel;
+      insights.push({
+        dim: "MARKET OPPORTUNITY", icon: "🌱", cellClass: "mgt-cell-accelerate",
+        headline: wart.title,
+        scopeText: wartScope + (wart.opportunity_sublabel ? " · " + wart.opportunity_sublabel : ""),
+        why: wart.why_it_matters || wart.summary || "Tagged Whitespace Opportunity outside Zeta's current portfolio focus.",
+        evidenceLabel: "Source: Market Intelligence",
+        evidenceUrl: wart.url,
+        actionMeta: { scopeText: wartScope },
+      });
+    } else {
+      const eviCandidates = [];
+      const buList = isAllBU(filters.bu) ? getAllowedBUList() : [filters.bu];
+      buList.forEach(b => {
+        const s = iqviaSummary && iqviaSummary.ok && iqviaSummary.bu[b];
+        if (s && s.marketGrowthPct !== null && s.zetaGrowthPct !== null) {
+          eviCandidates.push({ label: b, gap: s.marketGrowthPct - s.zetaGrowthPct, marketGrowthPct: s.marketGrowthPct, zetaGrowthPct: s.zetaGrowthPct, sharePct: s.marketShareMATPct });
+        }
+      });
+      eviCandidates.sort((a, b) => b.gap - a.gap);
+      if (eviCandidates.length && eviCandidates[0].gap > 3) {
+        const ev = eviCandidates[0];
+        insights.push({
+          dim: "MARKET OPPORTUNITY", icon: "🌱", cellClass: "mgt-cell-accelerate",
+          headline: ev.label + " category growing " + fmtSignedPct(ev.marketGrowthPct) + " YoY — Zeta growth only " + fmtSignedPct(ev.zetaGrowthPct),
+          scopeText: ev.label + (ev.sharePct !== null ? " · Zeta MAT share " + fmtPct1(ev.sharePct) : ""),
+          why: "Market expanding faster than Zeta's own growth in this BU — an execution-vs-market gap, not a demand problem. No Whitespace-tagged article this period.",
+          evidenceLabel: "Source: IQVIA Market Intelligence",
+          evidenceKpi: "marketShare",
+          actionMeta: { scopeText: ev.label },
+        });
+      }
+    }
+
+    // Cap at 3 -- construction order above (Performance, Competitive,
+    // Opportunity) IS the priority order; a skipped dimension simply
+    // means fewer than 3 cards, never a padded filler.
+    const cappedInsights = insights.slice(0, 3);
+
+    // ---- 4. Priority Actions: one per surfaced insight. Owner is a role
+    // label (Ahmed's "if reliably available" caveat) -- named individuals
+    // are only reliably resolvable at DM level, inside the drill-down
+    // this action's KPI links to, not at this BU/corporate synthesis
+    // level. ----
+    const actions = cappedInsights.map(ins => {
+      const scopeText = (ins.actionMeta && ins.actionMeta.scopeText) || scopeLabel;
+      const ownerFor = label => isAllBU(filters.bu) ? "BU Managers (lowest-ranked BU first)" : label + " Manager";
+      if (ins.dim === "PERFORMANCE / EXECUTION RISK") {
+        const kpiName = ins.actionMeta.kpiName;
+        return {
+          title: "Escalate " + kpiName + " recovery in " + scopeText,
+          priority: "HIGH",
+          owner: isAllBU(filters.bu) ? "BU Managers (lowest-ranked BU first)" : filters.bu + " Line Manager",
+          kpi: kpiName + (ins.actionMeta.targetLabel ? " (target " + ins.actionMeta.targetLabel + ")" : ""),
+        };
+      }
+      if (ins.dim === "PORTFOLIO / COMPETITIVE RISK") {
+        return {
+          title: "Brief field team on defensive account plan — " + scopeText,
+          priority: "HIGH",
+          owner: ownerFor(scopeText),
+          kpi: "Zeta MAT Market Share % — " + scopeText,
+        };
+      }
+      // MARKET OPPORTUNITY
+      return {
+        title: "Direct incremental call-plan capacity to " + scopeText,
+        priority: "MEDIUM",
+        owner: ownerFor(scopeText),
+        kpi: "EVI (Execution vs Market Index) — " + scopeText,
+      };
+    });
+
+    return { health: health, insights: cappedInsights, actions: actions, scopeLabel: scopeLabel };
+  }
+
+  // ---------------------------------------------------------------------
+  // renderExecutiveIntelligenceLayer(ctx) -- DOM builder. Reuses the
+  // .mgt-*/.health-* CSS already in css/dashboard.css (see note above);
+  // only ".health-unknown" (GREY) and a handful of small wrapper classes
+  // (.eil-*) are new, added in that same CSS file right after the
+  // existing .mgt-* block.
+  //
+  // Click-through wiring: internal-KPI evidence links carry the SAME
+  // data-exec-kpi attribute the KPI grid's own cards use, so the
+  // existing delegated listener in wireCardEvents() (which queries
+  // "[data-exec-kpi]" across the whole container) picks them up
+  // automatically -- wireCardEvents() itself required NO changes.
+  // External Market Intelligence article links are plain <a href> tags.
+  // ---------------------------------------------------------------------
+  function renderExecutiveIntelligenceLayer(ctx) {
+    const intel = computeExecutiveIntelligence(ctx);
+    const wrap = document.createElement("div");
+    wrap.className = "mgt-engine-container eil-container";
+
+    const healthCls = "health-" + intel.health.color;
+
+    const insightsHtml = intel.insights.map(ins => {
+      const evidenceHtml = ins.evidenceUrl
+        ? '<a href="' + escapeAttr(ins.evidenceUrl) + '" target="_blank" rel="noopener noreferrer">Open article ↗</a>'
+        : (ins.evidenceKpi ? '<a href="#" data-exec-kpi="' + escapeAttr(ins.evidenceKpi) + '" onclick="return false;">View detail →</a>' : "");
+      return (
+        '<div class="mgt-matrix-cell ' + ins.cellClass + '">' +
+          '<div class="mgt-cell-head">' + ins.icon + ' ' + escapeAttr(ins.dim) + '</div>' +
+          '<div style="font-size:13px;font-weight:700;color:#0F172A;line-height:1.35;margin-bottom:6px;">' + escapeAttr(ins.headline) + '</div>' +
+          '<div style="font-size:11.5px;color:#1D4ED8;font-weight:700;margin-bottom:6px;">Where: ' + escapeAttr(ins.scopeText) + '</div>' +
+          '<div style="font-size:12px;color:#334155;line-height:1.45;margin-bottom:10px;">' + escapeAttr(ins.why) + '</div>' +
+          '<div class="eil-evidence-row"><span>' + escapeAttr(ins.evidenceLabel) + '</span>' + evidenceHtml + '</div>' +
+        '</div>'
+      );
+    }).join("");
+
+    const actionsHtml = intel.actions.map(a => {
+      const badgeCls = a.priority === "HIGH" ? "health-warning" : "health-caution";
+      return (
+        '<div class="mgt-action-card">' +
+          '<div class="mgt-action-head">' +
+            '<div class="mgt-action-title">' + escapeAttr(a.title) + '</div>' +
+            '<span class="health-pill ' + badgeCls + '">' + escapeAttr(a.priority) + '</span>' +
+          '</div>' +
+          '<div class="mgt-action-grid" style="grid-template-columns:1fr 1fr;">' +
+            '<div class="mgt-action-field"><b>Owner</b>' + escapeAttr(a.owner) + '</div>' +
+            '<div class="mgt-action-field"><b>KPI to Monitor</b>' + escapeAttr(a.kpi) + '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join("");
+
+    wrap.innerHTML =
+      '<div class="mgt-header-bar">' +
+        '<div>' +
+          '<div class="mgt-title">🧭 What matters now <span class="badge-scope">' + escapeAttr(intel.scopeLabel) + '</span></div>' +
+          '<div class="mgt-subtitle">Synthesized from the KPI cards and Market Intelligence feed below — nothing here is a separate calculation.</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="eil-health-row">' +
+        '<span class="health-pill ' + healthCls + '">' + escapeAttr(intel.health.label) + '</span>' +
+        '<span class="eil-health-sentence">' + escapeAttr(intel.health.sentence) + '</span>' +
+      '</div>' +
+      (intel.insights.length ?
+        '<div class="mgt-cell-head" style="margin-bottom:8px;">Top ' + intel.insights.length + ' Things Management Should Know</div>' +
+        '<div class="mgt-matrix-grid" style="grid-template-columns:repeat(' + intel.insights.length + ',1fr);margin-bottom:20px;">' + insightsHtml + '</div>'
+        : "") +
+      (intel.actions.length ?
+        '<div class="mgt-cell-head" style="margin-bottom:8px;">Priority Actions</div>' +
+        '<div class="mgt-actions-wrap" style="display:grid;grid-template-columns:repeat(' + intel.actions.length + ',1fr);gap:14px;margin-top:0;">' + actionsHtml + '</div>'
+        : "");
+
+    return wrap;
+  }
+
   function render(container) {
     container.innerHTML = "";
     const ctx = { container: container, filters: _filters, summaries: collectSummaries() };
@@ -5113,6 +5407,7 @@
     container.appendChild(header);
 
     container.appendChild(renderFilterBar(ctx));
+    container.appendChild(renderExecutiveIntelligenceLayer(ctx)); // NEW 2026-09-13 -- Executive Intelligence Layer, see doc comment above its definition
     container.appendChild(renderKPIGrid(ctx));
     const lineSection = renderLinePerformanceSection(ctx);
     if (lineSection) container.appendChild(lineSection);
@@ -5155,6 +5450,8 @@
     },
     setFilters: setFilters,
     renderManagementDecisionEngine: renderManagementDecisionEngine,
-    collectSummariesPinnedOfficial: collectSummariesPinnedOfficial
+    collectSummariesPinnedOfficial: collectSummariesPinnedOfficial,
+    computeExecutiveIntelligence: computeExecutiveIntelligence,
+    renderExecutiveIntelligenceLayer: renderExecutiveIntelligenceLayer
   };
 })(window);

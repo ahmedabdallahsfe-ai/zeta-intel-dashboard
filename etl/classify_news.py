@@ -14,6 +14,7 @@ def classify_article(article, configs):
     full_text = f"{title_text} {summary_text} {source_text}"
 
     # 1. Match Molecules & Mechanisms
+    mol_by_name = {m.get('name'): m for m in molecules_cfg}
     matched_molecules = []
     matched_mechanisms = set()
     matched_brands = set()
@@ -155,6 +156,92 @@ def classify_article(article, configs):
     for comp in matched_companies[:3]:
         tags.add(comp)
 
+    # 8. Opportunity Type (2026-09-13, additive)
+    #
+    # Derived entirely from config/molecules.yaml's `is_zeta_portfolio`
+    # flag, which was defined in that config but never actually read
+    # anywhere in the pipeline until now. Classifies what an article means
+    # commercially for Zeta's OWN portfolio -- distinct from (and computed
+    # after) the therapeutic-area/molecule/company matching above, which it
+    # reuses rather than recomputes. Does not change relevance/impact
+    # scoring in etl/score_news.py, and does not change primary_ta,
+    # molecules, business_units, or any other field above.
+    #
+    # Rules (confirmed with Ahmed 2026-09-13, from a worked example against
+    # the live 56-article feed before this was built):
+    #   - Portfolio Defense: the article names a molecule Zeta itself sells.
+    #   - Whitespace Opportunity: primary_ta == "Obesity & Incretin
+    #     Therapies" -- the one TA where every molecule in molecules.yaml is
+    #     is_zeta_portfolio: false, i.e. Zeta has zero branded product
+    #     there today. This fires even when the article names no specific
+    #     molecule (e.g. a class-level "GLP-1 receptor agonists in obesity"
+    #     study) -- deliberately broader than a molecule-name match, since
+    #     the whole point is to surface market development signal in a
+    #     space Zeta doesn't compete in yet.
+    #   - Competitive Encroachment: a non-Zeta molecule is matched whose
+    #     primary_ta is one Zeta DOES already have a branded product in
+    #     (Diabetes & Metabolic, Cardio-Renal-Metabolic, Gastroenterology,
+    #     Neuroscience & Pain today) -- sub-labeled:
+    #       - "Direct Class Threat" if the rival molecule's mechanism
+    #         matches a mechanism Zeta already sells in that same TA
+    #         (e.g. rival SGLT2 Dapagliflozin vs. Zeta's own SGLT2
+    #         Empagliflozin).
+    #       - "Adjacent Mechanism" otherwise (e.g. Finerenone/MRA vs.
+    #         Zeta's Factor-Xa/statin presence in Cardio-Renal-Metabolic --
+    #         same disease territory, different drug class).
+    #   - Anything else (no molecule matched and not the Obesity/Incretin
+    #     TA -- e.g. Pediatrics, Dermatology, general FDA/regulatory news)
+    #     gets no opportunity_type at all (None): this taxonomy is
+    #     deliberately scoped to molecule-driven portfolio strategy, not a
+    #     catch-all for every article.
+    zeta_portfolio_tas = set(
+        m.get('primary_ta') for m in molecules_cfg if m.get('is_zeta_portfolio')
+    )
+    zeta_molecules_matched = [
+        m for m in set(matched_molecules)
+        if mol_by_name.get(m, {}).get('is_zeta_portfolio')
+    ]
+
+    opportunity_type = None
+    opportunity_sublabel = None
+
+    if zeta_molecules_matched:
+        opportunity_type = "Portfolio Defense"
+
+    elif primary_ta == "Obesity & Incretin Therapies":
+        opportunity_type = "Whitespace Opportunity"
+
+    else:
+        rival_tas = set(
+            mol_by_name.get(m, {}).get('primary_ta') for m in matched_molecules
+            if m in mol_by_name
+        )
+        rival_tas.discard(None)
+        if rival_tas & zeta_portfolio_tas:
+            opportunity_type = "Competitive Encroachment"
+
+    if opportunity_type == "Competitive Encroachment":
+        rival_mechanisms = set(
+            mol_by_name.get(m, {}).get('mechanism') for m in matched_molecules
+            if m in mol_by_name and not mol_by_name.get(m, {}).get('is_zeta_portfolio')
+        )
+        rival_mechanisms.discard(None)
+        zeta_mechanisms_in_ta = set(
+            m.get('mechanism') for m in molecules_cfg
+            if m.get('is_zeta_portfolio') and m.get('primary_ta') in rival_tas
+        )
+        opportunity_sublabel = "Direct Class Threat" if (rival_mechanisms & zeta_mechanisms_in_ta) else "Adjacent Mechanism"
+
+    elif opportunity_type == "Whitespace Opportunity":
+        source_id = (article.get('source_id') or '').lower()
+        is_supply_recall_signal = (
+            'Supply / Shortage' in matched_intel_types
+            or source_id == 'fda_drug_enforcement'
+            or 'recall' in title_text
+        )
+        if is_supply_recall_signal:
+            opportunity_sublabel = "Supply / Recall Signal"
+
     return {
         'primary_therapeutic_area': primary_ta,
         'secondary_therapeutic_areas': secondary_tas,
@@ -165,5 +252,7 @@ def classify_article(article, configs):
         'brands': sorted(list(matched_brands)),
         'geography': geography,
         'intelligence_types': matched_intel_types,
-        'tags': sorted(list(tags))
+        'tags': sorted(list(tags)),
+        'opportunity_type': opportunity_type,
+        'opportunity_sublabel': opportunity_sublabel
     }
