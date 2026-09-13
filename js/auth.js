@@ -191,7 +191,7 @@
   // -------------------------------------------------------------------
   // "make it exclusive to ceo admin vp sfe bex" + 2026-08-16: "let rx and
   // Total Market Intelligence appear to Marketing Consultant".
-  var MARKET_INTEL_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant"];
+  var MARKET_INTEL_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "Group Brand Manager"];
 
   function canViewMarketIntel() {
     var u = getValidSessionUser();
@@ -205,7 +205,7 @@
   // "Regulatory & Egypt Registration remove it from bu nsm users"
   // Excluded for BU Manager and NSM (Line Manager) users per explicit directive.
   // Gated to CEO, VP, BEX, Admin, SFE Manager, Commercial Director, Marketing Consultant.
-  var REGULATORY_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Commercial Director", "Marketing Consultant"];
+  var REGULATORY_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Commercial Director", "Marketing Consultant", "Group Brand Manager"];
 
   function canViewRegulatory() {
     var u = getValidSessionUser();
