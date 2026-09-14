@@ -4085,7 +4085,6 @@
 
     cards.push(buildSFECard(filters, summaries));
     cards.push(buildSalesProductivityCard(summaries, filters));
-    ];
 
     if (!isManager) {
       cards.push(buildPullThroughCard(filters));
@@ -4253,8 +4252,8 @@
       // function's comments) -- this column just renders it, no extra
       // filter-wiring needed here.
       { key: "targetPerPosition", label: "Target per Position", align: "right", format: v => v === null ? "—" : fmtM(v) },
-      { key: "activePositions", label: "Positions", align: "right" },
-    ];
+      { key: "activePositions", label: "Positions", align: "right" }
+    );
 
     // Period filter, scoped to this section only -- Coverage %/Right-Freq %
     // columns have no month dimension (organogram is a point-in-time
