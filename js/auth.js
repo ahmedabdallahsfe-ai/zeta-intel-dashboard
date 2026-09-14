@@ -151,6 +151,7 @@
     "Admin":                { canToggleScenario: true,  defaultScenario: "official" },
     "BU Manager":           { canToggleScenario: true,  defaultScenario: "official" },
     "Group Brand Manager":  { canToggleScenario: true,  defaultScenario: "official" },
+    "Commercial Manager":   { canToggleScenario: true,  defaultScenario: "official" },
     "Line Manager":         { canToggleScenario: false, defaultScenario: "working" },
     // Not explicitly covered by Ahmed's 2026-08-04 decision list (which
     // named CEO/VP/Commercial Director/BEX/SFE Manager/Admin/BU
@@ -184,19 +185,43 @@
   // account could otherwise use a permitted role to see company-wide
   // totals that include BUs their own scope excludes, which would defeat
   // the platform's access model.
-  var ALL_BU_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager"];
+  var ALL_BU_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Commercial Manager"];
 
   // -------------------------------------------------------------------
   // TOTAL MARKET INTELLIGENCE ACCESS (2026-08-06, expanded 2026-08-16)
   // -------------------------------------------------------------------
   // "make it exclusive to ceo admin vp sfe bex" + 2026-08-16: "let rx and
   // Total Market Intelligence appear to Marketing Consultant".
-  var MARKET_INTEL_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "Group Brand Manager"];
+  var MARKET_INTEL_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "Group Brand Manager", "Commercial Manager"];
 
   function canViewMarketIntel() {
     var u = getValidSessionUser();
     if (!u) return false;
     return MARKET_INTEL_ROLES.indexOf(u.role) >= 0;
+  }
+
+  // -------------------------------------------------------------------
+  // COMMERCIAL MANAGER TAB & METRIC RESTRICTIONS (2026-09-14)
+  // -------------------------------------------------------------------
+  // Commercial Manager (yasser.salem@zeta-pharma.com): access to Executive
+  // Command Center (without Operational Coverage / Right Frequency), Sales
+  // Performance, To-Market vs In-Market, and Market Intelligence ONLY.
+  function canViewCoverage() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return u.role !== "Commercial Manager";
+  }
+
+  function canViewSfe() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return u.role !== "Commercial Manager";
+  }
+
+  function canViewCoverageAndRightFreq() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return u.role !== "Commercial Manager";
   }
 
   // -------------------------------------------------------------------
@@ -551,6 +576,9 @@
     canToggleScenario: canToggleScenario,
     canViewAllBUs: canViewAllBUs,
     ALL_BU_ROLES: ALL_BU_ROLES,
+    canViewCoverage: canViewCoverage,
+    canViewSfe: canViewSfe,
+    canViewCoverageAndRightFreq: canViewCoverageAndRightFreq,
     canViewMarketIntel: canViewMarketIntel,
     MARKET_INTEL_ROLES: MARKET_INTEL_ROLES,
     canViewRegulatory: canViewRegulatory,

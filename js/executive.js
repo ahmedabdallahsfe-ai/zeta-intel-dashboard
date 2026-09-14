@@ -4075,11 +4075,16 @@
       // -- Portfolio & Customer Mix --
       buildBrandPortfolioHealthCard(filters),
       buildCustomerClusterMixCard(filters),
-      // -- Field Execution Drivers --
-      buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 100, filters),
-      buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 90, filters),
-      buildSFECard(filters, summaries),
-      buildSalesProductivityCard(summaries, filters)
+    ];
+
+    const canViewCov = !(global.AUTH && typeof global.AUTH.canViewCoverageAndRightFreq === "function" && !global.AUTH.canViewCoverageAndRightFreq());
+    if (canViewCov) {
+      cards.push(buildCoverageFamilyCard("coverage", "Operational Coverage", "coveragePct", 100, filters));
+      cards.push(buildCoverageFamilyCard("rightFrequency", "Right Frequency", "rightFreqPct", 90, filters));
+    }
+
+    cards.push(buildSFECard(filters, summaries));
+    cards.push(buildSalesProductivityCard(summaries, filters));
     ];
 
     if (!isManager) {
@@ -4202,15 +4207,14 @@
     // time would have left the export unnumbered, and a colleague
     // discussing "row 7" over the phone would be looking at a different
     // row to the one on screen.
+    const canViewCov = !(global.AUTH && typeof global.AUTH.canViewCoverageAndRightFreq === "function" && !global.AUTH.canViewCoverageAndRightFreq());
+
     const lpColumns = [
       { key: "__sn", label: "#", align: "right" },
       {
         key: "name",
         label: allBuView ? "Business Unit" : (activeLine ? "District Manager" : "Line"),
         isHtml: true,
-        // The DSM grain shows each manager's own position (territory)
-        // beneath their name. Two managers can share a first name and a
-        // line; the territory is what actually identifies them.
         format: function (v, row) {
           const nameHtml = '<span class="lp-name">' + escapeAttr(v) + "</span>";
           if (!activeLine) return nameHtml;
@@ -4224,8 +4228,16 @@
           return pos ? v + " (" + pos + ")" : v;
         },
       },
-      { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : Math.round(v) + "%" },
-      { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : Math.round(v) + "%" },
+    ];
+
+    if (canViewCov) {
+      lpColumns.push(
+        { key: "coveragePct", label: "Coverage %", align: "right", format: v => v === null ? "—" : Math.round(v) + "%" },
+        { key: "rightFreqPct", label: "Right-Freq %", align: "right", format: v => v === null ? "—" : Math.round(v) + "%" }
+      );
+    }
+
+    lpColumns.push(
       { key: "salesValue", label: "Sales Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
       { key: "targetValue", label: "Target Value (EGP)", align: "right", format: v => v === null ? "—" : Math.round(v).toLocaleString() },
       { key: "salesAchievementPct", label: "Sales Achievement %", align: "right", isHtml: true,

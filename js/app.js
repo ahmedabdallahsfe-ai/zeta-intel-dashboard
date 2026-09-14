@@ -394,6 +394,20 @@ function startAppBody() {
   // LINE-restricted users are still excluded: this data has no line
   // dimension to narrow by, so there is no honest way to scope it for
   // them -- better a hidden entry than one showing more than their scope.
+  const coverageMenuItem = document.getElementById("menu-item-coverage");
+  if (coverageMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewCoverage === "function"
+      ? window.AUTH.canViewCoverage() : true;
+    coverageMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  const sfeMenuItem = document.getElementById("menu-item-sfe");
+  if (sfeMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewSfe === "function"
+      ? window.AUTH.canViewSfe() : true;
+    sfeMenuItem.style.display = allowed ? "" : "none";
+  }
+
   const tomarketMenuItem = document.getElementById("menu-item-tomarket");
   if (tomarketMenuItem) {
     tomarketMenuItem.style.display = tomarketAllowedBU() === false ? "none" : "";
@@ -609,6 +623,11 @@ function startAppBody() {
         // same as it always waited for the synchronous render before.
         requestAnimationFrame(async () => {
           if (tab === "coverage") {
+            if (window.AUTH && typeof window.AUTH.canViewCoverage === "function" && !window.AUTH.canViewCoverage()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
@@ -622,6 +641,11 @@ function startAppBody() {
               renderAll(dashboard, dashboard.dimensions, {});
             }
           } else if (tab === "sfe") {
+            if (window.AUTH && typeof window.AUTH.canViewSfe === "function" && !window.AUTH.canViewSfe()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
