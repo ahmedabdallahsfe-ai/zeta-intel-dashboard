@@ -408,6 +408,13 @@ function startAppBody() {
     sfeMenuItem.style.display = allowed ? "" : "none";
   }
 
+  const iqviaMenuItem = document.getElementById("menu-item-iqvia");
+  if (iqviaMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewIqvia === "function"
+      ? window.AUTH.canViewIqvia() : true;
+    iqviaMenuItem.style.display = allowed ? "" : "none";
+  }
+
   const tomarketMenuItem = document.getElementById("menu-item-tomarket");
   if (tomarketMenuItem) {
     tomarketMenuItem.style.display = tomarketAllowedBU() === false ? "none" : "";
@@ -667,6 +674,11 @@ function startAppBody() {
               window.SalesDashboard.init("app-root");
             }
           } else if (tab === "iqvia") {
+            if (window.AUTH && typeof window.AUTH.canViewIqvia === "function" && !window.AUTH.canViewIqvia()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }

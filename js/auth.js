@@ -230,6 +230,12 @@
     return u.role !== "Commercial Manager";
   }
 
+  function canViewIqvia() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return u.role !== "Commercial Manager";
+  }
+
   // -------------------------------------------------------------------
   // REGULATORY & EGYPT REGISTRATION ACCESS (2026-09-11)
   // -------------------------------------------------------------------
@@ -585,6 +591,7 @@
     canViewCoverage: canViewCoverage,
     canViewSfe: canViewSfe,
     canViewCoverageAndRightFreq: canViewCoverageAndRightFreq,
+    canViewIqvia: canViewIqvia,
     canViewMarketIntel: canViewMarketIntel,
     MARKET_INTEL_ROLES: MARKET_INTEL_ROLES,
     canViewMarketNews: canViewMarketNews,
