@@ -494,6 +494,13 @@ function startAppBody() {
     regulatoryMenuItem.style.display = allowed ? "" : "none";
   }
 
+  const marketNewsMenuItem = document.getElementById("menu-item-marketnews");
+  if (marketNewsMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewMarketNews === "function"
+      ? window.AUTH.canViewMarketNews() : true;
+    marketNewsMenuItem.style.display = allowed ? "" : "none";
+  }
+
   // REMOVED 2026-08-09 (Ahmed): the Control Panel and Expense vs Sales tabs
   // were taken out of the shell. Their modules (js/control-panel.js,
   // js/expense.js, js/expense-interface.js) are still on disk and unmodified,
@@ -679,6 +686,11 @@ function startAppBody() {
             }
             renderTomarketTab(document.getElementById("app-root"));
           } else if (tab === "marketintel") {
+            if (window.AUTH && typeof window.AUTH.canViewMarketIntel === "function" && !window.AUTH.canViewMarketIntel()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
@@ -704,6 +716,11 @@ function startAppBody() {
             }
             await renderCoachingTab(document.getElementById("app-root"));
           } else if (tab === "marketnews") {
+            if (window.AUTH && typeof window.AUTH.canViewMarketNews === "function" && !window.AUTH.canViewMarketNews()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
@@ -989,6 +1006,19 @@ async function renderCoachingTab(container) {
 
 function renderMarketNewsTab(container) {
   if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewMarketNews === "function"
+    ? window.AUTH.canViewMarketNews() : true;
+  if (!allowed) {
+    document.body.classList.add("marketnews-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "🔒",
+          title: "Access restricted",
+          hint: "Market Intelligence Feed is restricted for this account role.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
   document.body.classList.add("marketnews-mode");
   if (window.MarketNewsDashboard) {
     window.MarketNewsDashboard.init("app-root");
