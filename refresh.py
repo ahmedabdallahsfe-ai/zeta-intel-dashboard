@@ -123,11 +123,35 @@ RESIGNATION_DATE_COLUMN = "Resignation Date"
 RESIGNATION_CURRENT_SENTINEL = "Current"
 
 # Canonical month ordering, used to sort Period chronologically regardless
-# of casing quirks in the source data (e.g. "MAY" vs "May").
+# of casing quirks or short abbreviations in the source data (e.g. "Aug" vs "August").
 MONTH_ORDER = {
-    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
-    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
-    "december": 12,
+    "january": 1, "jan": 1,
+    "february": 2, "feb": 2,
+    "march": 3, "mar": 3,
+    "april": 4, "apr": 4,
+    "may": 5,
+    "june": 6, "jun": 6,
+    "july": 7, "jul": 7,
+    "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10,
+    "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
+}
+
+CANONICAL_MONTH_NAMES = {
+    "jan": "January", "january": "January",
+    "feb": "February", "february": "February",
+    "mar": "March", "march": "March",
+    "apr": "April", "april": "April",
+    "may": "May",
+    "jun": "June", "june": "June",
+    "jul": "July", "july": "July",
+    "aug": "August", "august": "August",
+    "sep": "September", "september": "September", "sept": "September",
+    "oct": "October", "october": "October",
+    "nov": "November", "november": "November",
+    "dec": "December", "december": "December",
 }
 
 DROP_DUPLICATE_ROWS = False  # safety default: flag duplicates, never delete data silently
@@ -349,10 +373,10 @@ def clean_data(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
     for col in text_cols:
         df[col] = df[col].apply(lambda v: v.strip() if isinstance(v, str) else v)
 
-    # Normalize Period casing to Title Case ("MAY" -> "May") for consistent
-    # display, while a separate PeriodOrder column (added in transform)
+    # Normalize Period to full canonical month name ("Aug" / "AUG" -> "August", "MAY" -> "May")
+    # for consistent display, while a separate PeriodOrder column (added in transform)
     # preserves correct chronological sorting.
-    df["Period"] = df["Period"].astype(str).str.strip().str.title()
+    df["Period"] = df["Period"].astype(str).str.strip().str.lower().map(lambda x: CANONICAL_MONTH_NAMES.get(x, x.title()))
 
     # Coerce numeric metric columns; invalid entries become NaN (already
     # counted during validation) rather than silently becoming 0.
