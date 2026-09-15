@@ -852,8 +852,10 @@ def _clear_checkpoint(path, t0):
 
 def parse_month(val):
     if not val:
-        return '2026-Unknown'
+        return None
     s = str(val).strip()
+    if not s or s.lower() in ('none', 'nan', 'null'):
+        return None
     if s.startswith('2026-'):
         return s[:7]
     # Check for decimal representation like 202601.0
@@ -866,9 +868,9 @@ def parse_month(val):
     # Try datetime parse
     s_date = s.split(' ')[0].split('T')[0]
     for fmt in ('%Y-%m-%d', '%Y-%m'):
-        try: return datetime.strptime(s_date, fmt).strftime('%Y-%m')
+        try: return datetime.strftime(s_date, fmt).strftime('%Y-%m')
         except: pass
-    return '2026-Unknown'
+    return None
 
 def parse_hiring_date(val):
     if not val:
@@ -1055,7 +1057,7 @@ def get_progress(conn):
 # output-formatting changes). On mismatch the checkpoint is discarded and
 # the run starts clean, which costs one full re-read but guarantees every
 # row in the cache was produced by exactly one version of the rules.
-ETL_RULES_VERSION = '2026-09-10.q3_chc_hdrfix'  # 'q3_chc' = Q3 onboarding + CHC TargetIndex=1
+ETL_RULES_VERSION = '2026-09-15.fix_unknown_month'  # Exclude unparseable/blank date rows (removes 2026-Unknown month)
 # actual-sales preservation (e.g. Noon/online accounts). '_hdrfix' (same day, added on top): Q3_XLSX's
 # real file has one blank spacer row before its header (see the Q3_XLSX comment above) -- without
 # read_source_header() skipping it, every column resolves to None and validate_source() fails loud
@@ -1239,7 +1241,10 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
 
             if not skip_row:
                 month = parse_month(gv(r, col['Date']))
-                line = norm_line(gv(r, col['Line']))
+                if not month:
+                    skip_row = True
+                else:
+                    line = norm_line(gv(r, col['Line']))
 
                 # --- CHC exclusive source (2026-08-26) --------------------
                 # Applies to EVERY row (actual or target) regardless of
@@ -1591,7 +1596,11 @@ def validate_source(conn, label, xlsx_path, sheet_name):
         if d in (None, ''):
             null_date_rows += 1
         else:
-            months_seen.add(parse_month(d))
+            m = parse_month(d)
+            if m:
+                months_seen.add(m)
+            else:
+                null_date_rows += 1
         if ln in (None, ''):
             null_line_rows += 1
         if col['TargetIndex'] is not None and col['TargetIndex'] < len(r):
