@@ -619,6 +619,21 @@
         'that month, even if a real visit was logged &mdash; the same half-month roster rule the DV Coverage % ' +
         'denominator uses. A rep with no hire/resignation date on record either way is still counted normally.' +
       '</div>' +
+      // 2026-09-16, Ahmed: "consider leave rule in dv coverage kpi if one
+      // team member absent or take leave for full month ... eg if dm has 5
+      // medical rep in jul, 1 of them leave all july and he make double
+      // visits with 4 medical rep so his dv coverage is 100%".
+      '<div class="ci-methodology-body">' +
+        '<b>Sick Leave Impact Rule applies to the DV Coverage denominator.</b> A rep in the <b>Excluded</b> band ' +
+        'for a month (more than 15 sick days, or Maternity) is removed from that month&rsquo;s DV Coverage ' +
+        'denominator &mdash; a manager cannot double-visit someone who was not there, and leaving them in would ' +
+        'score him against a rep HR had already written off for the month. So a DM with 5 reps who loses 1 to ' +
+        'full-month leave and coaches the other 4 reads <b>100%</b>, not 80%. The rep stays visible on the roster ' +
+        'popup marked &ldquo;On leave&rdquo;, and a joint visit that did happen with them still counts &mdash; the ' +
+        'rule only ever removes them from the denominator, so absence can help a manager or be neutral, never ' +
+        'hurt him. Same Excluded band the Coverage / Right Frequency rule uses, so the platform has one ' +
+        'definition of &ldquo;not available this month&rdquo;.' +
+      '</div>' +
       '<div class="ci-methodology-source">Source: ' + esc(data.sourceFiles && data.sourceFiles.join(" &middot; ") || "Visits Details S1 DM.xlsx (Total sheet)") +
         ' &middot; matched against Database Shortcut.xlsx by employee Code &middot; ' + r.rowsProcessed + '/' + r.totalVisitRowsInSheet + ' visit rows processed &middot; generated ' + esc(data.generatedAt) + '.</div>' +
       '</div>';
@@ -1111,6 +1126,25 @@
     var notCoached = (bucket.notCoachedNames || []).slice().sort(byName);
     var periodLabel = isCum ? "YTD (Cumulative, Feb–Jul)" : monthShort(period) + " " + period.slice(0, 4);
     var covLabel = fmtPct1(bucket.dvCoveragePct);
+
+    // Sick Leave Impact Rule (2026-09-16): reps in the Excluded band that
+    // month (>15 sick days or Maternity) are out of the DV Coverage
+    // DENOMINATOR -- a manager cannot double-visit someone who was not
+    // there. They stay on the roster lists below, so this popup has to
+    // reconcile its own arithmetic to the headline %: without this, a
+    // manager would read "DV Coverage 100%" above "5 of 6 roster reps
+    // coached" and rightly distrust both numbers.
+    var leaveExcluded = bucket.leaveExcludedNames || [];
+    var leaveExcludedSet = {};
+    leaveExcluded.forEach(function (n) { leaveExcludedSet[String(n).toLowerCase()] = true; });
+    var isLeaveExcluded = function (it) { return !!leaveExcludedSet[String(it.name).toLowerCase()]; };
+    var rosterTotal = coached.length + notCoached.length;
+    var availableTotal = Math.max(0, rosterTotal - leaveExcluded.length);
+    var coachedAvailable = coached.filter(function (it) { return !isLeaveExcluded(it); }).length;
+    var countLabel = leaveExcluded.length
+      ? coachedAvailable + " of " + availableTotal + " available reps coached &middot; " +
+        leaveExcluded.length + " excluded (leave)"
+      : coached.length + " of " + rosterTotal + " roster reps coached";
     function listHtml(items, emptyMsg) {
       if (!items.length) return '<div style="font-size:12px;color:var(--txt2);padding:6px 0;">' + esc(emptyMsg) + "</div>";
       return '<ul style="margin:6px 0 0;padding-left:18px;">' +
@@ -1121,6 +1155,10 @@
           // half-month roster rule (etl) had that exact date in play for
           // THIS period -- see roster_name_detail()'s comment.
           if (it.note) metaBits.push('<span style="color:var(--acc1);">' + esc(it.note) + "</span>");
+          // Say so on the rep's own line, not just in the header count.
+          if (isLeaveExcluded(it)) {
+            metaBits.push('<span style="color:var(--acc3);font-weight:600;">On leave &mdash; excluded from denominator</span>');
+          }
           var metaHtml = metaBits.length
             ? '<div style="font-size:.78em;color:var(--txt2);margin-top:1px;">' + metaBits.join(" &middot; ") + "</div>"
             : "";
@@ -1134,7 +1172,7 @@
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">' +
       "<div>" +
       '<div class="section-title" style="margin:0;font-size:14px;">' + esc(manager.name) + " &middot; " + esc(periodLabel) + "</div>" +
-      '<div class="kpi-sub">DV Coverage ' + covLabel + " &middot; " + coached.length + " of " + (coached.length + notCoached.length) + " roster reps coached</div>" +
+      '<div class="kpi-sub">DV Coverage ' + covLabel + " &middot; " + countLabel + "</div>" +
       "</div>" +
       '<button class="tb-btn" id="coaching-rosterpopup-close">&times; Close</button>' +
       "</div>" +

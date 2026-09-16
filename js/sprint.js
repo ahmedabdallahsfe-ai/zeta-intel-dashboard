@@ -677,6 +677,80 @@
     return `<span class="sp-departing-badge" title="Resignation on file, last day ${esc(r.departingLastDay)} -- still counted this month">⚠ Departing ${esc(r.departingLastDay)}</span>`;
   }
 
+  // ---- Sick Leave Impact Rule surfacing (2026-09-16) -------------------
+  // Ahmed: "in zeta sprint any case is prorated flag it as prorated and if
+  // zero in kpi coverage and right frequency due to leave flag leave type
+  // and popup duration."
+  //
+  // Reads r.leaveDetail verbatim (etl/build_sprint_cache.py's
+  // build_leave_detail(), itself a straight copy of what refresh.py wrote
+  // into dashboard.json's leaveImpact block). Nothing here recomputes a
+  // band, a day count or a proration -- this file only decides wording.
+  //
+  // THE ONE DISTINCTION WORTH KEEPING STRAIGHT: "prorated" is a claim about
+  // this rep's SPRINT POINTS, not about what the Coverage dashboard did.
+  // Proration only ever touches the Right Frequency target, and Right
+  // Frequency is scored for Medical Rep alone -- CHC Sales Rep scores Sales
+  // + Coverage only (RF removed 2026-08-19), and DM/DSM/ASM/NSM score Team
+  // Avg + their own manager KPIs. So a DM with 10 sick days was genuinely
+  // prorated in the Coverage dashboard and still earns exactly the Sprint
+  // points he would have earned otherwise. The ETL settles this per record
+  // (showAsProrated); this file never re-decides it from the band.
+  function fmtDays(v) {
+    if (v == null) return "—";
+    return (Math.round(v * 10) / 10).toString();
+  }
+
+  function fmtPctFrac(v, dp) {
+    return v == null ? "—" : (v * 100).toFixed(dp == null ? 1 : dp) + "%";
+  }
+
+  /** Which of this rep's scored KPIs read zero AND have leave as a credible
+   * cause. Deliberately requires affectsScore, not merely "has leave on
+   * file": a rep with 2 sick days who scored zero Coverage scored zero on
+   * the merits, and labelling that "due to leave" would launder a real
+   * result into an excuse. */
+  function leaveZeroKpis(r) {
+    const d = r && r.leaveDetail;
+    if (!d || !d.affectsScore) return [];
+    const zero = [];
+    if (r.role === "Medical Rep" && r.rfPts === 0) zero.push("Right Frequency");
+    if (r.covPts === 0) zero.push("Coverage");
+    return zero;
+  }
+
+  function leaveBandLabel(d) {
+    if (d.isExcludedBand) {
+      return /maternity/i.test(d.typesLabel || "") ? "Maternity leave" : "Extended leave";
+    }
+    if (d.showAsProrated) return "Prorated";
+    if (d.band === "Moderate") return "On leave";
+    return "";
+  }
+
+  /** The row/modal badge. Silent for Normal-band leave on purpose: two or
+   * three sick days neither prorates anything nor explains a weak KPI, and
+   * badging it would train managers to ignore the badge. */
+  function leaveBadge(r) {
+    const d = r && r.leaveDetail;
+    if (!d) return "";
+    const label = leaveBandLabel(d);
+    if (!label) return "";
+    const zero = leaveZeroKpis(r);
+    const days = (d.leaveDays != null && d.leaveDays > 0) ? d.leaveDays : d.totalMonthDays;
+    const daysStr = days ? `${fmtDays(days)}d` : "";
+    const cls = zero.length ? "sp-leave-badge sp-leave-badge-zero"
+      : d.isExcludedBand ? "sp-leave-badge sp-leave-badge-excluded"
+      : d.showAsProrated ? "sp-leave-badge sp-leave-badge-prorated"
+      : "sp-leave-badge";
+    const icon = d.showAsProrated ? "⚖" : "🩺";
+    const zeroPart = zero.length ? ` · 0 pts ${zero.length === 2 ? "on both KPIs" : `on ${zero[0]}`}` : "";
+    const tip = d.showAsProrated
+      ? `Right Frequency target prorated to the active-working-days ratio (${d.typesLabel || "leave"}, ${daysStr} this month). Coverage reach is never prorated. Click for the dates and the before/after.`
+      : `${d.typesLabel || "Leave"} on record this month${daysStr ? ` (${daysStr})` : ""}.${zero.length ? " This is why the KPI reads zero." : ""} Click for the dates and the rule.`;
+    return `<span class="${cls} sp-leave-clickable" data-leave-code="${esc(r.code)}" title="${esc(tip)}">${icon} ${esc(label)}${daysStr ? ` ${esc(daysStr)}` : ""}${esc(zeroPart)}</span>`;
+  }
+
   // ---- Recognition eligibility floor (Medical Rep / CHC Sales Rep /
   // Brand Manager only) -- see the module docblock's "RECOGNITION
   // ELIGIBILITY FLOOR" entry for the full rationale. Gates the WINNER
@@ -1603,6 +1677,24 @@
   // ---- Expandable "How were points calculated?" (section 5) ----------
   // Reads the EXISTING engine's own salesPts/rfPts/covPts + the display
   // floor constants verbatim -- never a second competing formula.
+  /** One line inside "How were points calculated?" whenever the Sick Leave
+   * Impact Rule touched these numbers -- so the table's own figures
+   * reconcile without the reader having to open the badge popup. Silent
+   * when leave did not affect this rep's points (Normal band, or a tier
+   * whose Right Frequency is not scored). */
+  function leaveCalcNoteHtml(r) {
+    const d = r && r.leaveDetail;
+    if (!d || !d.affectsScore) return "";
+    const zero = leaveZeroKpis(r);
+    if (d.showAsProrated) {
+      const beforeAfter = (d.rightFreqBefore != null && d.rightFreqAfter != null)
+        ? ` Right Frequency ${fmtPctFrac(d.rightFreqBefore)} → <b>${fmtPctFrac(d.rightFreqAfter)}</b>; the figure above is the prorated one.`
+        : "";
+      return `<div class="sp-calc-leave-note">⚖ <b>Prorated</b> — ${esc(d.typesLabel || "Sick")} leave ${fmtDays(d.leaveDays)} days, so the Right Frequency target was prorated × ${d.activeRatio != null ? d.activeRatio.toFixed(3) : "—"}. Coverage reach was not prorated.${beforeAfter}${zero.length ? ` Still 0 points on ${esc(zero.join(" and "))}.` : ""} <span class="sp-leave-clickable sp-calc-leave-link" data-leave-code="${esc(r.code)}">See dates &amp; rule →</span></div>`;
+    }
+    return `<div class="sp-calc-leave-note">🩺 <b>${esc(leaveBandLabel(d))}</b> — ${esc(d.typesLabel || "Leave")} covering ${fmtDays(d.totalMonthDays)} days this month.${zero.length ? ` The 0 points on ${esc(zero.join(" and "))} reflect that absence, not a scoring gap.` : ""} <span class="sp-leave-clickable sp-calc-leave-link" data-leave-code="${esc(r.code)}">See dates &amp; rule →</span></div>`;
+  }
+
   function pointsCalcDetailsHtml(r, hasRf, maxSales, maxCoverage) {
     // FIXED 2026-08-19 (Ahmed flagged Adel AbdelAzim ElSayed AbdelAziz
     // Asfour, code 1262, CVM-I): a null value (no data, e.g. salesVal=0
@@ -1628,6 +1720,7 @@
       <div class="sp-calc-body">
         <table class="sp-calc-table"><thead><tr><th>KPI</th><th>Rep Value</th><th>Floor</th><th>Points Earned</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>
         <div class="sp-calc-total">TOTAL <b>${r.totalPts.toFixed(1)} / 100</b></div>
+        ${leaveCalcNoteHtml(r)}
       </div>
     </details>`;
   }
@@ -2036,7 +2129,7 @@
       <td class="sp-name">
         ${esc(r.name)}
         <div class="sp-tier-row">${recognitionTierBadgeHtml(d, r)}</div>
-        <div class="sp-sub">${esc(r.canonLine)} · ${esc(r.position || r.role)} · #${esc(r.code)} · ${probationBadge(r)}${departingBadge(r)}</div>
+        <div class="sp-sub">${esc(r.canonLine)} · ${esc(r.position || r.role)} · #${esc(r.code)} · ${probationBadge(r)}${departingBadge(r)}${leaveBadge(r)}</div>
         ${pointsCalcDetailsHtml(r, hasRf, maxSales, maxCoverage)}
       </td>
       <td>${kpiMedianBlock("Sales", r.achPct, d.lineAverageSales, d.salesVsAverage, r.salesPts, maxSales, d.salesFloorPass, "Sales", true, "Average")}</td>
@@ -2050,6 +2143,37 @@
     if (!items.length) return `<div style="padding:10px 0;color:#94A3B8;">None this month.</div>`;
     const rows = items.map(e => `<tr data-line="${esc(e.line || "")}" data-bu="${esc(e.bu || "")}"><td>${esc(e.code || "—")}</td><td>${esc(e.name)}</td><td>${esc(e.line || "")}</td><td>${esc(e.detail)}</td></tr>`).join("");
     return `<table${idPrefix ? ` id="${idPrefix}-body"` : ""}><thead><tr><th>Code</th><th>Name</th><th>Line</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function leaveAuditTable(items, idPrefix) {
+    if (!items.length) return `<div style="padding:10px 0;color:#94A3B8;">No rep's points were moved by the Sick Leave Impact Rule this month.</div>`;
+    const rows = items
+      .slice()
+      .sort((a, b) => (b.leaveDetail.leaveDays || 0) - (a.leaveDetail.leaveDays || 0))
+      .map(r => {
+        const d = r.leaveDetail;
+        const zero = leaveZeroKpis(r);
+        const rfCell = (d.rightFreqBefore != null && d.rightFreqAfter != null && d.showAsProrated)
+          ? `${fmtPctFrac(d.rightFreqBefore)} → <b>${fmtPctFrac(d.rightFreqAfter)}</b>`
+          : (r.rightFreqPct != null ? `${r.rightFreqPct.toFixed(1)}%` : "—");
+        return `<tr data-line="${esc(r.canonLine || "")}" data-bu="${esc(r.bu || "")}">
+          <td>${esc(r.code)}</td>
+          <td><button type="button" class="sp-member-link" data-code="${esc(r.code)}">${esc(r.name)}</button></td>
+          <td>${esc(r.canonLine || "")}</td>
+          <td>${esc(leaveBandLabel(d) || d.band)}</td>
+          <td>${esc(d.typesLabel || "")}</td>
+          <td>${fmtDays(d.leaveDays)}</td>
+          <td>${d.activeRatio != null ? d.activeRatio.toFixed(3) : "—"}</td>
+          <td>${rfCell}</td>
+          <td>${r.coveragePct != null ? r.coveragePct.toFixed(1) + "%" : "—"}</td>
+          <td>${zero.length ? `<span class="sp-leave-zero-cell">0 pts — ${esc(zero.join(" &amp; "))}</span>` : "—"}</td>
+          <td>${leaveBadge(r)}</td>
+        </tr>`;
+      }).join("");
+    return `<div class="sp-leave-audit-scroll"><table${idPrefix ? ` id="${idPrefix}-body"` : ""} class="sp-leave-audit-table">
+      <thead><tr><th>Code</th><th>Name</th><th>Line</th><th>Band</th><th>Type</th><th>Sick Days</th><th>Active Ratio</th><th>Right Freq (before → after)</th><th>Coverage</th><th>Zero KPI</th><th>Detail</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <div class="sp-leave-audit-foot">Right Frequency "before → after" is the Coverage engine's own pre/post-proration snapshot. Coverage reach is never prorated, so it has a single figure. Click any row's badge for the leave dates and the full rule.</div>`;
   }
 
   function departingTable(items, idPrefix) {
@@ -2123,6 +2247,12 @@
     const probExcl = scopedExcluded.filter(e => e.reason === "probation-not-passed");
     const inactiveExcl = scopedExcluded.filter(e => e.reason === "not-active-resigned");
     const departingSoon = cache.medicalRepSalesRep.departingSoon.filter(excludedInScope);
+    // Leave Impact audit (2026-09-16) -- the management view of the rule
+    // inside Sprint itself: every ranked Medical Rep whose leave this month
+    // actually moved their points (Moderate -> prorated Right Frequency, or
+    // Excluded band). Normal-band leave is deliberately absent: it changed
+    // nothing, and listing it would bury the cases that did.
+    const leaveAffected = all.filter(r => r.leaveDetail && r.leaveDetail.affectsScore);
 
     return `
       <div class="sp-section">
@@ -2149,6 +2279,7 @@
         <details><summary id="sp-probexcl-summary" data-label="Excluded — Probation not yet passed">Excluded — Probation not yet passed (${probExcl.length})</summary>${excludedTable(probExcl, "sp-probexcl")}</details>
         <details><summary id="sp-inactive-summary" data-label="Excluded — Inactive/Resigned">Excluded — Inactive/Resigned (${inactiveExcl.length})</summary>${excludedTable(inactiveExcl, "sp-inactive")}</details>
         <details><summary id="sp-departing-summary" data-label="Departing Soon">Departing Soon (${departingSoon.length})</summary>${departingTable(departingSoon, "sp-departing")}</details>
+        <details><summary id="sp-leaveaudit-summary" data-label="Leave Impact — Prorated &amp; Excluded">Leave Impact — Prorated &amp; Excluded (${leaveAffected.length})</summary>${leaveAuditTable(leaveAffected, "sp-leaveaudit")}</details>
       </div>
     `;
   }
@@ -2220,7 +2351,7 @@
       <td class="sp-name">
         ${esc(r.name)}
         <div class="sp-tier-row">${recognitionTierBadgeHtml(d, r)}</div>
-        <div class="sp-sub">${esc(r.position || "CHC Sales Rep")} · #${esc(r.code)} · ${probationBadge(r)}${departingBadge(r)}</div>
+        <div class="sp-sub">${esc(r.position || "CHC Sales Rep")} · #${esc(r.code)} · ${probationBadge(r)}${departingBadge(r)}${leaveBadge(r)}</div>
         ${pointsCalcDetailsHtml(r, false, 60, 40)}
       </td>
       <td>${kpiMedianBlock("Sales", r.achPct, d.lineAverageSales, d.salesVsAverage, r.salesPts, 60, d.salesFloorPass, "Sales", true, "Average")}</td>
@@ -2519,7 +2650,7 @@
 
     const bodyHtml = `
       <div class="sp-member-modal">
-        <div class="sp-member-modal-sub">${subInfo}${r.isDepartingSoon ? departingBadge(r) : ""}</div>
+        <div class="sp-member-modal-sub">${subInfo}${r.isDepartingSoon ? departingBadge(r) : ""}${leaveBadge(r)}</div>
         <div class="sp-member-modal-kpis">${kpisHtml}</div>
         <div class="sp-member-modal-total">
           <span class="sp-total-pts">${r.totalPts != null ? r.totalPts.toFixed(1) : "—"}</span>
@@ -2582,19 +2713,38 @@
       function byName(a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); }
       const coached = (detail.coachedNames || []).slice().sort(byName);
       const notCoached = (detail.notCoachedNames || []).slice().sort(byName);
+      // Sick Leave Impact Rule (2026-09-16, Ahmed: "not coached reason as in
+      // Coaching Intelligence"). Reps in the Excluded band that month are out
+      // of the DV Coverage DENOMINATOR, so this popup has to reconcile to the
+      // headline the same way Coaching Intelligence's roster popup does.
+      // Before this, a manager saw "DV Coverage 100.0%" sitting directly above
+      // "5 of 6 roster reps double-visited" and had no way to tell which
+      // number to believe.
+      const leaveExcluded = detail.leaveExcludedNames || [];
+      const leaveExcludedSet = {};
+      leaveExcluded.forEach(n => { leaveExcludedSet[String(n).toLowerCase()] = true; });
+      const isLeaveExcluded = it => !!leaveExcludedSet[String(it.name).toLowerCase()];
       function listHtml(items, emptyMsg) {
         if (!items.length) return `<div class="sp-coaching-empty">${esc(emptyMsg)}</div>`;
         return `<ul class="sp-coaching-namelist">${items.map(it => {
           const metaBits = [];
           if (it.position) metaBits.push(esc(it.position));
           if (it.note) metaBits.push(`<span class="sp-coaching-note">${esc(it.note)}</span>`);
+          // Name the reason on the rep's own line, not just in the header.
+          if (isLeaveExcluded(it)) metaBits.push('<span class="sp-coaching-leave">On leave &mdash; excluded from denominator</span>');
           const metaHtml = metaBits.length ? `<div class="sp-coaching-namemeta">${metaBits.join(" &middot; ")}</div>` : "";
           return `<li>${esc(it.name)}${metaHtml}</li>`;
         }).join("")}</ul>`;
       }
       const covLabel = detail.dvCoveragePct != null ? detail.dvCoveragePct.toFixed(1) + "%" : "—";
+      const rosterTotal = coached.length + notCoached.length;
+      const availableTotal = Math.max(0, rosterTotal - leaveExcluded.length);
+      const coachedAvailable = coached.filter(it => !isLeaveExcluded(it)).length;
+      const summaryLabel = leaveExcluded.length
+        ? `${coachedAvailable} of ${availableTotal} available reps double-visited this period &middot; ${leaveExcluded.length} excluded (leave)`
+        : `${coached.length} of ${rosterTotal} roster reps double-visited this period`;
       inner = `
-        <div class="sp-coaching-detail-summary">DV Coverage ${covLabel} &middot; ${coached.length} of ${coached.length + notCoached.length} roster reps double-visited this period</div>
+        <div class="sp-coaching-detail-summary">DV Coverage ${covLabel} &middot; ${summaryLabel}</div>
         <div class="sp-coaching-detail-cols">
           <div><div class="sp-coaching-col-title sp-coaching-col-coached">Coached (${coached.length})</div>${listHtml(coached, "No roster reps were coached this period.")}</div>
           <div><div class="sp-coaching-col-title sp-coaching-col-notcoached">Not Coached (${notCoached.length})</div>${listHtml(notCoached, "Every roster rep was coached this period.")}</div>
@@ -2715,7 +2865,191 @@
     _spModalOverlay = window.DS.openModal({ title: `${r.name} — Field Working Days detail`, bodyHtml });
   }
 
+  // ---- Sick Leave Impact detail popup (2026-09-16) --------------------
+  // Ahmed: "if zero in kpi coverage and right frequency due to leave flag
+  // leave type and popup duration." Same popup mechanism as the Coaching
+  // Intelligence and Field Working Days detail popups above (DS.openModal,
+  // .sp-coaching-back-link back to the member modal), so the three read
+  // alike. Everything shown is a value the ETL attached -- this function
+  // formats, it does not calculate.
+  function leaveRowsTableHtml(rows, period) {
+    if (!rows || !rows.length) return "";
+    const body = rows.map(r => {
+      const span = [r.dateFrom, r.dateTo].filter(Boolean).join(" → ") || "—";
+      // A leave block crossing a month boundary is counted where its days
+      // actually fell, so show both: the full span and this month's share.
+      // Without that, a 31-day block showing "13 days" looks like an error.
+      const inMonth = r.monthDays != null ? fmtDays(r.monthDays) : "—";
+      const spansMonths = r.months && Object.keys(r.months).length > 1;
+      const totalCell = r.effectiveDays !== r.totalDays
+        ? `${fmtDays(r.effectiveDays)} <span class="sp-leave-override">(claimed ${fmtDays(r.totalDays)}${r.doctorAction ? ` — ${esc(r.doctorAction)}` : ""})</span>`
+        : fmtDays(r.totalDays);
+      return `<tr${r.countsTowardBand ? "" : ' class="sp-leave-row-noncounting"'}>
+        <td>${esc(r.type || "Leave")}${r.countsTowardBand ? "" : ` <span class="sp-leave-nocount-tag">does not count toward the band</span>`}</td>
+        <td>${esc(span)}</td>
+        <td>${totalCell}</td>
+        <td>${inMonth}${spansMonths ? ` <span class="sp-leave-split-tag">of a block spanning ${esc(Object.keys(r.months).join(", "))}</span>` : ""}</td>
+      </tr>`;
+    }).join("");
+    return `<table class="sp-leave-detail-table">
+      <thead><tr><th>Type</th><th>Dates</th><th>Days (approved)</th><th>Days in ${esc(period)}</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+  }
+
+  function leaveRuleBoxHtml(d) {
+    const rule = (cache.meta && cache.meta.leaveRule) || {};
+    const nMax = rule.normalMaxDays != null ? rule.normalMaxDays : 5;
+    const mMax = rule.moderateMaxDays != null ? rule.moderateMaxDays : 15;
+    const std = rule.standardWorkingDays != null ? rule.standardWorkingDays : 22;
+    function li(from, to, label, text) {
+      const on = d.band === label;
+      return `<li class="${on ? "sp-leave-rule-on" : ""}"><b>${esc(from)}–${esc(to)}</b> ${esc(label)} — ${text}</li>`;
+    }
+    return `<div class="sp-leave-rule-box">
+      <div class="sp-leave-rule-head">Sick Leave Impact Rule — applied per rep, per month, on that month's own days</div>
+      <ul class="sp-leave-rule-list">
+        ${li(0, nMax, "Normal", "evaluated on 100% standard Coverage &amp; Frequency targets.")}
+        ${li(nMax + 1, mMax, "Moderate", `Right Frequency target prorated by the active-working-days ratio (${std} − leave days) ÷ ${std}. <b>Coverage reach is never prorated.</b>`)}
+        <li class="${d.band === "Excluded" ? "sp-leave-rule-on" : ""}"><b>&gt; ${esc(String(mMax))} days or Maternity</b> Excluded — territory flagged, out of every Coverage/Right&nbsp;Frequency rate and out of the competitive rep rankings on the Coverage dashboard. Tier A accounts reassigned to the Area Manager or a peer rep.</li>
+      </ul>
+      <div class="sp-leave-rule-foot">Only <b>Sick</b> days drive the band. Annual, Unpaid and Marriage leave are listed above for context but do not inflate the count — a planned absence is not the same commercial fact as an unplanned one. Maternity is an unconditional exclusion regardless of day count. Days are calendar days as the leave report states them.</div>
+    </div>`;
+  }
+
+  /** The reconciliation row nobody asks for until they spot the gap.
+   *
+   * The before/after pair above is the Coverage engine's own, computed over
+   * EVERY active row in the rep's territory. Zeta Sprint scores a narrower
+   * row set -- Medical Rep counts Contract/Doctor/Hospital accounts only,
+   * CHC Sales Rep counts Pharmacy only -- so the two figures are close but
+   * not identical (e.g. code 2210, July: 99 active rows at 76.8% Coverage
+   * across the whole territory, 97 scored rows at 78.4% once the two
+   * Distributor accounts drop out). Showing only one of the two would look
+   * like a data error the moment a manager compared it with the leaderboard
+   * cell three inches away, so both are shown, each labelled with its own
+   * scope. */
+  function sprintScoredRowsHtml(r, d) {
+    const isMedicalRep = r.role === "Medical Rep";
+    const covDiff = (d.coveragePct != null && r.coveragePct != null)
+      && Math.abs(d.coveragePct * 100 - r.coveragePct) > 0.05;
+    const rfDiff = (d.rightFreqAfter != null && r.rightFreqPct != null)
+      && Math.abs(d.rightFreqAfter * 100 - r.rightFreqPct) > 0.05;
+    const scopeNote = (covDiff || rfDiff)
+      ? ` The small difference is scope, not a discrepancy: the rows above cover the whole territory, while Zeta Sprint scores ${isMedicalRep ? "Contract, Doctor and Hospital accounts" : "Pharmacy accounts"} only.`
+      : "";
+    return `<table class="sp-leave-detail-table sp-leave-scored-table">
+        <tbody>
+          <tr><td colspan="2" class="sp-leave-scored-head">What Zeta Sprint actually scored</td></tr>
+          ${isMedicalRep ? `<tr><td>Right Frequency</td><td><b>${r.rightFreqPct != null ? r.rightFreqPct.toFixed(1) + "%" : "—"}</b> → ${r.rfPts != null ? r.rfPts.toFixed(1) : "—"} / 40 pts</td></tr>` : ""}
+          <tr><td>Coverage</td><td><b>${r.coveragePct != null ? r.coveragePct.toFixed(1) + "%" : "—"}</b> → ${r.covPts != null ? r.covPts.toFixed(1) : "—"} / ${isMedicalRep ? 10 : 40} pts</td></tr>
+        </tbody>
+      </table>
+      <div class="sp-leave-proration-foot">${d.showAsProrated ? "The Right Frequency figure Zeta Sprint scores is the <b>prorated</b> one." : "Zeta Sprint scored these raw figures as they stand — the rule's exclusion does not reach this leaderboard."}${scopeNote}${isMedicalRep ? "" : " Right Frequency is not a scored KPI for this role."}</div>`;
+  }
+
+  function leaveDetailModalBody(r) {
+    const d = r.leaveDetail;
+    const period = (cache.meta && cache.meta.evalPeriod) || "this month";
+    const zero = leaveZeroKpis(r);
+    const isMedicalRep = r.role === "Medical Rep";
+
+    const bannerCls = d.isExcludedBand ? "sp-leave-banner sp-leave-banner-excluded"
+      : d.showAsProrated ? "sp-leave-banner sp-leave-banner-prorated"
+      : "sp-leave-banner";
+    const bannerText = d.isExcludedBand
+      ? `<b>${esc(leaveBandLabel(d))}</b> — ${esc(d.typesLabel || "Leave")} covering ${fmtDays(d.totalMonthDays)} days of ${esc(period)}. Under the rule this rep is out of every Coverage / Right Frequency rate and out of the competitive rep rankings on the Coverage dashboard.`
+      : d.showAsProrated
+        ? `<b>Prorated</b> — ${esc(d.typesLabel || "Sick")} leave of ${fmtDays(d.leaveDays)} days in ${esc(period)} puts this rep in the Moderate band, so the Right Frequency target was prorated to the active-working-days ratio. Coverage reach was not prorated.`
+        : `<b>${esc(leaveBandLabel(d) || "Leave on record")}</b> — ${esc(d.typesLabel || "Leave")}, ${fmtDays(d.totalMonthDays)} days in ${esc(period)}.`;
+
+    // The honest caveat, stated up front where it matters: Sprint still
+    // scores an Excluded-band rep's raw Coverage/RF, even though the
+    // Coverage dashboard drops them from its rates and rankings. Saying so
+    // here is better than letting a manager infer that a zero next to
+    // "Excluded" was somehow already handled.
+    const stillScoredNote = d.isExcludedBand
+      ? `<div class="sp-leave-caveat">Zeta Sprint still scores this rep's raw Coverage and Right Frequency for ${esc(period)} — the exclusion above applies to the Coverage dashboard's rates and rankings, not to this leaderboard. That is why the KPI cells read ${zero.length ? "zero" : "as they do"}.</div>`
+      : "";
+
+    const zeroNote = zero.length
+      ? `<div class="sp-leave-zero-note"><b>0 points on ${esc(zero.join(" and "))}</b> — attributable to this leave, not to a scoring gap. ${
+          d.isExcludedBand
+            ? "The rep was not in territory for the period covered above, so there were no visits to credit."
+            : "Even after the prorated target, the remaining active days were not enough to clear the points floor."
+        }</div>`
+      : "";
+
+    // Proration before/after: refresh.py's own snapshot, taken before it
+    // touched anything. Never recomputed here -- see build_leave_detail().
+    let prorationHtml = "";
+    if (d.showAsProrated && d.rightFreqBefore != null && d.rightFreqAfter != null) {
+      const std = ((cache.meta && cache.meta.leaveRule) || {}).standardWorkingDays || 22;
+      const activeDays = d.leaveDays != null ? Math.max(0, std - d.leaveDays) : null;
+      prorationHtml = `<div class="sp-leave-proration">
+        <div class="sp-leave-proration-head">What proration actually did</div>
+        <table class="sp-leave-detail-table">
+          <tbody>
+            <tr><td>Active working days ratio</td><td>${activeDays != null ? `(${fmtDays(std)} − ${fmtDays(d.leaveDays)}) ÷ ${fmtDays(std)} = <b>${d.activeRatio != null ? d.activeRatio.toFixed(3) : "—"}</b>` : `<b>${d.activeRatio != null ? d.activeRatio.toFixed(3) : "—"}</b>`}</td></tr>
+            <tr><td>Per-account visit target</td><td>standard target × ${d.activeRatio != null ? d.activeRatio.toFixed(3) : "—"}, rounded down</td></tr>
+            <tr><td>Right Frequency before proration <span class="sp-leave-scope-tag">whole territory</span></td><td>${fmtPctFrac(d.rightFreqBefore)}</td></tr>
+            <tr class="sp-leave-proration-after"><td>Right Frequency after proration <span class="sp-leave-scope-tag">whole territory</span></td><td><b>${fmtPctFrac(d.rightFreqAfter)}</b>${d.rightFreqUpliftPp ? ` <span class="sp-leave-uplift">+${d.rightFreqUpliftPp.toFixed(1)} pp</span>` : ""}</td></tr>
+            <tr><td>Coverage <span class="sp-leave-scope-tag">whole territory · never prorated</span></td><td>${fmtPctFrac(d.coveragePct)}</td></tr>
+          </tbody>
+        </table>
+        ${sprintScoredRowsHtml(r, d)}
+      </div>`;
+    } else if (d.isProrated && !d.showAsProrated) {
+      prorationHtml = `<div class="sp-leave-caveat">The Coverage dashboard prorated this rep's Right Frequency target for ${esc(period)}. It does not change their Zeta Sprint points: Right Frequency is not a scored KPI for ${esc(r.role || "this tier")}.</div>`;
+    } else if (d.isExcludedBand && (r.coveragePct != null || r.rightFreqPct != null)) {
+      // No proration to explain -- but the same reconciliation question
+      // applies, and here it matters more: these are the numbers scoring
+      // zero. Show exactly what Sprint used.
+      prorationHtml = `<div class="sp-leave-proration">${sprintScoredRowsHtml(r, d)}</div>`;
+    }
+
+    const tierAHtml = (d.tierAUncovered != null && d.tierAUncovered > 0)
+      ? `<div class="sp-leave-tiera">Backup coverage: <b>${d.tierAUncovered}</b> of ${d.tierAAccounts != null ? d.tierAAccounts : "—"} Tier A accounts in this territory went uncovered in ${esc(period)} — the rule calls for these to be reassigned to the Area Manager or a peer rep.</div>`
+      : "";
+
+    return `<div class="sp-coaching-detail sp-leave-detail">
+      <div class="${bannerCls}">${bannerText}</div>
+      ${stillScoredNote}
+      ${zeroNote}
+      <div class="sp-leave-section-head">Leave on record in ${esc(period)}</div>
+      ${leaveRowsTableHtml(d.rows, period) || `<div class="sp-leave-empty">No dated leave rows for ${esc(period)} in the report.</div>`}
+      ${prorationHtml}
+      ${tierAHtml}
+      ${leaveRuleBoxHtml(d)}
+      <div class="sp-coaching-detail-source">Source: Sick Leave report.xlsx · bands, day counts and the before/after pair are read verbatim from the Coverage engine's own leave calculation${d.bandSource === "leave-report" ? " (this rep has no Coverage rows this month, so the band is computed from the report directly, using the identical rule function)" : ""}.</div>
+      <button type="button" class="sp-coaching-back-link" data-back-code="${esc(r.code)}">&larr; Back to ${esc(r.name)}</button>
+    </div>`;
+  }
+
+  function openLeaveDetailModal(code) {
+    if (!window.DS || typeof window.DS.openModal !== "function") {
+      console.error("[Sprint] DS.openModal is unavailable -- cannot show Leave Impact detail popup.");
+      return;
+    }
+    const found = findMemberRecord(code);
+    const r = found && found.data;
+    if (!r || !r.leaveDetail) return;
+    if (_spModalOverlay && typeof window.DS.closeModal === "function") window.DS.closeModal(_spModalOverlay);
+    _spModalOverlay = window.DS.openModal({
+      title: `${r.name} — Leave Impact detail`,
+      bodyHtml: leaveDetailModalBody(r),
+    });
+  }
+
   function onSprintDocumentClick(e) {
+    // Checked before .sp-member-link: the leave badge lives inside the name
+    // cell, which on the manager tiers is itself a member-link button.
+    const leaveLink = e.target.closest(".sp-leave-clickable");
+    if (leaveLink) {
+      e.stopPropagation();
+      openLeaveDetailModal(leaveLink.dataset.leaveCode);
+      return;
+    }
     const backBtn = e.target.closest(".sp-coaching-back-link");
     if (backBtn) {
       if (_spModalOverlay && window.DS && typeof window.DS.closeModal === "function") window.DS.closeModal(_spModalOverlay);
@@ -2880,7 +3214,7 @@
       ? hierarchyKpiBlock("Team Avg", r.teamAvgRaw, teamAvgCheck.avg, teamAvgCheck.pass, r.teamAvgPts, r.teamAvgWeight, false)
       : kpiBar("Team Avg", r.teamAvgRaw, r.teamAvgPts, r.teamAvgWeight);
     return `<tr class="sp-row${isWinner || isRunnerUp ? " sp-is-winner" : ""}" data-bu="${esc(r.bu || "")}" data-line="${esc(r.line || "")}" data-name="${esc(r.name)}" data-total="${r.totalPts != null ? r.totalPts.toFixed(1) : ""}" data-team-ach-pct="${r.teamSalesAchPct != null ? r.teamSalesAchPct : ""}" data-gate-pass="${d && d.winnerPoolEligible ? "1" : "0"}" data-search="${esc((r.name + " " + r.code).toLowerCase())}">
-      <td class="sp-name">${esc(r.name)}<span class="sp-winner-badge"${isWinner ? "" : ' style="display:none;"'}>🏆 WINNER${tieFlag}</span><span class="sp-runnerup-badge"${isRunnerUp ? "" : ' style="display:none;"'}>🏆 WINNER 2</span>${isBuLeader ? `<span class="sp-leader-badge" title="Top performer for the ${esc(r.bu)} business unit">🎖 BU Leader</span>` : ""}<div class="sp-sub">#${esc(r.code)}${lineBu ? ` · <span class="sp-manager-line-badge">${esc(lineBu)}</span>` : ""} · ${r.teamSize} eligible ${esc(noun)}${r.teamSize === 1 ? "" : "s"} in team · ${probationBadge(r)}${r.teamSize > 0 && r.teamSalesAchPct != null ? teamAchNote(r) : ""}${hierarchyGateNote(d)}</div>${teamDrilldown(r)}</td>
+      <td class="sp-name">${esc(r.name)}<span class="sp-winner-badge"${isWinner ? "" : ' style="display:none;"'}>🏆 WINNER${tieFlag}</span><span class="sp-runnerup-badge"${isRunnerUp ? "" : ' style="display:none;"'}>🏆 WINNER 2</span>${isBuLeader ? `<span class="sp-leader-badge" title="Top performer for the ${esc(r.bu)} business unit">🎖 BU Leader</span>` : ""}<div class="sp-sub">#${esc(r.code)}${lineBu ? ` · <span class="sp-manager-line-badge">${esc(lineBu)}</span>` : ""} · ${r.teamSize} eligible ${esc(noun)}${r.teamSize === 1 ? "" : "s"} in team · ${probationBadge(r)}${leaveBadge(r)}${r.teamSize > 0 && r.teamSalesAchPct != null ? teamAchNote(r) : ""}${hierarchyGateNote(d)}</div>${teamDrilldown(r)}</td>
       <td>${teamAvgCellHtml}</td>
       ${r.kpis.map(k => {
         const c = checksByKey[k.key];
@@ -3653,7 +3987,7 @@
     // (meetsSalesFloor/WINNER_FLOOR_ACH_PCT stay defined above for the
     // other tiers below, untouched.)
     wireLineFilter(document.getElementById("sp-line-filter"), "#sp-msr-body",
-      ["sp-probexcl", "sp-inactive", "sp-departing"],
+      ["sp-probexcl", "sp-inactive", "sp-departing", "sp-leaveaudit"],
       "sp-msr-winners-panel", () => msrLineSummary, true, document.getElementById("sp-msr-search"));
     // CHC Sales Rep: no Line dropdown, search-only -- see wireLineFilter's
     // searchInputEl doc comment above.

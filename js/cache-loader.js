@@ -70,7 +70,7 @@
       file: "cache/coaching.data.js",
       globalVar: "COACHING_CACHE",
       label: "Coaching intelligence",
-      version: "20260908_srdmcoverage",
+      version: "20260916_leavedenominator",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",

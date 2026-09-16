@@ -157,7 +157,7 @@
       employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
       coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
       plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
-      lastVisitDate: 22, area: 23,
+      lastVisitDate: 22, area: 23, isExempt: 24,
     };
 
     const latestPeriodIdx = (dims.periods || []).length - 1;
@@ -182,6 +182,9 @@
     });
 
     records.rows.forEach(row => {
+      // Sick Leave Impact Rule (2026-09-15): flagged rep-periods are out
+      // of the evaluated population -- see evaluated_rows() in refresh.py.
+      if (row[F.isExempt]) return;
       if (row[F.title] !== titleIdx) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
@@ -300,7 +303,7 @@
       employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
       coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
       plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
-      lastVisitDate: 22, area: 23,
+      lastVisitDate: 22, area: 23, isExempt: 24,
     };
 
     const latestPeriodIdx = (dims.periods || []).length - 1;
@@ -360,6 +363,12 @@
     });
 
     records.rows.forEach(row => {
+      // Sick Leave Impact Rule (2026-09-15): rep-periods flagged for
+      // >15 days Sick / Maternity are out of the evaluated population --
+      // their rows must not move the Executive Command Center's
+      // Operational Coverage / Right Frequency figures. Mirrors
+      // refresh.py's evaluated_rows() and analytics.js's eval* accumulators.
+      if (row[F.isExempt]) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
 
@@ -619,7 +628,7 @@
       employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
       coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
       plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
-      lastVisitDate: 22, area: 23,
+      lastVisitDate: 22, area: 23, isExempt: 24,
     };
 
     const latestPeriodIdx = (dims.periods || []).length - 1;
@@ -669,6 +678,12 @@
     });
 
     records.rows.forEach(row => {
+      // Sick Leave Impact Rule (2026-09-15): rep-periods flagged for
+      // >15 days Sick / Maternity are out of the evaluated population --
+      // their rows must not move the Executive Command Center's
+      // Operational Coverage / Right Frequency figures. Mirrors
+      // refresh.py's evaluated_rows() and analytics.js's eval* accumulators.
+      if (row[F.isExempt]) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
 
@@ -794,7 +809,7 @@
       employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
       coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
       plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
-      lastVisitDate: 22, area: 23,
+      lastVisitDate: 22, area: 23, isExempt: 24,
     };
 
     const latestPeriodIdx = (dims.periods || []).length - 1;
@@ -915,7 +930,7 @@
           employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
           coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
           plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
-          lastVisitDate: 22, area: 23,
+          lastVisitDate: 22, area: 23, isExempt: 24,
         };
         const latestPeriodIdx = (dims.periods || []).length - 1;
         const acc = new Map(); // areaIdx -> { coveredSum, rowCount }
@@ -927,6 +942,9 @@
 
         records.rows.forEach(row => {
           if (!row[F.isActive]) return;
+          // Sick Leave Impact Rule (2026-09-15): per-territory coverage is
+          // a rate, so flagged rep-periods stay out of it.
+          if (row[F.isExempt]) return;
           const check = teamChecks[row[F.team]];
           if (!check || !check.allowed || !check.isBu) return;
 
@@ -1008,7 +1026,7 @@
       employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
       coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
       plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
-      lastVisitDate: 22, area: 23,
+      lastVisitDate: 22, area: 23, isExempt: 24,
     };
 
     const latestPeriodIdx = (dims.periods || []).length - 1;
@@ -1051,6 +1069,12 @@
     });
 
     records.rows.forEach(row => {
+      // Sick Leave Impact Rule (2026-09-15): rep-periods flagged for
+      // >15 days Sick / Maternity are out of the evaluated population --
+      // their rows must not move the Executive Command Center's
+      // Operational Coverage / Right Frequency figures. Mirrors
+      // refresh.py's evaluated_rows() and analytics.js's eval* accumulators.
+      if (row[F.isExempt]) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
 
@@ -1103,7 +1127,7 @@
       employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
       coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
       plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
-      lastVisitDate: 22, area: 23,
+      lastVisitDate: 22, area: 23, isExempt: 24,
     };
 
     const latestPeriodIdx = (dims.periods || []).length - 1;
@@ -1145,6 +1169,12 @@
     });
 
     records.rows.forEach(row => {
+      // Sick Leave Impact Rule (2026-09-15): rep-periods flagged for
+      // >15 days Sick / Maternity are out of the evaluated population --
+      // their rows must not move the Executive Command Center's
+      // Operational Coverage / Right Frequency figures. Mirrors
+      // refresh.py's evaluated_rows() and analytics.js's eval* accumulators.
+      if (row[F.isExempt]) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
       if (row[F.manager] !== dmIdx) return;
@@ -1188,7 +1218,7 @@
       employee: 6, specialty: 7, klass: 8, status: 9, experience: 10, type: 11,
       coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
       plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
-      lastVisitDate: 22, area: 23,
+      lastVisitDate: 22, area: 23, isExempt: 24,
     };
 
     const latestPeriodIdx = (dims.periods || []).length - 1;
@@ -1229,6 +1259,12 @@
     });
 
     records.rows.forEach(row => {
+      // Sick Leave Impact Rule (2026-09-15): rep-periods flagged for
+      // >15 days Sick / Maternity are out of the evaluated population --
+      // their rows must not move the Executive Command Center's
+      // Operational Coverage / Right Frequency figures. Mirrors
+      // refresh.py's evaluated_rows() and analytics.js's eval* accumulators.
+      if (row[F.isExempt]) return;
       if (row[F.experience] !== expIdx) return;
       if (row[F.status] !== statusIdx) return;
       if (row[F.manager] !== dmIdx) return;

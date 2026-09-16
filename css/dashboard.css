@@ -609,7 +609,7 @@ ul.issue-list li {
 #sec-kol-coverage { border-top: 4px solid #F43F5E; }
 #sec-specialty-class { border-top: 4px solid #0EA5E9; }
 #sec-leaderboards { border-top: 4px solid #D97706; }
-#sec-attrition-vacancy { border-top: 4px solid #64748B; }
+/* #sec-attrition-vacancy removed 2026-09-16 (section deleted at Ahmed's request) */
 
 .dashboard-section.recomputing {
   opacity: 0.55;
@@ -3767,21 +3767,6 @@ body {
   background: #0284C7;
 }
 
-/* Status Pill for July 2026 Sales Draft */
-.july-v1-status-pill {
-  background: #FFFBEB;
-  color: #B45309;
-  border: 1px solid #FCD34D;
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  box-shadow: 0 1px 2px rgba(180, 83, 9, 0.08);
-}
-
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -4151,3 +4136,252 @@ body {
 }
 
 
+
+/* =====================================================================
+   SICK LEAVE IMPACT — "How Leave Affects Coverage & Right Frequency"
+   (#sec-leave-rule) and "Leave Impact & Excluded Reps — Management"
+   (#sec-leave-impact). Added 2026-09-16.
+
+   Built on the design-system tokens rather than new literals wherever a
+   token exists. The methodology box deliberately mirrors Coaching
+   Intelligence's .ci-methodology-box idiom (tinted panel, 3px left accent,
+   dashed rule between paragraphs, italic source line) so the two
+   explainers read as the same component family across workspaces.
+   ===================================================================== */
+
+#sec-leave-rule   { border-top: 4px solid #0D9488; }
+#sec-leave-impact { border-top: 4px solid #0D9488; }
+
+.lv-period {
+  font-size: 11px;
+  color: var(--color-text-tertiary, #94A3B8);
+  font-weight: 500;
+}
+
+/* ── the three bands ───────────────────────────────────────────────── */
+.lv-bands {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 0 0 18px;
+}
+.lv-band {
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-lg, 8px);
+  padding: 12px 14px;
+  background: #fff;
+}
+.lv-band.normal   { border-top: 3px solid var(--color-success, #15803D); }
+.lv-band.moderate { border-top: 3px solid var(--color-warning, #B45309); }
+.lv-band.excluded { border-top: 3px solid var(--color-danger,  #DC2626); }
+.lv-band-days {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary, #0F172A);
+  letter-spacing: -0.01em;
+}
+.lv-band-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 2px 0 8px;
+}
+.lv-band.normal   .lv-band-label { color: var(--color-success, #15803D); }
+.lv-band.moderate .lv-band-label { color: var(--color-warning, #B45309); }
+.lv-band.excluded .lv-band-label { color: var(--color-danger,  #DC2626); }
+.lv-band-rules {
+  margin: 0; padding: 0; list-style: none;
+  font-size: 11.5px;
+  color: var(--color-text-secondary, #64748B);
+  line-height: 1.55;
+}
+.lv-band-rules li { padding-left: 14px; position: relative; margin-bottom: 3px; }
+.lv-band-rules li:before {
+  content: "\203A";
+  position: absolute; left: 3px;
+  color: var(--color-text-tertiary, #94A3B8);
+  font-weight: 700;
+}
+.lv-band-rules .keep { color: var(--color-text-primary, #0F172A); font-weight: 600; }
+
+/* ── methodology box (mirrors .ci-methodology-box in coaching.css) ──── */
+.lv-method {
+  background: var(--color-surface-alt, #F8FAFC);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-left: 3px solid #0D9488;
+  border-radius: var(--radius-lg, 8px);
+  padding: 12px 16px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--color-text-secondary, #64748B);
+}
+.lv-method-title {
+  font-weight: 700;
+  color: var(--color-text-primary, #0F172A);
+  margin-bottom: 6px;
+  font-size: 12.5px;
+}
+.lv-method-body b { color: var(--color-text-primary, #0F172A); }
+.lv-method-body + .lv-method-body {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border, #E2E8F0);
+}
+.lv-method-source {
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--color-text-tertiary, #94A3B8);
+  font-style: italic;
+}
+
+/* ── summary tiles ─────────────────────────────────────────────────── */
+.lv-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.lv-tile {
+  background: var(--color-surface-alt, #F8FAFC);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-lg, 8px);
+  padding: 12px 14px;
+}
+.lv-tile-v {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary, #0F172A);
+  line-height: 1.1;
+}
+.lv-tile-l {
+  font-size: 10.5px;
+  color: var(--color-text-secondary, #64748B);
+  margin-top: 3px;
+  line-height: 1.35;
+}
+.lv-tile.alert .lv-tile-v { color: var(--color-danger,  #DC2626); }
+.lv-tile.warn  .lv-tile-v { color: var(--color-warning, #B45309); }
+
+/* ── band filter tabs ──────────────────────────────────────────────── */
+.lv-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.lv-tab {
+  border: 1px solid var(--color-border, #E2E8F0);
+  background: #fff;
+  border-radius: var(--radius-full, 999px);
+  padding: 5px 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #64748B);
+  cursor: pointer;
+  font-family: inherit;
+  transition: var(--transition-fast, 0.15s ease);
+}
+.lv-tab:hover { border-color: var(--color-border-strong, #CBD5E1); color: var(--color-text-primary, #0F172A); }
+.lv-tab.on { background: var(--color-primary, #0F4C81); border-color: var(--color-primary, #0F4C81); color: #fff; }
+.lv-tab .n { opacity: 0.7; margin-left: 5px; font-weight: 500; }
+
+/* ── the table ─────────────────────────────────────────────────────── */
+.lv-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-lg, 8px);
+}
+table.lv { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 920px; }
+.lv thead th {
+  background: var(--color-surface-alt, #F8FAFC);
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary, #64748B);
+  border-bottom: 1px solid var(--color-border, #E2E8F0);
+  white-space: nowrap;
+}
+.lv tbody td { padding: 9px 12px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
+.lv tbody tr:nth-child(even) { background: #FBFCFE; }
+.lv tbody tr:hover { background: #F1F5F9; }
+.lv tbody tr:last-child td { border-bottom: 0; }
+.lv .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lv .rep-name { font-weight: 600; color: var(--color-text-primary, #0F172A); }
+.lv .rep-sub { font-size: 10.5px; color: var(--color-text-tertiary, #94A3B8); margin-top: 1px; }
+.lv .dash { color: var(--color-text-tertiary, #94A3B8); }
+.lv-empty {
+  text-align: center;
+  padding: 18px;
+  color: var(--color-text-tertiary, #94A3B8);
+  font-size: 12px;
+}
+
+.lv .pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: var(--radius-full, 999px);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.lv .pill.normal   { background: var(--color-success-light, #DCFCE7); color: var(--color-success, #15803D); }
+.lv .pill.moderate { background: var(--color-warning-light, #FEF3C7); color: var(--color-warning, #B45309); }
+.lv .pill.excluded { background: var(--color-danger-light,  #FEE2E2); color: var(--color-danger,  #DC2626); }
+
+.lv .rf-shift { display: flex; align-items: center; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+.lv .rf-before { color: var(--color-text-tertiary, #94A3B8); font-variant-numeric: tabular-nums; }
+.lv .rf-after  { font-weight: 700; font-variant-numeric: tabular-nums; }
+.lv .rf-up     { color: var(--color-success, #15803D); }
+.lv .rf-flat   { color: var(--color-text-secondary, #64748B); }
+.lv .rf-arrow  { color: var(--color-text-tertiary, #94A3B8); font-size: 11px; }
+
+.lv .risk { font-weight: 700; font-variant-numeric: tabular-nums; }
+.lv .risk.hi  { color: var(--color-danger,  #DC2626); }
+.lv .risk.mid { color: var(--color-warning, #B45309); }
+.lv .risk.ok  { color: var(--color-success, #15803D); }
+
+/* Backup coverage is a DERIVED status, not a stored one -- this is a static
+   site with no backend, so a clickable "assign" control would lose whatever
+   was typed on the next refresh. Status is computed from the Tier A coverage
+   data itself (2026-09-16 decision). */
+.lv-need    { color: var(--color-danger,  #DC2626); font-weight: 600; font-size: 11px; }
+.lv-covered { color: var(--color-success, #15803D); font-weight: 600; font-size: 11px; }
+
+.lv .grp-row td {
+  background: #F8FAFC;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary, #64748B);
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--color-border, #E2E8F0);
+}
+.lv-foot {
+  font-size: 11px;
+  color: var(--color-text-tertiary, #94A3B8);
+  margin-top: 10px;
+  line-height: 1.5;
+}
+.lv-foot b { color: var(--color-text-secondary, #64748B); }
+
+@media (max-width: 1100px) {
+  .lv-tiles { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 820px) {
+  .lv-bands { grid-template-columns: 1fr; }
+  .lv-tiles { grid-template-columns: 1fr; }
+}
+
+/* Month column — only rendered when the Period filter has more than one
+   month in scope, since each month is banded on its own leave days and the
+   table then lists rep-months rather than reps (2026-09-16). */
+.lv .lv-month {
+  font-weight: 600;
+  color: var(--color-text-secondary, #64748B);
+  white-space: nowrap;
+}

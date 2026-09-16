@@ -62,6 +62,7 @@ METHODOLOGY (confirmed with Ahmed, 2026-08-15):
 """
 import re
 import os
+import sys
 import base64
 import gzip
 import json
@@ -73,6 +74,19 @@ import openpyxl
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_DIR = os.path.join(ROOT_DIR, 'cache')
+
+# Sick Leave Impact Rule -- THE shared definition, never a local copy.
+# See leave_rules.py's header. Zeta Sprint deliberately re-derives NOTHING:
+# every band, day count and proration outcome it displays is read straight
+# out of what refresh.py already computed (dashboard.json's leaveImpact
+# block). Only the leave TYPE and the date span -- which the band math
+# discards on purpose -- are read from the report itself, through the same
+# shared module. A second engine computing "the same" bands here is exactly
+# how the two would quietly drift apart.
+sys.path.insert(0, ROOT_DIR)
+import leave_rules  # noqa: E402
+
+LEAVE_REPORT_PATH = os.path.join(ROOT_DIR, leave_rules.LEAVE_REPORT_FILENAME)
 DB_PATH = os.path.join(ROOT_DIR, 'Database Shortcut.xlsx')
 SCALING_PATH = os.path.join(ROOT_DIR, 'zeta sprint', 'scaling scores.xlsx')
 TEMPLATE_PATH = os.path.join(ROOT_DIR, 'zeta sprint', 'Sprint_Missing_KPI_Template.xlsx')
@@ -100,7 +114,20 @@ OUT_JSON = os.path.join(CACHE_DIR, 'sprint.json')
 HISTORY_DIR = os.path.join(CACHE_DIR, 'sprint_history')
 HISTORY_INDEX_JS = os.path.join(HISTORY_DIR, 'index.js')
 
-SCHEMA_VERSION = 13  # 13 (2026-09-11): fieldDays KPI (DM/DSM, ASM, AND NSM)
+SCHEMA_VERSION = 14  # 14 (2026-09-16): every tier's record gains leaveDetail
+                      # wherever the Sick Leave report has a row in the eval
+                      # month -- band, sick days, active ratio, Right
+                      # Frequency before -> after, plus each leave row's TYPE
+                      # and date span. meta.leaveRule carries the thresholds
+                      # and this period's counts. Read verbatim from
+                      # dashboard.json's leaveImpact block (refresh.py's own
+                      # output) + leave_rules.load_leave_rows(); NOTHING is
+                      # recomputed and no score, rank, badge or payout moves.
+                      # Ahmed 2026-09-16: "in zeta sprint any case is prorated
+                      # flag it as prorated and if zero in kpi coverage and
+                      # right frequency due to leave flag leave type and popup
+                      # duration".
+                      # 13 (2026-09-11): fieldDays KPI (DM/DSM, ASM, AND NSM)
                       # gains a workingDaysDetail record + source='workingdays'
                       # wherever cache/working_days.json has a matching
                       # code+month -- makes the Field Working Days KPI cell
@@ -356,6 +383,142 @@ def _rescaled_power_curve(x0_pct, span_pct, lo=1.0, hi=10.0, exp=1.1, x_max_pct=
             x -= 1e-9
         curve.append((x, round(y, 6)))
     return curve
+
+
+def build_leave_detail(dash, period_name):
+    """Per-employee Sick Leave Impact detail for ONE period, keyed by code.
+
+    Ahmed, 2026-09-16: "in zeta sprint any case is prorated flag it as
+    prorated and if zero in kpi coverage and right frequency due to leave
+    flag leave type and popup duration."
+
+    Two sources, each used for exactly what it is authoritative for:
+
+      1. dashboard.json's leaveImpact[period].reps -- refresh.py's OWN
+         output. Band, sick-day count, active ratio, and the before/after
+         Right Frequency pair are taken verbatim from here. Sprint never
+         recomputes them. (It could not do so honestly anyway: the source
+         workbook's Right Freq column is not a pure visits>=frequency test
+         -- 812 of July's 64,491 Normal-band rows disagree with that
+         recomputation in both directions -- so any "what would it have
+         been without proration" number Sprint derived for itself would be
+         wrong for ~1.3% of rows and unfalsifiable. rightFreqBefore is the
+         real pre-proration snapshot, taken inside refresh.py before it
+         touched anything.)
+
+      2. leave_rules.load_leave_rows() -- the report's own rows, for the
+         leave TYPE and the date span, which (1) discards by design.
+
+    Emits `affectsScore` per rep: whether the leave actually moved that
+    rep's SPRINT points, which is narrower than "was prorated" and must not
+    be conflated with it:
+      - Medical Rep, Moderate  -> yes. Right Frequency is 40 of their 100
+        points and its target was prorated.
+      - CHC Sales Rep, Moderate -> NO. CHC scores Sales (60) + Coverage
+        (40) only; Right Frequency plays no part in CHC at all (removed
+        2026-08-19), and Coverage reach is never prorated. Badging a CHC
+        rep "Prorated" would claim a scoring effect that did not happen.
+      - DM/DSM/ASM/NSM, Moderate -> NO. Their Sprint score is Team Avg +
+        their own manager KPIs; their personal coverage rows are not
+        scored here at all, even though refresh.py did prorate them for
+        the Coverage dashboard.
+      - Any tier, Excluded (>15 sick days or Maternity) -> yes. Their
+        Coverage/RF collapse toward zero because they were not in
+        territory, and Sprint still scores those raw values.
+    """
+    out = {}
+    block = ((dash.get('leaveImpact') or {}).get('periods') or {}).get(period_name) or {}
+    raw_rows = leave_rules.load_leave_rows(LEAVE_REPORT_PATH)
+
+    # Every code touched by EITHER source -- a rep can have an Annual-only
+    # row (no leaveImpact entry, since Annual drives no band) and still
+    # deserve the absence shown when a manager asks why a number is low.
+    codes = {str(r.get('employeeCode') or '') for r in (block.get('reps') or [])}
+    for code, rows in raw_rows.items():
+        if leave_rules.rows_in_month(rows, period_name):
+            codes.add(code)
+    codes.discard('')
+
+    impact_by_code = {str(r.get('employeeCode') or ''): r for r in (block.get('reps') or [])}
+
+    for code in codes:
+        imp = impact_by_code.get(code) or {}
+        month_rows = leave_rules.rows_in_month(raw_rows.get(code, []), period_name)
+        # Ordered longest-first: the row that explains the band leads.
+        month_rows.sort(key=lambda r: (-(r.get('monthDays') or 0), r.get('dateFrom') or ''))
+        # Band source, in order of authority:
+        #   1. refresh.py's own leaveImpact entry -- verbatim, always wins.
+        #   2. No entry at all (rep has leave on file but no Coverage rows
+        #      this month -- e.g. on probation, or absent the whole month
+        #      so nothing was planned). refresh.py never saw them, so there
+        #      is nothing to copy; fall back to the SHARED leave_band()
+        #      with the same day count, which is the same function refresh.py
+        #      itself ran. Without this, a rep on maternity leave for the
+        #      entire month reads "band: Normal" next to "type: Maternity"
+        #      -- self-contradictory on screen, and wrong.
+        month_sick = sum((r.get('monthDays') or 0) for r in month_rows if r.get('countsTowardBand'))
+        month_maternity = any(r.get('isMaternity') for r in month_rows)
+        if imp:
+            band = imp.get('band') or leave_rules.BAND_NORMAL
+            band_source = 'coverage-etl'
+        else:
+            band = leave_rules.leave_band(month_sick, month_maternity)
+            band_source = 'leave-report'
+        types = []
+        for r in month_rows:
+            t = (r.get('type') or 'Leave').strip().title()
+            if t not in types:
+                types.append(t)
+        rf_before = imp.get('rightFreqBefore')
+        rf_after = imp.get('rightFreqAfter')
+        out[code] = {
+            'band': band,
+            'bandSource': band_source,
+            'reason': imp.get('reason') or ('Maternity Leave' if month_maternity else ''),
+            # Band-driving (Sick) days this month. refresh.py's number where
+            # it has one; otherwise the same sum off the report's own rows.
+            'leaveDays': imp.get('leaveDays') if imp else round(month_sick, 1),
+            'activeRatio': imp.get('activeRatio') if imp else round(leave_rules.active_ratio(month_sick), 3),
+            'rightFreqBefore': rf_before,
+            'rightFreqAfter': rf_after,
+            'rightFreqUpliftPp': (round((rf_after - rf_before) * 1000) / 10.0
+                                   if (rf_before is not None and rf_after is not None) else None),
+            'coveragePct': imp.get('coveragePct'),
+            'customerCount': imp.get('customerCount'),
+            'tierAAccounts': imp.get('tierAAccounts'),
+            'tierAUncovered': imp.get('tierAUncovered'),
+            'typesLabel': ' + '.join(types) if types else '',
+            'totalMonthDays': round(sum((r.get('monthDays') or 0) for r in month_rows), 1),
+            'rows': month_rows,
+            'isProrated': band == leave_rules.BAND_MODERATE,
+            'isExcludedBand': band == leave_rules.BAND_EXCLUDED,
+        }
+    return out
+
+
+def attach_leave_detail(rec_lists, leave_detail, scored_kpi_tiers):
+    """Hang build_leave_detail()'s per-code entry on every record that has
+    one, setting `affectsScore` per that record's own role (see
+    build_leave_detail's docstring for why this is narrower than band).
+    Returns the records it touched."""
+    touched = []
+    for rec_list in rec_lists:
+        for rec in rec_list:
+            d = leave_detail.get(str(rec.get('code') or ''))
+            if not d:
+                continue
+            role = rec.get('role') or ''
+            rf_is_scored = role in scored_kpi_tiers
+            detail = dict(d)
+            detail['affectsScore'] = bool(
+                d['isExcludedBand'] or (d['isProrated'] and rf_is_scored)
+            )
+            # "Prorated" is a claim about THIS rep's Sprint points, not about
+            # what refresh.py did to the Coverage dashboard -- see above.
+            detail['showAsProrated'] = bool(d['isProrated'] and rf_is_scored)
+            rec['leaveDetail'] = detail
+            touched.append(rec)
+    return touched
 
 
 def main():
@@ -1235,6 +1398,17 @@ def main():
                 coachedOffRoster=month.get('coachedOffRoster'),
                 coachedNames=month.get('coachedNames') or [],
                 notCoachedNames=month.get('notCoachedNames') or [],
+                # Sick Leave Impact Rule (2026-09-16): the reps dropped from
+                # this month's DV Coverage DENOMINATOR because they were in
+                # the Excluded band. Carried through so Sprint's own DV
+                # Coverage popup can reconcile its arithmetic the way
+                # Coaching Intelligence's roster popup already does --
+                # without it the popup reads "5 of 6 roster reps" directly
+                # beneath a 100.0% KPI, which is the contradiction Ahmed
+                # caught on 2026-09-16. activeTeamSize above is ALREADY
+                # leave-adjusted; these are the names behind the gap.
+                leaveExcludedNames=month.get('leaveExcludedNames') or [],
+                activeTeamSizeBeforeLeave=month.get('activeTeamSizeBeforeLeave'),
                 visits=month.get('visits'),
                 coachingDays=month.get('coachingDays'),
                 avgVisitsPerDay=month.get('avgVisitsPerDay'),
@@ -1827,6 +2001,39 @@ def main():
     log('attached Direct Manager / Direct Manager BU / email to every tier (Database Shortcut.xlsx)')
 
     # -----------------------------------------------------------------
+    # 5b. Sick Leave Impact detail (2026-09-16) -- see build_leave_detail().
+    # Purely additive: not one raw value, point, rank, badge or payout
+    # above or below this block changes. It attaches the WHY behind a
+    # prorated or collapsed KPI so a manager reading a zero can see the
+    # leave type and dates without leaving Sprint.
+    # -----------------------------------------------------------------
+    leave_detail = build_leave_detail(dash, EVAL_PERIOD_NAME)
+    attached_recs = attach_leave_detail(
+        [results, excluded, dm_results, asm_results, nsm_results, bm_results],
+        leave_detail,
+        scored_kpi_tiers={'Medical Rep'},   # the only tier whose own Right Frequency is scored
+    )
+    # Counted over ATTACHED records, not over the raw report. The report
+    # covers the whole company (Finance, Office, Field alike) -- 43 codes
+    # have July leave but only some are on a Sprint tier at all, and a
+    # headline of 43 on a Sprint page would invite a reconciliation that
+    # can never close.
+    leave_summary = {
+        'period': EVAL_PERIOD_NAME,
+        'reportFound': os.path.exists(LEAVE_REPORT_PATH),
+        'normalMaxDays': leave_rules.SICK_LEAVE_NORMAL_MAX_DAYS,
+        'moderateMaxDays': leave_rules.SICK_LEAVE_MODERATE_MAX_DAYS,
+        'standardWorkingDays': leave_rules.STANDARD_MONTHLY_WORKING_DAYS,
+        'onRecord': len(attached_recs),
+        'prorated': sum(1 for r in attached_recs if r['leaveDetail']['showAsProrated']),
+        'excludedBand': sum(1 for r in attached_recs if r['leaveDetail']['isExcludedBand']),
+        'inReport': len(leave_detail),
+    }
+    log(f'attached Sick Leave Impact detail to {len(attached_recs)} record(s) across all tiers '
+        f'({leave_summary["prorated"]} scored-as-prorated, {leave_summary["excludedBand"]} excluded-band; '
+        f'{leave_summary["inReport"]} codes have {EVAL_PERIOD_NAME} leave in the report company-wide)')
+
+    # -----------------------------------------------------------------
     # 6. Assemble + write cache.
     # -----------------------------------------------------------------
     cache = {
@@ -1836,6 +2043,10 @@ def main():
             'evalPeriod': EVAL_PERIOD_NAME,
             'periodStart': EVAL_PERIOD_START.isoformat(),
             'periodEnd': EVAL_PERIOD_END.isoformat(),
+            # Sick Leave Impact Rule thresholds + this period's counts, so
+            # the UI states the rule from the engine's own constants rather
+            # than hard-coding "6-15 days" in a second place.
+            'leaveRule': leave_summary,
             'methodology': {
                 'probationRule': 'Hire day 1-15 -> ref = 1st of same month; 16-31 -> ref = 1st of next month; '
                                   'probation passes 3 months after ref. Eligible for month M if pass-date <= 1st of M.',

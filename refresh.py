@@ -162,6 +162,25 @@ TOP_BOTTOM_N = 10          # leaderboard size
 MIN_CUSTOMERS_FOR_LEADERBOARD = 5  # exclude reps with too few customers to rank fairly
 TOP_N_SPECIALTY_CLASS = 15  # cap on Specialty/Class breakdown rows sent to the dashboard
 
+# --- SFE Sick Leave Impact Rule (Ahmed, 2026-09-15) ---
+# Evaluated per rep per PERIOD (month), using that month's own Sick-type
+# leave day count (Ahmed's explicit choice: keep the existing per-month
+# grain rather than a Feb-June cumulative total).
+# The rule itself -- thresholds, the Doctor-Action day overrides and the
+# month-splitting -- now lives in leave_rules.py, which THIS file and
+# etl/build_coaching_cache.py both import. Coaching Intelligence applies the
+# same Excluded band to its DV Coverage denominator (Ahmed, 2026-09-16), so
+# the two engines have to agree on who was absent and by how much. They only
+# agree if there is exactly one definition. Do not re-declare these here.
+from leave_rules import (  # noqa: E402  (config block, deliberately not top-of-file)
+    SICK_LEAVE_NORMAL_MAX_DAYS,
+    SICK_LEAVE_MODERATE_MAX_DAYS,
+    STANDARD_MONTHLY_WORKING_DAYS,
+    TIER_A_CLASS_PREFIX,
+    resolve_effective_leave_days as _resolve_effective_leave_days,
+    split_days_by_month as _split_days_by_month,
+)
+
 
 # ---------------------------------------------------------------------------
 # LOGGING
@@ -431,8 +450,362 @@ def transform_data(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
     for col in ("Manager", "Area Manager", "National Sales Manager"):
         df[f"{col}_IsVacant"] = df[col].astype(str).str.upper().str.startswith(VACANT_PREFIX)
 
-    logger.info("Transformation complete: added PeriodOrder, IsActive/IsResigned, vacancy flags")
+    df = apply_sick_leave_rules(df, logger)
+
+    logger.info("Transformation complete: added PeriodOrder, IsActive/IsResigned, vacancy flags, leave rules")
     return df
+
+
+# _resolve_effective_leave_days() and _split_days_by_month() used to be
+# defined here. They now come from leave_rules.py (imported in the config
+# block above) so Coaching Intelligence scores leave identically. Local
+# copies were deleted rather than left in place: defined below the import
+# they would have SHADOWED it, and the two engines would have drifted with
+# nothing on screen to show it.
+
+
+def apply_sick_leave_rules(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
+    """Load Sick Leave report.xlsx if present, map Sick-type leave days per
+    employee and period, and apply Ahmed's SFE Sick Leave Impact Rule
+    (2026-09-15), evaluated per rep per PERIOD using that month's own Sick
+    day count (kept at the existing per-month grain, not a Feb-June
+    cumulative total -- Ahmed's explicit choice when asked):
+      1. 0-5 days:  Normal. Evaluate on standard 100% Coverage & Frequency targets.
+      2. 6-15 days: Moderate. Auto-prorate the Right Frequency target by the
+         active-working-days ratio. Coverage reach requirement is UNCHANGED
+         (never prorated -- only Right Frequency is).
+      3. >15 days (or Type=Maternity, any day count): High/Extended. Flag
+         the rep's territory: IsExempt=True (excluded from competitive
+         rankings downstream in build_leaderboards), and the rep's Tier A
+         accounts currently uncovered are surfaced separately by
+         build_territory_flags() for manual reassignment to the Area
+         Manager / a peer rep -- this function does NOT auto-recompute
+         Coverage/Right-Frequency credit for anyone else (Ahmed confirmed
+         "flag only", 2026-09-15; no backup-rep mapping exists in the data).
+
+    Only Type == "Sick" rows count toward these day thresholds -- the
+    report also tracks Annual/Unpaid/Marriage/Maternity leave, which are
+    not "Sick Leave" under this rule and would otherwise wrongly inflate a
+    rep's day count (e.g. a legitimate 10-day annual vacation). Maternity
+    is handled separately as an unconditional exempt flag, as before.
+    """
+    sl_path = SCRIPT_DIR / "Sick Leave report.xlsx"
+    if not sl_path.exists():
+        logger.info("No Sick Leave report found at %s. Skipping leave adjustments.", sl_path)
+        df["LeaveDays"] = 0.0
+        df["IsExempt"] = False
+        df["ExemptReason"] = ""
+        df["ActiveRatio"] = 1.0
+        df["Right Freq Raw"] = df["Right Freq"]
+        df["LeaveBand"] = "Normal"
+        df["ProratedFrequency"] = -1
+        return df
+
+    try:
+        sl_df = pd.read_excel(sl_path)
+        sl_df["Code"] = sl_df["Code"].apply(lambda v: str(int(v)) if isinstance(v, (int, float)) and not pd.isna(v) else str(v).strip())
+        sl_df["Date from"] = pd.to_datetime(sl_df["Date from"], errors="coerce")
+        sl_df["Date to"] = pd.to_datetime(sl_df["Date to"], errors="coerce")
+
+        # Build a per-leave-record list of {Employee Code, Period, LeaveDays,
+        # LeaveType}, one row per (record x month it touches).
+        leave_records = []
+        for _, row in sl_df.iterrows():
+            code = str(row["Code"])
+            ltype = str(row.get("Type", "Sick")).strip()
+            raw_total = float(row.get("Total", 0) or 0)
+            action_val = row.get("Doctor Action")
+            action_text = str(action_val) if pd.notna(action_val) else ""
+            eff_days = _resolve_effective_leave_days(raw_total, action_text)
+            dfrom = row["Date from"]
+
+            if pd.isna(dfrom):
+                leave_records.append({"Employee Code": code, "Period": "ALL", "LeaveDays": eff_days, "LeaveType": ltype})
+                continue
+
+            for mname, days in _split_days_by_month(dfrom, eff_days).items():
+                leave_records.append({"Employee Code": code, "Period": mname, "LeaveDays": days, "LeaveType": ltype})
+
+        leave_df = pd.DataFrame(leave_records)
+        if leave_df.empty:
+            df["LeaveDays"] = 0.0
+            df["IsExempt"] = False
+            df["ExemptReason"] = ""
+            df["ActiveRatio"] = 1.0
+            df["Right Freq Raw"] = df["Right Freq"]
+            df["LeaveBand"] = "Normal"
+            df["ProratedFrequency"] = -1
+            return df
+
+        is_sick = leave_df["LeaveType"].astype(str).str.lower().eq("sick")
+        sick_leave_df = leave_df[is_sick]
+
+        # Sick-day totals (the day-bucket rule) -- Sick type only.
+        leave_by_period = sick_leave_df[sick_leave_df["Period"] != "ALL"].groupby(["Employee Code", "Period"]).agg(
+            LeaveDays=("LeaveDays", "sum"),
+        ).reset_index()
+        leave_all = sick_leave_df[sick_leave_df["Period"] == "ALL"].groupby("Employee Code").agg(
+            LeaveDays_All=("LeaveDays", "sum"),
+        ).reset_index()
+
+        # Maternity flag -- any leave type text containing "maternity",
+        # regardless of the day-bucket math above.
+        is_maternity = leave_df["LeaveType"].astype(str).str.lower().eq("maternity")
+        maternity_periods = leave_df[is_maternity & (leave_df["Period"] != "ALL")][["Employee Code", "Period"]].drop_duplicates()
+        maternity_periods["IsMaternityPeriod"] = True
+        maternity_all = leave_df[is_maternity & (leave_df["Period"] == "ALL")]["Employee Code"].drop_duplicates().to_frame()
+        maternity_all["IsMaternityAll"] = True
+
+        df = df.merge(leave_by_period, on=["Employee Code", "Period"], how="left")
+        df = df.merge(leave_all, on="Employee Code", how="left")
+        df = df.merge(maternity_periods, on=["Employee Code", "Period"], how="left")
+        df = df.merge(maternity_all, on="Employee Code", how="left")
+
+        df["LeaveDays"] = df["LeaveDays"].fillna(df["LeaveDays_All"]).fillna(0.0)
+        df["IsMaternityPeriod"] = df["IsMaternityPeriod"].fillna(False) | df["IsMaternityAll"].fillna(False)
+
+        df.drop(columns=["LeaveDays_All", "IsMaternityAll"], errors="ignore", inplace=True)
+
+        # Vectorized rule calculations
+        ldays = df["LeaveDays"]
+
+        # Snapshot the untouched workbook value BEFORE any proration below.
+        # build_leave_impact() reports Right Frequency as before -> after so a
+        # manager can see what the rule actually did for each rep, rather than
+        # having to take the adjusted number on faith.
+        df["Right Freq Raw"] = df["Right Freq"]
+
+        df["ActiveRatio"] = np.maximum(0.0, (STANDARD_MONTHLY_WORKING_DAYS - ldays) / STANDARD_MONTHLY_WORKING_DAYS)
+
+        df["IsExempt"] = (ldays > SICK_LEAVE_MODERATE_MAX_DAYS) | df["IsMaternityPeriod"]
+        df["ExemptReason"] = np.where(
+            df["IsMaternityPeriod"],
+            "Maternity Leave",
+            np.where(df["IsExempt"], "Extended Sick Leave (" + ldays.round(1).astype(str) + " days)", "")
+        )
+
+        # Moderate band (6-15 days): prorate the Right Frequency target by
+        # the active-working-days ratio. Coverage ("Covered Doctors") is
+        # never touched here -- the reach requirement stays at 100%.
+        prorated_tgt = np.floor(df["Frequency"].fillna(0) * df["ActiveRatio"])
+        meets_prorated = (df["Visits Count"].fillna(0) >= prorated_tgt) & (prorated_tgt > 0)
+        moderate_mask = (
+            (ldays > SICK_LEAVE_NORMAL_MAX_DAYS)
+            & (ldays <= SICK_LEAVE_MODERATE_MAX_DAYS)
+            & (~df["IsExempt"])
+        )
+        df.loc[moderate_mask & meets_prorated, "Right Freq"] = 1.0
+
+        # Persist the prorated target per row (2026-09-16, Ahmed: "add a
+        # Prorated Target column, yes, for prorated only"). Until now
+        # prorated_tgt lived and died inside this function: it decided the
+        # Right Freq flag and was thrown away, so the Coverage drilldown
+        # popups kept showing the STANDARD target next to an Actual that
+        # had already been judged against a softer one -- a row reading
+        # "Target 2 / Actual 1 / Below" when the rule had in fact credited
+        # it. Storing the number here rather than recomputing floor() in
+        # JavaScript keeps one definition of the rule, the same reason
+        # leave_rules.py exists.
+        #
+        # -1 means "not prorated -- the standard target stands", which is
+        # every Normal-band row, every Excluded-band row (their targets are
+        # never softened, they leave the rates entirely) and every row when
+        # no leave report is present. A real 0 is meaningful and different:
+        # a Frequency-1 account prorated to floor(1 x 0.727) = 0, which the
+        # meets_prorated guard above (prorated_tgt > 0) refuses to credit.
+        # The two must stay distinguishable on screen.
+        df["ProratedFrequency"] = np.where(moderate_mask, prorated_tgt, -1).astype(int)
+
+        # Band label per row, for build_leave_impact()'s management panel.
+        df["LeaveBand"] = np.where(
+            df["IsExempt"], "Excluded",
+            np.where(moderate_mask, "Moderate", "Normal"),
+        )
+
+        df.drop(columns=["IsMaternityPeriod"], errors="ignore", inplace=True)
+
+        exempt_count = int(df.loc[df["IsExempt"], "Employee Code"].nunique())
+        moderate_count = int(df.loc[moderate_mask, "Employee Code"].nunique())
+        logger.info(
+            "Sick Leave report applied: %d rep-period(s) moderate (6-15 Sick days, RF prorated), "
+            "%d rep(s) flagged extended (>15 Sick days / Maternity) across any period",
+            moderate_count, exempt_count,
+        )
+
+    except Exception as e:
+        logger.warning("Failed to apply Sick Leave report: %s", e)
+
+    return df
+
+
+def _leave_impact_rows_for_period(df_period: pd.DataFrame, period: str) -> list[dict]:
+    """One row per rep with leave on record in ONE period. The Sick Leave
+    Impact Rule is evaluated per rep per month, so each period is scored on
+    its own days, its own band and its own before/after -- a rep can be
+    Excluded in June and Normal in July, and both are true."""
+    with_leave = df_period[(df_period["LeaveDays"].fillna(0) > 0) | (df_period["IsExempt"].fillna(False))]
+    if with_leave.empty:
+        return []
+
+    is_tier_a = with_leave["Class"].astype(str).str.upper().str.startswith(TIER_A_CLASS_PREFIX)
+
+    rows = []
+    for code, g in with_leave.groupby("Employee Code"):
+        tier_a = g[is_tier_a.reindex(g.index, fill_value=False)]
+        uncovered = tier_a[tier_a["Covered Doctors"].fillna(0) == 0]
+        band = str(g["LeaveBand"].iloc[0])
+        days = float(g["LeaveDays"].iloc[0] or 0)
+        reason = str(g["ExemptReason"].iloc[0] or "")
+        if not reason:
+            reason = "Target prorated" if band == "Moderate" else "Full standard targets"
+        rows.append({
+            "period": period,
+            "employeeCode": str(code),
+            "employee": str(g["Employee"].iloc[0]),
+            "team": str(g["Team"].iloc[0]),
+            "businessUnit": str(g["Business Unit"].iloc[0]),
+            "manager": str(g["Manager"].iloc[0]),
+            "title": str(g["Title"].iloc[0]),
+            "band": band,
+            "reason": reason,
+            "leaveDays": safe_round(days, 1),
+            "activeRatio": safe_round(g["ActiveRatio"].iloc[0], 3),
+            "customerCount": int(len(g)),
+            "rightFreqBefore": safe_round(g["Right Freq Raw"].mean()),
+            "rightFreqAfter": safe_round(g["Right Freq"].mean()),
+            "coveragePct": safe_round(g["Covered Doctors"].mean()),
+            "tierAAccounts": int(len(tier_a)),
+            "tierAUncovered": int(len(uncovered)),
+            # Names only for the excluded reps -- these are the accounts a
+            # manager has to physically reassign, and they ride along as a
+            # tooltip rather than another drill-down modal.
+            "tierAUncoveredCustomers": (
+                sorted(uncovered["Customer Name"].dropna().astype(str).unique().tolist())[:25]
+                if band == "Excluded" else []
+            ),
+        })
+
+    band_order = {"Excluded": 0, "Moderate": 1, "Normal": 2}
+    rows.sort(key=lambda r: (band_order.get(r["band"], 9), -(r["tierAUncovered"] or 0), -(r["leaveDays"] or 0)))
+    return rows
+
+
+def build_leave_impact(df: pd.DataFrame, latest_period: str, logger: logging.Logger) -> dict:
+    """Everything the Coverage tab's "Leave Impact & Excluded Reps" panel
+    needs, built for EVERY period in the workbook rather than just the latest
+    (Ahmed, 2026-09-16: "make it dynamic when filter by month and calculation
+    on monthly basis according each month"). The panel then answers the
+    Period filter client-side without another ETL run.
+
+    Per period, one row per rep who has ANY leave on record, with the band the
+    rule put them in that month and what it actually did to their numbers.
+    Deliberately covers all three bands, not just the excluded ones: a
+    manager's question is two-sided -- "whose target did we soften, and who
+    dropped out of the ranking entirely" -- and both answers belong in one
+    table. Right Frequency is reported before -> after (see the "Right Freq
+    Raw" snapshot in apply_sick_leave_rules) so the rule's effect per rep is
+    visible rather than implied; a rep whose actual visits still missed even
+    the prorated target shows a flat value, which is the honest outcome and
+    not a bug.
+
+    Excluded reps keep their own real figures here -- that is the point of the
+    panel -- even though they contribute to no rate or ranking anywhere else.
+    """
+    rule = {
+        "normalMaxDays": SICK_LEAVE_NORMAL_MAX_DAYS,
+        "moderateMaxDays": SICK_LEAVE_MODERATE_MAX_DAYS,
+        "standardMonthlyDays": STANDARD_MONTHLY_WORKING_DAYS,
+        "tierAPrefix": TIER_A_CLASS_PREFIX,
+    }
+    if "LeaveBand" not in df.columns:
+        return {"latestPeriod": latest_period, "periods": {}, "periodOrder": [], "rule": rule}
+
+    active = df[df["IsActive"]]
+    ordered = (
+        active.dropna(subset=["PeriodOrder"])[["Period", "PeriodOrder"]]
+        .drop_duplicates().sort_values("PeriodOrder")["Period"].tolist()
+    )
+
+    periods: dict[str, dict] = {}
+    for period in ordered:
+        reps = _leave_impact_rows_for_period(active[active["Period"] == period], period)
+        periods[period] = {
+            "reps": reps,
+            "summary": {
+                "excluded": sum(1 for r in reps if r["band"] == "Excluded"),
+                "moderate": sum(1 for r in reps if r["band"] == "Moderate"),
+                "normal": sum(1 for r in reps if r["band"] == "Normal"),
+                "tierAUncovered": sum(r["tierAUncovered"] for r in reps if r["band"] == "Excluded"),
+            },
+        }
+
+    latest = periods.get(latest_period, {}).get("summary", {})
+    logger.info(
+        "Leave impact built for %d period(s) [%s]; latest (%s): %d rep(s) with leave "
+        "(%d excluded, %d prorated, %d normal), %d Tier A account(s) uncovered",
+        len(periods), ", ".join(f"{p}:{len(periods[p]['reps'])}" for p in ordered),
+        latest_period, len(periods.get(latest_period, {}).get("reps", [])),
+        latest.get("excluded", 0), latest.get("moderate", 0),
+        latest.get("normal", 0), latest.get("tierAUncovered", 0),
+    )
+    return {
+        "latestPeriod": latest_period,
+        "periodOrder": ordered,
+        "periods": periods,
+        # Surfaced in the panel's methodology box so the rule on screen can
+        # never drift from the constants the ETL actually applied.
+        "rule": rule,
+    }
+
+
+def build_territory_flags(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logger: logging.Logger) -> list[dict]:
+    """'Flag Territory' list for the SFE Sick Leave Impact Rule's >15-day
+    band: reps flagged IsExempt in the latest period, with their Tier A
+    (Class starting with TIER_A_CLASS_PREFIX) accounts that are currently
+    uncovered -- the accounts Ahmed's rule says should be reassigned to
+    the Area Manager / a peer rep for backup coverage.
+
+    Flag-only (Ahmed confirmed 2026-09-15): this list is informational.
+    It does not change who gets Coverage/Right-Frequency credit anywhere
+    else in the pipeline -- there is no backup-rep mapping in the source
+    data to recompute against.
+    """
+    if "IsExempt" not in roster.columns:
+        return []
+
+    latest_roster = roster[(roster["Period"] == latest_period) & (roster["IsExempt"])]
+    if latest_roster.empty:
+        logger.info("Territory flags: no extended-leave reps in latest period (%s)", latest_period)
+        return []
+
+    latest_rows = df[df["Period"] == latest_period]
+    is_tier_a = latest_rows["Class"].astype(str).str.upper().str.startswith(TIER_A_CLASS_PREFIX)
+
+    flags = []
+    for _, r in latest_roster.iterrows():
+        code = r["Employee Code"]
+        rep_rows = latest_rows[latest_rows["Employee Code"] == code]
+        tier_a_rows = rep_rows[is_tier_a.reindex(rep_rows.index, fill_value=False)]
+        uncovered = tier_a_rows[tier_a_rows["Covered Doctors"].fillna(0) == 0]
+        flags.append({
+            "employeeCode": str(code),
+            "employee": r["Employee"],
+            "team": r["Team"],
+            "manager": r["Manager"],
+            "areaManager": r.get("AreaManager", ""),
+            "leaveDays": safe_round(r.get("LeaveDays"), 1),
+            "exemptReason": str(r.get("ExemptReason", "")),
+            "tierAAccountCount": int(len(tier_a_rows)),
+            "tierAUncoveredCount": int(len(uncovered)),
+            "tierAUncoveredCustomers": sorted(uncovered["Customer Name"].dropna().astype(str).unique().tolist())[:25],
+        })
+
+    flags.sort(key=lambda f: -f["tierAUncoveredCount"])
+    logger.info(
+        "Territory flags built: %d extended-leave rep(s) in latest period, %d with uncovered Tier A accounts",
+        len(flags), sum(1 for f in flags if f["tierAUncoveredCount"] > 0),
+    )
+    return flags
 
 
 # ---------------------------------------------------------------------------
@@ -455,29 +828,36 @@ def build_roster(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
     from. Counting raw Details rows for these would count customers, not
     employees."""
     t0 = time.time()
-    roster = df.groupby(["Employee Code", "Period"], as_index=False).agg(
-        PeriodOrder=("PeriodOrder", "first"),
-        Employee=("Employee", "first"),
-        Title=("Title", "first"),
-        Profile=("Profile", "first"),
-        Team=("Team", "first"),
-        BusinessUnit=("Business Unit", "first"),
-        NationalSalesManager=("National Sales Manager", "first"),
-        AreaManager=("Area Manager", "first"),
-        Manager=("Manager", "first"),
-        Experience=("Experience", "first"),
-        Active=("Active", "first"),
-        IsActive=("IsActive", "first"),
-        IsResigned=("IsResigned", "first"),
-        HiringDate=("Hiring Date", "first"),
-        ResignationDate=("Resignation Date", "first"),
-        CustomerCount=("Customer Code", "count"),
-        CoveragePct=("Covered Doctors", "mean"),
-        RightFreqPct=("Right Freq", "mean"),
-        TotalVisits=("Visits Count", "sum"),
-        TotalPlans=("Plans Count", "sum"),
-        AvgFrequencyAchievement=("Actual Plan Coverage", "mean"),
-    )
+    agg_dict = {
+        "PeriodOrder": ("PeriodOrder", "first"),
+        "Employee": ("Employee", "first"),
+        "Title": ("Title", "first"),
+        "Profile": ("Profile", "first"),
+        "Team": ("Team", "first"),
+        "BusinessUnit": ("Business Unit", "first"),
+        "NationalSalesManager": ("National Sales Manager", "first"),
+        "AreaManager": ("Area Manager", "first"),
+        "Manager": ("Manager", "first"),
+        "Experience": ("Experience", "first"),
+        "Active": ("Active", "first"),
+        "IsActive": ("IsActive", "first"),
+        "IsResigned": ("IsResigned", "first"),
+        "HiringDate": ("Hiring Date", "first"),
+        "ResignationDate": ("Resignation Date", "first"),
+        "CustomerCount": ("Customer Code", "count"),
+        "CoveragePct": ("Covered Doctors", "mean"),
+        "RightFreqPct": ("Right Freq", "mean"),
+        "TotalVisits": ("Visits Count", "sum"),
+        "TotalPlans": ("Plans Count", "sum"),
+        "AvgFrequencyAchievement": ("Actual Plan Coverage", "mean"),
+    }
+    if "IsExempt" in df.columns:
+        agg_dict["IsExempt"] = ("IsExempt", "max")
+        agg_dict["ExemptReason"] = ("ExemptReason", "first")
+        agg_dict["LeaveDays"] = ("LeaveDays", "max")
+        agg_dict["ActiveRatio"] = ("ActiveRatio", "first")
+
+    roster = df.groupby(["Employee Code", "Period"], as_index=False).agg(**agg_dict)
     logger.info("Roster built: %d employee-period rows from %d detail rows in %.2fs",
                 len(roster), len(df), time.time() - t0)
     return roster
@@ -499,19 +879,98 @@ def count_vacant_slots(df: pd.DataFrame, period: str) -> dict[str, int]:
     }
 
 
+def build_leaderboards(roster: pd.DataFrame, latest_period: str, logger: logging.Logger) -> dict:
+    """Top/Bottom employees by Coverage % in the latest period, excluding
+    reps with too few customers to rank meaningfully or on extended leave/maternity.
+    """
+    FIELD_REP_TITLES = {"Medical Representative", "Sales Representative"}
+    latest_active = roster[(roster["Period"] == latest_period) & (roster["IsActive"])]
+    is_exempt_mask = latest_active["IsExempt"] if "IsExempt" in latest_active.columns else pd.Series(False, index=latest_active.index)
+    
+    qualified = latest_active[
+        (latest_active["CustomerCount"] >= MIN_CUSTOMERS_FOR_LEADERBOARD)
+        & (latest_active["Title"].isin(FIELD_REP_TITLES))
+        & (~is_exempt_mask)
+    ]
+
+    exempt_reps = latest_active[is_exempt_mask & (latest_active["Title"].isin(FIELD_REP_TITLES))]
+
+    def to_rows(sub: pd.DataFrame) -> list[dict]:
+        rows = []
+        for _, r in sub.iterrows():
+            item = {
+                "employee": r["Employee"],
+                "profile": r["Profile"],
+                "team": r["Team"],
+                "manager": r["Manager"],
+                "customerCount": int(r["CustomerCount"]),
+                "coveragePct": safe_round(r["CoveragePct"]),
+                "rightFreqPct": safe_round(r["RightFreqPct"]),
+            }
+            if "IsExempt" in r and r["IsExempt"]:
+                item["isExempt"] = True
+                item["exemptReason"] = str(r.get("ExemptReason", ""))
+            rows.append(item)
+        return rows
+
+    top_sorted = qualified.sort_values(["CoveragePct", "Employee"], ascending=[False, True])
+    bottom_sorted = qualified.sort_values(["CoveragePct", "Employee"], ascending=[True, True])
+
+    logger.info("Leaderboards built: %d qualified reps (>= %d customers), %d exempt reps", len(qualified), MIN_CUSTOMERS_FOR_LEADERBOARD, len(exempt_reps))
+    return {
+        "top": to_rows(top_sorted),
+        "bottom": to_rows(bottom_sorted),
+        "exempt": to_rows(exempt_reps)
+    }
+
+
+def evaluated_rows(data: pd.DataFrame) -> pd.DataFrame:
+    """The EVALUATED population: everything except rep-periods flagged by
+    the Sick Leave Impact Rule's >15-day / Maternity band (IsExempt).
+
+    Ahmed validated this 2026-09-15 against CVM-II/August: with the one
+    flagged rep (Maternity, own Coverage 56% / RF 6%) still inside the
+    team average, CVM-II read 96.2% / 81.3%; with her removed it reads
+    97.4% / 83.5%, which is the number the business expects. So "exclude
+    from competitive rep rankings" applies to the RATE metrics at every
+    rollup level, not just to the Top/Bottom leaderboard lists -- a rep
+    who structurally could not work the territory must not drag down the
+    team/BU/corporate execution rate.
+
+    Applies ONLY to rate metrics (Coverage %, Right Frequency %, Average
+    Frequency Achievement). Volume and count metrics -- headcount,
+    customer counts, visits, target visits, not-seen counts, attrition,
+    vacancy -- deliberately keep counting flagged reps, because their
+    uncovered customers are a real business gap (that gap is exactly what
+    the Sick Leave Territory Flags panel exists to surface). Removing
+    them from the counts too would hide the problem instead of measuring
+    it."""
+    if "IsExempt" not in data.columns:
+        return data
+    return data[~data["IsExempt"].fillna(False).astype(bool)]
+
+
 def coverage_rollup(df: pd.DataFrame, group_col: str, period: str) -> pd.DataFrame:
     """Row-weighted Coverage%/Right Freq% rollup for any grouping column,
     restricted to active reps in the given period. Row-weighted means each
     rep contributes one row per customer, so a rep with more customers
     naturally carries proportionally more weight in the group's rate --
-    the statistically correct way to roll up a rate metric."""
+    the statistically correct way to roll up a rate metric.
+
+    Sick Leave Impact Rule (2026-09-15): the two RATES come from the
+    evaluated population only (see evaluated_rows()), while CustomerRows
+    still counts every active row in scope -- the flagged rep's customers
+    are still real customers in that team/specialty, they just don't get
+    a vote on the execution rate."""
     scoped = df[(df["Period"] == period) & (df["IsActive"])]
-    grouped = scoped.groupby(group_col).agg(
+    rates = evaluated_rows(scoped).groupby(group_col).agg(
         CoveragePct=("Covered Doctors", "mean"),
         RightFreqPct=("Right Freq", "mean"),
+    ).reset_index()
+    counts = scoped.groupby(group_col).agg(
         CustomerRows=("Customer Code", "count"),
     ).reset_index()
-    return grouped
+    return counts.merge(rates, on=group_col, how="left")
 
 
 def safe_round(value: Any, ndigits: int = 4) -> float | None:
@@ -531,12 +990,17 @@ def build_kpis(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logge
     resigned = int(latest_roster["IsResigned"].sum())
     vacancy = count_vacant_slots(df, latest_period)
 
-    coverage_pct = latest_active_rows["Covered Doctors"].mean() if len(latest_active_rows) else 0.0
-    right_freq_pct = latest_active_rows["Right Freq"].mean() if len(latest_active_rows) else 0.0
+    # Rate metrics come from the evaluated population (Sick Leave Impact
+    # Rule -- see evaluated_rows()); volume/count metrics below keep
+    # counting every active rep, flagged or not.
+    eval_rows = evaluated_rows(latest_active_rows)
+    eval_roster = evaluated_rows(latest_active_roster)
+    coverage_pct = eval_rows["Covered Doctors"].mean() if len(eval_rows) else 0.0
+    right_freq_pct = eval_rows["Right Freq"].mean() if len(eval_rows) else 0.0
 
     customers_per_rep = (headcount and len(latest_active_rows) / headcount) or 0.0
     avg_visits = (headcount and latest_active_roster["TotalVisits"].sum() / headcount) or 0.0
-    avg_freq_achievement = latest_active_roster["AvgFrequencyAchievement"].mean() if headcount else 0.0
+    avg_freq_achievement = eval_roster["AvgFrequencyAchievement"].mean() if len(eval_roster) else 0.0
 
     span_by_manager = latest_active_roster.groupby("Manager")["Employee Code"].nunique()
     span_of_control = float(span_by_manager.mean()) if len(span_by_manager) else 0.0
@@ -606,10 +1070,14 @@ def build_trend(df: pd.DataFrame, roster: pd.DataFrame, logger: logging.Logger) 
         covered_sum = int(active_rows["Covered Doctors"].fillna(0).sum())
         over_freq_count = int((active_rows["Visits Count"] > active_rows["Frequency"]).sum())
         below_freq_count = int((active_rows["Visits Count"] < active_rows["Frequency"]).sum())
+        # Rates over the evaluated population only (Sick Leave Impact Rule);
+        # every count/volume field below still spans all active rows.
+        eval_rows = evaluated_rows(active_rows)
+        eval_count = len(eval_rows)
         rows.append({
             "period": period,
-            "coveragePct": safe_round(active_rows["Covered Doctors"].mean()) if row_count else None,
-            "rightFreqPct": safe_round(active_rows["Right Freq"].mean()) if row_count else None,
+            "coveragePct": safe_round(eval_rows["Covered Doctors"].mean()) if eval_count else None,
+            "rightFreqPct": safe_round(eval_rows["Right Freq"].mean()) if eval_count else None,
             "headcount": active_headcount,
             "activeReps": active_headcount,
             "resignedReps": int(period_roster["IsResigned"].sum()),
@@ -948,6 +1416,29 @@ def build_records(df: pd.DataFrame, dimensions: dict, logger: logging.Logger) ->
     area_lookup = {v: i for i, v in enumerate(dimensions["areas"])}
     columns.append(df["Area"].astype(str).map(area_lookup).fillna(-1).astype(int).to_numpy())
     field_names.append("areaIdx")
+    # Sick Leave Impact Rule flag (2026-09-15) -- so the client-side
+    # Aggregation Engine (analytics.js) can exclude extended-leave/
+    # maternity reps from its own live-recomputed rankings, the same way
+    # build_leaderboards() already does server-side. 0/1, not the fuller
+    # ExemptReason text -- keep records.json's per-row payload minimal;
+    # the reason/day-count/Tier-A detail lives in dashboard.json's
+    # territoryFlags instead.
+    if "IsExempt" in df.columns:
+        columns.append(df["IsExempt"].fillna(False).astype(int).to_numpy())
+    else:
+        columns.append(np.zeros(len(df), dtype=int))
+    field_names.append("isExempt")
+    # Prorated visit target per row (2026-09-16) -- the Moderate-band
+    # target the rule actually judged this row against, or -1 where the
+    # standard target stands. Feeds the "Prorated Target" column in the
+    # Total Customers drilldowns (js/analytics.js -> js/app.js). Guarded
+    # like isExempt above: apply_sick_leave_rules() swallows its own
+    # exceptions, so the column can legitimately be absent.
+    if "ProratedFrequency" in df.columns:
+        columns.append(df["ProratedFrequency"].fillna(-1).astype(int).to_numpy())
+    else:
+        columns.append(np.full(len(df), -1, dtype=int))
+    field_names.append("proratedFrequency")
 
     rows = np.column_stack(columns).tolist()
     logger.info("Records cache built: %d rows x %d fields in %.2fs", len(rows), len(field_names), time.time() - t0)
@@ -1000,7 +1491,10 @@ def build_rf_insights(df: pd.DataFrame, latest_period: str,
     latest_roster = roster[roster["Period"] == latest_period]
     active_roster = latest_roster[latest_roster["IsActive"]]
 
-    exp_groups = active_rows.groupby("Experience", dropna=True).agg(
+    # RF by experience is a rate -> evaluated population only (Sick Leave
+    # Impact Rule). The at-risk customer lists further below deliberately
+    # keep every active row, flagged reps included.
+    exp_groups = evaluated_rows(active_rows).groupby("Experience", dropna=True).agg(
         rightFreqSum=("Right Freq", "sum"),
         rowCount=("Right Freq", "count"),
     ).reset_index()
@@ -1022,7 +1516,8 @@ def build_rf_insights(df: pd.DataFrame, latest_period: str,
     # as build_leaderboards() above): exclude District/Area/Brand/National
     # Sales Manager rows so this ranking never mixes managers in with reps.
     FIELD_REP_TITLES = {"Medical Representative", "Sales Representative"}
-    emp_rf = active_rows.groupby("Employee", dropna=True).agg(
+    # Ranking -> flagged reps excluded, same as build_leaderboards().
+    emp_rf = evaluated_rows(active_rows).groupby("Employee", dropna=True).agg(
         rightFreqSum=("Right Freq", "sum"),
         customerCount=("Right Freq", "count"),
         team=("Team", "first"),
@@ -1250,6 +1745,8 @@ def run_aggregation_engine(df: pd.DataFrame, validation: ValidationResult, logge
         "vacancies": build_vacancy_panel(df, latest_period, logger),
         "dataQuality": build_data_quality_summary(validation),
         "dimensions": build_dimensions(df, roster),
+        "territoryFlags": build_territory_flags(df, roster, latest_period, logger),
+        "leaveImpact": build_leave_impact(df, latest_period, logger),
         "latestPeriod": latest_period,
     }
 

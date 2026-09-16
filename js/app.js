@@ -1339,24 +1339,54 @@ function buildLayout() {
   sections.leaderboardTop = leaderboardSection.querySelector("#table-leaderboard-top");
   sections.leaderboardBottom = leaderboardSection.querySelector("#table-leaderboard-bottom");
 
-  const attritionSection = document.createElement("section");
-  attritionSection.className = "dashboard-section";
-  attritionSection.id = "sec-attrition-vacancy";
-  attritionSection.innerHTML = `
-    <div class="section-header"><h2>Attrition &amp; Vacancy</h2></div>
-    <div class="section-body two-col">
-      <div>
-        <h3>Attrition by Team</h3>
-        <div id="table-attrition"></div>
-      </div>
-      <div>
-        <h3>Vacancy Panel</h3>
-        <div id="panel-vacancy"></div>
-      </div>
-    </div>`;
-  root.appendChild(attritionSection);
-  sections.attritionTable = attritionSection.querySelector("#table-attrition");
-  sections.vacancyPanel = attritionSection.querySelector("#panel-vacancy");
+  // Sick Leave Impact Rule (2026-09-15, panel built 2026-09-16). Two
+  // sections, both fed from dashboard.json's server-built leaveImpact block
+  // (latest period only, same "period filter ignored" convention as
+  // Quarterly Customer Coverage above) rather than the live filtered result:
+  //   1. sec-leave-rule   -- the rule itself, so nobody has to ask why a
+  //      rep's Right Frequency moved. Mirrors the Coaching Intelligence
+  //      "Reps Coached" methodology-box idiom Ahmed asked for there.
+  //   2. sec-leave-impact -- the management panel. Supersedes the earlier
+  //      "Sick Leave Territory Flags" table (which listed only the excluded
+  //      reps); this one covers all three bands, because a manager needs to
+  //      see whose target was softened as well as who left the ranking.
+  const leaveRuleSection = document.createElement("section");
+  leaveRuleSection.className = "dashboard-section";
+  leaveRuleSection.id = "sec-leave-rule";
+  leaveRuleSection.innerHTML = `
+    <div class="section-header">
+      <h2>How Leave Affects Coverage &amp; Right Frequency</h2>
+      <span class="lv-period" id="lv-rule-period"></span>
+    </div>
+    <div id="lv-rule-body"></div>`;
+  root.appendChild(leaveRuleSection);
+  sections.leaveRuleBody = leaveRuleSection.querySelector("#lv-rule-body");
+  sections.leaveRulePeriod = leaveRuleSection.querySelector("#lv-rule-period");
+
+  const leaveImpactSection = document.createElement("section");
+  leaveImpactSection.className = "dashboard-section";
+  leaveImpactSection.id = "sec-leave-impact";
+  leaveImpactSection.innerHTML = `
+    <div class="section-header">
+      <h2>Leave Impact &amp; Excluded Reps &mdash; Management</h2>
+      <span class="lv-period" id="lv-impact-period"></span>
+    </div>
+    <div id="lv-impact-body"></div>`;
+  root.appendChild(leaveImpactSection);
+  sections.leaveImpactBody = leaveImpactSection.querySelector("#lv-impact-body");
+  sections.leaveImpactPeriod = leaveImpactSection.querySelector("#lv-impact-period");
+
+  renderLeaveRule();
+  renderLeaveImpact();
+
+  // The "Attrition & Vacancy" section (Attrition by Team table + Vacancy
+  // Panel) was removed at Ahmed's request 2026-09-16. Its underlying data is
+  // still computed and still in use -- attritionRate and vacancyCount are
+  // both headline KPI cards, and the Team Comparison table keeps its own
+  // Attrition % column -- so nothing was stripped from the ETL or from
+  // analytics.js, only this one UI block.
+  // Backups: js/app.js.bak_20260916_pre_attrition_removal,
+  //          css/dashboard.css.bak_20260916_pre_attrition_removal
 }
 
 /**
@@ -1494,7 +1524,12 @@ function renderAll(result, dims, filterState) {
   renderKolCoverage(filterState, result.quarterlyCustomerCoverage);
   renderSpecialtyClassCharts(result);
   renderLeaderboards(result);
-  renderAttritionVacancyQuality(result, dims);
+  // Period-aware (2026-09-16): the leave panel re-renders on every filter
+  // change, so the Period dropdown moves it between months and the BU/Team/
+  // Manager/Employee filters narrow it the same way they narrow every other
+  // section. It still reads the pre-built per-period leaveImpact cache rather
+  // than `result` -- the leave bands are ETL-computed, not recomputed here.
+  renderLeaveImpact(filterState);
 }
 
 function renderExecutiveSummary(result, filterState) {
@@ -2211,33 +2246,291 @@ function renderLeaderboards(result) {
   });
 }
 
-function renderAttritionVacancyQuality(result, dims) {
-  Tables.render(sections.attritionTable, {
-    id: "attrition-by-team",
-    columns: [
-      { key: "team", label: "Team" },
-      { key: "activeReps", label: "Active", format: "number", align: "right" },
-      { key: "resignedReps", label: "Resigned", format: "number", align: "right" },
-      { key: "attritionRate", label: "Attrition %", format: "percent1", align: "right", defaultSort: "desc" },
-    ],
-    rows: result.attrition.byTeam,
-    pageSize: 10,
-    exportFileName: `attrition-by-team_${filenameSuffix}`,
-    emptyMessage: "No attrition data for the current filters.",
-  });
+/* ── Sick Leave Impact Rule: the rule, and the management panel ─────────
+ * Both read dashboard.json's pre-built, latest-period-only leaveImpact block
+ * via CacheStore (the same accessor coverage-interface.js's public getters
+ * use). Neither is part of Analytics.run()'s per-filter recompute, so they
+ * are rendered once from buildLayout() and not called from renderAll().   */
 
-  const vac = result.vacancies;
-  if (!vac.details.length) {
-    sections.vacancyPanel.innerHTML = `<div class="stat"><div class="value">0</div><div class="label">Vacant Slots</div></div>` + UI.emptyState("No vacant slots for the current filters.");
-  } else {
-    sections.vacancyPanel.innerHTML = `
-      <div class="stat" style="margin-bottom:12px;"><div class="value">${vac.total}</div><div class="label">Vacant Slots</div></div>
-      <ul class="issue-list">
-        ${vac.details.map((d) => `<li><strong>${UI.escapeHtml(d.level)}:</strong> ${UI.escapeHtml(d.slot)}</li>`).join("")}
-      </ul>`;
+function leaveImpactData() {
+  const dash = (typeof CacheStore !== "undefined" && CacheStore.isReady()) ? CacheStore.getDashboard() : null;
+  const li = dash && dash.leaveImpact;
+  return (li && li.periods) ? li : null;
+}
+
+/** Which period(s) the panel should show, from the global filter bar.
+ * filterState.period is [] by default, which across this whole tab means
+ * "Latest" (see CONFIG.filters.defaults in config.js) -- so an unfiltered
+ * Coverage tab shows the latest month, exactly like the KPI cards above it. */
+function leavePeriodsInScope(li, filterState) {
+  const wanted = (filterState && Array.isArray(filterState.period)) ? filterState.period : [];
+  const known = li.periodOrder || Object.keys(li.periods || {});
+  if (!wanted.length) return [li.latestPeriod].filter((p) => li.periods[p]);
+  // Preserve chronological order regardless of the order they were picked in.
+  return known.filter((p) => wanted.indexOf(p) >= 0 && li.periods[p]);
+}
+
+/** The rule itself, in plain language, so a moved Right Frequency number is
+ * never a mystery. Thresholds and the 22-day divisor are read from the cache
+ * (leaveImpact.rule) rather than hardcoded here, so the text on screen can
+ * never drift from the constants refresh.py actually applied. Deliberately
+ * NOT period-aware: the rule is the same every month, only the people it
+ * catches change. */
+function renderLeaveRule() {
+  const el = sections.leaveRuleBody;
+  if (!el) return;
+  const li = leaveImpactData();
+  if (!li) { el.innerHTML = UI.emptyState("Leave rule data is not available in this cache."); return; }
+
+  const r = li.rule || {};
+  const nMax = r.normalMaxDays != null ? r.normalMaxDays : 5;
+  const mMax = r.moderateMaxDays != null ? r.moderateMaxDays : 15;
+  const std = r.standardMonthlyDays != null ? r.standardMonthlyDays : 22;
+  if (sections.leaveRulePeriod) {
+    sections.leaveRulePeriod.textContent = "Evaluated per rep, per month";
   }
 
+  el.innerHTML = `
+    <div class="lv-bands">
+      <div class="lv-band normal">
+        <div class="lv-band-days">0 &ndash; ${nMax} days</div>
+        <div class="lv-band-label">Normal</div>
+        <ul class="lv-band-rules">
+          <li>Evaluated on <span class="keep">100% standard targets</span></li>
+          <li>No adjustment to Coverage or Right Frequency</li>
+          <li>Ranked normally</li>
+        </ul>
+      </div>
+      <div class="lv-band moderate">
+        <div class="lv-band-days">${nMax + 1} &ndash; ${mMax} days</div>
+        <div class="lv-band-label">Moderate</div>
+        <ul class="lv-band-rules">
+          <li><span class="keep">Right Frequency target prorated</span> by the active-working-days ratio</li>
+          <li>Coverage reach requirement <span class="keep">unchanged</span></li>
+          <li>Ranked normally</li>
+        </ul>
+      </div>
+      <div class="lv-band excluded">
+        <div class="lv-band-days">&gt; ${mMax} days &nbsp;&middot;&nbsp; Maternity</div>
+        <div class="lv-band-label">Excluded &mdash; Territory Flagged</div>
+        <ul class="lv-band-rules">
+          <li><span class="keep">Removed from Coverage / RF rates</span> at rep, team, BU and corporate level</li>
+          <li>Excluded from competitive rankings</li>
+          <li>Tier A accounts surfaced for backup coverage</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="lv-method">
+      <div class="lv-method-title">&#8505;&#65039; How the leave days are counted</div>
+      <div class="lv-method-body">
+        Days come from <b>Sick Leave report.xlsx</b>, counted as <b>calendar days</b> exactly as the report's
+        <b>Total</b> column states them, and assigned to the calendar month they actually fall in (a leave crossing
+        month-end is split across both months). Only rows of <b>Type = Sick</b> count toward the day bands &mdash;
+        Annual, Marriage and Unpaid leave never inflate the count. <b>Maternity</b> is a separate, unconditional
+        exclusion regardless of day count. Where a <b>Doctor Action</b> note overrides the approved span
+        (&ldquo;Only 7 Days&rdquo;, &ldquo;Rejected by Dr&rdquo;), the approved figure is used instead of Total.
+      </div>
+      <div class="lv-method-body">
+        <b>The proration formula (Moderate band only).</b>
+        Active ratio = <b>(${std} &minus; leave days) &divide; ${std}</b>, where ${std} is the standard working month.
+        For each customer row the target becomes <b>floor(Frequency &times; active ratio)</b>, and the row counts as
+        right-frequency met when <b>actual visits &ge; the prorated target</b>. Targets are only ever lowered,
+        never raised &mdash; and <b>Coverage is never prorated</b>: reach is still expected in full, since a rep on
+        partial leave is still accountable for seeing their customers at least once.
+      </div>
+      <div class="lv-method-body">
+        <b>Every month stands alone.</b> The bands are re-evaluated from scratch each period, so the same rep can be
+        Excluded in one month and Normal in the next &mdash; days are never carried forward or accumulated across
+        months. Use the <b>Period</b> filter to move the panel below between months.
+      </div>
+      <div class="lv-method-source">
+        Source: Sick Leave report.xlsx &middot; matched to the coverage workbook by Employee Code &middot;
+        applied in refresh.py (apply_sick_leave_rules) before every Coverage/Right-Frequency aggregate on this
+        platform.
+      </div>
+    </div>`;
 }
+
+/** The management panel: every rep with leave on record, for whichever
+ * month(s) the Period filter has in scope, grouped by band, with Right
+ * Frequency shown before -> after so the rule's effect is visible per rep.
+ *
+ * Period-aware (2026-09-16). Each month is scored on its own days and its own
+ * band, so when more than one month is in scope the table lists rep-MONTHS
+ * rather than reps, with a Month column -- merging them would be dishonest,
+ * since a rep Excluded in June and Normal in July is genuinely both.
+ * Also honours the BU / Team / Manager / Employee filters, so a manager who
+ * narrows the tab to their own team sees only their own people here too. */
+function renderLeaveImpact(filterState) {
+  const el = sections.leaveImpactBody;
+  if (!el) return;
+  const li = leaveImpactData();
+  if (!li) { el.innerHTML = UI.emptyState("Leave impact data is not available in this cache."); return; }
+
+  const fs = filterState || _lastFilterState || {};
+  const scope = leavePeriodsInScope(li, fs);
+  const multi = scope.length > 1;
+
+  // Hierarchy filters, applied client-side against the rep rows.
+  const has = (key) => Array.isArray(fs[key]) && fs[key].length > 0;
+  const keep = (row) =>
+    (!has("businessUnit") || fs.businessUnit.indexOf(row.businessUnit) >= 0) &&
+    (!has("team") || fs.team.indexOf(row.team) >= 0) &&
+    (!has("manager") || fs.manager.indexOf(row.manager) >= 0) &&
+    (!has("employee") || fs.employee.indexOf(row.employee) >= 0);
+
+  let reps = [];
+  scope.forEach((p) => { reps = reps.concat((li.periods[p].reps || []).filter(keep)); });
+
+  if (multi) {
+    const bandOrder = { Excluded: 0, Moderate: 1, Normal: 2 };
+    const periodIdx = (p) => scope.indexOf(p);
+    reps.sort((a, b) =>
+      (bandOrder[a.band] - bandOrder[b.band]) ||
+      (periodIdx(a.period) - periodIdx(b.period)) ||
+      ((b.tierAUncovered || 0) - (a.tierAUncovered || 0)));
+  }
+
+  const s = {
+    excluded: reps.filter((d) => d.band === "Excluded").length,
+    moderate: reps.filter((d) => d.band === "Moderate").length,
+    normal: reps.filter((d) => d.band === "Normal").length,
+    tierAUncovered: reps.reduce((t, d) => t + (d.band === "Excluded" ? (d.tierAUncovered || 0) : 0), 0),
+  };
+
+  const unit = multi ? "rep-month" : "rep";
+  const periodLabel = scope.length
+    ? (multi ? `${scope[0]} &ndash; ${scope[scope.length - 1]} (${scope.length} months)` : scope[0])
+    : "no period in scope";
+  if (sections.leaveImpactPeriod) {
+    sections.leaveImpactPeriod.innerHTML =
+      `${periodLabel} &middot; ${reps.length} ${unit}${reps.length === 1 ? "" : "s"} with leave on record`;
+  }
+
+  if (!reps.length) {
+    el.innerHTML = UI.emptyState("No reps have leave on record for the current filters.");
+    return;
+  }
+
+  const riskCount = reps.filter((d) => d.band === "Excluded" && d.tierAUncovered > 0).length;
+  const pct1 = (v) => (v == null ? "&mdash;" : (v * 100).toFixed(1) + "%");
+  const esc = UI.escapeHtml;
+
+  const tiles = `
+    <div class="lv-tiles">
+      <div class="lv-tile alert"><div class="lv-tile-v">${s.excluded}</div>
+        <div class="lv-tile-l">Excluded from rates &amp; rankings<br>(&gt;15 days or Maternity)</div></div>
+      <div class="lv-tile warn"><div class="lv-tile-v">${s.moderate}</div>
+        <div class="lv-tile-l">Right Frequency target prorated<br>(6&ndash;15 days)</div></div>
+      <div class="lv-tile"><div class="lv-tile-v">${s.normal}</div>
+        <div class="lv-tile-l">Evaluated on full targets<br>(0&ndash;5 days)</div></div>
+      <div class="lv-tile alert"><div class="lv-tile-v">${s.tierAUncovered}</div>
+        <div class="lv-tile-l">Tier A accounts uncovered<br>in excluded territories</div></div>
+    </div>`;
+
+  const tabs = `
+    <div class="lv-tabs" id="lv-tabs">
+      <button class="lv-tab on" data-f="all">All<span class="n">${reps.length}</span></button>
+      <button class="lv-tab" data-f="Excluded">Excluded<span class="n">${s.excluded}</span></button>
+      <button class="lv-tab" data-f="Moderate">Prorated<span class="n">${s.moderate}</span></button>
+      <button class="lv-tab" data-f="Normal">Normal<span class="n">${s.normal}</span></button>
+      <button class="lv-tab" data-f="risk">Needs backup cover<span class="n">${riskCount}</span></button>
+    </div>`;
+
+  const colCount = multi ? 11 : 10;
+
+  const rowHtml = (d) => {
+    const before = d.rightFreqBefore, after = d.rightFreqAfter;
+    const flat = before == null || after == null || Math.abs(after - before) < 0.00005;
+    const rf = flat
+      ? `<span class="rf-after rf-flat">${pct1(after)}</span>`
+      : `<span class="rf-before">${pct1(before)}</span><span class="rf-arrow">&rarr;</span>` +
+        `<span class="rf-after rf-up">${pct1(after)}</span>`;
+    const ta = d.tierAUncovered || 0;
+    const riskCls = ta === 0 ? "ok" : (ta >= 20 ? "hi" : "mid");
+    const names = (d.tierAUncoveredCustomers || []);
+    const tip = names.length ? ` title="${esc(names.join(" · "))}"` : "";
+    let backup;
+    if (d.band !== "Excluded") backup = `<span class="dash">&mdash;</span>`;
+    else if (ta > 0) backup = `<span class="lv-need">Needs backup cover</span>`;
+    else backup = `<span class="lv-covered">Tier A covered</span>`;
+    return `<tr>
+      ${multi ? `<td class="lv-month">${esc(d.period)}</td>` : ""}
+      <td><div class="rep-name">${esc(d.employee)}</div>
+          <div class="rep-sub">${esc(d.employeeCode)} &middot; ${esc(d.reason || "")}</div></td>
+      <td>${esc(d.team)}</td>
+      <td>${esc(d.manager)}</td>
+      <td><span class="pill ${d.band.toLowerCase()}">${d.band === "Moderate" ? "Prorated" : esc(d.band)}</span></td>
+      <td class="num">${d.leaveDays ? d.leaveDays : '<span class="dash">&mdash;</span>'}</td>
+      <td class="num">${d.band === "Moderate" && d.activeRatio != null ? d.activeRatio.toFixed(2) : '<span class="dash">&mdash;</span>'}</td>
+      <td class="num"><span class="rf-shift">${rf}</span></td>
+      <td class="num">${pct1(d.coveragePct)}</td>
+      <td class="num"${tip}><span class="risk ${riskCls}">${ta}</span><span class="dash"> / ${d.tierAAccounts || 0}</span></td>
+      <td>${backup}</td>
+    </tr>`;
+  };
+
+  const GROUPS = [
+    ["Excluded", "Excluded &mdash; territory flagged, out of every rate and ranking"],
+    ["Moderate", "Prorated &mdash; Right Frequency target softened, still ranked"],
+    ["Normal", "Normal &mdash; evaluated on full standard targets"],
+  ];
+
+  const body = (filter) => {
+    let html = "";
+    GROUPS.forEach(([key, label]) => {
+      let rows = reps.filter((d) => d.band === key);
+      if (filter === "risk") rows = rows.filter((d) => d.band === "Excluded" && d.tierAUncovered > 0);
+      else if (filter !== "all") rows = rows.filter((d) => d.band === filter);
+      if (!rows.length) return;
+      html += `<tr class="grp-row"><td colspan="${colCount}">${label} &middot; ${rows.length}</td></tr>`;
+      html += rows.map(rowHtml).join("");
+    });
+    return html || `<tr><td colspan="${colCount}" class="lv-empty">No reps in this group.</td></tr>`;
+  };
+
+  el.innerHTML = tiles + tabs + `
+    <div class="lv-table-wrap">
+      <table class="lv">
+        <thead><tr>
+          ${multi ? "<th>Month</th>" : ""}
+          <th>Representative</th><th>Team</th><th>Manager</th><th>Status</th>
+          <th class="num">Leave<br>days</th><th class="num">Active<br>ratio</th>
+          <th class="num">Right Frequency</th><th class="num">Coverage</th>
+          <th class="num">Tier A<br>at risk</th><th>Backup coverage</th>
+        </tr></thead>
+        <tbody id="lv-tbody">${body("all")}</tbody>
+      </table>
+    </div>
+    <div class="lv-foot">
+      Right Frequency shows <b>before &rarr; after</b> the leave rule. A flat value means the rule changed nothing
+      for that rep &mdash; either they are in the Normal band, or their actual visits still missed even the prorated
+      target. Excluded reps keep their real figures on this table, but contribute to no rate or ranking anywhere
+      else on the dashboard. Hover a Tier A count to see the uncovered account names.
+      ${multi
+        ? "Each month is banded on its own leave days, so a rep can appear more than once with a different status."
+        : "Use the <b>Period</b> filter to switch months &mdash; every month is banded on its own leave days."}
+    </div>`;
+
+  const tabsEl = el.querySelector("#lv-tabs");
+  const tbody = el.querySelector("#lv-tbody");
+  if (tabsEl && tbody) {
+    tabsEl.addEventListener("click", (e) => {
+      const btn = e.target.closest(".lv-tab");
+      if (!btn) return;
+      tabsEl.querySelectorAll(".lv-tab").forEach((b) => b.classList.remove("on"));
+      btn.classList.add("on");
+      tbody.innerHTML = body(btn.dataset.f);
+    });
+  }
+}
+
+/* renderAttritionVacancyQuality() was deleted here 2026-09-16 along with the
+   "Attrition & Vacancy" section it rendered (see buildLayout). Removed rather
+   than left orphaned, so it doesn't become another never-called function
+   nobody dares touch. result.attrition / result.vacancies are still produced
+   by analytics.js and refresh.py and still feed the KPI cards. */
 
 /** Shared row-array sorter for the customer-drilldown modals (mirrors
  * Tables.applySort's semantics: numeric compare when both values are
@@ -2298,6 +2591,49 @@ const DRILLDOWN_COLS_COVERAGE = [
   { key: "remaining",    label: "Remaining",     width: "8%", align: "right" },
   { key: "status",       label: "Status",        width: "8%"  },
 ];
+/* ── Prorated Target column (2026-09-16) ──────────────────────────────────
+   Ahmed: "add a Prorated Target column, yes, for prorated only."
+
+   Two senses of "prorated only", both honoured:
+     1. The COLUMN only appears when at least one row in the open drilldown
+        was actually prorated. A manager whose scope contains no Moderate-band
+        rep never sees it, so the table stays as narrow as it is today.
+     2. Within the column, only prorated rows carry a number. Everything else
+        shows an em dash, never a copy of the standard target -- a repeated
+        number reads as "the rule touched this row and changed nothing",
+        which is a different and wrong claim.
+
+   The Target / Actual / Remaining / Status columns are left exactly as they
+   are, on the standard basis. This column sits beside them rather than
+   replacing anything, so nothing a manager already trusts shifts meaning
+   underneath them. Where the two disagree -- prorated target met, standard
+   target missed -- the Status cell gains a small "met prorated" tag instead
+   of the Below pill being quietly rewritten. See renderFreqModalBody(). */
+const DRILLDOWN_COL_PRORATED = {
+  key: "proratedTarget", label: "Prorated", width: "9%", align: "right",
+  // Blank, never -1, in the Excel export: a sentinel that means "not
+  // prorated" on screen would be read as a real target in a spreadsheet.
+  exportValue: (v) => (v >= 0 ? v : ""),
+};
+
+function withProratedCol(cols, list) {
+  if (!Array.isArray(list) || !list.some((r) => r && r.isProrated)) return cols;
+  const out = cols.slice();
+  const at = out.findIndex((c) => c.key === "frequency");
+  out.splice(at < 0 ? out.length : at + 1, 0, DRILLDOWN_COL_PRORATED);
+  // The base column sets already sum to ~100%, so dropping an eleventh
+  // column in unaltered overflows the table and clips both the new header
+  // ("Prorated Targe…") and the Status cell's "met prorated" tag. Give
+  // Status the room its extra tag needs, then rescale every width back to
+  // 100% proportionally -- which keeps the existing columns' relative
+  // proportions intact instead of hand-tuning a second set of numbers that
+  // would then have to be kept in sync with the first.
+  const WIDE_STATUS = 13;
+  const widths = out.map((c) => (c.key === "status" ? WIDE_STATUS : parseFloat(c.width) || 8));
+  const total = widths.reduce((a, w) => a + w, 0) || 100;
+  return out.map((c, i) => Object.assign({}, c, { width: (widths[i] * 100 / total).toFixed(2) + "%" }));
+}
+
 const DRILLDOWN_COLS_UNIQUE = [
   { key: "customerName", label: "Customer Name", width: "18%" },
   { key: "specialty",    label: "Specialty",     width: "10%" },
@@ -2430,11 +2766,11 @@ function wireNotSeenModal() {
         }
       } else if (kpi === "totalUniqueCustomers") {
         if (_lastResult && _lastResult.uniqueCustomers) {
-          openFreqModal("unique", _lastResult.uniqueCustomers.list, "Total Customers — Unique", DRILLDOWN_COLS_UNIQUE);
+          openFreqModal("unique", _lastResult.uniqueCustomers.list, "Total Customers — Unique", withProratedCol(DRILLDOWN_COLS_UNIQUE, _lastResult.uniqueCustomers.list));
         }
       } else if (kpi === "totalSharedCustomers") {
         if (_lastResult && _lastResult.allCoverage) {
-          openFreqModal("shared", _lastResult.allCoverage.list, "Total Customers — Shared Coverage", DRILLDOWN_COLS_COVERAGE);
+          openFreqModal("shared", _lastResult.allCoverage.list, "Total Customers — Shared Coverage", withProratedCol(DRILLDOWN_COLS_COVERAGE, _lastResult.allCoverage.list));
         }
       }
       return;
@@ -2755,10 +3091,46 @@ function openFreqModal(mode, list, title, colsOverride) {
       `<tr>${COLS.map((c) => {
         const val = r[c.key];
         if (c.key === "team") return renderTeamCell(c.align, val);
+        if (c.key === "proratedTarget") {
+          // -1 is "not prorated", not a target of minus one. A real 0 IS
+          // shown, and flagged: floor(1 x activeRatio) collapses a
+          // Frequency-1 account to a target of zero, which the rule refuses
+          // to credit (prorated_tgt > 0), so that account still has to meet
+          // its full target. That is the least obvious case in the whole
+          // rule and the one most worth spelling out on the row itself.
+          if (!(val >= 0)) {
+            return `<td style="text-align:${c.align || "left"};color:#94A3B8;" title="Not prorated — the standard target stands">—</td>`;
+          }
+          if (val === 0) {
+            return `<td style="text-align:${c.align || "left"}" title="Prorated to 0 — no relief applies, this account must still meet its full target of ${UI.escapeHtml(String(r.frequency ?? ""))}">
+              <strong style="color:#B45309;">0</strong> <span style="font-size:10px;color:#B45309;">no relief</span>
+            </td>`;
+          }
+          // The Unique view sums one row per covering rep, so an aggregated
+          // customer's number is the sum of each rep's OWN effective target
+          // — only some of which were prorated. Say so, rather than letting
+          // "100 → 97" read as if the whole target had been softened.
+          const shared = r.coverageCount > 1;
+          const tip = shared
+            ? `Summed across ${r.coverageCount} covering reps, each at their own effective target — ${r.proratedRepCount} of them prorated under the Sick Leave Impact Rule. Standard total: ${r.frequency}.`
+            : `Sick Leave Impact Rule: Moderate band — visit target prorated from ${r.frequency} to ${val} by the active-working-days ratio`;
+          return `<td style="text-align:${c.align || "left"}" title="${UI.escapeHtml(tip)}">
+            <strong style="color:#B45309;">${val}</strong>
+          </td>`;
+        }
         if (c.key === "status") {
           const st = STATUS_STYLE[val] ? val : "on";
-          return `<td style="text-align:${c.align || "left"}">
-            <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;${STATUS_STYLE[st]}">${STATUS_LABEL[st]}</span>
+          // The pill keeps telling the STANDARD truth, unchanged. The tag
+          // beside it says the rule credited this row anyway -- shown only
+          // where the two actually disagree.
+          const proratedTag = r.proratedMet
+            ? `<span title="Missed the standard target but met the prorated one — credited under the Sick Leave Impact Rule" style="display:block;margin-top:3px;padding:1px 7px;border-radius:20px;font-size:9.5px;font-weight:700;background:#FEF3C7;color:#B45309;white-space:nowrap;">✓ met prorated</span>`
+            : "";
+          // overflow/text-overflow are overridden inline because
+          // .data-table td ellipsis-clips its content -- which silently ate
+          // the tag entirely, leaving a bare "…" next to the Below pill.
+          return `<td style="text-align:${c.align || "left"};white-space:normal;overflow:visible;text-overflow:clip;line-height:1.7;">
+            <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;${STATUS_STYLE[st]}">${STATUS_LABEL[st]}</span>${proratedTag}
           </td>`;
         }
         const isBoldKey = c.key === "missedCalls" || c.key === "overCalls" || c.key === "remaining";

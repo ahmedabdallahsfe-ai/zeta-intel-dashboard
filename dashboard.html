@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zeta Commercial Excellence Dashboard</title>
-  <link rel="stylesheet" href="css/dashboard.css?v=20260913_execintel_removed" />
+  <link rel="stylesheet" href="css/dashboard.css?v=20260916_noattrition" />
   <!-- Fully scoped under .iqvia-dashboard-wrap (namespaced 2026-07-26) — safe to load
        on every tab; cannot leak into Coverage/Organogram/Sales styling. -->
   <link rel="stylesheet" href="css/iqvia.css?v=20260726_namespaced" />
@@ -22,7 +22,7 @@
        see js/coaching.js header for why. -->
   <link rel="stylesheet" href="css/coaching.css?v=20260901_v5" />
   <link rel="stylesheet" href="css/market-intel.css?v=20260806_cagr" />
-  <link rel="stylesheet" href="css/sprint.css?v=20260911_wdpopup" />
+  <link rel="stylesheet" href="css/sprint.css?v=20260916_leaveflag" />
   <link rel="stylesheet" href="css/working-days.css?v=20260906_hireleft" />
   <link rel="stylesheet" href="css/imsrx.css?v=20260816_mi_bridge" />
   <link rel="stylesheet" href="css/news-feed.css?v=20260910_v3_ticker" />
@@ -245,10 +245,10 @@
   <script defer src="js/perf-probe.js?v=20260808_perf2"></script>
 
   <!-- Cache (must load before any module that reads it) -->
-  <script defer src="cache/metadata.data.js?v=20260914_august"></script>
-  <script defer src="cache/dashboard.data.js?v=20260914_august"></script>
+  <script defer src="cache/metadata.data.js?v=20260916_leavemonthly"></script>
+  <script defer src="cache/dashboard.data.js?v=20260916_proratedtgt"></script>
   <script defer src="cache/teamkpis.data.js?v=20260724"></script>
-  <script defer src="cache/records.data.js?v=20260914_august"></script>
+  <script defer src="cache/records.data.js?v=20260916_proratedtgt"></script>
   <script defer src="cache/organogram.data.js?v=20260914_august"></script>
   <!-- v20260726_hierarchyfix = corrected BUHead/NSM/RM/DM/Rep naming + CM (Emp6) capture (cache/meta.schemaVersion 2).
        js/sales.js checks this schema and shows a pending-refresh placeholder if the cache on disk is still the
@@ -276,14 +276,14 @@
        these two brands' sales count toward Sales Achievement instead of being excluded by the existing
        Non-Tender convention. All other brands/products unchanged. 191,352.00 EGP moved Tender->Non-Tender;
        Total Actual Sales Value unchanged to the cent (1,426,495,032.60). -->
-  <script defer src="cache/sales.data.js?v=20260909_chchiredatefix"></script>
+  <script defer src="cache/sales.data.js?v=20260916_shortageupdate"></script>
   <!-- Zeta Sprint 2026 cache (2026-08-15): built by etl/build_sprint_cache.py from
        sprint/scaling scores.xlsx (point curves) + this page's own Coverage/Sales
        cache sources. Re-linked 2026-08-16 (Ahmed: "add zeta sprint to dashboard") --
        this script tag, the sidebar entry, and app.js's Sprint wiring were dropped
        during the same pass that added IMS Rx role-gating; the underlying cache/js/css
        files were never touched, so no rebuild was needed, only re-wiring. -->
-  <script defer src="cache/sprint.data.js?v=20260911_wdpopup"></script>
+  <script defer src="cache/sprint.data.js?v=20260916_leaveflag"></script>
   <!-- Field Working Days Intelligence cache (2026-09-05, Ahmed "implmement
        to zeta intell"): built by etl/build_working_days_cache.py from the
        Sprint KPI template's DM_DSM/ASM/NSM tabs. Separate from
@@ -318,7 +318,7 @@
        there by the time someone opens the Customer Health drill; also
        re-fixed the sentinel-latch bug this regression brought back (see
        decompressCustomerAnalyticsCache() in js/sales.js). -->
-  <script defer src="cache/iqvia.data.js?v=20260909_zekardovalmap"></script>
+  <script defer src="cache/iqvia.data.js?v=20260916_pcabmap"></script>
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
        from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Jul31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's
@@ -348,18 +348,18 @@
   <script defer src="js/semantic-model.js?v=20260804_tomarket_bumgr"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20260911_lazyreload"></script>
+  <script defer src="js/cache-loader.js?v=20260916_leavedenominator"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
   <script defer src="js/cache.js?v=20260724"></script>
   <script defer src="js/loader.js?v=20260724"></script>
-  <script defer src="js/analytics.js?v=20260804_period_pool"></script>
+  <script defer src="js/analytics.js?v=20260916_proratedtgt"></script>
   <script defer src="js/ui.js?v=20260724"></script>
   <script defer src="js/charts.js?v=20260724"></script>
   <script defer src="js/tables.js?v=20260724"></script>
   <script defer src="js/filters.js?v=20260729_rolescope"></script>
-  <script defer src="js/exporter.js?v=20260724"></script>
+  <script defer src="js/exporter.js?v=20260916_proratedtgt"></script>
   <!-- Coverage's standardized getBusinessSummary() interface -- reads only through
        CacheStore (defined above) and SEMANTIC (defined above); adds no new UI. -->
   <!-- v20260727_execkpi = getFilteredCoverageByType() and getFilteredCoverageForLine()
@@ -369,7 +369,7 @@
        instead of the standard Medical Representative/Contract-Doctor-
        Hospital scope (CHC has two real lines, not one -- see
        semantic-model.js). -->
-  <script defer src="js/coverage-interface.js?v=20260807_lineperf"></script>
+  <script defer src="js/coverage-interface.js?v=20260915_sickleave2"></script>
   <script defer src="js/sfe.js?v=20260804_bulinescoping"></script>
   <!-- v20260727_execkpi = getLineSalesSummary() and getItemAchievement() added for
        the Executive KPI cards (Line Performance, CHC Brand-to-Item drill).
@@ -388,9 +388,9 @@
        Executive "by Brand" modal both use this now. -->
   <script defer src="js/sales.js?v=20260913_salesachievement_fix"></script>
   <script defer src="js/iqvia.js?v=20260907_valuerank"></script>
-  <script defer src="js/sprint.js?v=20260911_wdpopup"></script>
+  <script defer src="js/sprint.js?v=20260916_leaveflag"></script>
   <script defer src="js/working-days.js?v=20260906_hireleft"></script>
-  <script defer src="js/coaching.js?v=20260908_srdmcoverage"></script>
+  <script defer src="js/coaching.js?v=20260916_leavedenominator"></script>
   <script defer src="js/ims-rx.js?v=20260816_mi_bridge"></script>
   <script defer src="js/news-feed.js?v=20260910_v2"></script>
   <script defer src="js/regulatory-pipeline.js?v=20260910_v1"></script>
@@ -434,7 +434,7 @@
   <script defer src="js/ask-sales.js?v=20260807_ask"></script>
   <script defer src="js/ask-sfe.js?v=20260807_ask"></script>
   <script defer src="js/ask-executive.js?v=20260807_ask"></script>
-  <script defer src="js/app.js?v=20260914_commercial_mgr_no_market_intel_v2"></script>
+  <script defer src="js/app.js?v=20260916_proratedtgt"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

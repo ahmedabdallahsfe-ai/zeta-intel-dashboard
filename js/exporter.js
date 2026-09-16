@@ -67,6 +67,11 @@ const Exporter = (() => {
    * who will likely just eyeball or re-chart the export in Excel. */
   function cellValue(row, column) {
     const raw = row[column.key];
+    // Per-column export override, for a value whose on-screen rendering is
+    // not its literal stored form -- e.g. a sentinel like the drilldowns'
+    // proratedTarget = -1 ("not prorated"), which must export as blank
+    // rather than as a number a reader would take at face value.
+    if (typeof column.exportValue === "function") return column.exportValue(raw, row);
     if (raw === null || raw === undefined) return "";
     if (column.format === "percent1" && typeof raw === "number") {
       return Math.round(raw * 1000) / 10;

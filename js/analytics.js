@@ -21,6 +21,7 @@
  *   3 nsmIdx           9 statusIdx          15 isActive
  *   4 areaManagerIdx  10 experienceIdx      16 actualPlanCoverageX1000
  *   5 managerIdx      11 typeIdx            17 plansCount  18 titleIdx  19 profileIdx  20 customerNameIdx  21 frequency
+ *   22 lastVisitDateIdx  23 areaIdx  24 isExempt (Sick Leave Impact Rule, 0/1 -- see refresh.py apply_sick_leave_rules)
  */
 
 const Analytics = (() => {
@@ -30,7 +31,7 @@ const Analytics = (() => {
     type: 11,
     coveredDoctor: 12, rightFreq: 13, visits: 14, isActive: 15, actualPlanX1000: 16,
     plansCount: 17, title: 18, customerName: 19, profile: 20, frequency: 21,
-    lastVisitDate: 22, area: 23,
+    lastVisitDate: 22, area: 23, isExempt: 24, proratedFrequency: 25,
   };
 
   // Every dimension that participates in cross-filtering (cascading
@@ -180,6 +181,15 @@ const Analytics = (() => {
       onTargetCalls: 0, missedCalls: 0, wastedCalls: 0,
       overFreqCount: 0, belowFreqCount: 0,
       activeEmployees: new Set(), resignedEmployees: new Set(),
+      // Sick Leave Impact Rule (2026-09-15) -- the EVALUATED population:
+      // the same three accumulators with >15-day-Sick/Maternity flagged
+      // rep-periods left out. Coverage %/Right Frequency % at every rollup
+      // level read these; every count/volume field above still spans all
+      // active rows, flagged reps included, so a flagged rep's uncovered
+      // customers stay visible as the real business gap they are (that's
+      // what the Sick Leave Territory Flags panel is for). Mirrors
+      // refresh.py's evaluated_rows().
+      evalCoveredSum: 0, evalRightFreqSum: 0, evalRowCount: 0,
     };
   }
 
@@ -188,6 +198,11 @@ const Analytics = (() => {
       group.coveredSum += row[F.coveredDoctor];
       group.rightFreqSum += row[F.rightFreq];
       group.rowCount += 1;
+      if (!row[F.isExempt]) {
+        group.evalCoveredSum += row[F.coveredDoctor];
+        group.evalRightFreqSum += row[F.rightFreq];
+        group.evalRowCount += 1;
+      }
       group.visitsSum += row[F.visits];
       group.plansSum += row[F.plansCount];
       group.freqSum += row[F.frequency];
@@ -356,10 +371,14 @@ const Analytics = (() => {
           employeeIdx: row[F.employee], periodIdx, teamIdx: row[F.team], managerIdx: row[F.manager],
           profileIdx: row[F.profile], titleIdx: row[F.title],
           coveredSum: 0, rightFreqSum: 0, customerCount: 0, visitsSum: 0,
-          actualPlanSum: 0, isActive: !!row[F.isActive],
+          actualPlanSum: 0, isActive: !!row[F.isActive], isExempt: false,
         };
         byEmployeePeriod.set(empKey, empGroup);
       }
+      // Sick Leave Impact Rule (>15 days / Maternity): OR across the
+      // employee-period's rows, mirroring refresh.py's build_roster()
+      // ("IsExempt", "max") -- one flagged row is enough to flag the rep.
+      if (row[F.isExempt]) empGroup.isExempt = true;
       if (row[F.isActive]) {
         empGroup.coveredSum += row[F.coveredDoctor];
         empGroup.rightFreqSum += row[F.rightFreq];
@@ -429,6 +448,10 @@ const Analytics = (() => {
         // Calculate At-Risk Tiers and Over Frequency lists
         const targetFreq = row[F.frequency];
         const actualVisits = row[F.visits];
+        // Guarded with ?? -1 so a records cache built before the
+        // proratedFrequency field existed degrades to "not prorated"
+        // rather than NaN-ing every Target cell in the drilldowns.
+        const proratedTgt = row[F.proratedFrequency] ?? -1;
         const docInfo = {
           customerName: dims.customerNames ? (dims.customerNames[custIdx] || "") : "",
           specialty: dims.specialties[row[F.specialty]] || "",
@@ -441,6 +464,20 @@ const Analytics = (() => {
           visits: actualVisits,
           missedCalls: Math.max(0, targetFreq - actualVisits),
           overCalls: Math.max(0, actualVisits - targetFreq),
+          // Sick Leave Impact Rule -- Moderate band only (2026-09-16, Ahmed:
+          // "add a Prorated Target column, yes, for prorated only"). Read
+          // verbatim from refresh.py's own ProratedFrequency column; the
+          // floor() arithmetic is NOT repeated here. -1 means the standard
+          // target stands, and is rendered as an em dash rather than a
+          // number -- see app.js's proratedTargetCell().
+          proratedTarget: proratedTgt,
+          isProrated: proratedTgt >= 0,
+          // True only where the rule changed this row's OUTCOME: the
+          // prorated target was met and the standard one was not. A row
+          // that cleared its full target needs no annotation, and a row
+          // prorated to 0 is never credited (refresh.py's prorated_tgt > 0
+          // guard), so neither gets the tag.
+          proratedMet: proratedTgt > 0 && actualVisits >= proratedTgt && actualVisits < targetFreq,
           lastVisitDate: dims.lastVisitDates ? (dims.lastVisitDates[row[F.lastVisitDate]] || "Never") : "Never",
           area: dims.areas ? (dims.areas[row[F.area]] || "") : "",
         };
@@ -458,6 +495,13 @@ const Analytics = (() => {
             customerName: docInfo.customerName, specialty: docInfo.specialty,
             klass: docInfo.klass, type: docInfo.type,
             targetSum: 0, visitsSum: 0, coverageCount: 0,
+            // proratedSum tracks the target the RULE applied per covering
+            // rep -- that rep's prorated target where they were in the
+            // Moderate band, their standard target where they were not.
+            // A customer shared between a prorated rep and a normal one
+            // therefore sums 1 + 2, not 1 + 1 or 2 + 2. anyProrated says
+            // whether the column is worth showing for this customer at all.
+            proratedSum: 0, anyProrated: false, proratedRepCount: 0,
             positions: new Set(), managers: new Set(), areas: new Set(),
           });
         }
@@ -465,6 +509,8 @@ const Analytics = (() => {
         uAgg.targetSum += targetFreq;
         uAgg.visitsSum += actualVisits;
         uAgg.coverageCount += 1;
+        uAgg.proratedSum += (proratedTgt >= 0 ? proratedTgt : targetFreq);
+        if (proratedTgt >= 0) { uAgg.anyProrated = true; uAgg.proratedRepCount += 1; }
         if (docInfo.team) uAgg.positions.add(docInfo.team);
         if (docInfo.manager) uAgg.managers.add(docInfo.manager);
         if (docInfo.area) uAgg.areas.add(docInfo.area);
@@ -600,6 +646,12 @@ const Analytics = (() => {
       pooledGroup.coveredSum += g.coveredSum;
       pooledGroup.rightFreqSum += g.rightFreqSum;
       pooledGroup.rowCount += g.rowCount;
+      // Evaluated-population accumulators (Sick Leave Impact Rule) must
+      // pool alongside the raw ones, or a multi-period selection would
+      // silently fall back to a 0/0 coverage rate.
+      pooledGroup.evalCoveredSum += g.evalCoveredSum;
+      pooledGroup.evalRightFreqSum += g.evalRightFreqSum;
+      pooledGroup.evalRowCount += g.evalRowCount;
       pooledGroup.freqSum += g.freqSum;
       pooledGroup.visitsSum += g.visitsSum;
       pooledGroup.onTargetCalls += g.onTargetCalls;
@@ -647,8 +699,10 @@ const Analytics = (() => {
       // "Period: YTD" now reports the Feb-Jun figure that reconciles with
       // the Executive Command Center's YTD-average line, and a
       // single-month selection reduces to that month exactly as before.
-      coveragePct: round4(pct(pooledGroup.coveredSum, pooledGroup.rowCount)),
-      rightFreqPct: round4(pct(pooledGroup.rightFreqSum, pooledGroup.rowCount)),
+      // Evaluated population only (Sick Leave Impact Rule -- flagged
+      // >15-day-Sick/Maternity rep-periods excluded from the rate).
+      coveragePct: round4(pct(pooledGroup.evalCoveredSum, pooledGroup.evalRowCount)),
+      rightFreqPct: round4(pct(pooledGroup.evalRightFreqSum, pooledGroup.evalRowCount)),
       // POINT-IN-TIME -- deliberately NOT pooled (see kpiPeriodIdx note).
       customersPerRep: round2(customersPerRep),
       spanOfControl: round2(spanOfControl),
@@ -697,8 +751,8 @@ const Analytics = (() => {
         const activeCount = g.activeEmployees.size;
         return {
           period: periodName,
-          coveragePct: round4(pct(g.coveredSum, g.rowCount)),
-          rightFreqPct: round4(pct(g.rightFreqSum, g.rowCount)),
+          coveragePct: round4(pct(g.evalCoveredSum, g.evalRowCount)),
+          rightFreqPct: round4(pct(g.evalRightFreqSum, g.evalRowCount)),
           headcount: activeCount,
           activeReps: activeCount,
           resignedReps: g.resignedEmployees.size,
@@ -734,8 +788,8 @@ const Analytics = (() => {
       headcount: g.activeEmployees.size,
       resignedCount: g.resignedEmployees.size,
       attritionRate: round4(pct(g.resignedEmployees.size, g.activeEmployees.size + g.resignedEmployees.size)),
-      coveragePct: round4(pct(g.coveredSum, g.rowCount)),
-      rightFreqPct: round4(pct(g.rightFreqSum, g.rowCount)),
+      coveragePct: round4(pct(g.evalCoveredSum, g.evalRowCount)),
+      rightFreqPct: round4(pct(g.evalRightFreqSum, g.evalRowCount)),
       customersPerRep: g.activeEmployees.size ? round2(g.rowCount / g.activeEmployees.size) : null,
     })).sort(byCoverageDesc);
 
@@ -744,8 +798,8 @@ const Analytics = (() => {
       profile: dims.profiles ? (dims.profiles[mgrProfileIdx.get(idx)] || "") : "",
       status: name.toUpperCase().startsWith(VACANT_PREFIX) ? "Vacant" : "Filled",
       span: g.activeEmployees.size,
-      coveragePct: round4(pct(g.coveredSum, g.rowCount)),
-      rightFreqPct: round4(pct(g.rightFreqSum, g.rowCount)),
+      coveragePct: round4(pct(g.evalCoveredSum, g.evalRowCount)),
+      rightFreqPct: round4(pct(g.evalRightFreqSum, g.evalRowCount)),
     })).sort(byCoverageDesc);
 
     const areaManagerRanking = mapGroupsToRows(byAreaManager, dims.areaManagers, (name, g, idx) => ({
@@ -753,20 +807,20 @@ const Analytics = (() => {
       profile: dims.profiles ? (dims.profiles[areaMgrProfileIdx.get(idx)] || "") : "",
       status: name.toUpperCase().startsWith(VACANT_PREFIX) ? "Vacant" : "Filled",
       span: g.activeEmployees.size,
-      coveragePct: round4(pct(g.coveredSum, g.rowCount)),
-      rightFreqPct: round4(pct(g.rightFreqSum, g.rowCount)),
+      coveragePct: round4(pct(g.evalCoveredSum, g.evalRowCount)),
+      rightFreqPct: round4(pct(g.evalRightFreqSum, g.evalRowCount)),
     })).sort(byCoverageDesc);
 
     const specialtyCoverage = mapGroupsToRows(bySpecialty, dims.specialties, (name, g) => ({
       name, customerCount: g.rowCount,
-      coveragePct: round4(pct(g.coveredSum, g.rowCount)),
-      rightFreqPct: round4(pct(g.rightFreqSum, g.rowCount)),
+      coveragePct: round4(pct(g.evalCoveredSum, g.evalRowCount)),
+      rightFreqPct: round4(pct(g.evalRightFreqSum, g.evalRowCount)),
     })).sort((a, b) => b.customerCount - a.customerCount).slice(0, TOP_N_SPECIALTY_CLASS);
 
     const classCoverage = mapGroupsToRows(byClass, dims.classes, (name, g) => ({
       name, customerCount: g.rowCount,
-      coveragePct: round4(pct(g.coveredSum, g.rowCount)),
-      rightFreqPct: round4(pct(g.rightFreqSum, g.rowCount)),
+      coveragePct: round4(pct(g.evalCoveredSum, g.evalRowCount)),
+      rightFreqPct: round4(pct(g.evalRightFreqSum, g.evalRowCount)),
     })).sort((a, b) => b.customerCount - a.customerCount).slice(0, TOP_N_SPECIALTY_CLASS);
 
     // Type distribution: customer row count per Type, sorted by count desc,
@@ -829,6 +883,10 @@ const Analytics = (() => {
     const qualified = Array.from(byEmployeePeriod.values()).filter(
       (g) => g.isActive && g.periodIdx === kpiPeriodIdx && g.customerCount >= MIN_CUSTOMERS_FOR_LEADERBOARD
         && FIELD_REP_TITLES.has(dims.titles[g.titleIdx])
+        // Sick Leave Impact Rule (2026-09-15): >15-day/Maternity reps are
+        // "flag territory" -- excluded from competitive rankings, mirroring
+        // refresh.py's build_leaderboards() exempt filter server-side.
+        && !g.isExempt
     );
     const toLeaderboardRow = (g) => ({
       employee: dims.employeeNames[g.employeeIdx],
@@ -890,7 +948,7 @@ const Analytics = (() => {
       if (expIdx >= 0 && expIdx < dims.experiences.length) {
         rfByExperience.push({
           experience: dims.experiences[expIdx],
-          rfPct:      round4(pct(g.rightFreqSum, g.rowCount)),
+          rfPct:      round4(pct(g.evalRightFreqSum, g.evalRowCount)),
           empCount:   g.activeEmployees.size,
           rowCount:   g.rowCount,
         });
@@ -903,7 +961,10 @@ const Analytics = (() => {
     // above: managers must never appear in a rep-performance ranking.
     const rfEmpRows = [...byEmployeePeriod.values()]
       .filter(g => g.isActive && g.periodIdx === kpiPeriodIdx && g.customerCount >= MIN_CUSTOMERS_FOR_LEADERBOARD
-        && FIELD_REP_TITLES.has(dims.titles[g.titleIdx]))
+        && FIELD_REP_TITLES.has(dims.titles[g.titleIdx])
+        // Sick Leave Impact Rule (2026-09-15): same exclusion as the
+        // Coverage % leaderboard above.
+        && !g.isExempt)
       .map(g => ({
         name:          dims.employeeNames[g.employeeIdx] || "",
         team:          dims.teams[g.teamIdx] || "",
@@ -953,6 +1014,14 @@ const Analytics = (() => {
         frequency: u.targetSum, visits: u.visitsSum,
         missedCalls: remaining, overCalls: Math.max(0, u.visitsSum - u.targetSum),
         remaining, status,
+        proratedTarget: u.anyProrated ? u.proratedSum : -1,
+        isProrated: u.anyProrated,
+        // How many of this customer's covering reps were prorated, so the
+        // cell tooltip can say "2 of 47 reps" instead of implying the whole
+        // aggregated target was softened.
+        proratedRepCount: u.proratedRepCount,
+        proratedMet: u.anyProrated && u.proratedSum > 0
+          && u.visitsSum >= u.proratedSum && u.visitsSum < u.targetSum,
       };
     });
 

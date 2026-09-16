@@ -160,8 +160,18 @@ from collections import defaultdict, Counter
 import openpyxl
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# The SFE Sick Leave Impact Rule lives in ONE place for the whole platform --
+# refresh.py (Coverage/Right Frequency) and this ETL both import it, so the
+# two engines cannot drift to different definitions of "absent this month".
+# See leave_rules.py's header before changing any threshold.
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+import leave_rules  # noqa: E402  (path must be set first)
+
 SOURCE_VISITS = os.path.join(ROOT_DIR, "Visits Details S1 DM.xlsx")
 SOURCE_HR = os.path.join(ROOT_DIR, "Database Shortcut.xlsx")
+SOURCE_LEAVE = os.path.join(ROOT_DIR, leave_rules.LEAVE_REPORT_FILENAME)
 OUTPUT_JSON = os.path.join(ROOT_DIR, "cache", "coaching.json")
 OUTPUT_JS = os.path.join(ROOT_DIR, "cache", "coaching.data.js")
 JS_VAR_NAME = "COACHING_CACHE"
@@ -659,6 +669,23 @@ def main():
 
     manager_month_teams = {}       # coach_norm -> {month: {names}}
     manager_month_teams_norm = {}  # coach_norm -> {month: {norm names}}
+    # coach_norm -> {month: [names]} of reps dropped from the DV Coverage
+    # denominator by the Sick Leave Impact Rule. Surfaced per month in the
+    # output so a shrunken denominator is always explainable on screen --
+    # a coverage % that silently moves is worse than one that is wrong.
+    leave_absent_by_coach_month = defaultdict(dict)
+
+    # Month key ("2026-07") -> canonical month name ("July"), which is how
+    # the leave report keys its buckets.
+    month_names = {m: leave_rules.month_key_to_name(m) for m in MONTHS}
+
+    leave_report = leave_rules.load_leave_report(SOURCE_LEAVE)
+    if leave_report.get("found"):
+        log("  Sick Leave report loaded: %d rows, %d rep-month sick buckets, %d maternity"
+            % (leave_report["rowsRead"], len(leave_report["sickDays"]), len(leave_report["maternity"])))
+    else:
+        log("  NOTE: %s not found -- DV Coverage denominators will not be leave-adjusted."
+            % leave_rules.LEAVE_REPORT_FILENAME)
     # Iterate all_direct_reports (every HR-linked coach, any status) union
     # sales_month_reps -- NOT active_direct_reports -- so a coach whose
     # entire historical team has since left (so they have zero CURRENT
@@ -700,7 +727,42 @@ def main():
             # the sales cross-check's coarser monthly signal -- see
             # team_as_of_month()'s docstring above.
             sales_based = set(n for n in sales_based_raw if norm_name(n) not in hard_excluded_norm)
-            per_month[m] = hire_based | sales_based
+            roster = hire_based | sales_based
+
+            # Sick Leave Impact Rule (Ahmed, 2026-09-16): a rep in the
+            # Excluded band that month (>15 sick days, or Maternity) drops
+            # out of this manager's DV Coverage denominator. His example:
+            # "if dm has 5 medical rep in jul, 1 of them leave all july and
+            # he make double visits with 4 medical rep, his dv coverage is
+            # 100%" -- a manager cannot double-visit someone who was not
+            # there, and scoring him 80% for it punishes him for HR's
+            # calendar. Verified before shipping: 10 coach-months move, 8 of
+            # them to exactly 100%.
+            #
+            # Same Excluded band the Coverage/RF rule uses, on purpose --
+            # one definition of "not available this month" platform-wide
+            # (leave_rules.is_absent_for_coaching).
+            #
+            # DENOMINATOR ONLY. The rep stays on the roster set, so a joint
+            # visit that did happen with them still counts in the numerator
+            # and they still appear in the roster popup. Removing them from
+            # both halves of the ratio was the first implementation and it
+            # was wrong: for a manager who DID coach a mostly-absent rep it
+            # moved 6-of-7 to 5-of-6 and LOWERED his score (verified on real
+            # data -- Ahmed Mohamed Khalil Youssef, March 85.7% -> 83.3%).
+            # The rule exists to stop absence hurting a manager, so absence
+            # must only ever help or be neutral. The existing min(raw,100)
+            # cap in bucket_to_metrics handles the overflow case where every
+            # available rep plus an absent one were all coached.
+            absent = set()
+            if leave_report.get("found"):
+                for nm in roster:
+                    rep_code = hr_by_norm.get(norm_name(nm), {}).get("code")
+                    if rep_code and leave_rules.is_absent_for_coaching(leave_report, rep_code, month_names[m]):
+                        absent.add(nm)
+            per_month[m] = roster
+            if absent:
+                leave_absent_by_coach_month[coach_norm][m] = sorted(absent)
         manager_month_teams[coach_norm] = per_month
         manager_month_teams_norm[coach_norm] = {
             m: set(norm_name(x) for x in s) for m, s in per_month.items()
@@ -928,7 +990,27 @@ def main():
         # bucket for a month with no rows instead of KeyError.
         monthly = {}
         for m in MONTHS:
-            monthly[m] = bucket_to_metrics(buckets_by_key[m], len(month_teams[m]), is_cov)
+            # Sick Leave Impact Rule (2026-09-16): the DV Coverage
+            # DENOMINATOR drops reps who were in the Excluded band that month
+            # -- a manager cannot double-visit someone who was not there.
+            # The roster itself is untouched (see the per_month loop above),
+            # so the numerator and the roster popup still include them.
+            absent_m = leave_absent_by_coach_month.get(coach_norm, {}).get(m, [])
+            roster_size = len(month_teams[m])
+            monthly[m] = bucket_to_metrics(
+                buckets_by_key[m], max(0, roster_size - len(absent_m)), is_cov)
+            # Name who was dropped and what the denominator would have been,
+            # so a shrunken denominator is always explainable on screen: a
+            # manager looking at 100% can see it was 5-of-5 available, not
+            # 5-of-6 quietly rounded up.
+            # Only for the titles that actually get a DV Coverage % --
+            # bucket_to_metrics omits activeTeamSize for everyone else, and
+            # emitting a "before leave" denominator with no denominator
+            # beside it would be meaningless.
+            if absent_m and is_cov:
+                monthly[m]["leaveExcludedNames"] = absent_m
+                monthly[m]["leaveExcludedCount"] = len(absent_m)
+                monthly[m]["activeTeamSizeBeforeLeave"] = roster_size
             # 2026-09-03, Ahmed ("so any dsm resgned in specific month
             # reomve him from analysis", scope confirmed as "Remove from
             # that month's table + KPI averages"): stamp this MANAGER's
