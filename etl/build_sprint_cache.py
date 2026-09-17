@@ -102,7 +102,14 @@ COACHING_CACHE_PATH = os.path.join(CACHE_DIR, 'coaching.json')
 # majority CHC_SALES. Used to rescale Coaching's raw visits/day into the "%
 # of target" fraction this KPI's curve expects, exactly like Ahmed's own
 # manual-template column asks him to pre-compute by hand.
-CALLS_PER_DV_TARGET_DEFAULT = 8.0
+# Changed 2026-09-17 (Ahmed: "CALLS_PER_DV_TARGET_DEFAULT = 8.0 if we make it
+# as 7 any changes will happen in winners") -- lowered the DEFAULT
+# (non-CHC_SALES) Calls-per-DV target from 8/day to 7/day. Simulated first:
+# 60 of 92 DM/DSMs gain Calls-per-DV points, but no Winner/Runner-up identity
+# changed for July across CHC/Cluster/DIAB/GIT. CHC_SALES target (12.0) below
+# is untouched, and any manual-template-entered Calls-per-DV values are NOT
+# auto-retargeted by this constant -- only source=='coaching' records are.
+CALLS_PER_DV_TARGET_DEFAULT = 7.0
 CALLS_PER_DV_TARGET_CHC_SALES = 12.0
 # Field Working Days Intelligence's own cache (2026-09-11, Ahmed: "i need
 # field working days to be like [DV Coverage/Calls per DV, i.e. clickable
