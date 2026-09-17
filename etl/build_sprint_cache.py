@@ -919,6 +919,13 @@ def main():
         'CVM II': 'CVM-II', 'DIABETES II': 'DIAB-II', 'GIT II': 'GIT-II',
         'GIT I': 'GIT-I', 'GIT III': 'GIT-III', 'DIABETES III': 'DIAB-III',
         'DERMA': 'Derma', 'CNS': 'NEUROSCIENCE',
+        # ADDED 2026-09-17 (Ahmed: flagged Mina Shaher Wahba AbdelShahid,
+        # code 1400, Brand Manager for line 'Diabetes IV', showing blank
+        # National Sales KPI). 'DIABETES IV' was simply never added when
+        # I/II/III were mapped above -- Sales cache genuinely has a
+        # 'DIAB-IV' line with real July data, so this was a pure omission,
+        # not missing source data.
+        'DIABETES IV': 'DIAB-IV',
         # ADDED 2026-09-07 (Ahmed: "check all zeta sprint as per last rule
         # book and fix any mismatch or error"). This dict was originally
         # built 2026-08-15 by matching only the 11 then-ACTIVE BM roster
