@@ -77,15 +77,15 @@ SCHEMA_VERSION = 2
 # same 2026 assumption the rest of this pipeline makes (EVAL_PERIOD_NAME
 # etc. in etl/build_sprint_cache.py).
 YEAR = 2026
-MONTH_NUM = {'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6, 'July': 7}
+MONTH_NUM = {'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6, 'July': 7, 'August': 8}
 
 DEDUCT_LABELS = ['Weekends', 'Leave Days', 'Holidays', 'AV Confrance', 'Business Travel',
                  'Confrance', 'Gathering Meeting', 'Group Meeting (RTD)', 'Sales Meeting', 'Training']
 MULTIPLIER = {'DM_DSM': 0.8, 'ASM': 0.6, 'NSM': 0.3}
 TARGET_HEADER = 'Target Working Days (Calculated)'
 FIELDDAYS_HEADER = 'Field Working Days -- Actual % Achieved (e.g. 0.85 for 85%)'
-MONTH_ORDER = ['February', 'March', 'April', 'May', 'June', 'July']
-MONTH_ALIAS = {'Feb': 'February'}
+MONTH_ORDER = ['February', 'March', 'April', 'May', 'June', 'July', 'August']
+MONTH_ALIAS = {'Feb': 'February', 'Aug': 'August'}
 SHEET_TO_TIERKEY = {'DM_DSM': 'dmDsm', 'ASM': 'asm', 'NSM': 'nsm'}
 
 

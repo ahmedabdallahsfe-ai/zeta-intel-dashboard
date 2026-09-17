@@ -11,7 +11,7 @@
  * with an analytical hierarchy a manager can actually use:
  *   Executive KPIs -> Key Insights -> Monthly Trend -> Attention
  *   Required -> ranked/sortable/searchable table -> Other Levels table
- *   -> click-through Manager Profile (YTD summary + Feb..Jul
+ *   -> click-through Manager Profile (YTD summary + Feb..Aug
  *   reconciliation table + coached-employee list).
  *   (2026-08-31 follow-up: the 2x2 Coverage x Visits/Day Performance
  *   Matrix that originally sat between Monthly Trend and Attention
@@ -22,7 +22,7 @@
  *
  * DATA SOURCE / SCOPE -- UNCHANGED from v1, still locked:
  *   cache/coaching.data.js, built by etl/build_coaching_cache.py from
- *   "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Jul31 2026 YTD) joined
+ *   "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Aug31 2026 YTD) joined
  *   against Database Shortcut.xlsx. See that script's header for the
  *   full field list, exclusions and the confirmed 7-alias name-match
  *   table (757/757 reps, 165/165 coaching managers matched -- verified
@@ -176,6 +176,13 @@
   var OWN_ONLY_TITLES = ["District Manager", "Field force supervisor", "Senior District Manager"];
   var TARGET_COVERAGE_DEFAULT = 75;
   var TARGET_AVG_DAY_DEFAULT = 7;
+  // 2026-09-17, Ahmed: "for chc_sales line dv per day terget for ffs
+  // and dm is 12" / "make target line when selecting chc_sale at 12" --
+  // mirrors etl/build_sprint_cache.py's CALLS_PER_DV_TARGET_CHC_SALES
+  // = 12.0 (vs. the 8/day default), which already applies this same
+  // CHC_SALES-specific intensity target to Sprint's DM/DSM scoring.
+  // See effectiveTargets() below for where this is applied.
+  var TARGET_AVG_DAY_CHC_SALES = 12;
 
   var CHART_COLORS = {
     blue: "#4c6ef5", green: "#36c994", red: "#ff5c6b", orange: "#ff9f45",
@@ -421,6 +428,30 @@
     return null; // caller renders the numeric value + status badge normally
   }
 
+  // CHC_SALES target override (2026-09-17, Ahmed request -- see
+  // TARGET_AVG_DAY_CHC_SALES comment above). Coaching Intelligence's
+  // OWN avgVisitsPerDay target (data.targets.avgVisitsPerDay, cache-
+  // sourced, currently 7) is flat/company-wide with no per-Line
+  // distinction. This swaps in 12 whenever the user has THIS page's
+  // own Line filter (_filters.line -- deliberately NOT the shared
+  // global filter bar, see _filters comment above) set to CHC_SALES,
+  // since every manager in a CHC_SALES-filtered scope is by
+  // definition on that line -- so a single target line/number for
+  // the whole displayed cohort is still correct. DV Coverage's
+  // target is untouched: Ahmed's request was specifically about the
+  // Visits/Day intensity target. Used everywhere data.targets is
+  // read (KPI cards, trend chart + its subtitle, insights, ON
+  // TARGET/CRITICAL/etc. status gating, manager profile drawer) so
+  // the page never shows two different numbers for the same target.
+  function effectiveTargets(data) {
+    var t = data.targets;
+    if (_filters.line !== "CHC_SALES") return t;
+    var out = {};
+    for (var k in t) { if (Object.prototype.hasOwnProperty.call(t, k)) out[k] = t[k]; }
+    out.avgVisitsPerDay = TARGET_AVG_DAY_CHC_SALES;
+    return out;
+  }
+
   function statusFor(coveragePct, avgPerDay, targets) {
     if (coveragePct === null || coveragePct === undefined) {
       return { label: "PENDING", cls: "badge-neutral" };
@@ -442,7 +473,7 @@
   }
 
   function periodLabel(period) {
-    if (period === "ALL") return "YTD cumulative (Feb–Jul)";
+    if (period === "ALL") return "YTD cumulative (Feb–Aug)";
     var d = new Date(period + "-01T00:00:00");
     return d.toLocaleString("en-US", { month: "long", year: "numeric" });
   }
@@ -456,7 +487,7 @@
   // scope + period, never hard-coded. Capped at 6.
   // ---------------------------------------------------------------
   function buildInsights(data, ownTier, agg, prevAgg) {
-    var t = data.targets;
+    var t = effectiveTargets(data);
     var out = [];
 
     var covGap = agg.coveragePct === null ? null : (agg.coveragePct - t.dvCoveragePct);
@@ -643,7 +674,7 @@
   // Render: Executive KPI row
   // ---------------------------------------------------------------
   function renderExecKPIRow(data, ownTier, agg, onTargetCount) {
-    var t = data.targets;
+    var t = effectiveTargets(data);
     var covStatus = statusFor(agg.coveragePct, agg.avgPerDay, t);
     var covVariance = agg.coveragePct === null ? "—" : signed(agg.coveragePct - t.dvCoveragePct, " pp");
     var dayVariance = signed(agg.avgPerDay - t.avgVisitsPerDay);
@@ -689,13 +720,14 @@
   // Render: Monthly Trend (2 custom Chart.js line charts, own registry)
   // ---------------------------------------------------------------
   function renderMonthlyTrendShell(data) {
+    var t = effectiveTargets(data);
     return '' +
       '<div class="section-title" style="margin-top:22px;font-size:16px;">Monthly Coaching Trend</div>' +
       '<div class="section-sub">DM / Field Force Supervisor scope, correctly aggregated (sum &divide; sum, not an average of monthly averages)</div>' +
       '<div class="coaching-trend-grid">' +
-      '<div><div class="kpi-sub" style="margin-bottom:4px;">DV Coverage % &middot; target ' + data.targets.dvCoveragePct + '%</div>' +
+      '<div><div class="kpi-sub" style="margin-bottom:4px;">DV Coverage % &middot; target ' + t.dvCoveragePct + '%</div>' +
       '<div style="height:220px;"><canvas id="coaching-trend-coverage"></canvas></div></div>' +
-      '<div><div class="kpi-sub" style="margin-bottom:4px;">Avg Visits / Coaching Day &middot; target ' + data.targets.avgVisitsPerDay + '</div>' +
+      '<div><div class="kpi-sub" style="margin-bottom:4px;">Avg Visits / Coaching Day &middot; target ' + t.avgVisitsPerDay + '</div>' +
       '<div style="height:220px;"><canvas id="coaching-trend-intensity"></canvas></div></div>' +
       '</div>';
   }
@@ -754,11 +786,12 @@
   }
 
   function renderMonthlyTrendCharts(data, ownTier) {
+    var t = effectiveTargets(data);
     var labels = data.period.months.map(monthShort);
     var covVals = data.period.months.map(function (m) { return aggregateOwnTier(ownTier, m).coveragePct || 0; });
     var dayVals = data.period.months.map(function (m) { return aggregateOwnTier(ownTier, m).avgPerDay; });
-    drawLineChart("coaching-trend-coverage", labels, "DV Coverage %", covVals, data.targets.dvCoveragePct, true);
-    drawLineChart("coaching-trend-intensity", labels, "Avg Visits/Day", dayVals, data.targets.avgVisitsPerDay, false);
+    drawLineChart("coaching-trend-coverage", labels, "DV Coverage %", covVals, t.dvCoveragePct, true);
+    drawLineChart("coaching-trend-intensity", labels, "Avg Visits/Day", dayVals, t.avgVisitsPerDay, false);
   }
 
   // ---------------------------------------------------------------
@@ -776,7 +809,7 @@
   // -- so no ETL rerun was needed for this removal.
   // -----------------------------------------------------------------
   function renderAttentionRequired(data, ownTier) {
-    var t = data.targets;
+    var t = effectiveTargets(data);
     var rows = ownTier.map(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
       var st = statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t);
@@ -831,7 +864,7 @@
   };
 
   function renderOwnTierTable(data, ownTier) {
-    var t = data.targets;
+    var t = effectiveTargets(data);
     var rows = ownTier.map(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
       return { m: m, mm: mm, st: statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t) };
@@ -920,7 +953,7 @@
   // Render: Manager Profile drill-down
   // ---------------------------------------------------------------
   function renderProfile(data, manager) {
-    var t = data.targets;
+    var t = effectiveTargets(data);
     var cum = manager.cumulative;
     var st = statusFor(cum.dvCoveragePct, cum.avgVisitsPerDay, t);
     var isCov = OWN_ONLY_TITLES.indexOf(manager.title) >= 0;
@@ -1124,7 +1157,7 @@
     function byName(a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); }
     var coached = (bucket.coachedNames || []).slice().sort(byName);
     var notCoached = (bucket.notCoachedNames || []).slice().sort(byName);
-    var periodLabel = isCum ? "YTD (Cumulative, Feb–Jul)" : monthShort(period) + " " + period.slice(0, 4);
+    var periodLabel = isCum ? "YTD (Cumulative, Feb–Aug)" : monthShort(period) + " " + period.slice(0, 4);
     var covLabel = fmtPct1(bucket.dvCoveragePct);
 
     // Sick Leave Impact Rule (2026-09-16): reps in the Excluded band that
@@ -1254,7 +1287,7 @@
     var agg = aggregateOwnTier(ownTier, _state.period);
     var onTargetCount = ownTierInPeriod.filter(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
-      return statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, data.targets).label === "ON TARGET";
+      return statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, effectiveTargets(data)).label === "ON TARGET";
     }).length;
 
     var months = data.period.months;
@@ -1265,7 +1298,7 @@
     var html = '<div class="iqvia-dashboard-wrap" data-theme="light" style="height:auto;overflow:visible;padding:var(--pad-section);">' +
       '<div class="section active">' +
       '<div class="section-title">Coaching Intelligence</div>' +
-      '<div class="section-sub">YTD 2026 &middot; Feb 1 – Jul 31 &middot; Joint / Coached Field Visits</div>' +
+      '<div class="section-sub">YTD 2026 &middot; Feb 1 – Aug 31 &middot; Joint / Coached Field Visits</div>' +
       renderFilterRow(_visible, scoped.length, _visible.length) +
       renderPeriodControl(data) +
       renderExecKPIRow(data, ownTierInPeriod, agg, onTargetCount) +

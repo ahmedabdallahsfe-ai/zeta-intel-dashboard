@@ -311,6 +311,40 @@ if not "%NEWSFEED_EXIT%"=="0" (
     echo.
 )
 
+REM --- run the Regulatory & Egypt Registration Intelligence ETL -----------
+REM Added 2026-09-17 (fixes refresh_bat_audit_2026-09-14.md Finding #1 --
+REM HIGH severity). Runs etl\build_regulatory_cache.py, which internally
+REM calls fetch_regulatory.py (FDA Novel Drug Approvals + EMA Medicines
+REM Dataset) and score_regulatory.py, and writes
+REM cache\regulatory_pipeline.data.js + cache\egypt_registration.data.js --
+REM the data layer behind the "Regulatory & Egypt Registration" tab
+REM (js\regulatory-pipeline.js). This tab and its ETL were built and QA'd
+REM 2026-09-10 (Claude outputs\QA_REPORT_regulatory_module_2026-09-10.md)
+REM but were never wired into this script, so the cache silently went
+REM stale with nothing here to catch or signal it -- exactly the same gap
+REM shape the Market Intelligence Feed step above already documents fixing
+REM (and IQVIA/Customer Analytics before that). Placed right after Market
+REM Intelligence Feed since both are external-source, best-effort pulls.
+REM
+REM NOT FATAL IF IT FAILS. It makes live HTTP requests (FDA, EMA); the
+REM whole network being unreachable, or either source being down, on a
+REM given run must not block the git push of everything already rebuilt
+REM above. Per-source failures are already handled as non-fatal inside
+REM the ETL itself (see logs\regulatory_refresh.log) -- this outer check
+REM only catches the script failing to run at all.
+echo.
+echo Fetching Regulatory ^& Egypt Registration Intelligence (FDA, EMA)...
+%PYTHON_CMD% etl\build_regulatory_cache.py
+set "REGULATORY_EXIT=%ERRORLEVEL%"
+
+if not "%REGULATORY_EXIT%"=="0" (
+    echo.
+    echo   [WARNING] Regulatory ^& Egypt Registration refresh did not complete.
+    echo   The tab will keep serving its previous cache. Check
+    echo   logs\regulatory_refresh.log and config\regulatory_pipeline_settings.yaml.
+    echo.
+)
+
 REM --- run the To-Market vs In-Market (TMS/IMS) Aggregation ----------------
 REM Revised 2026-07-31: this workspace is embedded as-is via iframe (see
 REM js/app.js's renderTomarketTab()) rather than rebuilt into this app's
@@ -455,6 +489,14 @@ if "%GIT_CMD%"=="" (
     REM the live site instead of silently deploying with the old feed.
     "%GIT_CMD%" add -f cache/news_latest.data.js
     "%GIT_CMD%" add -f cache/news_archive.data.js
+    REM Regulatory & Egypt Registration: same -f reason as every cache
+    REM above -- .gitignore line 2 is `cache/`. Added 2026-09-17 alongside
+    REM the ETL step above (refresh_bat_audit_2026-09-14.md Finding #1) --
+    REM without this, a successful rebuild would still never reach the
+    REM live site. Only the .data.js (gzipped) versions are pushed, same
+    REM pattern as market_intel/ims_rx -- the .json twins are local-only.
+    "%GIT_CMD%" add -f cache/regulatory_pipeline.data.js
+    "%GIT_CMD%" add -f cache/egypt_registration.data.js
     REM Same -f reason as every cache above: .gitignore line 2 is `cache/`,
     REM and this file is new so `git add -A` would skip it entirely.
     "%GIT_CMD%" add -f cache/build_manifest.data.js

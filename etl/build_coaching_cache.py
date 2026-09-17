@@ -177,8 +177,8 @@ OUTPUT_JS = os.path.join(ROOT_DIR, "cache", "coaching.data.js")
 JS_VAR_NAME = "COACHING_CACHE"
 
 PERIOD_START = datetime.date(2026, 2, 1)
-PERIOD_END = datetime.date(2026, 7, 31)
-MONTHS = ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07"]
+PERIOD_END = datetime.date(2026, 8, 31)
+MONTHS = ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"]
 
 # 2026-08-31 (user-set): DV Coverage target raised from 75% to 100% --
 # full roster coverage is the actual bar, not 3-in-4. This single
@@ -902,7 +902,7 @@ def main():
         rows_processed += 1
 
     log(f"rows processed: {rows_processed} | skipped (no coach): {rows_skipped_no_coach} | "
-        f"out of Feb1-Jul31 period: {rows_out_of_period}")
+        f"out of Feb1-Aug31 period: {rows_out_of_period}")
 
     print("\n[4/5] Building manager records...", flush=True)
     managers_out = []

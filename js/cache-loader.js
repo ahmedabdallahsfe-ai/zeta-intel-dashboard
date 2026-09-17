@@ -70,7 +70,7 @@
       file: "cache/coaching.data.js",
       globalVar: "COACHING_CACHE",
       label: "Coaching intelligence",
-      version: "20260916_leavedenominator",
+      version: "20260917_hrrostersync",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",

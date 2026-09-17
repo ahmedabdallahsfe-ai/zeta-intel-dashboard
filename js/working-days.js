@@ -42,7 +42,7 @@
   var cache = null;      // scoped view actually rendered from
   var charts = { trend: null, dist: null, deduct: null };
 
-  var MONTHS_FALLBACK = ["February", "March", "April", "May", "June", "July"];
+  var MONTHS_FALLBACK = ["February", "March", "April", "May", "June", "July", "August"];
   var TIER_LABEL = { DM_DSM: "DM / DSM", ASM: "ASM", NSM: "NSM" };
   var TIER_COLOR = { DM_DSM: "#0F4C81", ASM: "#B45309", NSM: "#15803D" };
 
