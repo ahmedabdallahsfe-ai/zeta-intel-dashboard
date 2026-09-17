@@ -3793,7 +3793,23 @@
 
     Object.keys(dmGroupSummary).forEach(bu => {
       const gs = dmGroupSummary[bu];
-      [gs.winner, gs.runnerUp].forEach((entry) => {
+      // FIXED 2026-09-17 (Ahmed: "Dalia Fathy Eldemerdash Khamis not
+      // present in sheet" -- she is GIT BU's #1 DM/DSM WINNER at 85.7
+      // pts, clearing every peer-Average gate KPI, but was silently
+      // dropped from the Winners CSV). Root cause: computeHierarchyWinnerPools
+      // returns groupSummary[g] with a `winners` ARRAY (plural, can hold 2
+      // entries on a rank-1 tie) and a `runnerUp` singular -- there is no
+      // `winner` (singular) field. This loop was reading gs.winner, which is
+      // always undefined, so `if (!entry) return;` silently skipped every #1
+      // WINNER for every BU, month after month -- and a BU whose only
+      // eligible person had no runner-up (pool of 1) produced ZERO rows at
+      // all, vanishing from the CSV entirely (DIAB, July: Lamiaa Samir Khalil
+      // Abdelrahman). Runner-Up rows were unaffected, which is why the bug
+      // went unnoticed -- the CSV still "looked" populated. Same real-winners
+      // source (groupSummary) the ASM/NSM block below already reads
+      // correctly via gs.winners.forEach -- this now matches that pattern,
+      // spread so a tied #1 (co-WINNER) still produces both rows.
+      [...gs.winners, gs.runnerUp].forEach((entry) => {
         if (!entry) return;
         const r = entry.r;
         // A tied #2 was already promoted to co-WINNER (d.tier === "WINNER")
