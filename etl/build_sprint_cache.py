@@ -701,9 +701,23 @@ def main():
     emp_to_manager, emp_to_areaManager, emp_to_nsm = {}, {}, {}
     for row in records['rows']:
         empIdx = row[F['employee']]
-        emp_to_manager[empIdx] = dims['managers'][row[F['manager']]]
-        emp_to_areaManager[empIdx] = dims['areaManagers'][row[F['areaManager']]]
-        emp_to_nsm[empIdx] = dims['nsms'][row[F['nsm']]]
+        # FIXED 2026-09-17 (Ahmed: flagged Karim Mohamed Nagib Mohamed
+        # Eldemerdash, code 188, wrongly excluded from DM/DSM and scored as
+        # ASM for July, when his own July DVR row says "Senior District
+        # Manager" with zero team). Root cause: these three dicts were
+        # being overwritten from EVERY period's row in this loop with no
+        # period guard at all -- only the code BELOW this block was
+        # period-scoped. Since records.data.js now runs through August,
+        # and August's rows come after July's, August's manager/Area
+        # Manager/NSM assignment silently won over July's for EVERY
+        # employee, not just Karim (confirmed period-by-period: his two
+        # "reports" show a blank Area Manager on every July row, and only
+        # pick up Karim starting August). Now scoped to EVAL_PERIOD_NAME,
+        # exactly like every other per-period read in this function.
+        if dims['periods'][row[F['period']]] == EVAL_PERIOD_NAME:
+            emp_to_manager[empIdx] = dims['managers'][row[F['manager']]]
+            emp_to_areaManager[empIdx] = dims['areaManagers'][row[F['areaManager']]]
+            emp_to_nsm[empIdx] = dims['nsms'][row[F['nsm']]]
 
         if dims['periods'][row[F['period']]] != EVAL_PERIOD_NAME:
             continue
