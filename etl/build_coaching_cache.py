@@ -338,6 +338,19 @@ def safe_str(v):
     return str(v)
 
 
+def is_blank_lookup_status(v):
+    """Database Shortcut's Status column is a VLOOKUP into upstream HR
+    workbooks. When the upstream Status cell is EMPTY the lookup returns 0,
+    which Excel stores as a time value (00:00) -- not the text 'Active' /
+    'Inactive'. Found 2026-09-20 on Hanan Atef Magdy Abdelmessih (code 556,
+    the ONLY real employee with this defect), whose blank Status made every
+    downstream rule read her as 'resigned'. A blank lookup is NOT evidence
+    of departure: callers treat it as unknown (= active, same principle as
+    a missing HR match) and log a data-quality warning. Only applied when
+    there is also no Last Day of Work on file."""
+    return isinstance(v, datetime.time) or (isinstance(v, (int, float)) and not isinstance(v, bool) and v == 0)
+
+
 def safe_position(v):
     """Database Shortcut's "Position (English)" column is never blank
     (verified 2026-09-01: 0/2466 rows), but 393 rows carry leading/
@@ -416,6 +429,45 @@ def main():
     hi = {h: i for i, h in enumerate(hdr)}
     hr_rows = list(ws_hr.iter_rows(min_row=2, values_only=True))
 
+    # ---- Direct-Manager resolution (2026-09-20, shadow-tested) ----
+    # Root cause of "PENDING / No active team" for managers such as code 166
+    # Mohamed Thabet Elsayed Esmail: the ETL keyed a rep's manager on the
+    # TEXT of "Name of Direct Manager", and HR spells the same manager
+    # several ways ("El Sayed Esmail", "El-Sayed Ismail", "V. ...",
+    # "Vacant ...") so the rep never linked to the manager's own record.
+    # Rule (additive only -- never overrides an existing match):
+    #   1. If the Direct Manager text already resolves to an HR employee
+    #      name (after COACHING_NAME_ALIASES) -> use it, EXACTLY as before.
+    #   2. ONLY otherwise, if "Emp. Code of Direct Manager" is a real code
+    #      that belongs to an HR employee -> use that employee's name.
+    #   3. Else keep the text, as before.
+    # A code that points to a DIFFERENT person than a resolvable name is a
+    # data conflict: keep the name (old behaviour) and log it.
+    _hr_names = set()
+    _code2norm = {}
+    for _r in hr_rows:
+        _nm = _r[hi["Employee Name (English)"]]
+        if _nm is None:
+            continue
+        _hr_names.add(norm_name(_nm))
+        _c = _r[hi["Code"]]
+        if _c not in (None, "", 0):
+            _code2norm[_c] = norm_name(_nm)
+    dq_status_assumed = []  # (code, name) rows whose Status was a blank lookup -> assumed Active
+    dm_rescued = []     # (report, dm text, resolved-by-code manager)
+    dm_conflicts = []   # (report, dm text, code, code-holder)
+    def resolve_dm_key(dm_text, dm_code, report_name):
+        name_key = norm_name(dm_text) if dm_text else ""
+        code_key = _code2norm.get(dm_code) if dm_code not in (None, "", 0) else None
+        if name_key and name_key in _hr_names:
+            if code_key and code_key != name_key:
+                dm_conflicts.append((report_name, dm_text, dm_code, code_key))
+            return name_key
+        if code_key:
+            dm_rescued.append((report_name, dm_text, code_key))
+            return code_key
+        return name_key
+
     hr_by_norm = {}
     active_direct_reports = defaultdict(set)  # norm(Direct Manager) -> {employee names}, CURRENT status=="Active" only -- display/legacy use, see below
     all_direct_reports = defaultdict(set)     # norm(Direct Manager) -> {employee names}, EVERY status -- feeds the day-precise monthly roster (team_as_of_month)
@@ -427,6 +479,9 @@ def main():
         dm = r[hi["Name of Direct Manager"]]
         hire_date = safe_date(r[hi["Hiring date"]])
         last_day_of_work = safe_date(r[hi["Last Day of Work"]])
+        if is_blank_lookup_status(status) and last_day_of_work is None:
+            dq_status_assumed.append((r[hi["Code"]], name))
+            status = "Active"  # unknown != resigned -- see is_blank_lookup_status()
         n = norm_name(name)
         raw_bu = r[hi["Business Unit"]]
         raw_position = r[hi["Position (English)"]]
@@ -439,13 +494,32 @@ def main():
             "bu": raw_bu,
             "position": safe_position(raw_position),
             "directManager": dm,
+            "dmKey": None,  # filled just below
             "hireDate": hire_date,
             "lastDayOfWork": last_day_of_work,
         }
-        if dm:
-            all_direct_reports[norm_name(dm)].add(name)
+        _dm_key = resolve_dm_key(dm, r[hi["Emp. Code of Direct Manager"]], name)
+        hr_by_norm[n]["dmKey"] = _dm_key
+        if dm or _dm_key:
+            all_direct_reports[_dm_key].add(name)
             if status == "Active":
-                active_direct_reports[norm_name(dm)].add(name)
+                active_direct_reports[_dm_key].add(name)
+    log(f"Direct-Manager code fallback: {len(dm_rescued)} report rows rescued by manager code, "
+        f"{len(dm_conflicts)} name-vs-code conflicts (kept name)")
+    # Data-quality warning for the refresh log: HR's Direct Manager TEXT does not
+    # match the manager's own HR name. Harmless now (rescued by code) but HR
+    # should standardise the spelling. Full list: HR_DirectManager_Name_Mismatches_*.csv
+    _variants = {}
+    for _rep, _txt, _mgr in dm_rescued:
+        _variants.setdefault(_mgr, set()).add(str(_txt))
+    log(f"WARNING (HR data quality): {len(_variants)} managers are spelled differently in "
+        f"'Name of Direct Manager' than in their own HR record -- linked by manager code.")
+    for _rep, _txt, _code, _holder in dm_conflicts:
+        log(f"WARNING (HR conflict): report '{_rep}' lists Direct Manager text '{_txt}' "
+            f"but manager code {_code} belongs to '{_holder}' -- kept the NAME match; please review in HR.")
+    for _c, _n in dq_status_assumed:
+        log(f"WARNING (HR data quality): Status for code {_c} '{_n}' is a blank lookup "
+            f"(upstream HR workbook has no Status) -- treated as Active, NOT resigned. Please fill it in HR.")
     log(f"HR master rows: {len(hr_rows)} | unique normalized names: {len(hr_by_norm)}")
 
     # ---- Per-manager, per-month "team as of the start of that month" ----
@@ -923,6 +997,20 @@ def main():
                 title = "Brand Manager"
         team = active_direct_reports.get(coach_norm, set())  # CURRENT roster -- display only, see below
         is_cov = title in COVERAGE_TITLES
+        # Role change (2026-09-20, Ahmed decision (a)): a coach whose CURRENT
+        # HR position is a plain Medical/Sales Representative is no longer a
+        # coaching manager. Their earlier supervisor visits (before the HR
+        # hire date) stay in their own profile/YTD history, but from the HR
+        # hire month onward they are not a manager row and never enter the
+        # KPI averages. Verified 2026-09-20: only Hanan Atef Magdy
+        # Abdelmessih (556) matches this rule -- no other coach is affected.
+        role_change = None
+        if is_cov and hr_pos:
+            _pu = str(hr_pos).replace("\ufffd", "").strip().upper()
+            if _pu.startswith("MEDICAL REP") or _pu.startswith("SALES REP"):
+                _hd = hr.get("hireDate")
+                role_change = {"currentPosition": str(hr_pos).replace("\ufffd", "").strip(),
+                               "since": _hd.isoformat() if _hd else None}
         team_size = len(team)
 
         # 2026-09-01, Ahmed (after asking Ingy Mousa Guirgis Mashrqay's
@@ -1059,6 +1147,9 @@ def main():
             # after this one once they're gone), resignedThisMonth
             # additionally catches the resignation month itself no
             # matter which half of it they left in.
+            if role_change and role_change["since"] and MONTH_END[m].isoformat() >= role_change["since"]:
+                # not a coaching manager from the month they became a rep
+                monthly[m]["activeHalfMonth"] = False
             last_day = hr.get("lastDayOfWork")
             monthly[m]["resignedThisMonth"] = bool(
                 last_day is not None and MONTH_START[m] <= last_day <= MONTH_END[m]
@@ -1116,8 +1207,12 @@ def main():
                 # show whose roster this person is really on, not just
                 # that they aren't on THIS manager's.
                 real_dm = emp_hr.get("directManager")
-                if real_dm and norm_name(real_dm) != coach_norm:
+                _real_key = emp_hr.get("dmKey") or (norm_name(real_dm) if real_dm else "")
+                if real_dm and _real_key != coach_norm:
                     actual_manager = real_dm
+                    if _real_key != norm_name(real_dm):
+                        # rescued by manager code -- show the canonical HR name
+                        actual_manager = hr_by_norm.get(_real_key, {}).get("name") or real_dm
             coached_employees.append({
                 "name": meta["name"],
                 "onRoster": meta["onRoster"],
@@ -1185,6 +1280,7 @@ def main():
             "activeTeam": sorted(team),
             "activeTeamHireDates": team_hire_dates,
             "currentlyActive": currently_active,
+            **({"roleChange": role_change} if role_change else {}),
             "cumulative": cumulative,
             "monthly": monthly,
             "coachedEmployees": coached_employees,

@@ -351,6 +351,10 @@
       // it still reads straight from manager.monthly/cumulative and
       // shows their accurate individual history when opened directly.
       if (m.currentlyActive === false) return;
+      // roleChange: currently a Medical/Sales Rep, no longer a coaching
+      // manager (2026-09-20) -- kept out of every KPI aggregate like a
+      // departed manager, but shown with its own honest badge below.
+      if (m.roleChange) return;
       if (!managerActiveInPeriod(m, period)) return;
       var mm = metricsFor(m, period) || EMPTY_METRICS;
       visits += mm.visits;
@@ -891,7 +895,9 @@
       var covVar = r.mm.dvCoveragePct === null ? "—" : signed(r.mm.dvCoveragePct - t.dvCoveragePct, " pp");
       var dayVar = signed(r.mm.avgVisitsPerDay - t.avgVisitsPerDay);
       var covDisplay = coverageDisplay(r.m, r.mm);
-      var leftBadge = r.m.currentlyActive === false
+      var leftBadge = r.m.roleChange
+        ? '<span class="badge badge-neutral" title="Now a ' + esc(r.m.roleChange.currentPosition) + ' -- no longer a coaching manager. Excluded from the Executive KPI row and this table\'s totals. Earlier supervisor visits are kept here as history only.">Now ' + esc(r.m.roleChange.currentPosition) + (r.m.roleChange.since ? ' (since ' + esc(r.m.roleChange.since) + ')' : '') + '</span>'
+        : r.m.currentlyActive === false
         ? '<span class="badge badge-neutral" title="No longer with the company -- excluded from the Executive KPI row and this table\'s totals for every period, including YTD Cumulative. This row still shows their own accurate historical numbers.">Left company</span>'
         : "";
       return '<tr class="coaching-drill-row" data-drill="' + esc(r.m.id) + '" style="cursor:pointer;">' +

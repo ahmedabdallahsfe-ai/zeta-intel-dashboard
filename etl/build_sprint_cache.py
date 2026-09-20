@@ -626,6 +626,12 @@ def main():
                 return False, f"Last Day of Work {last_day.isoformat()} on/before period end"
             return True, None
         status = code_to_status.get(code)
+        # 2026-09-20: a blank upstream Status (the HR VLOOKUP returns 0 =
+        # Excel time 00:00) is UNKNOWN, not a resignation -- see
+        # build_coaching_cache.is_blank_lookup_status(). Only reached when
+        # there is no Last Day of Work (checked above). Code 556 only.
+        if isinstance(status, datetime.time) or (isinstance(status, (int, float)) and not isinstance(status, bool) and status == 0):
+            return True, None
         if status != 'Active':
             return False, f"DB status = {status!r} (no Last Day of Work on file)"
         return True, None
