@@ -1776,8 +1776,25 @@ def main():
     dm_name_to_asm = {dm: votes.most_common(1)[0][0] for dm, votes in dm_asm_votes.items()}
     dm_name_to_nsm = {dm: votes.most_common(1)[0][0] for dm, votes in dm_nsm_votes.items()}
 
-    higher_tier_manager_names = {norm_name(m) for m in (dims['areaManagers'] + dims['nsms']) if m}
-    higher_tier_manager_codes = {name_to_code.get(norm_name(m)) for m in (dims['areaManagers'] + dims['nsms']) if m and name_to_code.get(norm_name(m))}
+    # FIXED 2026-09-20 (Ahmed: "Karim Mohamed Nagib Mohamed Eldemerdash SHOULD
+    # BE SHOWN IN DSM IN JULY") -- was dims['areaManagers'] + dims['nsms'],
+    # the FULL distinct-name dimension lists across every month present in
+    # records.data.js (Feb-August), not period-scoped at all. Any name that
+    # is EVER someone's Area Manager/NSM in ANY month -- past or future --
+    # got permanently excluded from DM/DSM for every period's build,
+    # including periods before that promotion happened (Karim: DSM through
+    # July, Area Manager only from August, but his name sat in
+    # dims['areaManagers'] regardless, so July's build excluded him too).
+    # This was actually the deciding mechanism -- the 2026-09-17 fixes to
+    # emp_to_manager/emp_to_areaManager/emp_to_nsm and hr_higher_tier_codes
+    # (both period-scoped that day) turned out NOT to be enough on their
+    # own, because this line independently re-derived the same exclusion
+    # from the un-scoped dimension lists. Now reuses emp_to_areaManager/
+    # emp_to_nsm (already period-scoped to EVAL_PERIOD_NAME by the
+    # 2026-09-17 fix above) instead of the raw dimension lists -- the same
+    # ground truth, correctly limited to this period.
+    higher_tier_manager_names = {norm_name(m) for m in (set(emp_to_areaManager.values()) | set(emp_to_nsm.values())) if m}
+    higher_tier_manager_codes = {name_to_code.get(norm_name(m)) for m in (set(emp_to_areaManager.values()) | set(emp_to_nsm.values())) if m and name_to_code.get(norm_name(m))}
 
     asm_team_pool = defaultdict(list)
     nsm_team_pool = defaultdict(list)
@@ -1813,9 +1830,34 @@ def main():
     # also scored as a DM/DSM for the same period (e.g. Mohamed Yakn code 799, Karim Nagib code 188, Ahmed Othman code 1278).
     # Ahmed explicit directive: "consider it as aarea manager in zeta sprint not as dm
     # and for nsm or asm consider dsm only reported to them"
+    #
+    # FIXED 2026-09-20 (Ahmed: "Karim Mohamed Nagib Mohamed Eldemerdash SHOULD
+    # BE SHOWN IN DSM IN JULY"). Root cause: this used TODAY's Database
+    # Shortcut Position snapshot for every period's build, with no period
+    # awareness -- so a person promoted AFTER the eval period (Karim: DSM
+    # through July, Area Manager only from August; confirmed via
+    # records.data.js's own per-period title field, which flips exactly at
+    # the July/August boundary) was wrongly excluded from July's DM/DSM list
+    # using their CURRENT title. Now prefers the DVR/coverage source's own
+    # title for EVAL_PERIOD_NAME when that employee code has one (period-
+    # accurate ground truth, same principle as the emp_to_manager/
+    # emp_to_areaManager/emp_to_nsm period-scoping fix above) and only falls
+    # back to today's HR snapshot when there's no such row -- true for the
+    # large majority of ASM/NSM/Brand Manager codes here (61 of 63 checked
+    # 2026-09-17), who own no rep-level DVR history at all and have no other
+    # signal. Only Karim (188) and Ahmed Othman Mahmoud Mohamed Othman (1278)
+    # had a period row showing a still-lower title, so those are the only
+    # two whose July DM/DSM inclusion changes from this fix.
+    period_title_by_code = {}
+    for row in records['rows']:
+        if dims['periods'][row[F['period']]] != EVAL_PERIOD_NAME:
+            continue
+        period_title_by_code[employeeCodes[row[F['employee']]]] = titles[row[F['title']]]
+
     hr_higher_tier_codes = set()
     for code_val, pos_val in code_to_position.items():
-        pos_upper = str(pos_val or '').replace('\ufffd', '').upper()
+        period_title = period_title_by_code.get(code_val)
+        pos_upper = (period_title if period_title is not None else str(pos_val or '')).replace('\ufffd', '').upper()
         if ('AREA' in pos_upper or 'NATIONAL' in pos_upper or 'BUSINESS UNIT' in pos_upper or 'BRAND' in pos_upper) and 'REPRESENTATIVE' not in pos_upper and 'SPECIALIST' not in pos_upper:
             hr_higher_tier_codes.add(code_val)
 
