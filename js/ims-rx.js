@@ -1673,9 +1673,43 @@
     renderLayout();
   }
 
+  // -------------------------------------------------------------------
+  // Ask-the-Data accessor (READ-ONLY, additive). Runs the page's OWN
+  // mdRankedRows / mdFilteredTotal / cfCompanyLeaderboard / cfFilteredTotal
+  // under a temporary filter state and restores the page's state afterwards,
+  // so nothing the user sees on the page can change. `map` is
+  // { filterKey: [lookupIdx, ...] } using the page's own filter keys
+  // (period, product, company, molecule, atc3, atc4, specialty, region, cat).
+  // -------------------------------------------------------------------
+  function askApi() {
+    if (!canView()) return { ok: false, reason: "access" };
+    decompressCache();
+    if (!cache || isCacheStale()) return { ok: false, reason: "nocache" };
+    const KEYS = ["period", "product", "company", "molecule", "atc3", "atc4", "specialty", "region", "cat"];
+    function build(map) {
+      const o = {};
+      KEYS.forEach((k) => { o[k] = (map && map[k] && map[k].length) ? new Set(map[k]) : null; });
+      return o;
+    }
+    function withMd(map, fn) { const s = MDx; MDx = build(map); try { return fn(); } finally { MDx = s; } }
+    function withCf(map, fn) { const s = CFx; CFx = build(map); try { return fn(); } finally { CFx = s; } }
+    return {
+      ok: true,
+      meta: cache.meta,
+      periods: cache.lookups.periods.slice(),
+      lookup: (k) => (k === "company" ? companyNames : cache.lookups[k]),
+      ranked: (fieldKey, lookupKey, map) => withMd(map, () => mdRankedRows(fieldKey, lookupKey)),
+      total: (map) => withMd(map, () => mdFilteredTotal()),
+      leaderboard: (map) => withCf(map, () => cfCompanyLeaderboard()),
+      cfTotal: (map) => withCf(map, () => cfFilteredTotal()),
+      kpis: () => computeKPIs(),
+    };
+  }
+
   window.ImsRxDashboard = {
     init,
     destroy,
     canView,
+    askApi,
   };
 })();

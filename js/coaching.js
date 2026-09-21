@@ -1537,5 +1537,37 @@
     document.body.classList.remove("coaching-mode");
   }
 
-  global.CoachingDashboard = { init: init, destroy: destroy };
+  /**
+   * READ-ONLY accessor for "Ask the Data" (js/ask-prov-coaching.js). Additive: the page never calls it.
+   * Hands out the page's OWN scoped manager list (getVisibleManagers: AUTH + own-team rule) and its own
+   * aggregate / target / status functions, so an Ask answer is the page's KPI, not a re-computation.
+   * Returns null when the cache is not loaded or nobody is visible to this user.
+   */
+  function askApi() {
+    var data = loadCache();
+    if (!data) return null;
+    var vis = getVisibleManagers(data);
+    if (!vis.length) return null;
+    return {
+      data: data,
+      months: (data.period && data.period.months) || [],
+      managers: vis,
+      ownTierTitles: OWN_ONLY_TITLES.slice(),
+      isOwnTier: function (m) { return OWN_ONLY_TITLES.indexOf(m.title) >= 0; },
+      aggregateOwnTier: aggregateOwnTier,
+      metricsFor: metricsFor,
+      managerActiveInPeriod: managerActiveInPeriod,
+      statusFor: statusFor,
+      repCadenceForPeriod: repCadenceForPeriod,
+      emptyMetrics: EMPTY_METRICS,
+      /** The page's effective targets for a Line filter value (the page swaps in 12 visits/day for CHC_SALES). */
+      targetsForLine: function (line) {
+        var saved = _filters.line;
+        _filters.line = line || "";
+        try { return effectiveTargets(data); } finally { _filters.line = saved; }
+      }
+    };
+  }
+
+  global.CoachingDashboard = { init: init, destroy: destroy, askApi: askApi };
 })(window);

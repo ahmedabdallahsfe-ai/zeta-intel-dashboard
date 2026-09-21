@@ -1,0 +1,16 @@
+const H=require("./harness.js");
+const who=process.argv[2]||"Mohamed Bakr";
+const b=H.boot(); const w=b.window; H.signIn(w,who);
+w.eval("CacheStore.init()");
+const D=w.IQVIADashboard; const a=D.askApi();
+console.log(who, "ok",a.ok, a.reason||"", "rows", a.ok&&a.periods.length);
+if(!a.ok) process.exit();
+const r=a.range("mat",a.periods.length-1); console.log("mat cur",r.cur.size,"prev",r.prev.size);
+const DM=a.DIM, bus=a.lookup("bus");
+const cur=a.agg(DM.bu,{},r.cur), curZ=a.agg(DM.bu,{corp:[a.zetaIdx]},r.cur);
+const z=new Map(curZ);
+const bs=D.getBusinessSummary();
+cur.forEach(([k,v])=>{ if(["CHC","Cluster","DIAB","GIT"].indexOf(bus[k])<0) return; const zz=z.get(k)||{lcv:0}; console.log(bus[k],"askShare",(zz.lcv/v.lcv*100).toFixed(4),"size",Math.round(v.lcv),"| BS", bs.bu&&bs.bu[bus[k]]&&bs.bu[bus[k]].marketShareMATPct.toFixed(4), bs.bu[bus[k]]&&Math.round(bs.bu[bus[k]].marketSizeMATLcv)); });
+console.log("visible bus", [...a.present.bu].map(i=>bus[i]).join(","), "lines", [...a.present.line].map(i=>a.lookup("lines")[i]).join(","));
+console.log("dm1 count", a.present.dm1.size, "corps", a.present.corp.size);
+console.log("global flat untouched:", w.eval("flat===null||typeof flat"));

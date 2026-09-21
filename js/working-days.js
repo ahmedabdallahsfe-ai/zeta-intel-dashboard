@@ -477,6 +477,23 @@
       renderAll();
     },
     canView: canViewPage,
+    /**
+     * READ-ONLY accessor for "Ask the Data" (js/ask-prov-workdays.js). Additive: nothing in the page
+     * calls it. It hands out the SAME scoped rows (applyScope) and the SAME aggregate function
+     * (computeAgg) the page renders from, so an Ask answer cannot drift from the page's KPI cards.
+     */
+    askApi: function () {
+      if (!canViewPage() || !decompressCache()) return null;
+      return {
+        tiers: ["DM_DSM", "ASM", "NSM"],
+        tierLabel: TIER_LABEL,
+        multiplier: cache.multiplier,
+        generatedAt: (cache.meta && cache.meta.generatedAt) || null,
+        availableMonths: availableMonths,
+        rows: function (tier, month) { return employeesFor(tier, month, { bu: "", line: "", profile: "" }).slice(); },
+        computeAgg: computeAgg
+      };
+    },
     destroy: function () {
       document.body.classList.remove("working-days-mode");
       if (charts.trend) { charts.trend.destroy(); charts.trend = null; }

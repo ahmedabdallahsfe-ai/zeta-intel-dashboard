@@ -5164,6 +5164,17 @@
       }
       document.body.classList.remove("executive-mode");
     },
+    /** ASK-THE-DATA accessor (read-only): the SAME getTmsImsMetrics / getTmsImsDetailedBreakdown the Pull-Through and
+     *  Stock Days cards use, plus the caller's own BU / line scope helpers. No calculation lives here. */
+    askTmsIms: function () {
+      const c = global.TMS_IMS_CACHE;
+      if (!c || !c.MONTHS || !c.MONTHS.length) return { ok: false, reason: "nocache" };
+      return {
+        ok: true, months: c.MONTHS.slice(), latest: c.MONTHS[c.MONTHS.length - 1],
+        allowedBUs: getAllowedBUList, linesForBU: getAllowedLinesForBU, canAll: canSelectAllBUs,
+        metrics: getTmsImsMetrics, breakdown: getTmsImsDetailedBreakdown
+      };
+    },
     setFilters: setFilters,
     renderManagementDecisionEngine: renderManagementDecisionEngine,
     collectSummariesPinnedOfficial: collectSummariesPinnedOfficial

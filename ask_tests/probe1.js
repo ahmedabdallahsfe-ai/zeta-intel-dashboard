@@ -1,0 +1,13 @@
+const { boot, signIn } = require("./harness");
+const { window: w } = boot();
+signIn(w, "Mohamed Bakr");
+const S = w.SalesDashboard;
+console.log(JSON.stringify(S.getAvailableMonths()));
+console.log(JSON.stringify(w.SEMANTIC.BU_LIST), JSON.stringify(Object.keys(w.SEMANTIC.CANONICAL_LINE_TO_BU||{})));
+let t=Date.now();
+const a = S.getSalesAchievementSummary("DIAB", null, false, "official", [6]);
+console.log(Date.now()-t, JSON.stringify(a));
+const b = S.getSalesAchievementSummary("DIAB", null, false, "official", [5]);
+console.log(JSON.stringify(b));
+console.log(typeof w.SEMANTIC.TARGET_SCENARIOS, JSON.stringify(w.SEMANTIC.TARGET_SCENARIOS));
+console.log(Object.keys(S));

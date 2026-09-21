@@ -854,6 +854,10 @@ function askAdapterForTab(tab) {
   if (tab === "sfe") {
     return window.AskSFE ? window.AskSFE.adapter : null;
   }
+  // Pages without a legacy adapter are answered by the AskQuery layer alone (js/ask-pages.js).
+  if (window.AskPages) {
+    return window.AskPages.adapter(tab);
+  }
   return null;
 }
 

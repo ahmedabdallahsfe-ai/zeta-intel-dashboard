@@ -1,0 +1,1929 @@
+{
+ "role": "CEO",
+ "who": "Mohamed Bakr",
+ "fill": {
+  "BU": "CHC",
+  "LINE": "CHC",
+  "BRAND": "BILASTIGEC",
+  "DM": "Abanob Fayez ElShahat Fahmy Moawad"
+ },
+ "results": [
+  {
+   "id": "SAL-02",
+   "domain": "Sales",
+   "tab": "sales",
+   "q": "top 5 brands by sales",
+   "template": "top 5 brands by sales",
+   "ms": 24138,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Highest Sales value: NEXICURE (GIT) (327.3M EGP)",
+   "detail": "YTD (Jan–Jul 2026) · Total 1.64B EGP · showing 5 of 33.",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Jan–Jul 2026)",
+   "assumptions": [
+    "No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [],
+   "formula": "Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual",
+   "rows": [
+    [
+     "NEXICURE (GIT)",
+     "327.3M EGP",
+     "266.0M EGP",
+     "65.0%"
+    ],
+    [
+     "EMPACOZA TRIO",
+     "318.7M EGP",
+     "236.8M EGP",
+     "45.4%"
+    ],
+    [
+     "EMPACOZA PLUS",
+     "210.5M EGP",
+     "145.7M EGP",
+     "30.0%"
+    ],
+    [
+     "EMPACOZA",
+     "151.4M EGP",
+     "136.1M EGP",
+     "21.5%"
+    ],
+    [
+     "VONSECA",
+     "128.5M EGP",
+     "141.7M EGP",
+     "25.5%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Sales value — Non-Tender sales, Value basis, in EGP."
+    ],
+    [
+     "Grouped by",
+     "Brand"
+    ],
+    [
+     "Period",
+     "YTD (Jan–Jul 2026)"
+    ],
+    [
+     "Rows",
+     "33 brands in scope"
+    ],
+    [
+     "Target basis",
+     "Official Target"
+    ],
+    [
+     "Sales basis",
+     "Non-Tender transactions only, Value basis (EGP)"
+    ],
+    [
+     "Business units",
+     "CHC, Cluster, DIAB, GIT"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "sales value by product in NEXICURE (GIT)",
+    "sales value of NEXICURE (GIT) MoM",
+    "bottom 5 brands by sales value"
+   ],
+   "text": "Highest Sales value: NEXICURE (GIT) (327.3M EGP) \n YTD (Jan–Jul 2026) · Total 1.64B EGP · showing 5 of 33. \n 1 \n NEXICURE (GIT) \n 327.3M EGP \n 266.0M EGP \n 65.0% \n 2 \n EMPACOZA TRIO \n 318.7M EGP \n 236.8M EGP \n 45.4% \n 3 \n EMPACOZA PLUS \n 210.5M EGP \n 145.7M EGP \n 30.0% \n 4 \n EMPACOZA \n 151.4M EGP \n 136.1M EGP \n 21.5% \n 5 \n VONSECA \n 128.5M EGP \n 141.7M EGP \n 25.5% \n Sales value \n Sales target \n Contribution \n Brand \n Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual \n Measure \n Sales value — Non-Tender sales, Value basis, in EGP. \n Grouped by \n Brand \n Period \n YTD (Jan–Jul 2026) \n Rows \n 33 brands in scope \n Target basis \n Official Target \n Sales basis \n Non-Tender transactions only, Value basis (EGP) \n Business units \n CHC, Cluster, DIAB, GIT \n Data as of \n 2026-07 \n sales_value \n sales_target \n contribution \n Break down NEXICURE (GIT) by product \n sales value by product in NEXICURE (GIT) \n NEXICURE (GIT) MoM \n sales value of NEXICURE (GIT) MoM \n Bottom 5 \n bottom 5 brands by sales value \n No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. \n sales \n sales_value \n Sales cache · target basis Official Target \n Highest Sales value: NEXICURE (GIT) (327.3M EGP) \n YTD (Jan–Jul 2026) · Total 1.64B EGP · showing 5 of 33.",
+   "htmlText": "top 5 brands by sales ANSWER Highest Sales value: NEXICURE (GIT) (327.3M EGP) YTD (Jan–Jul 2026) · Total 1.64B EGP · showing 5 of 33. Assumptions • No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. EVIDENCE Measure Sales value — Non-Tender sales, Value basis, in EGP. Grouped by Brand Period YTD (Jan–Jul 2026) Rows 33 brands in scope Target basis Official Target Sales basis Non-Tender transactions only, Value basis (EGP) Business units CHC, Cluster, DIAB, GIT Data as of 2026-07 Achievement % = actual value ÷ target value × 100 · Gap = target − actual # Brand Sales value Sales target Contribution 1 NEXICURE (GIT) 327.3M EGP 266.0M EGP 65.0% 2 EMPACOZA TRIO 318.7M EGP 236.8M EGP 45.4% 3 EMPACOZA PLUS 210.5M EGP 145.7M EGP 30.0% 4 EMPACOZA 151.4M EGP 136.1M EGP 21.5% 5 VONSECA 128.5M EGP 141.7M EGP 25.5% DRILL DOWN Break down NEXICURE (GIT) by product NEXICURE (GIT) MoM Bottom 5 Source: Sales cache · target basis Official Target"
+  },
+  {
+   "id": "SAL-04",
+   "domain": "Sales",
+   "tab": "sales",
+   "q": "which brands are below target",
+   "template": "which brands are below target",
+   "ms": 8,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Lowest Sales achievement: DOZOVA FLEXETA (27.2%)",
+   "detail": "YTD (Jan–Jul 2026) · Total 105.2% · showing 10 of 20.",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Jan–Jul 2026)",
+   "assumptions": [
+    "No measure named — using “Sales achievement”, the headline KPI of this page.",
+    "No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [],
+   "formula": "Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual",
+   "rows": [
+    [
+     "DOZOVA FLEXETA",
+     "27.2%",
+     "8.1M EGP",
+     "29.8M EGP",
+     "2.3%"
+    ],
+    [
+     "EPILOSMIDE",
+     "39.6%",
+     "1.0M EGP",
+     "2.6M EGP",
+     "0.2%"
+    ],
+    [
+     "DUXNORZET (GIT)",
+     "43.3%",
+     "1.6M EGP",
+     "3.7M EGP",
+     "0.3%"
+    ],
+    [
+     "BUTAZORELLA",
+     "45.6%",
+     "3.2M EGP",
+     "7.0M EGP",
+     "0.6%"
+    ],
+    [
+     "ZETAKARDOVAL HCT",
+     "46.3%",
+     "925K EGP",
+     "2.0M EGP",
+     "0.3%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Sales achievement — Actual sales value as a percentage of the target for the same period and scope."
+    ],
+    [
+     "Grouped by",
+     "Brand"
+    ],
+    [
+     "Period",
+     "YTD (Jan–Jul 2026)"
+    ],
+    [
+     "Rows",
+     "20 brands in scope"
+    ],
+    [
+     "Target basis",
+     "Official Target"
+    ],
+    [
+     "Sales basis",
+     "Non-Tender transactions only, Value basis (EGP)"
+    ],
+    [
+     "Business units",
+     "CHC, Cluster, DIAB, GIT"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "sales achievement by product in DOZOVA FLEXETA",
+    "sales achievement of DOZOVA FLEXETA MoM",
+    "bottom 5 brands by sales achievement"
+   ],
+   "text": "Lowest Sales achievement: DOZOVA FLEXETA (27.2%) \n YTD (Jan–Jul 2026) · Total 105.2% · showing 10 of 20. \n 1 \n DOZOVA FLEXETA \n 27.2% \n 8.1M EGP \n 29.8M EGP \n 2.3% \n 2 \n EPILOSMIDE \n 39.6% \n 1.0M EGP \n 2.6M EGP \n 0.2% \n 3 \n DUXNORZET (GIT) \n 43.3% \n 1.6M EGP \n 3.7M EGP \n 0.3% \n 4 \n BUTAZORELLA \n 45.6% \n 3.2M EGP \n 7.0M EGP \n 0.6% \n 5 \n ZETAKARDOVAL HCT \n 46.3% \n 925K EGP \n 2.0M EGP \n 0.3% \n 6 \n MEDIHYALO \n 49.1% \n 7.3M EGP \n 14.8M EGP \n 1.4% \n 7 \n ULCEBISMO \n 51.0% \n 425K EGP \n 832K EGP \n 0.1% \n 8 \n DOZOVA \n 53.3% \n 83.8M EGP \n 157.2M EGP \n 100.0% \n 9 \n DOZOVA ALPHA AMYLASE \n 58.3% \n 965K EGP \n 1.7M EGP \n 0.3% \n 10 \n BILASTIGEC (GIT) \n 59.2% \n 9.4M EGP \n 15.8M EGP \n 1.9% \n Sales achievement \n Sales value \n Sales target \n Contribution \n Brand \n Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual \n Measure \n Sales achievement — Actual sales value as a percentage of the target for the same period and scope. \n Grouped by \n Brand \n Period \n YTD (Jan–Jul 2026) \n Rows \n 20 brands in scope \n Target basis \n Official Target \n Sales basis \n Non-Tender transactions only, Value basis (EGP) \n Business units \n CHC, Cluster, DIAB, GIT \n Data as of \n 2026-07 \n achievement \n sales_value \n sales_target \n contribution \n Break down DOZOVA FLEXETA by product \n sales achievement by product in DOZOVA FLEXETA \n DOZOVA FLEXETA MoM \n sales achievement of DOZOVA FLEXETA MoM \n Bottom 5 \n bottom 5 brands by sales achievement \n No measure named — using “Sales achievement”, the headline KPI of this page. \n No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. \n sales \n achievement \n Sales cache · target basis Official Target \n Lowest Sales achievement: DOZOVA FLEXETA (27.2%) \n YTD (Jan–Jul 2026) · Total 105.2% · showing 10 of 20.",
+   "htmlText": "which brands are below target ANSWER Lowest Sales achievement: DOZOVA FLEXETA (27.2%) YTD (Jan–Jul 2026) · Total 105.2% · showing 10 of 20. Assumptions • No measure named — using “Sales achievement”, the headline KPI of this page. • No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. EVIDENCE Measure Sales achievement — Actual sales value as a percentage of the target for the same period and scope. Grouped by Brand Period YTD (Jan–Jul 2026) Rows 20 brands in scope Target basis Official Target Sales basis Non-Tender transactions only, Value basis (EGP) Business units CHC, Cluster, DIAB, GIT Data as of 2026-07 Achievement % = actual value ÷ target value × 100 · Gap = target − actual # Brand Sales achievement Sales value Sales target Contribution 1 DOZOVA FLEXETA 27.2% 8.1M EGP 29.8M EGP 2.3% 2 EPILOSMIDE 39.6% 1.0M EGP 2.6M EGP 0.2% 3 DUXNORZET (GIT) 43.3% 1.6M EGP 3.7M EGP 0.3% 4 BUTAZORELLA 45.6% 3.2M EGP 7.0M EGP 0.6% 5 ZETAKARDOVAL HCT 46.3% 925K EGP 2.0M EGP 0.3% 6 MEDIHYALO 49.1% 7.3M EGP 14.8M EGP 1.4% 7 ULCEBISMO 51.0% 425K EGP 832K EGP 0.1% 8 DOZOVA 53.3% 83.8M EGP 157.2M EGP 100.0% 9 DOZOVA ALPHA AMYLASE 58.3% 965K EGP 1.7M EGP 0.3% 10 BILASTIGEC (GIT) 59.2% 9.4M EGP 15.8M EGP 1.9% DRILL DOWN Break down DOZOVA FLEXETA by product DOZOVA FLEXETA MoM Bottom 5 Source: Sales cache · target basis Official Target"
+  },
+  {
+   "id": "SAL-06",
+   "domain": "Sales",
+   "tab": "sales",
+   "q": "sales achievement in March 2026",
+   "template": "sales achievement in March 2026",
+   "ms": 10482,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Sales achievement — whole company: 142.2%",
+   "detail": "Mar 2026.",
+   "message": null,
+   "hint": null,
+   "period": "Mar 2026",
+   "assumptions": [],
+   "caveats": [],
+   "formula": "Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Sales achievement — Actual sales value as a percentage of the target for the same period and scope."
+    ],
+    [
+     "Period",
+     "Mar 2026"
+    ],
+    [
+     "Target basis",
+     "Official Target"
+    ],
+    [
+     "Sales basis",
+     "Non-Tender transactions only, Value basis (EGP)"
+    ],
+    [
+     "Business units",
+     "CHC, Cluster, DIAB, GIT"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "sales achievement by business unit",
+    "sales achievement MoM",
+    "sales achievement trend by month"
+   ],
+   "text": "Sales achievement — whole company: 142.2% \n Mar 2026. \n Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual \n Measure \n Sales achievement — Actual sales value as a percentage of the target for the same period and scope. \n Period \n Mar 2026 \n Target basis \n Official Target \n Sales basis \n Non-Tender transactions only, Value basis (EGP) \n Business units \n CHC, Cluster, DIAB, GIT \n Data as of \n 2026-07 \n achievement \n 142.17523437547777 \n Break down by business unit \n sales achievement by business unit \n Month over month \n sales achievement MoM \n Trend \n sales achievement trend by month \n sales \n achievement \n Sales cache · target basis Official Target \n Sales achievement — whole company: 142.2% \n Mar 2026.",
+   "htmlText": "sales achievement in March 2026 ANSWER Sales achievement — whole company: 142.2% Mar 2026. EVIDENCE Measure Sales achievement — Actual sales value as a percentage of the target for the same period and scope. Period Mar 2026 Target basis Official Target Sales basis Non-Tender transactions only, Value basis (EGP) Business units CHC, Cluster, DIAB, GIT Data as of 2026-07 Achievement % = actual value ÷ target value × 100 · Gap = target − actual DRILL DOWN Break down by business unit Month over month Trend Source: Sales cache · target basis Official Target"
+  },
+  {
+   "id": "SAL-08",
+   "domain": "Sales",
+   "tab": "sales",
+   "q": "sales achievement MoM",
+   "template": "sales achievement MoM",
+   "ms": 4,
+   "err": null,
+   "ok": false,
+   "clarify": false,
+   "missing": true,
+   "denied": false,
+   "noAdapter": false,
+   "headline": null,
+   "detail": null,
+   "message": "Month-over-month needs Jun–Dec 2025, but the Sales data holds Jan–Jul 2026.",
+   "hint": "Loaded months: Jan–Jul 2026.",
+   "period": null,
+   "assumptions": [],
+   "caveats": [],
+   "formula": null,
+   "rows": [],
+   "evidence": [],
+   "drill": [],
+   "text": "Month-over-month needs Jun–Dec 2025, but the Sales data holds Jan–Jul 2026. \n Loaded months: Jan–Jul 2026.",
+   "htmlText": "sales achievement MoM The dashboard does not hold that Month-over-month needs Jun–Dec 2025, but the Sales data holds Jan–Jul 2026. Loaded months: Jan–Jul 2026."
+  },
+  {
+   "id": "SAL-10",
+   "domain": "Sales",
+   "tab": "sales",
+   "q": "sales of CHC YTD",
+   "template": "sales of {LINE} YTD",
+   "ms": 11,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Sales value — CHC: 83.8M EGP",
+   "detail": "YTD (Jan–Jul 2026).",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Jan–Jul 2026)",
+   "assumptions": [],
+   "caveats": [],
+   "formula": "Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Sales value — Non-Tender sales, Value basis, in EGP."
+    ],
+    [
+     "Period",
+     "YTD (Jan–Jul 2026)"
+    ],
+    [
+     "Target basis",
+     "Official Target"
+    ],
+    [
+     "Sales basis",
+     "Non-Tender transactions only, Value basis (EGP)"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "sales value by line of CHC",
+    "sales value of CHC MoM",
+    "sales value of CHC trend by month"
+   ],
+   "text": "Sales value — CHC: 83.8M EGP \n YTD (Jan–Jul 2026). \n Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual \n Measure \n Sales value — Non-Tender sales, Value basis, in EGP. \n Period \n YTD (Jan–Jul 2026) \n Target basis \n Official Target \n Sales basis \n Non-Tender transactions only, Value basis (EGP) \n Data as of \n 2026-07 \n sales_value \n 83832548.28000176 \n Break down by line \n sales value by line of CHC \n Month over month \n sales value of CHC MoM \n Trend \n sales value of CHC trend by month \n sales \n sales_value \n Sales cache · target basis Official Target \n Sales value — CHC: 83.8M EGP \n YTD (Jan–Jul 2026).",
+   "htmlText": "sales of CHC YTD ANSWER Sales value — CHC: 83.8M EGP YTD (Jan–Jul 2026). EVIDENCE Measure Sales value — Non-Tender sales, Value basis, in EGP. Period YTD (Jan–Jul 2026) Target basis Official Target Sales basis Non-Tender transactions only, Value basis (EGP) Data as of 2026-07 Achievement % = actual value ÷ target value × 100 · Gap = target − actual DRILL DOWN Break down by line Month over month Trend Source: Sales cache · target basis Official Target"
+  },
+  {
+   "id": "COV-02",
+   "domain": "Coverage",
+   "tab": "coverage",
+   "q": "top 5 district managers by right frequency",
+   "template": "top 5 district managers by right frequency",
+   "ms": 9,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Highest Right Frequency %: Ahmed Mohamed Hassan Mohamed (85.7%)",
+   "detail": "YTD (Feb–Aug 2026) · Total 53.4% · showing 5 of 153.",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Feb–Aug 2026)",
+   "assumptions": [
+    "“right frequency” is defined more than once in the dashboard: “Right Frequency %” (Coverage & Frequency (Coverage tab)) and “Operational right frequency %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch.",
+    "No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes.",
+    "Vacant positions are left out of the ranking — they are not people.",
+    "District-manager rows are the Coverage tab's own DM ranking within your scope.",
+    "1 of 154 district managers hold no recorded value for Right Frequency % and are left out of the ranking (no value is assumed for them).",
+    "The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use."
+   ],
+   "formula": "Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits",
+   "rows": [
+    [
+     "Ahmed Mohamed Hassan Mohamed",
+     "85.7%",
+     "94.4%"
+    ],
+    [
+     "Mohamed Ahmed Mohamed Shahin",
+     "84.6%",
+     "95.6%"
+    ],
+    [
+     "Shorouk Mahmoud Hassan Mahmoud",
+     "84.5%",
+     "94.0%"
+    ],
+    [
+     "Osama AlaaElDin Badawy Aly",
+     "83.8%",
+     "94.5%"
+    ],
+    [
+     "Karim Mohamed Nagib Mohamed Eldemerdash",
+     "83.0%",
+     "94.3%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Right Frequency % — Share of in-scope customer rows visited exactly at their target frequency (sick-leave-flagged rep-periods excluded)."
+    ],
+    [
+     "Grouped by",
+     "District Manager"
+    ],
+    [
+     "Period",
+     "YTD (Feb–Aug 2026)"
+    ],
+    [
+     "Rows",
+     "153 district managers in scope"
+    ],
+    [
+     "Definition",
+     "Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation)"
+    ],
+    [
+     "Periods",
+     "all loaded months, pooled (the tab's default)"
+    ],
+    [
+     "Data as of",
+     "August"
+    ]
+   ],
+   "drill": [
+    "right frequency of Ahmed Mohamed Hassan Mohamed MoM",
+    "bottom 5 dms by right frequency"
+   ],
+   "text": "Highest Right Frequency %: Ahmed Mohamed Hassan Mohamed (85.7%) \n YTD (Feb–Aug 2026) · Total 53.4% · showing 5 of 153. \n 1 \n Ahmed Mohamed Hassan Mohamed \n 85.7% \n 94.4% \n 2 \n Mohamed Ahmed Mohamed Shahin \n 84.6% \n 95.6% \n 3 \n Shorouk Mahmoud Hassan Mahmoud \n 84.5% \n 94.0% \n 4 \n Osama AlaaElDin Badawy Aly \n 83.8% \n 94.5% \n 5 \n Karim Mohamed Nagib Mohamed Eldemerdash \n 83.0% \n 94.3% \n Right Frequency % \n Coverage % \n District Manager \n Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits \n Measure \n Right Frequency % — Share of in-scope customer rows visited exactly at their target frequency (sick-leave-flagged rep-periods excluded). \n Grouped by \n District Manager \n Period \n YTD (Feb–Aug 2026) \n Rows \n 153 district managers in scope \n Definition \n Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) \n Periods \n all loaded months, pooled (the tab's default) \n Data as of \n August \n rf_pct \n cov_pct \n Ahmed Mohamed Hassan Mohamed MoM \n right frequency of Ahmed Mohamed Hassan Mohamed MoM \n Bottom 5 \n bottom 5 dms by right frequency \n Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. \n Vacant positions are left out of the ranking — they are not people. \n District-manager rows are the Coverage tab's own DM ranking within your scope. \n 1 of 154 district managers hold no recorded value for Right Frequency % and are left out of the ranking (no value is assumed for them). \n The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. \n “right frequency” is defined more than once in the dashboard: “Right Frequency %” (Coverage & Frequency (Coverage tab)) and “Operational right frequency %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. \n No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. \n coverage \n rf_pct \n Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied \n Highest Right Frequency %: Ahmed Mohamed Hassan Mohamed (85.7%) \n YTD (Feb–Aug 2026) · Total 53.4% · showing 5 of 153.",
+   "htmlText": "top 5 district managers by right frequency ANSWER Highest Right Frequency %: Ahmed Mohamed Hassan Mohamed (85.7%) YTD (Feb–Aug 2026) · Total 53.4% · showing 5 of 153. Assumptions • “right frequency” is defined more than once in the dashboard: “Right Frequency %” (Coverage & Frequency (Coverage tab)) and “Operational right frequency %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. • No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. EVIDENCE Measure Right Frequency % — Share of in-scope customer rows visited exactly at their target frequency (sick-leave-flagged rep-periods excluded). Grouped by District Manager Period YTD (Feb–Aug 2026) Rows 153 district managers in scope Definition Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) Periods all loaded months, pooled (the tab's default) Data as of August Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits # District Manager Right Frequency % Coverage % 1 Ahmed Mohamed Hassan Mohamed 85.7% 94.4% 2 Mohamed Ahmed Mohamed Shahin 84.6% 95.6% 3 Shorouk Mahmoud Hassan Mahmoud 84.5% 94.0% 4 Osama AlaaElDin Badawy Aly 83.8% 94.5% 5 Karim Mohamed Nagib Mohamed Eldemerdash 83.0% 94.3% DRILL DOWN Ahmed Mohamed Hassan Mohamed MoM Bottom 5 ⚠ Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. ⚠ Vacant positions are left out of the ranking — they are not people. ⚠ District-manager rows are the Coverage tab's own DM ranking within your scope. ⚠ 1 of 154 district managers hold no recorded value for Right Frequency % and are left out of the ranking (no value is assumed for them). ⚠ The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. Source: Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied"
+  },
+  {
+   "id": "COV-04",
+   "domain": "Coverage",
+   "tab": "coverage",
+   "q": "which lines have coverage below 80%",
+   "template": "which lines have coverage below 80%",
+   "ms": 1926,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Highest Coverage %: DIAB-IV (89.0%)",
+   "detail": "YTD (Feb–Aug 2026) · Total 79.8% · showing 10 of 16.",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Feb–Aug 2026)",
+   "assumptions": [
+    "“coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch.",
+    "No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes.",
+    "The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use."
+   ],
+   "formula": "Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits",
+   "rows": [
+    [
+     "DIAB-IV",
+     "89.0%",
+     "73.1%"
+    ],
+    [
+     "CHC_SALES",
+     "88.0%",
+     "61.1%"
+    ],
+    [
+     "GIT-I",
+     "85.8%",
+     "57.0%"
+    ],
+    [
+     "DIAB-III",
+     "85.6%",
+     "65.8%"
+    ],
+    [
+     "DIAB-I",
+     "85.4%",
+     "67.9%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded)."
+    ],
+    [
+     "Grouped by",
+     "Line"
+    ],
+    [
+     "Period",
+     "YTD (Feb–Aug 2026)"
+    ],
+    [
+     "Rows",
+     "16 lines in scope"
+    ],
+    [
+     "Definition",
+     "Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation)"
+    ],
+    [
+     "Periods",
+     "all loaded months, pooled (the tab's default)"
+    ],
+    [
+     "Data as of",
+     "August"
+    ]
+   ],
+   "drill": [
+    "coverage by district manager in DIAB-IV",
+    "coverage of DIAB-IV MoM",
+    "bottom 5 lines by coverage"
+   ],
+   "text": "Highest Coverage %: DIAB-IV (89.0%) \n YTD (Feb–Aug 2026) · Total 79.8% · showing 10 of 16. \n 1 \n DIAB-IV \n 89.0% \n 73.1% \n 2 \n CHC_SALES \n 88.0% \n 61.1% \n 3 \n GIT-I \n 85.8% \n 57.0% \n 4 \n DIAB-III \n 85.6% \n 65.8% \n 5 \n DIAB-I \n 85.4% \n 67.9% \n 6 \n CNS \n 84.4% \n 58.9% \n 7 \n PEDIA \n 83.5% \n 59.7% \n 8 \n CVM-II \n 83.4% \n 54.9% \n 9 \n GIT-II \n 83.3% \n 49.5% \n 10 \n CVM-I \n 80.2% \n 55.0% \n Coverage % \n Right Frequency % \n Line \n Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits \n Measure \n Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). \n Grouped by \n Line \n Period \n YTD (Feb–Aug 2026) \n Rows \n 16 lines in scope \n Definition \n Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) \n Periods \n all loaded months, pooled (the tab's default) \n Data as of \n August \n cov_pct \n rf_pct \n Break down DIAB-IV by district manager \n coverage by district manager in DIAB-IV \n DIAB-IV MoM \n coverage of DIAB-IV MoM \n Bottom 5 \n bottom 5 lines by coverage \n Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. \n The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. \n “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. \n No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. \n coverage \n cov_pct \n Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied \n Highest Coverage %: DIAB-IV (89.0%) \n YTD (Feb–Aug 2026) · Total 79.8% · showing 10 of 16.",
+   "htmlText": "which lines have coverage below 80% ANSWER Highest Coverage %: DIAB-IV (89.0%) YTD (Feb–Aug 2026) · Total 79.8% · showing 10 of 16. Assumptions • “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. • No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. EVIDENCE Measure Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). Grouped by Line Period YTD (Feb–Aug 2026) Rows 16 lines in scope Definition Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) Periods all loaded months, pooled (the tab's default) Data as of August Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits # Line Coverage % Right Frequency % 1 DIAB-IV 89.0% 73.1% 2 CHC_SALES 88.0% 61.1% 3 GIT-I 85.8% 57.0% 4 DIAB-III 85.6% 65.8% 5 DIAB-I 85.4% 67.9% 6 CNS 84.4% 58.9% 7 PEDIA 83.5% 59.7% 8 CVM-II 83.4% 54.9% 9 GIT-II 83.3% 49.5% 10 CVM-I 80.2% 55.0% DRILL DOWN Break down DIAB-IV by district manager DIAB-IV MoM Bottom 5 ⚠ Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. ⚠ The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. Source: Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied"
+  },
+  {
+   "id": "COV-06",
+   "domain": "Coverage",
+   "tab": "coverage",
+   "q": "coverage in March 2026",
+   "template": "coverage in March 2026",
+   "ms": 357,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Coverage % — whole company: 77.9%",
+   "detail": "Mar 2026.",
+   "message": null,
+   "hint": null,
+   "period": "Mar 2026",
+   "assumptions": [
+    "“coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch."
+   ],
+   "caveats": [
+    "Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes."
+   ],
+   "formula": "Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded)."
+    ],
+    [
+     "Period",
+     "Mar 2026"
+    ],
+    [
+     "Definition",
+     "Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation)"
+    ],
+    [
+     "Periods",
+     "March"
+    ],
+    [
+     "Data as of",
+     "August"
+    ]
+   ],
+   "drill": [
+    "coverage by business unit",
+    "coverage MoM",
+    "coverage trend by month"
+   ],
+   "text": "Coverage % — whole company: 77.9% \n Mar 2026. \n Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits \n Measure \n Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). \n Period \n Mar 2026 \n Definition \n Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) \n Periods \n March \n Data as of \n August \n cov_pct \n 77.9 \n Break down by business unit \n coverage by business unit \n Month over month \n coverage MoM \n Trend \n coverage trend by month \n Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. \n “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. \n coverage \n cov_pct \n Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied \n Coverage % — whole company: 77.9% \n Mar 2026.",
+   "htmlText": "coverage in March 2026 ANSWER Coverage % — whole company: 77.9% Mar 2026. Assumptions • “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. EVIDENCE Measure Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). Period Mar 2026 Definition Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) Periods March Data as of August Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits DRILL DOWN Break down by business unit Month over month Trend ⚠ Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. Source: Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied"
+  },
+  {
+   "id": "COV-08",
+   "domain": "Coverage",
+   "tab": "coverage",
+   "q": "coverage of specialties",
+   "template": "coverage of specialties",
+   "ms": 59,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Coverage % by specialty — 15 rows",
+   "detail": "YTD (Feb–Aug 2026) · Total 79.8%.",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Feb–Aug 2026)",
+   "assumptions": [
+    "“coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch.",
+    "No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes.",
+    "The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use."
+   ],
+   "formula": "Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits",
+   "rows": [
+    [
+     "Hospital",
+     "86.5%",
+     "48.5%"
+    ],
+    [
+     "",
+     "86.1%",
+     "63.2%"
+    ],
+    [
+     "G.P",
+     "83.5%",
+     "58.7%"
+    ],
+    [
+     "IM",
+     "82.6%",
+     "57.1%"
+    ],
+    [
+     "Pedia",
+     "82.6%",
+     "59.3%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded)."
+    ],
+    [
+     "Grouped by",
+     "Specialty"
+    ],
+    [
+     "Period",
+     "YTD (Feb–Aug 2026)"
+    ],
+    [
+     "Rows",
+     "15 specialtys in scope"
+    ],
+    [
+     "Definition",
+     "Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation)"
+    ],
+    [
+     "Periods",
+     "all loaded months, pooled (the tab's default)"
+    ],
+    [
+     "Data as of",
+     "August"
+    ]
+   ],
+   "drill": [
+    "coverage by customer class in Hospital",
+    "coverage of Hospital MoM",
+    "bottom 5 specialties by coverage"
+   ],
+   "text": "Coverage % by specialty — 15 rows \n YTD (Feb–Aug 2026) · Total 79.8%. \n 1 \n Hospital \n 86.5% \n 48.5% \n 2 \n  \n 86.1% \n 63.2% \n 3 \n G.P \n 83.5% \n 58.7% \n 4 \n IM \n 82.6% \n 57.1% \n 5 \n Pedia \n 82.6% \n 59.3% \n 6 \n Neuro \n 81.1% \n 53.9% \n 7 \n Chest \n 79.2% \n 49.8% \n 8 \n ENT \n 78.9% \n 50.3% \n 9 \n Cardio \n 78.8% \n 55.0% \n 10 \n Diabetes \n 76.4% \n 53.3% \n 11 \n GIT \n 75.5% \n 48.1% \n 12 \n Contract \n 75.1% \n 38.5% \n 13 \n Pharmacy \n 74.1% \n 47.3% \n 14 \n Ortho \n 72.5% \n 47.4% \n 15 \n V.Surgery \n 55.6% \n 35.0% \n Coverage % \n Right Frequency % \n Specialty \n Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits \n Measure \n Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). \n Grouped by \n Specialty \n Period \n YTD (Feb–Aug 2026) \n Rows \n 15 specialtys in scope \n Definition \n Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) \n Periods \n all loaded months, pooled (the tab's default) \n Data as of \n August \n cov_pct \n rf_pct \n Break down Hospital by customer class \n coverage by customer class in Hospital \n Hospital MoM \n coverage of Hospital MoM \n Bottom 5 \n bottom 5 specialties by coverage \n Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. \n The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. \n “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. \n No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. \n coverage \n cov_pct \n Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied \n Coverage % by specialty — 15 rows \n YTD (Feb–Aug 2026) · Total 79.8%.",
+   "htmlText": "coverage of specialties ANSWER Coverage % by specialty — 15 rows YTD (Feb–Aug 2026) · Total 79.8%. Assumptions • “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. • No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. EVIDENCE Measure Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). Grouped by Specialty Period YTD (Feb–Aug 2026) Rows 15 specialtys in scope Definition Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) Periods all loaded months, pooled (the tab's default) Data as of August Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits # Specialty Coverage % Right Frequency % 1 Hospital 86.5% 48.5% 2 86.1% 63.2% 3 G.P 83.5% 58.7% 4 IM 82.6% 57.1% 5 Pedia 82.6% 59.3% 6 Neuro 81.1% 53.9% 7 Chest 79.2% 49.8% 8 ENT 78.9% 50.3% 9 Cardio 78.8% 55.0% 10 Diabetes 76.4% 53.3% 11 GIT 75.5% 48.1% 12 Contract 75.1% 38.5% 13 Pharmacy 74.1% 47.3% 14 Ortho 72.5% 47.4% 15 V.Surgery 55.6% 35.0% DRILL DOWN Break down Hospital by customer class Hospital MoM Bottom 5 ⚠ Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. ⚠ The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. Source: Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied"
+  },
+  {
+   "id": "SFE-01",
+   "domain": "SFE",
+   "tab": "sfe",
+   "q": "what is the vacancy rate",
+   "template": "what is the vacancy rate",
+   "ms": 48,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Vacancy rate: Vacant positions as a percentage of budgeted positions.",
+   "detail": "Currently 10.4% for whole company (organogram snapshot).",
+   "message": null,
+   "hint": null,
+   "period": "organogram snapshot",
+   "assumptions": [],
+   "caveats": [
+    "The organogram has no month axis, so the figures do not change with the period you name."
+   ],
+   "formula": "vacant ÷ total budgeted × 100",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Vacancy rate"
+    ],
+    [
+     "Definition",
+     "Vacant positions as a percentage of budgeted positions."
+    ],
+    [
+     "Formula",
+     "vacant ÷ total budgeted × 100"
+    ],
+    [
+     "Period",
+     "organogram snapshot"
+    ],
+    [
+     "Data",
+     "Organogram cache — point-in-time snapshot (not period-stamped)"
+    ]
+   ],
+   "drill": [
+    "vacancy rate by business unit"
+   ],
+   "text": "Vacancy rate: Vacant positions as a percentage of budgeted positions. \n Currently 10.4% for whole company (organogram snapshot). \n vacant ÷ total budgeted × 100 \n Measure \n Vacancy rate \n Definition \n Vacant positions as a percentage of budgeted positions. \n Formula \n vacant ÷ total budgeted × 100 \n Period \n organogram snapshot \n Data \n Organogram cache — point-in-time snapshot (not period-stamped) \n vacancy_rate \n Break down by business unit \n vacancy rate by business unit \n The organogram has no month axis, so the figures do not change with the period you name. \n sfe \n vacancy_rate \n Organogram cache · point-in-time snapshot \n Vacancy rate: Vacant positions as a percentage of budgeted positions. \n Currently 10.4% for whole company (organogram snapshot).",
+   "htmlText": "what is the vacancy rate ANSWER Vacancy rate: Vacant positions as a percentage of budgeted positions. Currently 10.4% for whole company (organogram snapshot). EVIDENCE Measure Vacancy rate Definition Vacant positions as a percentage of budgeted positions. Formula vacant ÷ total budgeted × 100 Period organogram snapshot Data Organogram cache — point-in-time snapshot (not period-stamped) vacant ÷ total budgeted × 100 DRILL DOWN Break down by business unit ⚠ The organogram has no month axis, so the figures do not change with the period you name. Source: Organogram cache · point-in-time snapshot"
+  },
+  {
+   "id": "SFE-03",
+   "domain": "SFE",
+   "tab": "sfe",
+   "q": "top 5 managers by vacancy rate",
+   "template": "top 5 managers by vacancy rate",
+   "ms": 34,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Highest Manager vacancy rate: Monica Nabil Adly Benjamin (55.6%)",
+   "detail": "organogram snapshot · showing 5 of 15.",
+   "message": null,
+   "hint": null,
+   "period": "organogram snapshot",
+   "assumptions": [
+    "“Vacancy rate” (SFE / Organogram) has no breakdown by district manager, so I used “Manager vacancy rate” (SFE / Organogram). The two definitions differ — Vacant positions under a manager as a percentage of that manager's budgeted positions (organogram, per manager and line)."
+   ],
+   "caveats": [
+    "The organogram has no month axis, so the figures do not change with the period you name.",
+    "Manager rows are the organogram's own span-of-control table and manager vacancy table, limited to lines in your scope. Vacant manager seats are left out.",
+    "The manager-vacancy table lists only managers with vacancies; a manager absent from it has none in the organogram.",
+    "91 of 106 district managers hold no recorded value for Manager vacancy rate and are left out of the ranking (no value is assumed for them)."
+   ],
+   "formula": "Vacancy rate = vacant ÷ budgeted positions × 100",
+   "rows": [
+    [
+     "Monica Nabil Adly Benjamin",
+     "55.6%",
+     "9"
+    ],
+    [
+     "Youstina Emad Wadie Malak",
+     "50.0%",
+     "6"
+    ],
+    [
+     "Ahmed Mahmoud Hassan Mahmoud",
+     "42.9%",
+     "7"
+    ],
+    [
+     "Peter Rashad Reyad Saied",
+     "42.9%",
+     "7"
+    ],
+    [
+     "Ahmed Hassan Aly ElSayed ElShershaby",
+     "40.0%",
+     "5"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Manager vacancy rate — Vacant positions under a manager as a percentage of that manager's budgeted positions (organogram, per manager and line)."
+    ],
+    [
+     "Grouped by",
+     "District Manager"
+    ],
+    [
+     "Period",
+     "organogram snapshot"
+    ],
+    [
+     "Rows",
+     "15 district managers in scope"
+    ],
+    [
+     "Data",
+     "Organogram cache — point-in-time snapshot (not period-stamped)"
+    ]
+   ],
+   "drill": [
+    "bottom 5 dms by manager vacancy rate"
+   ],
+   "text": "Highest Manager vacancy rate: Monica Nabil Adly Benjamin (55.6%) \n organogram snapshot · showing 5 of 15. \n 1 \n Monica Nabil Adly Benjamin \n 55.6% \n 9 \n 2 \n Youstina Emad Wadie Malak \n 50.0% \n 6 \n 3 \n Ahmed Mahmoud Hassan Mahmoud \n 42.9% \n 7 \n 4 \n Peter Rashad Reyad Saied \n 42.9% \n 7 \n 5 \n Ahmed Hassan Aly ElSayed ElShershaby \n 40.0% \n 5 \n Manager vacancy rate \n Planned span \n District Manager \n Vacancy rate = vacant ÷ budgeted positions × 100 \n Measure \n Manager vacancy rate — Vacant positions under a manager as a percentage of that manager's budgeted positions (organogram, per manager and line). \n Grouped by \n District Manager \n Period \n organogram snapshot \n Rows \n 15 district managers in scope \n Data \n Organogram cache — point-in-time snapshot (not period-stamped) \n mgr_vacancy_rate \n span_planned \n Bottom 5 \n bottom 5 dms by manager vacancy rate \n The organogram has no month axis, so the figures do not change with the period you name. \n Manager rows are the organogram's own span-of-control table and manager vacancy table, limited to lines in your scope. Vacant manager seats are left out. \n The manager-vacancy table lists only managers with vacancies; a manager absent from it has none in the organogram. \n 91 of 106 district managers hold no recorded value for Manager vacancy rate and are left out of the ranking (no value is assumed for them). \n “Vacancy rate” (SFE / Organogram) has no breakdown by district manager, so I used “Manager vacancy rate” (SFE / Organogram). The two definitions differ — Vacant positions under a manager as a percentage of that manager's budgeted positions (organogram, per manager and line). \n sfe \n mgr_vacancy_rate \n Organogram cache · point-in-time snapshot \n Highest Manager vacancy rate: Monica Nabil Adly Benjamin (55.6%) \n organogram snapshot · showing 5 of 15.",
+   "htmlText": "top 5 managers by vacancy rate ANSWER Highest Manager vacancy rate: Monica Nabil Adly Benjamin (55.6%) organogram snapshot · showing 5 of 15. Assumptions • “Vacancy rate” (SFE / Organogram) has no breakdown by district manager, so I used “Manager vacancy rate” (SFE / Organogram). The two definitions differ — Vacant positions under a manager as a percentage of that manager's budgeted positions (organogram, per manager and line). EVIDENCE Measure Manager vacancy rate — Vacant positions under a manager as a percentage of that manager's budgeted positions (organogram, per manager and line). Grouped by District Manager Period organogram snapshot Rows 15 district managers in scope Data Organogram cache — point-in-time snapshot (not period-stamped) Vacancy rate = vacant ÷ budgeted positions × 100 # District Manager Manager vacancy rate Planned span 1 Monica Nabil Adly Benjamin 55.6% 9 2 Youstina Emad Wadie Malak 50.0% 6 3 Ahmed Mahmoud Hassan Mahmoud 42.9% 7 4 Peter Rashad Reyad Saied 42.9% 7 5 Ahmed Hassan Aly ElSayed ElShershaby 40.0% 5 DRILL DOWN Bottom 5 ⚠ The organogram has no month axis, so the figures do not change with the period you name. ⚠ Manager rows are the organogram's own span-of-control table and manager vacancy table, limited to lines in your scope. Vacant manager seats are left out. ⚠ The manager-vacancy table lists only managers with vacancies; a manager absent from it has none in the organogram. ⚠ 91 of 106 district managers hold no recorded value for Manager vacancy rate and are left out of the ranking (no value is assumed for them). Source: Organogram cache · point-in-time snapshot"
+  },
+  {
+   "id": "SFE-05",
+   "domain": "SFE",
+   "tab": "sfe",
+   "q": "which managers are overloaded",
+   "template": "which managers are overloaded",
+   "ms": 47,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Lowest Overloaded managers: Ahmed Mohamed Hassan Mohamed (0)",
+   "detail": "organogram snapshot · Total 2 · showing 10 of 106.",
+   "message": null,
+   "hint": null,
+   "period": "organogram snapshot",
+   "assumptions": [],
+   "caveats": [
+    "The organogram has no month axis, so the figures do not change with the period you name.",
+    "Manager rows are the organogram's own span-of-control table and manager vacancy table, limited to lines in your scope. Vacant manager seats are left out.",
+    "The manager-vacancy table lists only managers with vacancies; a manager absent from it has none in the organogram."
+   ],
+   "formula": "Vacancy rate = vacant ÷ budgeted positions × 100",
+   "rows": [
+    [
+     "Ahmed Mohamed Hassan Mohamed",
+     "0",
+     "8",
+     "8"
+    ],
+    [
+     "Ahmed Mohamed Mostafa AbdelSamie Mostafa",
+     "0",
+     "8",
+     "8"
+    ],
+    [
+     "Ahmed Othman Mahmoud Mohamed Othman",
+     "0",
+     "8",
+     "8"
+    ],
+    [
+     "Aml ElKahlawy Awad AbdelBary",
+     "0",
+     "8",
+     "8"
+    ],
+    [
+     "Dalia Fathy ElDemerdash Khamis",
+     "0",
+     "8",
+     "8"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Overloaded managers — Managers the organogram flags as overloaded (span above its own threshold)."
+    ],
+    [
+     "Grouped by",
+     "District Manager"
+    ],
+    [
+     "Period",
+     "organogram snapshot"
+    ],
+    [
+     "Rows",
+     "106 district managers in scope"
+    ],
+    [
+     "Data",
+     "Organogram cache — point-in-time snapshot (not period-stamped)"
+    ]
+   ],
+   "drill": [
+    "bottom 5 dms by overloaded managers"
+   ],
+   "text": "Lowest Overloaded managers: Ahmed Mohamed Hassan Mohamed (0) \n organogram snapshot · Total 2 · showing 10 of 106. \n 1 \n Ahmed Mohamed Hassan Mohamed \n 0 \n 8 \n 8 \n 2 \n Ahmed Mohamed Mostafa AbdelSamie Mostafa \n 0 \n 8 \n 8 \n 3 \n Ahmed Othman Mahmoud Mohamed Othman \n 0 \n 8 \n 8 \n 4 \n Aml ElKahlawy Awad AbdelBary \n 0 \n 8 \n 8 \n 5 \n Dalia Fathy ElDemerdash Khamis \n 0 \n 8 \n 8 \n 6 \n Inas Samir Saad Gouda \n 0 \n 8 \n 8 \n 7 \n Karim Mohamed Nagib Mohamed ElDemerdash \n 0 \n 8 \n 8 \n 8 \n Mahmoud Aly AbdelLatif Ahmed \n 0 \n 8 \n 8 \n 9 \n Marina Atef Sobhy Thabet \n 0 \n 8 \n 9 \n 10 \n Marwa ElSayed Teleb Emara Khedr \n 0 \n 8 \n 8 \n Overloaded managers \n Span of control \n Planned span \n District Manager \n Vacancy rate = vacant ÷ budgeted positions × 100 \n Measure \n Overloaded managers — Managers the organogram flags as overloaded (span above its own threshold). \n Grouped by \n District Manager \n Period \n organogram snapshot \n Rows \n 106 district managers in scope \n Data \n Organogram cache — point-in-time snapshot (not period-stamped) \n span_overloaded \n span_count \n span_planned \n Bottom 5 \n bottom 5 dms by overloaded managers \n The organogram has no month axis, so the figures do not change with the period you name. \n Manager rows are the organogram's own span-of-control table and manager vacancy table, limited to lines in your scope. Vacant manager seats are left out. \n The manager-vacancy table lists only managers with vacancies; a manager absent from it has none in the organogram. \n sfe \n span_overloaded \n Organogram cache · point-in-time snapshot \n Lowest Overloaded managers: Ahmed Mohamed Hassan Mohamed (0) \n organogram snapshot · Total 2 · showing 10 of 106.",
+   "htmlText": "which managers are overloaded ANSWER Lowest Overloaded managers: Ahmed Mohamed Hassan Mohamed (0) organogram snapshot · Total 2 · showing 10 of 106. EVIDENCE Measure Overloaded managers — Managers the organogram flags as overloaded (span above its own threshold). Grouped by District Manager Period organogram snapshot Rows 106 district managers in scope Data Organogram cache — point-in-time snapshot (not period-stamped) Vacancy rate = vacant ÷ budgeted positions × 100 # District Manager Overloaded managers Span of control Planned span 1 Ahmed Mohamed Hassan Mohamed 0 8 8 2 Ahmed Mohamed Mostafa AbdelSamie Mostafa 0 8 8 3 Ahmed Othman Mahmoud Mohamed Othman 0 8 8 4 Aml ElKahlawy Awad AbdelBary 0 8 8 5 Dalia Fathy ElDemerdash Khamis 0 8 8 6 Inas Samir Saad Gouda 0 8 8 7 Karim Mohamed Nagib Mohamed ElDemerdash 0 8 8 8 Mahmoud Aly AbdelLatif Ahmed 0 8 8 9 Marina Atef Sobhy Thabet 0 8 9 10 Marwa ElSayed Teleb Emara Khedr 0 8 8 DRILL DOWN Bottom 5 ⚠ The organogram has no month axis, so the figures do not change with the period you name. ⚠ Manager rows are the organogram's own span-of-control table and manager vacancy table, limited to lines in your scope. Vacant manager seats are left out. ⚠ The manager-vacancy table lists only managers with vacancies; a manager absent from it has none in the organogram. Source: Organogram cache · point-in-time snapshot"
+  },
+  {
+   "id": "EXE-02",
+   "domain": "Executive",
+   "tab": "executive",
+   "q": "why is sales below target",
+   "template": "why is sales below target",
+   "ms": 7,
+   "err": null,
+   "ok": false,
+   "clarify": true,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": null,
+   "detail": null,
+   "message": "Which business unit or line should I diagnose? I will not pick one for you.",
+   "hint": "Ask again naming one, for example: why is CHC below target · why is Cluster below target · why is DIAB below target · why is GIT below target",
+   "period": null,
+   "assumptions": [],
+   "caveats": [],
+   "formula": null,
+   "rows": [],
+   "evidence": [],
+   "drill": [
+    "why is CHC below target",
+    "why is Cluster below target",
+    "why is DIAB below target",
+    "why is GIT below target"
+   ],
+   "text": "Which business unit or line should I diagnose? I will not pick one for you. \n Ask again naming one, for example: why is CHC below target · why is Cluster below target · why is DIAB below target · why is GIT below target \n CHC \n Cluster \n DIAB \n GIT \n CHC \n why is CHC below target \n Cluster \n why is Cluster below target \n DIAB \n why is DIAB below target \n GIT \n why is GIT below target",
+   "htmlText": "why is sales below target I need one detail first Which business unit or line should I diagnose? I will not pick one for you. Ask again naming one, for example: why is CHC below target · why is Cluster below target · why is DIAB below target · why is GIT below target DRILL DOWN CHC Cluster DIAB GIT"
+  },
+  {
+   "id": "EXE-04",
+   "domain": "Executive",
+   "tab": "executive",
+   "q": "sales achievement vs coverage",
+   "template": "sales achievement vs coverage",
+   "ms": 6,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Sales achievement — whole company: 105.2%",
+   "detail": "YTD (Jan–Jul 2026).",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Jan–Jul 2026)",
+   "assumptions": [
+    "No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "You also mentioned Operational coverage % — that belongs to a different page's data, so it is not combined into this figure."
+   ],
+   "formula": "Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Sales achievement — Actual sales value as a percentage of the target for the same period and scope."
+    ],
+    [
+     "Period",
+     "YTD (Jan–Jul 2026)"
+    ],
+    [
+     "Target basis",
+     "Official Target"
+    ],
+    [
+     "Sales basis",
+     "Non-Tender transactions only, Value basis (EGP)"
+    ],
+    [
+     "Business units",
+     "CHC, Cluster, DIAB, GIT"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "sales achievement by business unit",
+    "sales achievement MoM",
+    "sales achievement trend by month"
+   ],
+   "text": "Sales achievement — whole company: 105.2% \n YTD (Jan–Jul 2026). \n Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual \n Measure \n Sales achievement — Actual sales value as a percentage of the target for the same period and scope. \n Period \n YTD (Jan–Jul 2026) \n Target basis \n Official Target \n Sales basis \n Non-Tender transactions only, Value basis (EGP) \n Business units \n CHC, Cluster, DIAB, GIT \n Data as of \n 2026-07 \n achievement \n 105.21744195749446 \n Break down by business unit \n sales achievement by business unit \n Month over month \n sales achievement MoM \n Trend \n sales achievement trend by month \n You also mentioned Operational coverage % — that belongs to a different page's data, so it is not combined into this figure. \n No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. \n sales \n achievement \n Sales cache · target basis Official Target \n Sales achievement — whole company: 105.2% \n YTD (Jan–Jul 2026).",
+   "htmlText": "sales achievement vs coverage ANSWER Sales achievement — whole company: 105.2% YTD (Jan–Jul 2026). Assumptions • No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. EVIDENCE Measure Sales achievement — Actual sales value as a percentage of the target for the same period and scope. Period YTD (Jan–Jul 2026) Target basis Official Target Sales basis Non-Tender transactions only, Value basis (EGP) Business units CHC, Cluster, DIAB, GIT Data as of 2026-07 Achievement % = actual value ÷ target value × 100 · Gap = target − actual DRILL DOWN Break down by business unit Month over month Trend ⚠ You also mentioned Operational coverage % — that belongs to a different page's data, so it is not combined into this figure. Source: Sales cache · target basis Official Target"
+  },
+  {
+   "id": "WDY-02",
+   "domain": "Working Days",
+   "tab": "workingdays",
+   "q": "field working days by line",
+   "template": "field working days by line",
+   "ms": 49,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Avg Field Working Days % by line — 17 rows",
+   "detail": "Aug 2026 (latest loaded month) · Total 93.9%.",
+   "message": null,
+   "hint": null,
+   "period": "Aug 2026 (latest loaded month)",
+   "assumptions": [
+    "No tier named — Field Working Days has a different target multiplier per tier (DM/DSM 0.8, ASM 0.6, NSM 0.3), so tiers are never mixed. Showing DM / DSM, the page's default tier; say “ASM” or “NSM” for the others.",
+    "No period given — using the latest loaded month, Aug 2026."
+   ],
+   "caveats": [],
+   "formula": "Field Working Days % = All Visit Days ÷ Target Working Days; Target = (Calendar Days − TOT) × tier multiplier",
+   "rows": [
+    [
+     "ORTHO-I",
+     "122.4%"
+    ],
+    [
+     "DIAB-II",
+     "117.1%"
+    ],
+    [
+     "CVM-II",
+     "113.7%"
+    ],
+    [
+     "DIAB-I",
+     "110.2%"
+    ],
+    [
+     "PEDIA",
+     "107.5%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Avg Field Working Days % — All Visit Days ÷ Target Working Days, averaged over the employees in view (the page's “Avg Field Days %”). 100% = the tier's target working days were all worked in the field."
+    ],
+    [
+     "Grouped by",
+     "Line"
+    ],
+    [
+     "Period",
+     "Aug 2026 (latest loaded month)"
+    ],
+    [
+     "Rows",
+     "17 lines in scope"
+    ],
+    [
+     "Data",
+     "Field Working Days cache (Sprint_Missing_KPI_Template.xlsx), scoped to your access by the page's own rule"
+    ],
+    [
+     "Tier",
+     "DM / DSM (×0.8)"
+    ],
+    [
+     "Months",
+     "August"
+    ],
+    [
+     "Data as of",
+     "August"
+    ]
+   ],
+   "drill": [
+    "field working days by district manager in ORTHO-I",
+    "field working days of ORTHO-I MoM",
+    "bottom 5 lines by field working days"
+   ],
+   "text": "Avg Field Working Days % by line — 17 rows \n Aug 2026 (latest loaded month) · Total 93.9%. \n 1 \n ORTHO-I \n 122.4% \n 2 \n DIAB-II \n 117.1% \n 3 \n CVM-II \n 113.7% \n 4 \n DIAB-I \n 110.2% \n 5 \n PEDIA \n 107.5% \n 6 \n DIAB-IV \n 101.9% \n 7 \n DIAB-III \n 101.1% \n 8 \n GIT-I \n 98.2% \n 9 \n GIT-II \n 96.2% \n 10 \n Derma \n 94.3% \n 11 \n CVM-I \n 91.7% \n 12 \n ORTHO-II \n 80.8% \n 13 \n GIT-III \n 70.8% \n 14 \n CHC \n 54.3% \n 15 \n CNS \n 51.6% \n 16 \n CHC_SALES \n 46.2% \n 17 \n Unassigned \n 0.0% \n Avg Field Working Days % \n Line \n Field Working Days % = All Visit Days ÷ Target Working Days; Target = (Calendar Days − TOT) × tier multiplier \n Measure \n Avg Field Working Days % — All Visit Days ÷ Target Working Days, averaged over the employees in view (the page's “Avg Field Days %”). 100% = the tier's target working days were all worked in the field. \n Grouped by \n Line \n Period \n Aug 2026 (latest loaded month) \n Rows \n 17 lines in scope \n Data \n Field Working Days cache (Sprint_Missing_KPI_Template.xlsx), scoped to your access by the page's own rule \n Tier \n DM / DSM (×0.8) \n Months \n August \n Data as of \n August \n wd_field_pct \n Break down ORTHO-I by district manager \n field working days by district manager in ORTHO-I \n ORTHO-I MoM \n field working days of ORTHO-I MoM \n Bottom 5 \n bottom 5 lines by field working days \n No tier named — Field Working Days has a different target multiplier per tier (DM/DSM 0.8, ASM 0.6, NSM 0.3), so tiers are never mixed. Showing DM / DSM, the page's default tier; say “ASM” or “NSM” for the others. \n No period given — using the latest loaded month, Aug 2026. \n workdays \n wd_field_pct \n Field Working Days cache · Sprint_Missing_KPI_Template.xlsx \n Avg Field Working Days % by line — 17 rows \n Aug 2026 (latest loaded month) · Total 93.9%.",
+   "htmlText": "field working days by line ANSWER Avg Field Working Days % by line — 17 rows Aug 2026 (latest loaded month) · Total 93.9%. Assumptions • No tier named — Field Working Days has a different target multiplier per tier (DM/DSM 0.8, ASM 0.6, NSM 0.3), so tiers are never mixed. Showing DM / DSM, the page's default tier; say “ASM” or “NSM” for the others. • No period given — using the latest loaded month, Aug 2026. EVIDENCE Measure Avg Field Working Days % — All Visit Days ÷ Target Working Days, averaged over the employees in view (the page's “Avg Field Days %”). 100% = the tier's target working days were all worked in the field. Grouped by Line Period Aug 2026 (latest loaded month) Rows 17 lines in scope Data Field Working Days cache (Sprint_Missing_KPI_Template.xlsx), scoped to your access by the page's own rule Tier DM / DSM (×0.8) Months August Data as of August Field Working Days % = All Visit Days ÷ Target Working Days; Target = (Calendar Days − TOT) × tier multiplier # Line Avg Field Working Days % 1 ORTHO-I 122.4% 2 DIAB-II 117.1% 3 CVM-II 113.7% 4 DIAB-I 110.2% 5 PEDIA 107.5% 6 DIAB-IV 101.9% 7 DIAB-III 101.1% 8 GIT-I 98.2% 9 GIT-II 96.2% 10 Derma 94.3% 11 CVM-I 91.7% 12 ORTHO-II 80.8% 13 GIT-III 70.8% 14 CHC 54.3% 15 CNS 51.6% 16 CHC_SALES 46.2% 17 Unassigned 0.0% DRILL DOWN Break down ORTHO-I by district manager ORTHO-I MoM Bottom 5"
+  },
+  {
+   "id": "COA-01",
+   "domain": "Coaching",
+   "tab": "coaching",
+   "q": "what is the coaching coverage",
+   "template": "what is the coaching coverage",
+   "ms": 82,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "DV Coverage %: Coached active reps on the manager's own roster ÷ the manager's active roster size (capped at 100%); cross-team reps are counted separately.",
+   "detail": "Currently 94.2% for whole company (YTD (Feb–Aug 2026)).",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Feb–Aug 2026)",
+   "assumptions": [
+    "No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "Coverage, targets and status exist only for District Managers, Field Force Supervisors and Senior DMs; other levels have no coverage % or target on the page.",
+    "The Coaching data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use."
+   ],
+   "formula": "Σ coached-on-roster ÷ Σ period active team size × 100 (never an average of manager percentages)",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "DV Coverage %"
+    ],
+    [
+     "Definition",
+     "Coached active reps on the manager's own roster ÷ the manager's active roster size (capped at 100%); cross-team reps are counted separately."
+    ],
+    [
+     "Formula",
+     "Σ coached-on-roster ÷ Σ period active team size × 100 (never an average of manager percentages)"
+    ],
+    [
+     "Period",
+     "YTD (Feb–Aug 2026)"
+    ],
+    [
+     "Data",
+     "Coaching cache — Visits Details S1 DM.xlsx joined to Database Shortcut.xlsx"
+    ],
+    [
+     "Period",
+     "YTD cumulative (Feb–Aug)"
+    ],
+    [
+     "Targets (page)",
+     "DV Coverage 100% · Visits per coaching day 7 (12 for a CHC_SALES-only view)"
+    ],
+    [
+     "Data as of",
+     "2026-08"
+    ]
+   ],
+   "drill": [
+    "dv coverage by business unit",
+    "dv coverage MoM",
+    "dv coverage trend by month"
+   ],
+   "text": "DV Coverage %: Coached active reps on the manager's own roster ÷ the manager's active roster size (capped at 100%); cross-team reps are counted separately. \n Currently 94.2% for whole company (YTD (Feb–Aug 2026)). \n Σ coached-on-roster ÷ Σ period active team size × 100 (never an average of manager percentages) \n Measure \n DV Coverage % \n Definition \n Coached active reps on the manager's own roster ÷ the manager's active roster size (capped at 100%); cross-team reps are counted separately. \n Formula \n Σ coached-on-roster ÷ Σ period active team size × 100 (never an average of manager percentages) \n Period \n YTD (Feb–Aug 2026) \n Data \n Coaching cache — Visits Details S1 DM.xlsx joined to Database Shortcut.xlsx \n Period \n YTD cumulative (Feb–Aug) \n Targets (page) \n DV Coverage 100% · Visits per coaching day 7 (12 for a CHC_SALES-only view) \n Data as of \n 2026-08 \n coach_dv_cov \n Break down by business unit \n dv coverage by business unit \n Month over month \n dv coverage MoM \n Trend \n dv coverage trend by month \n Coverage, targets and status exist only for District Managers, Field Force Supervisors and Senior DMs; other levels have no coverage % or target on the page. \n The Coaching data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. \n No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. \n coaching \n coach_dv_cov \n Coaching cache · Visits Details S1 DM.xlsx × Database Shortcut.xlsx \n DV Coverage %: Coached active reps on the manager's own roster ÷ the manager's active roster size (capped at 100%); cross-team reps are counted separately. \n Currently 94.2% for whole company (YTD (Feb–Aug 2026)).",
+   "htmlText": "what is the coaching coverage ANSWER DV Coverage %: Coached active reps on the manager's own roster ÷ the manager's active roster size (capped at 100%); cross-team reps are counted separately. Currently 94.2% for whole company (YTD (Feb–Aug 2026)). Assumptions • No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. EVIDENCE Measure DV Coverage % Definition Coached active reps on the manager's own roster ÷ the manager's active roster size (capped at 100%); cross-team reps are counted separately. Formula Σ coached-on-roster ÷ Σ period active team size × 100 (never an average of manager percentages) Period YTD (Feb–Aug 2026) Data Coaching cache — Visits Details S1 DM.xlsx joined to Database Shortcut.xlsx Period YTD cumulative (Feb–Aug) Targets (page) DV Coverage 100% · Visits per coaching day 7 (12 for a CHC_SALES-only view) Data as of 2026-08 Σ coached-on-roster ÷ Σ period active team size × 100 (never an average of manager percentages) DRILL DOWN Break down by business unit Month over month Trend ⚠ Coverage, targets and status exist only for District Managers, Field Force Supervisors and Senior DMs; other levels have no coverage % or target on the page. ⚠ The Coaching data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use."
+  },
+  {
+   "id": "COA-03",
+   "domain": "Coaching",
+   "tab": "coaching",
+   "q": "how many reps were coached in July 2026",
+   "template": "how many reps were coached in July 2026",
+   "ms": 40,
+   "err": null,
+   "ok": false,
+   "clarify": false,
+   "missing": true,
+   "denied": false,
+   "noAdapter": false,
+   "headline": null,
+   "detail": null,
+   "message": "Coaching Intelligence cannot give “Reps coached” by representative.",
+   "hint": "It can be grouped by: business unit, line, district manager, tier.",
+   "period": null,
+   "assumptions": [],
+   "caveats": [],
+   "formula": null,
+   "rows": [],
+   "evidence": [],
+   "drill": [],
+   "text": "Coaching Intelligence cannot give “Reps coached” by representative. \n It can be grouped by: business unit, line, district manager, tier.",
+   "htmlText": "how many reps were coached in July 2026 The dashboard does not hold that Coaching Intelligence cannot give “Reps coached” by representative. It can be grouped by: business unit, line, district manager, tier."
+  },
+  {
+   "id": "SPR-02",
+   "domain": "Sprint",
+   "tab": "sprint",
+   "q": "top 5 district managers by sprint points",
+   "template": "top 5 district managers by sprint points",
+   "ms": 87,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Highest Zeta Sprint points: Mohamed Ahmed Mohamed Shahin (86.8)",
+   "detail": "Jul 2026 (latest loaded month) · Total 45.3 · showing 5 of 94.",
+   "message": null,
+   "hint": null,
+   "period": "Jul 2026 (latest loaded month)",
+   "assumptions": [
+    "No period given — using the latest loaded month, Jul 2026."
+   ],
+   "caveats": [
+    "DM/DSM, ASM, NSM and Brand Manager totals include only the KPIs that are live on the page; KPI slots still waiting for a data feed are shown as pending there and are not scored as zero here.",
+    "60 of 154 district managers hold no recorded value for Zeta Sprint points and are left out of the ranking (no value is assumed for them)."
+   ],
+   "formula": "Sprint points = page-stored totalPts (sum of KPI points); group value = mean of members",
+   "rows": [
+    [
+     "Mohamed Ahmed Mohamed Shahin",
+     "86.8"
+    ],
+    [
+     "Dalia Fathy Eldemerdash Khamis",
+     "85.7"
+    ],
+    [
+     "Shorouk Mahmoud Hassan Mahmoud",
+     "85.4"
+    ],
+    [
+     "Osama AlaaElDin Badawy Aly",
+     "81.6"
+    ],
+    [
+     "Youstina Samy Eissa Bekhit",
+     "79.2"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Zeta Sprint points — The page's total points for the month (out of 100). For a group it is the mean of its members' points; a tier with KPI slots still pending a data feed shows only the points that are live."
+    ],
+    [
+     "Grouped by",
+     "District Manager"
+    ],
+    [
+     "Period",
+     "Jul 2026 (latest loaded month)"
+    ],
+    [
+     "Rows",
+     "94 district managers in scope"
+    ],
+    [
+     "Data",
+     "Zeta Sprint cache — July (2026-07-01 – 2026-07-31), scoped by the page's own rules"
+    ],
+    [
+     "Tier",
+     "DM / DSM"
+    ],
+    [
+     "Data as of",
+     "July 2026"
+    ]
+   ],
+   "drill": [
+    "zeta sprint points of Mohamed Ahmed Mohamed Shahin MoM",
+    "bottom 5 dms by zeta sprint points"
+   ],
+   "text": "Highest Zeta Sprint points: Mohamed Ahmed Mohamed Shahin (86.8) \n Jul 2026 (latest loaded month) · Total 45.3 · showing 5 of 94. \n 1 \n Mohamed Ahmed Mohamed Shahin \n 86.8 \n 2 \n Dalia Fathy Eldemerdash Khamis \n 85.7 \n 3 \n Shorouk Mahmoud Hassan Mahmoud \n 85.4 \n 4 \n Osama AlaaElDin Badawy Aly \n 81.6 \n 5 \n Youstina Samy Eissa Bekhit \n 79.2 \n Zeta Sprint points \n District Manager \n Sprint points = page-stored totalPts (sum of KPI points); group value = mean of members \n Measure \n Zeta Sprint points — The page's total points for the month (out of 100). For a group it is the mean of its members' points; a tier with KPI slots still pending a data feed shows only the points that are live. \n Grouped by \n District Manager \n Period \n Jul 2026 (latest loaded month) \n Rows \n 94 district managers in scope \n Data \n Zeta Sprint cache — July (2026-07-01 – 2026-07-31), scoped by the page's own rules \n Tier \n DM / DSM \n Data as of \n July 2026 \n sp_points \n Mohamed Ahmed Mohamed Shahin MoM \n zeta sprint points of Mohamed Ahmed Mohamed Shahin MoM \n Bottom 5 \n bottom 5 dms by zeta sprint points \n DM/DSM, ASM, NSM and Brand Manager totals include only the KPIs that are live on the page; KPI slots still waiting for a data feed are shown as pending there and are not scored as zero here. \n 60 of 154 district managers hold no recorded value for Zeta Sprint points and are left out of the ranking (no value is assumed for them). \n No period given — using the latest loaded month, Jul 2026. \n sprint \n sp_points \n Zeta Sprint cache · monthly ranking \n Highest Zeta Sprint points: Mohamed Ahmed Mohamed Shahin (86.8) \n Jul 2026 (latest loaded month) · Total 45.3 · showing 5 of 94.",
+   "htmlText": "top 5 district managers by sprint points ANSWER Highest Zeta Sprint points: Mohamed Ahmed Mohamed Shahin (86.8) Jul 2026 (latest loaded month) · Total 45.3 · showing 5 of 94. Assumptions • No period given — using the latest loaded month, Jul 2026. EVIDENCE Measure Zeta Sprint points — The page's total points for the month (out of 100). For a group it is the mean of its members' points; a tier with KPI slots still pending a data feed shows only the points that are live. Grouped by District Manager Period Jul 2026 (latest loaded month) Rows 94 district managers in scope Data Zeta Sprint cache — July (2026-07-01 – 2026-07-31), scoped by the page's own rules Tier DM / DSM Data as of July 2026 Sprint points = page-stored totalPts (sum of KPI points); group value = mean of members # District Manager Zeta Sprint points 1 Mohamed Ahmed Mohamed Shahin 86.8 2 Dalia Fathy Eldemerdash Khamis 85.7 3 Shorouk Mahmoud Hassan Mahmoud 85.4 4 Osama AlaaElDin Badawy Aly 81.6 5 Youstina Samy Eissa Bekhit 79.2 DRILL DOWN Mohamed Ahmed Mohamed Shahin MoM Bottom 5 ⚠ DM/DSM, ASM, NSM and Brand Manager totals include only the KPIs that are live on the page; KPI slots still waiting for a data feed are shown as pending there and are not scored as zero here. ⚠ 60 of 154 district managers hold no recorded value for Zeta Sprint points and are left out of the ranking (no value is assumed for them)."
+  },
+  {
+   "id": "IQV-01",
+   "domain": "IQVIA",
+   "tab": "iqvia",
+   "q": "what is Zeta market share",
+   "template": "what is Zeta market share",
+   "ms": 64,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Zeta market share (value): Zeta's LCV as a share of the market's LCV in the same cut. By BU, MAT: the Executive BU market-share card. By corporation, it is each corporation's own share.",
+   "detail": "Currently 9.4% for whole company (MAT (Aug 2025 – Jul 2026)).",
+   "message": null,
+   "hint": null,
+   "period": "MAT (Aug 2025 – Jul 2026)",
+   "assumptions": [
+    "No period given — using MAT (Aug 2025 – Jul 2026), the moving annual total the IQVIA page and the Executive BU share default to."
+   ],
+   "caveats": [
+    "No BU or market named: Zeta measures are pooled over the promoted BUs (CHC, Cluster, DIAB, GIT), as the Executive BU cards define them — not over every ATC row in IQVIA."
+   ],
+   "formula": "Zeta LCV ÷ all-corporation LCV of the same cut × 100",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Zeta market share (value)"
+    ],
+    [
+     "Definition",
+     "Zeta's LCV as a share of the market's LCV in the same cut. By BU, MAT: the Executive BU market-share card. By corporation, it is each corporation's own share."
+    ],
+    [
+     "Formula",
+     "Zeta LCV ÷ all-corporation LCV of the same cut × 100"
+    ],
+    [
+     "Period",
+     "MAT (Aug 2025 – Jul 2026)"
+    ],
+    [
+     "Data",
+     "IQVIA cache — 2021-01 to 2026-07, Other Market excluded, scoped to your access"
+    ],
+    [
+     "Period",
+     "MAT (Aug 2025 – Jul 2026) → 12 months"
+    ],
+    [
+     "Growth",
+     "vs the 12 months before (page convention for this period)"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "zeta market share by business unit",
+    "zeta market share MoM",
+    "zeta market share trend by month"
+   ],
+   "text": "Zeta market share (value): Zeta's LCV as a share of the market's LCV in the same cut. By BU, MAT: the Executive BU market-share card. By corporation, it is each corporation's own share. \n Currently 9.4% for whole company (MAT (Aug 2025 – Jul 2026)). \n Zeta LCV ÷ all-corporation LCV of the same cut × 100 \n Measure \n Zeta market share (value) \n Definition \n Zeta's LCV as a share of the market's LCV in the same cut. By BU, MAT: the Executive BU market-share card. By corporation, it is each corporation's own share. \n Formula \n Zeta LCV ÷ all-corporation LCV of the same cut × 100 \n Period \n MAT (Aug 2025 – Jul 2026) \n Data \n IQVIA cache — 2021-01 to 2026-07, Other Market excluded, scoped to your access \n Period \n MAT (Aug 2025 – Jul 2026) → 12 months \n Growth \n vs the 12 months before (page convention for this period) \n Data as of \n 2026-07 \n iq_zeta_share_lcv \n Break down by business unit \n zeta market share by business unit \n Month over month \n zeta market share MoM \n Trend \n zeta market share trend by month \n No BU or market named: Zeta measures are pooled over the promoted BUs (CHC, Cluster, DIAB, GIT), as the Executive BU cards define them — not over every ATC row in IQVIA. \n No period given — using MAT (Aug 2025 – Jul 2026), the moving annual total the IQVIA page and the Executive BU share default to. \n iqvia \n iq_zeta_share_lcv \n IQVIA cache · monthly, LCV and SU \n Zeta market share (value): Zeta's LCV as a share of the market's LCV in the same cut. By BU, MAT: the Executive BU market-share card. By corporation, it is each corporation's own share. \n Currently 9.4% for whole company (MAT (Aug 2025 – Jul 2026)).",
+   "htmlText": "what is Zeta market share ANSWER Zeta market share (value): Zeta's LCV as a share of the market's LCV in the same cut. By BU, MAT: the Executive BU market-share card. By corporation, it is each corporation's own share. Currently 9.4% for whole company (MAT (Aug 2025 – Jul 2026)). Assumptions • No period given — using MAT (Aug 2025 – Jul 2026), the moving annual total the IQVIA page and the Executive BU share default to. EVIDENCE Measure Zeta market share (value) Definition Zeta's LCV as a share of the market's LCV in the same cut. By BU, MAT: the Executive BU market-share card. By corporation, it is each corporation's own share. Formula Zeta LCV ÷ all-corporation LCV of the same cut × 100 Period MAT (Aug 2025 – Jul 2026) Data IQVIA cache — 2021-01 to 2026-07, Other Market excluded, scoped to your access Period MAT (Aug 2025 – Jul 2026) → 12 months Growth vs the 12 months before (page convention for this period) Data as of 2026-07 Zeta LCV ÷ all-corporation LCV of the same cut × 100 DRILL DOWN Break down by business unit Month over month Trend ⚠ No BU or market named: Zeta measures are pooled over the promoted BUs (CHC, Cluster, DIAB, GIT), as the Executive BU cards define them — not over every ATC row in IQVIA."
+  },
+  {
+   "id": "IQV-03",
+   "domain": "IQVIA",
+   "tab": "iqvia",
+   "q": "which markets is Zeta growing fastest in",
+   "template": "which markets is Zeta growing fastest in",
+   "ms": 20,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Highest Market growth (value): ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE (+185.3%)",
+   "detail": "MAT (Aug 2025 – Jul 2026) · Total +22.6% · showing 10 of 31.",
+   "message": null,
+   "hint": null,
+   "period": "MAT (Aug 2025 – Jul 2026)",
+   "assumptions": [
+    "No period given — using MAT (Aug 2025 – Jul 2026), the moving annual total the IQVIA page and the Executive BU share default to."
+   ],
+   "caveats": [
+    "2 of 33 markets hold no recorded value for Market growth (value) and are left out of the ranking (no value is assumed for them)."
+   ],
+   "formula": "Sums come from the page's aggBy() over the period's month set; shares and growth are aggregated first and divided once",
+   "rows": [
+    [
+     "ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE",
+     "+185.3%"
+    ],
+    [
+     "SELECTED _COQ10",
+     "+171.5%"
+    ],
+    [
+     "A10P9 SGLT2 INH A-DIAB COM OTH",
+     "+122.0%"
+    ],
+    [
+     "A10P5 SGLT2 INH&DPP-IV INH COM",
+     "+101.9%"
+    ],
+    [
+     "BREXPIPRAZOLE_MKT",
+     "+98.5%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Market growth (value) — LCV growth of the cut versus the previous period (page convention)."
+    ],
+    [
+     "Grouped by",
+     "Market"
+    ],
+    [
+     "Period",
+     "MAT (Aug 2025 – Jul 2026)"
+    ],
+    [
+     "Rows",
+     "31 markets in scope"
+    ],
+    [
+     "Data",
+     "IQVIA cache — 2021-01 to 2026-07, Other Market excluded, scoped to your access"
+    ],
+    [
+     "Period",
+     "MAT (Aug 2025 – Jul 2026) → 12 months"
+    ],
+    [
+     "Growth",
+     "vs the 12 months before (page convention for this period)"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "market growth by corporation in ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE",
+    "market growth of ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE MoM",
+    "bottom 5 markets by market growth"
+   ],
+   "text": "Highest Market growth (value): ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE (+185.3%) \n MAT (Aug 2025 – Jul 2026) · Total +22.6% · showing 10 of 31. \n 1 \n ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE \n +185.3% \n 2 \n SELECTED _COQ10 \n +171.5% \n 3 \n A10P9 SGLT2 INH A-DIAB COM OTH \n +122.0% \n 4 \n A10P5 SGLT2 INH&DPP-IV INH COM \n +101.9% \n 5 \n BREXPIPRAZOLE_MKT \n +98.5% \n 6 \n Vortaxmode MKT \n +96.1% \n 7 \n ZETACOLEST_BEPEDOIC ACID ONLY \n +96.1% \n 8 \n ONLY_DOZOVA_ASHW \n +83.1% \n 9 \n P-CAB_MKT \n +66.9% \n 10 \n SELECTED OTH W HEALING _MEDIHYALO \n +60.7% \n Market growth (value) \n Market \n Sums come from the page's aggBy() over the period's month set; shares and growth are aggregated first and divided once \n Measure \n Market growth (value) — LCV growth of the cut versus the previous period (page convention). \n Grouped by \n Market \n Period \n MAT (Aug 2025 – Jul 2026) \n Rows \n 31 markets in scope \n Data \n IQVIA cache — 2021-01 to 2026-07, Other Market excluded, scoped to your access \n Period \n MAT (Aug 2025 – Jul 2026) → 12 months \n Growth \n vs the 12 months before (page convention for this period) \n Data as of \n 2026-07 \n iq_growth_lcv \n Break down ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE by corporation \n market growth by corporation in ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE \n ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE MoM \n market growth of ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE MoM \n Bottom 5 \n bottom 5 markets by market growth \n 2 of 33 markets hold no recorded value for Market growth (value) and are left out of the ranking (no value is assumed for them). \n No period given — using MAT (Aug 2025 – Jul 2026), the moving annual total the IQVIA page and the Executive BU share default to. \n iqvia \n iq_growth_lcv \n IQVIA cache · monthly, LCV and SU \n Highest Market growth (value): ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE (+185.3%) \n MAT (Aug 2025 – Jul 2026) · Total +22.6% · showing 10 of 31.",
+   "htmlText": "which markets is Zeta growing fastest in ANSWER Highest Market growth (value): ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE (+185.3%) MAT (Aug 2025 – Jul 2026) · Total +22.6% · showing 10 of 31. Assumptions • No period given — using MAT (Aug 2025 – Jul 2026), the moving annual total the IQVIA page and the Executive BU share default to. EVIDENCE Measure Market growth (value) — LCV growth of the cut versus the previous period (page convention). Grouped by Market Period MAT (Aug 2025 – Jul 2026) Rows 31 markets in scope Data IQVIA cache — 2021-01 to 2026-07, Other Market excluded, scoped to your access Period MAT (Aug 2025 – Jul 2026) → 12 months Growth vs the 12 months before (page convention for this period) Data as of 2026-07 Sums come from the page's aggBy() over the period's month set; shares and growth are aggregated first and divided once # Market Market growth (value) 1 ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE +185.3% 2 SELECTED _COQ10 +171.5% 3 A10P9 SGLT2 INH A-DIAB COM OTH +122.0% 4 A10P5 SGLT2 INH&DPP-IV INH COM +101.9% 5 BREXPIPRAZOLE_MKT +98.5% 6 Vortaxmode MKT +96.1% 7 ZETACOLEST_BEPEDOIC ACID ONLY +96.1% 8 ONLY_DOZOVA_ASHW +83.1% 9 P-CAB_MKT +66.9% 10 SELECTED OTH W HEALING _MEDIHYALO +60.7% DRILL DOWN Break down ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE by corporation ZETACOLEST PLUS BEMPEDOIC ACID | EZETIMIBE MoM Bottom 5 ⚠ 2 of 33 markets hold no recorded value for Market growth (value) and are left out of the ranking (no value is assumed for them)."
+  },
+  {
+   "id": "MKT-01",
+   "domain": "Market Intelligence",
+   "tab": "marketintel",
+   "q": "what is the total market size",
+   "template": "what is the total market size",
+   "ms": 31,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Market value (LC): Local-currency value of the total Egyptian market for the selected year.",
+   "detail": "Currently 292.06B EGP for Total Market Intelligence (whole market — this dataset has no BU / line scope) (Dec 2025 (default period)).",
+   "message": null,
+   "hint": null,
+   "period": "Dec 2025 (default period)",
+   "assumptions": [
+    "No period given — using Dec 2025, the default period of this page."
+   ],
+   "caveats": [],
+   "formula": "SUM(value) of the annual cube cells in the cut for the year",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Market value (LC)"
+    ],
+    [
+     "Definition",
+     "Local-currency value of the total Egyptian market for the selected year."
+    ],
+    [
+     "Formula",
+     "SUM(value) of the annual cube cells in the cut for the year"
+    ],
+    [
+     "Period",
+     "Dec 2025 (default period)"
+    ],
+    [
+     "Data",
+     "IMS 2022 to April 2026 — annual cube, calendar years 2022, 2023, 2024, 2025, 2026"
+    ],
+    [
+     "Year",
+     "2025"
+    ],
+    [
+     "Growth",
+     "CAGR 2022–2025 (3 years), full years only"
+    ],
+    [
+     "Data as of",
+     "2025"
+    ]
+   ],
+   "drill": [
+    "total market by therapeutic area",
+    "total market YoY",
+    "total market trend"
+   ],
+   "text": "Market value (LC): Local-currency value of the total Egyptian market for the selected year. \n Currently 292.06B EGP for Total Market Intelligence (whole market — this dataset has no BU / line scope) (Dec 2025 (default period)). \n SUM(value) of the annual cube cells in the cut for the year \n Measure \n Market value (LC) \n Definition \n Local-currency value of the total Egyptian market for the selected year. \n Formula \n SUM(value) of the annual cube cells in the cut for the year \n Period \n Dec 2025 (default period) \n Data \n IMS 2022 to April 2026 — annual cube, calendar years 2022, 2023, 2024, 2025, 2026 \n Year \n 2025 \n Growth \n CAGR 2022–2025 (3 years), full years only \n Data as of \n 2025 \n mi_value \n Break down by therapeutic area \n total market by therapeutic area \n Year over year \n total market YoY \n Trend \n total market trend \n No period given — using Dec 2025, the default period of this page. \n marketintel \n mi_value \n Market Intelligence cache · annual cube 2022–2026 \n Market value (LC): Local-currency value of the total Egyptian market for the selected year. \n Currently 292.06B EGP for Total Market Intelligence (whole market — this dataset has no BU / line scope) (Dec 2025 (default period)).",
+   "htmlText": "what is the total market size ANSWER Market value (LC): Local-currency value of the total Egyptian market for the selected year. Currently 292.06B EGP for Total Market Intelligence (whole market — this dataset has no BU / line scope) (Dec 2025 (default period)). Assumptions • No period given — using Dec 2025, the default period of this page. EVIDENCE Measure Market value (LC) Definition Local-currency value of the total Egyptian market for the selected year. Formula SUM(value) of the annual cube cells in the cut for the year Period Dec 2025 (default period) Data IMS 2022 to April 2026 — annual cube, calendar years 2022, 2023, 2024, 2025, 2026 Year 2025 Growth CAGR 2022–2025 (3 years), full years only Data as of 2025 SUM(value) of the annual cube cells in the cut for the year DRILL DOWN Break down by therapeutic area Year over year Trend"
+  },
+  {
+   "id": "MKT-03",
+   "domain": "Market Intelligence",
+   "tab": "marketintel",
+   "q": "market CAGR",
+   "template": "market CAGR",
+   "ms": 43,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Market growth (CAGR) — Total Market Intelligence (whole market — this dataset has no BU / line scope): +34.9%",
+   "detail": "Dec 2025 (default period).",
+   "message": null,
+   "hint": null,
+   "period": "Dec 2025 (default period)",
+   "assumptions": [
+    "No period given — using Dec 2025, the default period of this page."
+   ],
+   "caveats": [
+    "Growth-window measures compare the first and last full year (2022 → 2025), not the previous year."
+   ],
+   "formula": "Values and shares come from the page's rankedRows(); growth is the page's CAGR rule",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Market growth (CAGR) — Compound annual growth rate of the cut, first → last full year in scope (the page's growth basis)."
+    ],
+    [
+     "Period",
+     "Dec 2025 (default period)"
+    ],
+    [
+     "Data",
+     "IMS 2022 to April 2026 — annual cube, calendar years 2022, 2023, 2024, 2025, 2026"
+    ],
+    [
+     "Year",
+     "2025"
+    ],
+    [
+     "Growth",
+     "CAGR 2022–2025 (3 years), full years only"
+    ],
+    [
+     "Data as of",
+     "2025"
+    ]
+   ],
+   "drill": [
+    "cagr by therapeutic area",
+    "cagr YoY",
+    "cagr trend"
+   ],
+   "text": "Market growth (CAGR) — Total Market Intelligence (whole market — this dataset has no BU / line scope): +34.9% \n Dec 2025 (default period). \n Values and shares come from the page's rankedRows(); growth is the page's CAGR rule \n Measure \n Market growth (CAGR) — Compound annual growth rate of the cut, first → last full year in scope (the page's growth basis). \n Period \n Dec 2025 (default period) \n Data \n IMS 2022 to April 2026 — annual cube, calendar years 2022, 2023, 2024, 2025, 2026 \n Year \n 2025 \n Growth \n CAGR 2022–2025 (3 years), full years only \n Data as of \n 2025 \n mi_cagr \n 34.89007378851239 \n Break down by therapeutic area \n cagr by therapeutic area \n Year over year \n cagr YoY \n Trend \n cagr trend \n Growth-window measures compare the first and last full year (2022 → 2025), not the previous year. \n No period given — using Dec 2025, the default period of this page. \n marketintel \n mi_cagr \n Market Intelligence cache · annual cube 2022–2026 \n Market growth (CAGR) — Total Market Intelligence (whole market — this dataset has no BU / line scope): +34.9% \n Dec 2025 (default period).",
+   "htmlText": "market CAGR ANSWER Market growth (CAGR) — Total Market Intelligence (whole market — this dataset has no BU / line scope): +34.9% Dec 2025 (default period). Assumptions • No period given — using Dec 2025, the default period of this page. EVIDENCE Measure Market growth (CAGR) — Compound annual growth rate of the cut, first → last full year in scope (the page's growth basis). Period Dec 2025 (default period) Data IMS 2022 to April 2026 — annual cube, calendar years 2022, 2023, 2024, 2025, 2026 Year 2025 Growth CAGR 2022–2025 (3 years), full years only Data as of 2025 Values and shares come from the page's rankedRows(); growth is the page's CAGR rule DRILL DOWN Break down by therapeutic area Year over year Trend ⚠ Growth-window measures compare the first and last full year (2022 → 2025), not the previous year."
+  },
+  {
+   "id": "RX-02",
+   "domain": "IMS Rx",
+   "tab": "imsrx",
+   "q": "top 5 brands by rx",
+   "template": "top 5 brands by rx",
+   "ms": 180,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Highest Rx (prescriptions): BRUFEN (9,247,209)",
+   "detail": "Dec 2025 (default period) · Total 514,639,403 · showing 5 of 6663.",
+   "message": null,
+   "hint": null,
+   "period": "Dec 2025 (default period)",
+   "assumptions": [
+    "No period given — using Dec 2025, the default period of this page."
+   ],
+   "caveats": [
+    "Rx counts prescriptions in the IMS physician panel, not sales value or units."
+   ],
+   "formula": "Rx = SUM(prescriptions) from the page's own ranked-rows / company-leaderboard functions; growth = (current MAT − prior MAT) ÷ prior MAT",
+   "rows": [
+    [
+     "BRUFEN",
+     "9,247,209"
+    ],
+    [
+     "AUGMENTIN",
+     "8,609,575"
+    ],
+    [
+     "ALPHINTERN",
+     "7,775,231"
+    ],
+    [
+     "CATAFLAM",
+     "7,418,064"
+    ],
+    [
+     "HIBIOTIC",
+     "6,673,739"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Rx (prescriptions) — Prescriptions recorded in the IMS physician panel for the selected MAT period (12 months ending December)."
+    ],
+    [
+     "Grouped by",
+     "Brand"
+    ],
+    [
+     "Period",
+     "Dec 2025 (default period)"
+    ],
+    [
+     "Rows",
+     "6663 brands in scope"
+    ],
+    [
+     "Data",
+     "IMS Rx cache — MAT Dec 2025 (IMS RX TOTAL YEAR 2025.xlsx)"
+    ],
+    [
+     "Growth",
+     "vs MAT Dec 2024, aggregated first then divided"
+    ],
+    [
+     "Data as of",
+     "MAT Dec 2025"
+    ]
+   ],
+   "drill": [
+    "rx of BRUFEN YoY",
+    "bottom 5 brands by rx"
+   ],
+   "text": "Highest Rx (prescriptions): BRUFEN (9,247,209) \n Dec 2025 (default period) · Total 514,639,403 · showing 5 of 6663. \n 1 \n BRUFEN \n 9,247,209 \n 2 \n AUGMENTIN \n 8,609,575 \n 3 \n ALPHINTERN \n 7,775,231 \n 4 \n CATAFLAM \n 7,418,064 \n 5 \n HIBIOTIC \n 6,673,739 \n Rx (prescriptions) \n Brand \n Rx = SUM(prescriptions) from the page's own ranked-rows / company-leaderboard functions; growth = (current MAT − prior MAT) ÷ prior MAT \n Measure \n Rx (prescriptions) — Prescriptions recorded in the IMS physician panel for the selected MAT period (12 months ending December). \n Grouped by \n Brand \n Period \n Dec 2025 (default period) \n Rows \n 6663 brands in scope \n Data \n IMS Rx cache — MAT Dec 2025 (IMS RX TOTAL YEAR 2025.xlsx) \n Growth \n vs MAT Dec 2024, aggregated first then divided \n Data as of \n MAT Dec 2025 \n rx_total \n BRUFEN YoY \n rx of BRUFEN YoY \n Bottom 5 \n bottom 5 brands by rx \n Rx counts prescriptions in the IMS physician panel, not sales value or units. \n No period given — using Dec 2025, the default period of this page. \n imsrx \n rx_total \n IMS Rx cache · annual MAT snapshots \n Highest Rx (prescriptions): BRUFEN (9,247,209) \n Dec 2025 (default period) · Total 514,639,403 · showing 5 of 6663.",
+   "htmlText": "top 5 brands by rx ANSWER Highest Rx (prescriptions): BRUFEN (9,247,209) Dec 2025 (default period) · Total 514,639,403 · showing 5 of 6663. Assumptions • No period given — using Dec 2025, the default period of this page. EVIDENCE Measure Rx (prescriptions) — Prescriptions recorded in the IMS physician panel for the selected MAT period (12 months ending December). Grouped by Brand Period Dec 2025 (default period) Rows 6663 brands in scope Data IMS Rx cache — MAT Dec 2025 (IMS RX TOTAL YEAR 2025.xlsx) Growth vs MAT Dec 2024, aggregated first then divided Data as of MAT Dec 2025 Rx = SUM(prescriptions) from the page's own ranked-rows / company-leaderboard functions; growth = (current MAT − prior MAT) ÷ prior MAT # Brand Rx (prescriptions) 1 BRUFEN 9,247,209 2 AUGMENTIN 8,609,575 3 ALPHINTERN 7,775,231 4 CATAFLAM 7,418,064 5 HIBIOTIC 6,673,739 DRILL DOWN BRUFEN YoY Bottom 5 ⚠ Rx counts prescriptions in the IMS physician panel, not sales value or units."
+  },
+  {
+   "id": "RX-04",
+   "domain": "IMS Rx",
+   "tab": "imsrx",
+   "q": "rx 2024",
+   "template": "rx 2024",
+   "ms": 66,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Rx (prescriptions) — IMS Rx (whole panel — this dataset has no BU / line scope): 515,216,544",
+   "detail": "2024.",
+   "message": null,
+   "hint": null,
+   "period": "2024 (partial)",
+   "assumptions": [],
+   "caveats": [
+    "Rx counts prescriptions in the IMS physician panel, not sales value or units.",
+    "“2024” is read as MAT Dec 2024 — the 12 months ending December, which is the only granularity the IMS Rx cache holds."
+   ],
+   "formula": "Rx = SUM(prescriptions) from the page's own ranked-rows / company-leaderboard functions; growth = (current MAT − prior MAT) ÷ prior MAT",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Rx (prescriptions) — Prescriptions recorded in the IMS physician panel for the selected MAT period (12 months ending December)."
+    ],
+    [
+     "Period",
+     "2024 (partial)"
+    ],
+    [
+     "Data",
+     "IMS Rx cache — MAT Dec 2024 (IMS RX TOTAL YEAR 2025.xlsx)"
+    ],
+    [
+     "Growth",
+     "vs MAT Dec 2023, aggregated first then divided"
+    ],
+    [
+     "Data as of",
+     "MAT Dec 2024"
+    ]
+   ],
+   "drill": [
+    "rx by atc3 class",
+    "rx YoY",
+    "rx trend"
+   ],
+   "text": "Rx (prescriptions) — IMS Rx (whole panel — this dataset has no BU / line scope): 515,216,544 \n 2024. \n Rx = SUM(prescriptions) from the page's own ranked-rows / company-leaderboard functions; growth = (current MAT − prior MAT) ÷ prior MAT \n Measure \n Rx (prescriptions) — Prescriptions recorded in the IMS physician panel for the selected MAT period (12 months ending December). \n Period \n 2024 (partial) \n Data \n IMS Rx cache — MAT Dec 2024 (IMS RX TOTAL YEAR 2025.xlsx) \n Growth \n vs MAT Dec 2023, aggregated first then divided \n Data as of \n MAT Dec 2024 \n rx_total \n 515216544.25996983 \n Break down by atc3 class \n rx by atc3 class \n Year over year \n rx YoY \n Trend \n rx trend \n Rx counts prescriptions in the IMS physician panel, not sales value or units. \n “2024” is read as MAT Dec 2024 — the 12 months ending December, which is the only granularity the IMS Rx cache holds. \n imsrx \n rx_total \n IMS Rx cache · annual MAT snapshots \n Rx (prescriptions) — IMS Rx (whole panel — this dataset has no BU / line scope): 515,216,544 \n 2024.",
+   "htmlText": "rx 2024 ANSWER Rx (prescriptions) — IMS Rx (whole panel — this dataset has no BU / line scope): 515,216,544 2024. EVIDENCE Measure Rx (prescriptions) — Prescriptions recorded in the IMS physician panel for the selected MAT period (12 months ending December). Period 2024 (partial) Data IMS Rx cache — MAT Dec 2024 (IMS RX TOTAL YEAR 2025.xlsx) Growth vs MAT Dec 2023, aggregated first then divided Data as of MAT Dec 2024 Rx = SUM(prescriptions) from the page's own ranked-rows / company-leaderboard functions; growth = (current MAT − prior MAT) ÷ prior MAT DRILL DOWN Break down by atc3 class Year over year Trend ⚠ Rx counts prescriptions in the IMS physician panel, not sales value or units. ⚠ “2024” is read as MAT Dec 2024 — the 12 months ending December, which is the only granularity the IMS Rx cache holds."
+  },
+  {
+   "id": "TMK-02",
+   "domain": "To-Market",
+   "tab": "tomarket",
+   "q": "stock days by business unit",
+   "template": "stock days by business unit",
+   "ms": 7,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Distributor stock days by business unit — 4 rows",
+   "detail": "cumulative Dec 2025 → Aug 2026 · Total 45.6 days.",
+   "message": null,
+   "hint": null,
+   "period": "cumulative Dec 2025 → Aug 2026",
+   "assumptions": [],
+   "caveats": [
+    "Pull-through, stock days and inventory are cumulative over every loaded month (velocity: last 3 months), exactly as the Executive cards compute them.",
+    "The To-Market tab embeds its own workspace; this answer uses the platform cache behind the Executive cards."
+   ],
+   "formula": "getTmsImsMetrics() / getTmsImsDetailedBreakdown() — pull-through = mean IMS(m) ÷ TMS(m−1); stock days = (ΣTMS − ΣIMS) ÷ (IMS last 3 months ÷ 90)",
+   "rows": [
+    [
+     "GIT",
+     "47.0 days"
+    ],
+    [
+     "Cluster",
+     "49.7 days"
+    ],
+    [
+     "DIAB",
+     "51.1 days"
+    ],
+    [
+     "CHC",
+     "—"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Distributor stock days — Calculated channel inventory ÷ daily in-market velocity (IMS of the last 3 months ÷ 90). The Executive card's bands: 30–45 days Excellent, 20–60 On Track, 15–90 At Risk, otherwise Critical."
+    ],
+    [
+     "Grouped by",
+     "Business Unit"
+    ],
+    [
+     "Period",
+     "cumulative Dec 2025 → Aug 2026"
+    ],
+    [
+     "Rows",
+     "4 business units in scope"
+    ],
+    [
+     "Data",
+     "TMS_IMS_CACHE — Dec 2025 to Aug 2026, Private units"
+    ],
+    [
+     "Basis",
+     "cumulative / trailing; no month selector"
+    ],
+    [
+     "Data as of",
+     "Aug 2026"
+    ]
+   ],
+   "drill": [
+    "stock days by line in GIT",
+    "bottom 5 bus by stock days"
+   ],
+   "text": "Distributor stock days by business unit — 4 rows \n cumulative Dec 2025 → Aug 2026 · Total 45.6 days. \n 1 \n GIT \n 47.0 days \n 2 \n Cluster \n 49.7 days \n 3 \n DIAB \n 51.1 days \n 4 \n CHC \n — \n Distributor stock days \n Business Unit \n getTmsImsMetrics() / getTmsImsDetailedBreakdown() — pull-through = mean IMS(m) ÷ TMS(m−1); stock days = (ΣTMS − ΣIMS) ÷ (IMS last 3 months ÷ 90) \n Measure \n Distributor stock days — Calculated channel inventory ÷ daily in-market velocity (IMS of the last 3 months ÷ 90). The Executive card's bands: 30–45 days Excellent, 20–60 On Track, 15–90 At Risk, otherwise Critical. \n Grouped by \n Business Unit \n Period \n cumulative Dec 2025 → Aug 2026 \n Rows \n 4 business units in scope \n Data \n TMS_IMS_CACHE — Dec 2025 to Aug 2026, Private units \n Basis \n cumulative / trailing; no month selector \n Data as of \n Aug 2026 \n tm_stock_days \n Break down GIT by line \n stock days by line in GIT \n Bottom 5 \n bottom 5 bus by stock days \n Pull-through, stock days and inventory are cumulative over every loaded month (velocity: last 3 months), exactly as the Executive cards compute them. \n The To-Market tab embeds its own workspace; this answer uses the platform cache behind the Executive cards. \n tomarket \n tm_stock_days \n TMS_IMS_CACHE · Executive To-Market KPIs (cumulative) \n Distributor stock days by business unit — 4 rows \n cumulative Dec 2025 → Aug 2026 · Total 45.6 days.",
+   "htmlText": "stock days by business unit ANSWER Distributor stock days by business unit — 4 rows cumulative Dec 2025 → Aug 2026 · Total 45.6 days. EVIDENCE Measure Distributor stock days — Calculated channel inventory ÷ daily in-market velocity (IMS of the last 3 months ÷ 90). The Executive card's bands: 30–45 days Excellent, 20–60 On Track, 15–90 At Risk, otherwise Critical. Grouped by Business Unit Period cumulative Dec 2025 → Aug 2026 Rows 4 business units in scope Data TMS_IMS_CACHE — Dec 2025 to Aug 2026, Private units Basis cumulative / trailing; no month selector Data as of Aug 2026 getTmsImsMetrics() / getTmsImsDetailedBreakdown() — pull-through = mean IMS(m) ÷ TMS(m−1); stock days = (ΣTMS − ΣIMS) ÷ (IMS last 3 months ÷ 90) # Business Unit Distributor stock days 1 GIT 47.0 days 2 Cluster 49.7 days 3 DIAB 51.1 days 4 CHC — DRILL DOWN Break down GIT by line Bottom 5 ⚠ Pull-through, stock days and inventory are cumulative over every loaded month (velocity: last 3 months), exactly as the Executive cards compute them. ⚠ The To-Market tab embeds its own workspace; this answer uses the platform cache behind the Executive cards."
+  },
+  {
+   "id": "DEF-01",
+   "domain": "Definition",
+   "tab": "coverage",
+   "q": "how is coverage calculated",
+   "template": "how is coverage calculated",
+   "ms": 1766,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Evidence — Coverage % — whole company: 79.8%",
+   "detail": "Underlying business unit rows below · YTD (Feb–Aug 2026).",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Feb–Aug 2026)",
+   "assumptions": [
+    "“coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch.",
+    "No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes.",
+    "The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use."
+   ],
+   "formula": "Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits",
+   "rows": [
+    [
+     "DIAB",
+     "84.3%",
+     "64.1%"
+    ],
+    [
+     "CHC",
+     "81.8%",
+     "52.3%"
+    ],
+    [
+     "Cluster",
+     "81.0%",
+     "54.7%"
+    ],
+    [
+     "GIT",
+     "75.2%",
+     "45.2%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded)."
+    ],
+    [
+     "Grouped by",
+     "Business Unit"
+    ],
+    [
+     "Period",
+     "YTD (Feb–Aug 2026)"
+    ],
+    [
+     "Rows",
+     "4 business units in scope"
+    ],
+    [
+     "Definition",
+     "Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation)"
+    ],
+    [
+     "Periods",
+     "all loaded months, pooled (the tab's default)"
+    ],
+    [
+     "Data as of",
+     "August"
+    ]
+   ],
+   "drill": [
+    "coverage by line in DIAB",
+    "coverage of DIAB MoM",
+    "bottom 5 bus by coverage"
+   ],
+   "text": "Evidence — Coverage % — whole company: 79.8% \n Underlying business unit rows below · YTD (Feb–Aug 2026). \n 1 \n DIAB \n 84.3% \n 64.1% \n 2 \n CHC \n 81.8% \n 52.3% \n 3 \n Cluster \n 81.0% \n 54.7% \n 4 \n GIT \n 75.2% \n 45.2% \n Coverage % \n Right Frequency % \n Business Unit \n Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits \n Measure \n Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). \n Grouped by \n Business Unit \n Period \n YTD (Feb–Aug 2026) \n Rows \n 4 business units in scope \n Definition \n Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) \n Periods \n all loaded months, pooled (the tab's default) \n Data as of \n August \n cov_pct \n rf_pct \n Break down DIAB by line \n coverage by line in DIAB \n DIAB MoM \n coverage of DIAB MoM \n Bottom 5 \n bottom 5 bus by coverage \n Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. \n The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. \n “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. \n No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. \n coverage \n cov_pct \n Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied \n Evidence — Coverage % — whole company: 79.8% \n Underlying business unit rows below · YTD (Feb–Aug 2026).",
+   "htmlText": "how is coverage calculated ANSWER Evidence — Coverage % — whole company: 79.8% Underlying business unit rows below · YTD (Feb–Aug 2026). Assumptions • “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. • No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. EVIDENCE Measure Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). Grouped by Business Unit Period YTD (Feb–Aug 2026) Rows 4 business units in scope Definition Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) Periods all loaded months, pooled (the tab's default) Data as of August Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits # Business Unit Coverage % Right Frequency % 1 DIAB 84.3% 64.1% 2 CHC 81.8% 52.3% 3 Cluster 81.0% 54.7% 4 GIT 75.2% 45.2% DRILL DOWN Break down DIAB by line DIAB MoM Bottom 5 ⚠ Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. ⚠ The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. Source: Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied"
+  },
+  {
+   "id": "DEF-03",
+   "domain": "Definition",
+   "tab": "sfe",
+   "q": "what does vacancy rate mean",
+   "template": "what does vacancy rate mean",
+   "ms": 59,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Vacancy rate: Vacant positions as a percentage of budgeted positions.",
+   "detail": "Currently 10.4% for whole company (organogram snapshot).",
+   "message": null,
+   "hint": null,
+   "period": "organogram snapshot",
+   "assumptions": [],
+   "caveats": [
+    "The organogram has no month axis, so the figures do not change with the period you name."
+   ],
+   "formula": "vacant ÷ total budgeted × 100",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Vacancy rate"
+    ],
+    [
+     "Definition",
+     "Vacant positions as a percentage of budgeted positions."
+    ],
+    [
+     "Formula",
+     "vacant ÷ total budgeted × 100"
+    ],
+    [
+     "Period",
+     "organogram snapshot"
+    ],
+    [
+     "Data",
+     "Organogram cache — point-in-time snapshot (not period-stamped)"
+    ]
+   ],
+   "drill": [
+    "vacancy rate by business unit"
+   ],
+   "text": "Vacancy rate: Vacant positions as a percentage of budgeted positions. \n Currently 10.4% for whole company (organogram snapshot). \n vacant ÷ total budgeted × 100 \n Measure \n Vacancy rate \n Definition \n Vacant positions as a percentage of budgeted positions. \n Formula \n vacant ÷ total budgeted × 100 \n Period \n organogram snapshot \n Data \n Organogram cache — point-in-time snapshot (not period-stamped) \n vacancy_rate \n Break down by business unit \n vacancy rate by business unit \n The organogram has no month axis, so the figures do not change with the period you name. \n sfe \n vacancy_rate \n Organogram cache · point-in-time snapshot \n Vacancy rate: Vacant positions as a percentage of budgeted positions. \n Currently 10.4% for whole company (organogram snapshot).",
+   "htmlText": "what does vacancy rate mean ANSWER Vacancy rate: Vacant positions as a percentage of budgeted positions. Currently 10.4% for whole company (organogram snapshot). EVIDENCE Measure Vacancy rate Definition Vacant positions as a percentage of budgeted positions. Formula vacant ÷ total budgeted × 100 Period organogram snapshot Data Organogram cache — point-in-time snapshot (not period-stamped) vacant ÷ total budgeted × 100 DRILL DOWN Break down by business unit ⚠ The organogram has no month axis, so the figures do not change with the period you name. Source: Organogram cache · point-in-time snapshot"
+  },
+  {
+   "id": "MIS-02",
+   "domain": "Missing data",
+   "tab": "coverage",
+   "q": "coverage in December 2024",
+   "template": "coverage in December 2024",
+   "ms": 3,
+   "err": null,
+   "ok": false,
+   "clarify": false,
+   "missing": true,
+   "denied": false,
+   "noAdapter": false,
+   "headline": null,
+   "detail": null,
+   "message": "The Coverage data holds Feb–Aug 2026; Dec 2024 is not loaded.",
+   "hint": "Loaded months: Feb–Aug 2026.",
+   "period": null,
+   "assumptions": [],
+   "caveats": [],
+   "formula": null,
+   "rows": [],
+   "evidence": [],
+   "drill": [],
+   "text": "The Coverage data holds Feb–Aug 2026; Dec 2024 is not loaded. \n Loaded months: Feb–Aug 2026.",
+   "htmlText": "coverage in December 2024 The dashboard does not hold that The Coverage data holds Feb–Aug 2026; Dec 2024 is not loaded. Loaded months: Feb–Aug 2026."
+  }
+ ]
+}

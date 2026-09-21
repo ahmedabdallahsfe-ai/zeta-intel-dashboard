@@ -182,14 +182,12 @@ const Analytics = (() => {
       overFreqCount: 0, belowFreqCount: 0,
       activeEmployees: new Set(), resignedEmployees: new Set(),
       // Sick Leave Impact Rule (2026-09-15) -- the EVALUATED population:
-      // the same three accumulators with >15-day-Sick/Maternity flagged
-      // rep-periods left out. Coverage %/Right Frequency % at every rollup
-      // level read these; every count/volume field above still spans all
-      // active rows, flagged reps included, so a flagged rep's uncovered
-      // customers stay visible as the real business gap they are (that's
-      // what the Sick Leave Territory Flags panel is for). Mirrors
-      // refresh.py's evaluated_rows().
+      // the same accumulators with >15-day-Sick/Maternity flagged
+      // rep-periods left out. Coverage %/Right Frequency % and evaluated
+      // visit/target/gap metrics read these.
       evalCoveredSum: 0, evalRightFreqSum: 0, evalRowCount: 0,
+      evalVisitsSum: 0, evalFreqSum: 0,
+      evalOnTargetCalls: 0, evalMissedCalls: 0, evalWastedCalls: 0,
     };
   }
 
@@ -198,26 +196,39 @@ const Analytics = (() => {
       group.coveredSum += row[F.coveredDoctor];
       group.rightFreqSum += row[F.rightFreq];
       group.rowCount += 1;
-      if (!row[F.isExempt]) {
-        group.evalCoveredSum += row[F.coveredDoctor];
-        group.evalRightFreqSum += row[F.rightFreq];
-        group.evalRowCount += 1;
-      }
-      group.visitsSum += row[F.visits];
-      group.plansSum += row[F.plansCount];
-      group.freqSum += row[F.frequency];
-      
-      const target = row[F.frequency] || 0;
+
+      const proratedTgt = row[F.proratedFrequency] ?? -1;
+      const effectiveTarget = (proratedTgt >= 0) ? proratedTgt : (row[F.frequency] || 0);
+      const stdTarget = row[F.frequency] || 0;
       const visits = row[F.visits] || 0;
-      group.onTargetCalls += Math.min(visits, target);
-      group.missedCalls += Math.max(0, target - visits);
-      group.wastedCalls += Math.max(0, visits - target);
-      
-      if (row[F.rightFreq] === 0) {
-        group.belowFreqCount += 1;
-      } else if (visits > target) {
-        group.overFreqCount += 1;
+      const isExempt = !!row[F.isExempt];
+
+      if (!isExempt) {
+        const isRightFreq = (proratedTgt >= 0) ? (visits >= proratedTgt ? 1 : 0) : row[F.rightFreq];
+
+        group.evalCoveredSum += row[F.coveredDoctor];
+        group.evalRightFreqSum += isRightFreq;
+        group.evalRowCount += 1;
+        group.evalVisitsSum += visits;
+        group.evalFreqSum += effectiveTarget;
+        group.evalOnTargetCalls += Math.min(visits, effectiveTarget);
+        group.evalMissedCalls += Math.max(0, effectiveTarget - visits);
+        group.evalWastedCalls += Math.max(0, visits - effectiveTarget);
+
+        if (isRightFreq === 0) {
+          group.belowFreqCount += 1;
+        } else if (visits > effectiveTarget) {
+          group.overFreqCount += 1;
+        }
       }
+
+      group.visitsSum += visits;
+      group.plansSum += row[F.plansCount];
+      group.freqSum += stdTarget;
+      
+      group.onTargetCalls += Math.min(visits, stdTarget);
+      group.missedCalls += Math.max(0, stdTarget - visits);
+      group.wastedCalls += Math.max(0, visits - stdTarget);
       
       group.activeEmployees.add(row[F.employee]);
     } else if (row[F.status] === resignedStatusIdx) {
@@ -448,10 +459,9 @@ const Analytics = (() => {
         // Calculate At-Risk Tiers and Over Frequency lists
         const targetFreq = row[F.frequency];
         const actualVisits = row[F.visits];
-        // Guarded with ?? -1 so a records cache built before the
-        // proratedFrequency field existed degrades to "not prorated"
-        // rather than NaN-ing every Target cell in the drilldowns.
         const proratedTgt = row[F.proratedFrequency] ?? -1;
+        const effectiveTarget = (proratedTgt >= 0) ? proratedTgt : targetFreq;
+        const isExempt = !!row[F.isExempt];
         const docInfo = {
           customerName: dims.customerNames ? (dims.customerNames[custIdx] || "") : "",
           specialty: dims.specialties[row[F.specialty]] || "",
@@ -462,7 +472,7 @@ const Analytics = (() => {
           manager: dims.managers[row[F.manager]] || "",
           frequency: targetFreq,
           visits: actualVisits,
-          missedCalls: Math.max(0, targetFreq - actualVisits),
+          missedCalls: Math.max(0, effectiveTarget - actualVisits),
           overCalls: Math.max(0, actualVisits - targetFreq),
           // Sick Leave Impact Rule -- Moderate band only (2026-09-16, Ahmed:
           // "add a Prorated Target column, yes, for prorated only"). Read
@@ -487,7 +497,7 @@ const Analytics = (() => {
         // chart drilldowns -- independent of the at-risk/over-freq tiering
         // below, which only tracks a SUBSET of rows.
         docInfo.remaining = docInfo.missedCalls;
-        docInfo.status = actualVisits > targetFreq ? "over" : (targetFreq > actualVisits ? "below" : "on");
+        docInfo.status = actualVisits > targetFreq ? "over" : (row[F.rightFreq] === 0 ? "below" : "on");
         allCoverageList.push(docInfo);
 
         if (!custUniqueAgg.has(custIdx)) {
@@ -515,21 +525,24 @@ const Analytics = (() => {
         if (docInfo.manager) uAgg.managers.add(docInfo.manager);
         if (docInfo.area) uAgg.areas.add(docInfo.area);
 
-        if (row[F.rightFreq] === 0) {
-          const missed = targetFreq - actualVisits;
-          if (missed === 1) {
-            atRiskTiers.tier1.count++;
-            atRiskTiers.tier1.list.push(docInfo);
-          } else if (missed === 2) {
-            atRiskTiers.tier2.count++;
-            atRiskTiers.tier2.list.push(docInfo);
-          } else if (missed >= 3) {
-            atRiskTiers.tier3.count++;
-            atRiskTiers.tier3.list.push(docInfo);
+        if (!isExempt) {
+          const isRightFreq = (proratedTgt >= 0) ? (actualVisits >= proratedTgt ? 1 : 0) : row[F.rightFreq];
+          if (isRightFreq === 0) {
+            const missed = Math.max(0, effectiveTarget - actualVisits);
+            if (missed === 1) {
+              atRiskTiers.tier1.count++;
+              atRiskTiers.tier1.list.push(docInfo);
+            } else if (missed === 2) {
+              atRiskTiers.tier2.count++;
+              atRiskTiers.tier2.list.push(docInfo);
+            } else if (missed >= 3) {
+              atRiskTiers.tier3.count++;
+              atRiskTiers.tier3.list.push(docInfo);
+            }
+          } else if (actualVisits > effectiveTarget) {
+            overFreqCount++;
+            overFreqList.push(docInfo);
           }
-        } else if (actualVisits > targetFreq) {
-          overFreqCount++;
-          overFreqList.push(docInfo);
         }
       }
       // Capture each employee's own profile (territory) — used to show a
@@ -652,6 +665,13 @@ const Analytics = (() => {
       pooledGroup.evalCoveredSum += g.evalCoveredSum;
       pooledGroup.evalRightFreqSum += g.evalRightFreqSum;
       pooledGroup.evalRowCount += g.evalRowCount;
+      pooledGroup.evalVisitsSum += g.evalVisitsSum;
+      pooledGroup.evalFreqSum += g.evalFreqSum;
+      pooledGroup.evalOnTargetCalls += g.evalOnTargetCalls;
+      pooledGroup.evalMissedCalls += g.evalMissedCalls;
+      pooledGroup.evalWastedCalls += g.evalWastedCalls;
+      pooledGroup.overFreqCount += g.overFreqCount;
+      pooledGroup.belowFreqCount += g.belowFreqCount;
       pooledGroup.freqSum += g.freqSum;
       pooledGroup.visitsSum += g.visitsSum;
       pooledGroup.onTargetCalls += g.onTargetCalls;
@@ -682,7 +702,7 @@ const Analytics = (() => {
     const kpiHeadcount = employeeFreqMeans.length; // active employees within kpiPeriodIdx specifically
     const avgVisits = kpiHeadcount ? totalVisitsForAvg / kpiHeadcount : 0;
     const kpiPeriodGroup = byPeriod.get(kpiPeriodIdx) || emptyGroup();
-    const customersPerRep = kpiHeadcount ? kpiPeriodGroup.rowCount / kpiHeadcount : 0;
+    const customersPerRep = kpiHeadcount ? kpiPeriodGroup.evalRowCount / kpiHeadcount : 0;
     const kpiResigned = Array.from(byEmployeePeriod.values())
       .filter((g) => !g.isActive && g.periodIdx === kpiPeriodIdx).length;
     const kpiVacancy = vacancyCountForPeriod(vacantSeenByPeriod, kpiPeriodIdx);
@@ -716,14 +736,13 @@ const Analytics = (() => {
         ? dims.periods[Math.min(...Array.from(kpiPeriodSet))] + "–" + dims.periods[kpiPeriodIdx]
         : dims.periods[kpiPeriodIdx],
       periodsPooled: kpiPeriodSet.size,
-      // VOLUMES -- summed across in-scope periods. Total planned/executed
-      // visits over Feb-Jun is a meaningful cumulative figure.
-      totalTargetVisits: pooledGroup.freqSum,
-      totalActualVisits: pooledGroup.visitsSum,
-      visitAchievementPct: round4(pooledGroup.freqSum > 0 ? pooledGroup.visitsSum / pooledGroup.freqSum : null),
-      // Coverage gap -- pooled, consistent with the rates above.
-      notSeenCount: pooledGroup.rowCount - pooledGroup.coveredSum,
-      notSeenPct: round4(pooledGroup.rowCount > 0 ? (pooledGroup.rowCount - pooledGroup.coveredSum) / pooledGroup.rowCount : null),
+      // VOLUMES -- summed across in-scope periods on evaluated population (non-exempt, prorated targets).
+      totalTargetVisits: pooledGroup.evalFreqSum,
+      totalActualVisits: pooledGroup.evalVisitsSum,
+      visitAchievementPct: round4(pooledGroup.evalFreqSum > 0 ? pooledGroup.evalVisitsSum / pooledGroup.evalFreqSum : null),
+      // Coverage gap -- pooled, evaluated population.
+      notSeenCount: pooledGroup.evalRowCount - pooledGroup.evalCoveredSum,
+      notSeenPct: round4(pooledGroup.evalRowCount > 0 ? (pooledGroup.evalRowCount - pooledGroup.evalCoveredSum) / pooledGroup.evalRowCount : null),
       // Unique customers -- UNION across in-scope periods, never a sum:
       // a doctor targeted in five months is one doctor, not five.
       totalUniqueCustomers: (() => {
@@ -732,13 +751,11 @@ const Analytics = (() => {
         kpiPeriodSet.forEach(p => (custUniqByPeriod.get(p) || new Set()).forEach(c => u.add(c)));
         return u.size;
       })(),
-      // Customer ACCOUNTS in scope -- point-in-time, so this stays on the
-      // reference period. Pooling would report customer-months as if they
-      // were distinct accounts.
-      totalSharedCustomers: kpiPeriodGroup.rowCount,
-      onTargetCalls: pooledGroup.onTargetCalls,
-      missedCalls: pooledGroup.missedCalls,
-      wastedCalls: pooledGroup.wastedCalls,
+      // Customer ACCOUNTS in scope -- point-in-time on evaluated population.
+      totalSharedCustomers: kpiPeriodGroup.evalRowCount,
+      onTargetCalls: pooledGroup.evalOnTargetCalls,
+      missedCalls: pooledGroup.evalMissedCalls,
+      wastedCalls: pooledGroup.evalWastedCalls,
       overFreqCount: overFreqCount,
       belowFreqCount: belowFreqCount,
     };
@@ -757,14 +774,14 @@ const Analytics = (() => {
           activeReps: activeCount,
           resignedReps: g.resignedEmployees.size,
           vacancyCount: vacancyCountForPeriod(vacantSeenByPeriod, idx),
-          customersPerRep: activeCount ? round2(g.rowCount / activeCount) : null,
-          totalTargetVisits: g.freqSum,
-          totalActualVisits: g.visitsSum,
-          visitAchievementPct: round4(g.freqSum > 0 ? g.visitsSum / g.freqSum : null),
-          notSeenCount: g.rowCount - g.coveredSum,
-          notSeenPct: round4(g.rowCount > 0 ? (g.rowCount - g.coveredSum) / g.rowCount : null),
+          customersPerRep: activeCount ? round2(g.evalRowCount / activeCount) : null,
+          totalTargetVisits: g.evalFreqSum,
+          totalActualVisits: g.evalVisitsSum,
+          visitAchievementPct: round4(g.evalFreqSum > 0 ? g.evalVisitsSum / g.evalFreqSum : null),
+          notSeenCount: g.evalRowCount - g.evalCoveredSum,
+          notSeenPct: round4(g.evalRowCount > 0 ? (g.evalRowCount - g.evalCoveredSum) / g.evalRowCount : null),
           totalUniqueCustomers: (custUniqByPeriod.get(idx) || new Set()).size,
-          totalSharedCustomers: g.rowCount,
+          totalSharedCustomers: g.evalRowCount,
           overFreqCount: g.overFreqCount,
           belowFreqCount: g.belowFreqCount,
         };
@@ -1038,7 +1055,7 @@ const Analytics = (() => {
       kpiDeltas,
       rfInsights,
       overFreq: { count: overFreqCount, list: overFreqList },
-      belowFreq: { count: atRiskCount, list: [].concat(ctx.atRiskTiers.tier1.list, ctx.atRiskTiers.tier2.list, ctx.atRiskTiers.tier3.list) },
+      belowFreq: { count: belowFreqCount, list: [].concat(ctx.atRiskTiers.tier1.list, ctx.atRiskTiers.tier2.list, ctx.atRiskTiers.tier3.list) },
       allCoverage: { count: allCoverageList.length, list: allCoverageList },
       uniqueCustomers: { count: uniqueCustomersList.length, list: uniqueCustomersList },
     };

@@ -1,0 +1,16 @@
+const { boot, signIn } = require("./harness");
+const { window: w } = boot();
+signIn(w, "Mohamed Bakr"); w.eval("CacheStore.init()");
+const C = w.CoverageDashboard;
+const dash = w.eval("CacheStore.getDashboard()");
+console.log("periods", JSON.stringify(dash.dimensions.periods), "latest", dash.latestPeriod);
+console.log("rows", w.eval("CacheStore.getRecords().rows.length"), "fields", JSON.stringify(w.eval("CacheStore.getRecords().fields")));
+console.log("teams", JSON.stringify(dash.dimensions.teams));
+console.log("dims keys", Object.keys(dash.dimensions));
+let t = Date.now();
+const a = C.getFilteredCoverageForLine("DIAB", null); console.log(Date.now()-t, "ms", JSON.stringify(a).slice(0,900));
+const b = C.getLineAndTerritoryBreakdown("DIAB"); console.log(JSON.stringify(b).slice(0,1200));
+const bt = C.getFilteredCoverageByType("DIAB", null); console.log(JSON.stringify(bt.specialty.slice(0,2)), JSON.stringify(bt.type.slice(0,1)).slice(0,500));
+console.log(Object.keys(w.eval("Analytics")));
+const r = w.eval("Analytics.run({})"); console.log(Object.keys(r)); console.log(JSON.stringify(r.kpis||r.summary||{}).slice(0,600));
+console.log("filters default:", JSON.stringify(w.eval("typeof Filters!=='undefined' && Filters.getDefaultFilters ? Filters.getDefaultFilters() : null")));

@@ -1,3 +1,4 @@
+(function(g){(g.AskBuild=g.AskBuild||{})["ask-sfe.js"]="20260921_askq2";})(typeof window!=="undefined"?window:this);
 /**
  * ASK THE DATA — Zeta Organogram (SFE) adapter
  * ============================================================================
@@ -42,6 +43,22 @@
     return out;
   }
 
+  /** vacancyByManager rows the signed-in user may see. Rows with no known line are dropped for restricted accounts. */
+  function vbmScoped(d) {
+    var rows = (d && d.vacancyByManager) || [];
+    var A = global.AUTH;
+    if (!A || !A.getScope) return rows;
+    var sc = A.getScope();
+    if (!sc || sc.unrestricted || sc.all) return rows;
+    return rows.filter(function (m) {
+      if (!m || !m.line) return false;
+      if (A.isLineAllowed && !A.isLineAllowed(m.line)) return false;
+      var bu = SEM() && SEM().lineToBU ? SEM().lineToBU(m.line) : null;
+      if (bu && A.isBuAllowed && !A.isBuAllowed(bu)) return false;
+      return true;
+    });
+  }
+
   var _vocab = null;
   var _vocabKey = null;
 
@@ -56,7 +73,7 @@
     // Unique managers
     var mgrSet = new Set();
     if (sfeData.vacancyByManager) {
-      sfeData.vacancyByManager.forEach(function (m) {
+      vbmScoped(sfeData).forEach(function (m) {
         if (m.manager) mgrSet.add(m.manager);
       });
     }
@@ -259,7 +276,7 @@
 
     // 4. Default: Vacancy & Headcount queries
     if (ctx.manager) {
-      var mgrMatch = (data.vacancyByManager || []).filter(function (m) {
+      var mgrMatch = vbmScoped(data).filter(function (m) {
         return m.manager.toLowerCase().trim() === ctx.manager.toLowerCase().trim();
       })[0];
       if (!mgrMatch) {
@@ -364,13 +381,14 @@
       var data = SFE() ? SFE().getData() : {};
       nameHeader = "Manager";
       scopeTxt = "managers by vacancy rate";
-      rows = (data.vacancyByManager || []).map(function (m) {
+      rows = vbmScoped(data).map(function (m) {
         return { name: m.manager, sort: m.vacancyRate || 0, cells: [
           E.fmtPct(m.vacancyRate), m.vacant, m.active
         ] };
       });
     } else {
-      var targetBU = ctx.bu || allowedBUs()[0];
+      var targetBU = needBU(ctx);
+      if (!targetBU) return needBUResult(q);
       nameHeader = "Line";
       scopeTxt = "lines in " + targetBU;
       allowedLines().forEach(function (line) {
@@ -455,6 +473,44 @@
     };
   }
 
+
+  // ---- NO SILENT DEFAULTS (2026-09-21) -------------------------------------------------
+  // Never answer for an assumed BU / line without saying so, or asking. _assume collects every
+  // choice made on the user's behalf; answer() attaches it to the result as `assumptions`.
+  var _assume = [];
+  function needBU(ctx) {
+    var bu = ctx.bu || (ctx.line ? lineBU(ctx.line) : null);
+    if (bu) return bu;
+    var bus = allowedBUs();
+    if (bus.length === 1) {
+      _assume.push("No business unit named. I used " + bus[0] + ", the only one your account can access.");
+      return bus[0];
+    }
+    return null;
+  }
+  function needBUResult(q) {
+    var bus = allowedBUs();
+    return { ok: false, clarify: true,
+      message: "Which business unit do you mean? I will not pick one for you. Your access covers: " + bus.join(", ") + ".",
+      hint: bus.length ? "Ask again naming one, for example: " + q.replace(/[?.!]+$/, "") + " in " + bus[0] : null,
+      drill: bus.slice(0, 8).map(function (b) { return { label: b, question: q.replace(/[?.!]+$/, "") + " in " + b }; }) };
+  }
+  function lmDefault(ctx) {
+    var v = vocab();
+    if (v.lines && v.lines.length === 1) {
+      ctx.line = v.lines[0]; ctx.bu = lineBU(ctx.line);
+      _assume.push("Your account is limited to line " + ctx.line + ", so I answered for it.");
+    }
+  }
+  function withAssumptions(r) {
+    if (r && typeof r === "object" && _assume.length) {
+      var have = r.assumptions || [];
+      _assume.forEach(function (a) { if (have.indexOf(a) < 0) have.push(a); });
+      r.assumptions = have;
+    }
+    return r;
+  }
+
   var adapter = {
     id: ID,
     title: "Ask the Data",
@@ -531,6 +587,11 @@
     },
 
     answer: function (q, parsed) {
+      _assume = [];
+      return withAssumptions(adapter._answerCore(q, parsed));
+    },
+
+    _answerCore: function (q, parsed) {
       if (!SFE() || !SEM()) {
         return { ok: false, message: "The organogram layer has not loaded yet." };
       }
@@ -540,11 +601,7 @@
       var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
       var isLineManager = user && user.role === "Line Manager";
       if (isLineManager && !ctx.line && !ctx.manager && !ctx.employee) {
-        var v = vocab();
-        if (v.lines && v.lines.length) {
-          ctx.line = v.lines[0];
-          ctx.bu = lineBU(ctx.line);
-        }
+        lmDefault(ctx);
       }
 
       var res;

@@ -1,0 +1,11 @@
+const { boot, signIn } = require("./harness");
+const { window: w } = boot();
+signIn(w, process.argv[2] || "Mohamed Bakr"); w.eval("CacheStore.init()");
+const a = w.CoachingDashboard.askApi();
+console.log(a.months, JSON.stringify(a.data.targets), Object.keys(a.data), a.managers.length);
+const m = a.managers.find(x=>a.isOwnTier(x)); console.log(Object.keys(m).join(","));
+console.log(JSON.stringify(m.cumulative).slice(0,900));
+console.log(Object.keys(m.monthly));
+const t={}; a.managers.forEach(x=>t[x.title]=(t[x.title]||0)+1); console.log(t);
+const ag=a.aggregateOwnTier(a.managers.filter(a.isOwnTier),"ALL"); console.log(JSON.stringify(ag));
+console.log(JSON.stringify(m.coachedEmployees[0]).slice(0,500));

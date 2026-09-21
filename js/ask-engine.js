@@ -1,3 +1,4 @@
+(function(g){(g.AskBuild=g.AskBuild||{})["ask-engine.js"]="20260921_askq2";})(typeof window!=="undefined"?window:this);
 /**
  * ASK THE DATA — shared engine
  * ============================================================================
@@ -551,6 +552,49 @@
     "</div>";
   }
 
+  // ---- BUILD / CACHE SYNCHRONISATION (2026-09-21) ---------------------------------------------
+  // Every ask-*.js file registers its build id in AskBuild as its very first statement, and every <script> tag
+  // for it carries the same ?v= id. If the browser served a stale cached copy of ANY Ask file (or a file was
+  // blocked), the running ids disagree with each other or with the tags, and the panel says so instead of
+  // answering from a half-updated engine. `tags` may be passed in (tests do); by default it is read from the DOM.
+  var REQUIRED_ASK_FILES = ["ask-engine.js", "ask-period.js", "ask-query.js"];
+  function askTagsFromDom() {
+    var out = {};
+    try {
+      var nodes = global.document ? global.document.querySelectorAll('script[src*="ask-"]') : [];
+      Array.prototype.forEach.call(nodes, function (n) {
+        var m = /(?:^|\/)(ask-[\w-]+\.js)(?:\?v=([\w.-]+))?/.exec(n.getAttribute("src") || "");
+        if (m) out[m[1]] = m[2] || "";
+      });
+    } catch (e) { /* no DOM */ }
+    return out;
+  }
+  function syncStatus(tagsOverride) {
+    var build = global.AskBuild || {}, running = Object.keys(build), problems = [], tags = tagsOverride || askTagsFromDom();
+    var ids = {};
+    running.forEach(function (f) { (ids[build[f]] = ids[build[f]] || []).push(f); });
+    var idList = Object.keys(ids);
+    if (idList.length > 1) {
+      problems.push("Ask files are from different builds: " + idList.map(function (i) { return i + " (" + ids[i].join(", ") + ")"; }).join(" · "));
+    }
+    REQUIRED_ASK_FILES.forEach(function (f) { if (build[f] === undefined) problems.push(f + " has not run."); });
+    Object.keys(tags).forEach(function (f) {
+      if (build[f] === undefined) problems.push(f + " is on the page but did not run (blocked, or failed to load).");
+      else if (tags[f] && tags[f] !== build[f]) problems.push(f + " is running build " + build[f] + " but the page asks for " + tags[f] + " (a stale cached copy).");
+    });
+    var best = idList.sort(function (a, b) { return ids[b].length - ids[a].length; })[0] || null;
+    return { ok: problems.length === 0, build: best, files: running.length, problems: problems };
+  }
+  var _syncWarned = false;
+  function syncWarnHtml() {
+    var st = syncStatus();
+    if (st.ok) return "";
+    if (!_syncWarned && global.console) { _syncWarned = true; console.warn("[Ask] build mismatch:", st.problems); }
+    return '<div class="mi-ask-caveat mi-ask-sync-warn" role="alert"><strong>Ask the Data may be out of date.</strong><br>' +
+      st.problems.map(function (x) { return "\u26A0 " + esc(x); }).join("<br>") +
+      '<br>Reload the page with Ctrl+F5 to fetch the current files before relying on an answer.</div>';
+  }
+
   function render(adapter) {
     var q = questionFor(adapter.id);
     var res = null;
@@ -567,6 +611,7 @@
     return '<section class="mi-ask-hero' + (q ? " is-answered" : "") +
              '" id="ask-' + esc(adapter.id) + '" data-ask-panel="' + esc(adapter.id) + '">' +
       headHtml(adapter) +
+      syncWarnHtml() +
       scopeRibbonHtml(adapter) +
       '<div class="mi-ask-bar" style="position:relative;">' +
         '<input type="text" class="mi-ask-input" autocomplete="off" ' +
@@ -704,14 +749,25 @@
     return fmtNum(v) + " EGP";
   }
 
+  function drillHtml(drill) {
+    if (!drill || !drill.length) return "";
+    return '<div class="mi-ask-section mi-ask-section-drill">' +
+      '<h3 class="mi-ask-section-h">DRILL DOWN</h3><div class="mi-ask-explore-chips">' +
+      drill.map(function (d) {
+        return '<button type="button" class="mi-ask-chip" data-ask="' + esc(d.question) + '">' + esc(d.label) + '</button>';
+      }).join("") + '</div></div>';
+  }
+
   function resultHtml(adapter, r) {
     if (!r) return "";
     if (!r.ok) {
+      var failHead = r.clarify ? "I need one detail first" : (r.missing ? "The dashboard does not hold that" : "I cannot answer that from this data");
       return '<div class="mi-ask-card mi-ask-fail">' +
         '<div class="mi-ask-q">' + esc(r.question) + "</div>" +
-        '<div class="mi-ask-headline">I cannot answer that from this data</div>' +
+        '<div class="mi-ask-headline">' + failHead + "</div>" +
         '<div class="mi-ask-detail">' + esc(r.message) + "</div>" +
         (r.hint ? '<div class="mi-ask-hint">' + esc(r.hint) + "</div>" : "") +
+        drillHtml(r.drill) +
       "</div>";
     }
 
@@ -727,6 +783,12 @@
         '<div class="mi-ask-headline">' + esc(r.answer ? r.answer.headline : r.headline) + '</div>' +
         '<div class="mi-ask-interpretation">' + esc(r.answer ? r.answer.interpretation : (r.detail || "")) + '</div>' +
       '</div>';
+
+      // 1.5 ASSUMPTIONS (ask-query layer: every choice made on the user's behalf is listed)
+      if (r.assumptions && r.assumptions.length) {
+        h += '<div class="mi-ask-caveat mi-ask-assume"><strong>Assumptions</strong><br>' +
+          r.assumptions.map(function (x) { return "\u2022 " + esc(x); }).join("<br>") + '</div>';
+      }
 
       // 2. EVIDENCE SECTION
       if (r.evidence && r.evidence.length) {
@@ -860,13 +922,16 @@
         '</div>';
       }
 
+      // DRILL-DOWN (ask-query layer)
+      h += drillHtml(r.drill);
+
       // CAVEATS & SOURCE
       if (r.caveats && r.caveats.length) {
         h += '<div class="mi-ask-caveat">' +
           r.caveats.map(function (c) { return "⚠ " + esc(c); }).join("<br>") + '</div>';
       }
       if (adapter.sourceNote) {
-        h += '<div class="mi-ask-src">Source: ' + esc(adapter.sourceNote()) + '</div>';
+        h += '<div class="mi-ask-src">Source: ' + esc(r.source || adapter.sourceNote()) + '</div>';
       }
       h += '</div>';
       return h;
@@ -876,7 +941,9 @@
     var h = '<div class="mi-ask-card">' +
       '<div class="mi-ask-q">' + esc(r.question) + "</div>" +
       '<div class="mi-ask-headline">' + esc(r.headline) + "</div>" +
-      (r.detail ? '<div class="mi-ask-detail">' + esc(r.detail) + "</div>" : "");
+      (r.detail ? '<div class="mi-ask-detail">' + esc(r.detail) + "</div>" : "")
+      + (r.assumptions && r.assumptions.length ? '<div class="mi-ask-caveat mi-ask-assume"><strong>Assumptions</strong><br>' +
+          r.assumptions.map(function (x) { return "\u2022 " + esc(x); }).join("<br>") + '</div>' : "");
 
     if (r.rows && r.rows.length) {
       var cols = r.columns || ["Value"];
@@ -921,8 +988,51 @@
     return h + "</div>";
   }
 
+  /**
+   * ASK-QUERY LAYER (2026-09-20). When the reusable query layer serves this page
+   * it answers first; it returns null for a question it cannot even attach to a
+   * measure, and only then does the page's own (legacy) adapter get a turn.
+   */
+  function finishQuery(adapter, r, q) {
+    r.question = q;
+    if (r.ok) {
+      r.answer = r.answer || { headline: r.headline, interpretation: r.detail || "" };
+      r.evidence = r.evidence || [];
+      r.caveats = r.caveats || [];
+      var scope = adapter.scopeLabel ? adapter.scopeLabel() : null;
+      if (scope) {
+        r.caveats.push("This answer covers " + scope + " only. It is not a company-wide figure, and rankings are within your scope.");
+      }
+      var pl = global.AskQuery && global.AskQuery.lastPlan ? global.AskQuery.lastPlan() : null;
+      if (pl && pl.entities && pl.entities.some(function (e) { return e.isFuzzy; })) {
+        r.caveats.push("Fuzzy matching: " + pl.entities.filter(function (e) { return e.isFuzzy; }).map(function (e) {
+          return "\u201c" + e.matched + "\u201d interpreted as \u201c" + e.name + "\u201d";
+        }).join(", ") + ".");
+      }
+    }
+    return r;
+  }
+
+  function queryHandles(adapter) {
+    return !!(global.AskQuery && global.AskQuery.handles && global.AskQuery.handles(adapter));
+  }
+
+  /** Same as answer(), but first makes sure any lazily loaded cache the question needs is present. */
+  function answerAsync(adapter, q) {
+    if (!q || !q.trim()) return Promise.resolve(null);
+    if (!queryHandles(adapter)) return Promise.resolve(answer(adapter, q));
+    var ens;
+    try { ens = global.AskQuery.ensureFor(adapter, q); } catch (e) { ens = Promise.resolve(true); }
+    return ens.then(function () { return answer(adapter, q); }, function () { return answer(adapter, q); });
+  }
+
   function answer(adapter, q) {
     if (!q || !q.trim()) return null;
+
+    if (queryHandles(adapter)) {
+      var qr = global.AskQuery.answer(adapter, q);
+      if (qr) return finishQuery(adapter, qr, q);
+    }
 
     var entities = findEntities(adapter, q, adapter.rankHint);
     var contextResolved = AskContext.resolveFollowUp(q, entities, adapter);
@@ -1053,17 +1163,28 @@
       setQuestion(adapter.id, q);
       if (input) input.value = q;
       if (out) {
-        var res = null;
-        if (q) {
-          try { res = answer(adapter, q); }
-          catch (e) {
-            if (global.console) console.error("[Ask:" + adapter.id + "]", e);
-            res = { ok: false, question: q,
-                    message: "Something went wrong computing that answer.",
-                    hint: "Try one of the example questions below." };
+        var fail = function (e) {
+          if (global.console) console.error("[Ask:" + adapter.id + "]", e);
+          return { ok: false, question: q,
+                   message: "Something went wrong computing that answer.",
+                   hint: "Try one of the example questions below." };
+        };
+        if (q && queryHandles(adapter)) {
+          out.innerHTML = '<div class="mi-ask-card"><div class="mi-ask-q">' + esc(q) + '</div><div class="mi-ask-detail">Working…</div></div>';
+          answerAsync(adapter, q).then(function (res) {
+            if (questionFor(adapter.id) !== q) return; // a newer question replaced this one
+            out.innerHTML = resultHtml(adapter, res);
+          }, function (e) {
+            out.innerHTML = resultHtml(adapter, fail(e));
+          });
+        } else {
+          var res = null;
+          if (q) {
+            try { res = answer(adapter, q); }
+            catch (e) { res = fail(e); }
           }
+          out.innerHTML = resultHtml(adapter, res);
         }
-        out.innerHTML = resultHtml(adapter, res);
       }
       if (!!q !== had && typeof onRerender === "function") onRerender();
     }
@@ -1082,8 +1203,13 @@
       setQuestion(adapter.id, "");
       if (typeof onRerender === "function") onRerender();
     });
-    panel.querySelectorAll("[data-ask]").forEach(function (b) {
+    panel.querySelectorAll(".mi-ask-ex [data-ask]").forEach(function (b) {
       b.addEventListener("click", function () { run(b.getAttribute("data-ask")); });
+    });
+    // Chips inside an answer (drill-down / clarification options) are re-created on every answer.
+    if (out) out.addEventListener("click", function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest("[data-ask]") : null;
+      if (b) run(b.getAttribute("data-ask"));
     });
 
     if (input && autocompleteDiv) {
@@ -1160,6 +1286,7 @@
     render: render,
     wire: wire,
     answer: answer,
+    answerAsync: answerAsync,
     resultHtml: resultHtml,
     buildIndex: buildIndex,
     findEntities: findEntities,
@@ -1181,6 +1308,7 @@
     clearAll: clearAll,
     invalidateIndexes: invalidateIndexes,
     _currentUserKey: currentUserKey,
+    syncStatus: syncStatus,
     STOPWORDS: STOPWORDS,
     GENERIC_TOKENS: GENERIC_TOKENS,
     registerAdapter: registerAdapter,

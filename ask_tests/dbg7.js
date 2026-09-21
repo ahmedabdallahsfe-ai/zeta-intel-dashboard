@@ -1,0 +1,14 @@
+const H=require("./harness.js");
+const who=process.argv[2]||"Mohamed Bakr";
+const b=H.boot(); const w=b.window; H.signIn(w,who);
+w.eval("CacheStore.init()");
+const D=w.IQVIADashboard;
+const j=x=>JSON.stringify(x).slice(0,1500);
+console.log("canView",w.AUTH.canViewIqvia());
+console.log("BS",j(D.getBusinessSummary()));
+console.log("CMI",j(D.getCorporateMarketIntel()));
+console.log("ZR",j(D.getZetaMarketRank("DIAB")));
+console.log("periods", w.eval("P.length"), w.eval("P[0]"), w.eval("P[NP-1]"), w.eval("flat.length/12"));
+console.log("lookups", w.eval("Object.keys(LOOKUPS).map(k=>k+':'+(LOOKUPS[k]&&LOOKUPS[k].length))").join(" "));
+console.log("bus", w.eval("JSON.stringify(LOOKUPS.bus)"), w.eval("JSON.stringify(LOOKUPS.lines).slice(0,300)"));
+console.log("CURRENT_USER", w.eval("CURRENT_USER&&CURRENT_USER.name"), w.eval("JSON.stringify(window.USER_VISIBLE&&Object.keys(window.USER_VISIBLE))"));

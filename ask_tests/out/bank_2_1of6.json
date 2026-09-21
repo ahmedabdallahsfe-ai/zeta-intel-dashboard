@@ -1,0 +1,522 @@
+{
+ "role": "Line Manager",
+ "who": "Nader Ahmed Khaled",
+ "fill": {
+  "BU": "GIT",
+  "LINE": "GIT-II",
+  "BRAND": "BUTAZORELLA",
+  "DM": "Ahmed Fathy Ahmed Hamed Nada"
+ },
+ "results": [
+  {
+   "id": "SAL-01",
+   "domain": "Sales",
+   "tab": "sales",
+   "q": "what is the sales achievement",
+   "template": "what is the sales achievement",
+   "ms": 3956,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Sales achievement: Actual sales value as a percentage of the target for the same period and scope.",
+   "detail": "Currently 88.4% for GIT · GIT-II (YTD (Jan–Jul 2026)).",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Jan–Jul 2026)",
+   "assumptions": [
+    "No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope."
+   ],
+   "formula": "actual value ÷ target value × 100",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Sales achievement"
+    ],
+    [
+     "Definition",
+     "Actual sales value as a percentage of the target for the same period and scope."
+    ],
+    [
+     "Formula",
+     "actual value ÷ target value × 100"
+    ],
+    [
+     "Period",
+     "YTD (Jan–Jul 2026)"
+    ],
+    [
+     "Target basis",
+     "Official Target"
+    ],
+    [
+     "Sales basis",
+     "Non-Tender transactions only, Value basis (EGP)"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "sales achievement by business unit",
+    "sales achievement MoM",
+    "sales achievement trend by month"
+   ],
+   "text": "Sales achievement: Actual sales value as a percentage of the target for the same period and scope. \n Currently 88.4% for GIT · GIT-II (YTD (Jan–Jul 2026)). \n actual value ÷ target value × 100 \n Measure \n Sales achievement \n Definition \n Actual sales value as a percentage of the target for the same period and scope. \n Formula \n actual value ÷ target value × 100 \n Period \n YTD (Jan–Jul 2026) \n Target basis \n Official Target \n Sales basis \n Non-Tender transactions only, Value basis (EGP) \n Data as of \n 2026-07 \n achievement \n Break down by business unit \n sales achievement by business unit \n Month over month \n sales achievement MoM \n Trend \n sales achievement trend by month \n This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. \n No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. \n sales \n achievement \n Sales cache · target basis Official Target \n Sales achievement: Actual sales value as a percentage of the target for the same period and scope. \n Currently 88.4% for GIT · GIT-II (YTD (Jan–Jul 2026)).",
+   "htmlText": "what is the sales achievement ANSWER Sales achievement: Actual sales value as a percentage of the target for the same period and scope. Currently 88.4% for GIT · GIT-II (YTD (Jan–Jul 2026)). Assumptions • No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. EVIDENCE Measure Sales achievement Definition Actual sales value as a percentage of the target for the same period and scope. Formula actual value ÷ target value × 100 Period YTD (Jan–Jul 2026) Target basis Official Target Sales basis Non-Tender transactions only, Value basis (EGP) Data as of 2026-07 actual value ÷ target value × 100 DRILL DOWN Break down by business unit Month over month Trend ⚠ This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. Source: Sales cache · target basis Official Target"
+  },
+  {
+   "id": "SAL-07",
+   "domain": "Sales",
+   "tab": "sales",
+   "q": "sales achievement Q1 2026",
+   "template": "sales achievement Q1 2026",
+   "ms": 3007,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Sales achievement — GIT · GIT-II: 86.4%",
+   "detail": "Q1 2026 (Jan–Mar 2026).",
+   "message": null,
+   "hint": null,
+   "period": "Q1 2026 (Jan–Mar 2026)",
+   "assumptions": [],
+   "caveats": [
+    "This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope."
+   ],
+   "formula": "Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Sales achievement — Actual sales value as a percentage of the target for the same period and scope."
+    ],
+    [
+     "Period",
+     "Q1 2026 (Jan–Mar 2026)"
+    ],
+    [
+     "Target basis",
+     "Official Target"
+    ],
+    [
+     "Sales basis",
+     "Non-Tender transactions only, Value basis (EGP)"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "sales achievement by business unit",
+    "sales achievement MoM",
+    "sales achievement trend by month"
+   ],
+   "text": "Sales achievement — GIT · GIT-II: 86.4% \n Q1 2026 (Jan–Mar 2026). \n Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual \n Measure \n Sales achievement — Actual sales value as a percentage of the target for the same period and scope. \n Period \n Q1 2026 (Jan–Mar 2026) \n Target basis \n Official Target \n Sales basis \n Non-Tender transactions only, Value basis (EGP) \n Data as of \n 2026-07 \n achievement \n 86.3735261976703 \n Break down by business unit \n sales achievement by business unit \n Month over month \n sales achievement MoM \n Trend \n sales achievement trend by month \n This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. \n sales \n achievement \n Sales cache · target basis Official Target \n Sales achievement — GIT · GIT-II: 86.4% \n Q1 2026 (Jan–Mar 2026).",
+   "htmlText": "sales achievement Q1 2026 ANSWER Sales achievement — GIT · GIT-II: 86.4% Q1 2026 (Jan–Mar 2026). EVIDENCE Measure Sales achievement — Actual sales value as a percentage of the target for the same period and scope. Period Q1 2026 (Jan–Mar 2026) Target basis Official Target Sales basis Non-Tender transactions only, Value basis (EGP) Data as of 2026-07 Achievement % = actual value ÷ target value × 100 · Gap = target − actual DRILL DOWN Break down by business unit Month over month Trend ⚠ This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. Source: Sales cache · target basis Official Target"
+  },
+  {
+   "id": "COV-03",
+   "domain": "Coverage",
+   "tab": "coverage",
+   "q": "coverage by line",
+   "template": "coverage by line",
+   "ms": 4,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Coverage % by line — 1 rows",
+   "detail": "YTD (Feb–Aug 2026) · Total 83.3%.",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Feb–Aug 2026)",
+   "assumptions": [
+    "“coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch.",
+    "No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes.",
+    "The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use.",
+    "This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope."
+   ],
+   "formula": "Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits",
+   "rows": [
+    [
+     "GIT-II",
+     "83.3%",
+     "49.5%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded)."
+    ],
+    [
+     "Grouped by",
+     "Line"
+    ],
+    [
+     "Period",
+     "YTD (Feb–Aug 2026)"
+    ],
+    [
+     "Rows",
+     "1 line in scope"
+    ],
+    [
+     "Definition",
+     "Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation)"
+    ],
+    [
+     "Periods",
+     "all loaded months, pooled (the tab's default)"
+    ],
+    [
+     "Data as of",
+     "August"
+    ]
+   ],
+   "drill": [
+    "coverage by district manager in GIT-II",
+    "coverage of GIT-II MoM"
+   ],
+   "text": "Coverage % by line — 1 rows \n YTD (Feb–Aug 2026) · Total 83.3%. \n 1 \n GIT-II \n 83.3% \n 49.5% \n Coverage % \n Right Frequency % \n Line \n Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits \n Measure \n Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). \n Grouped by \n Line \n Period \n YTD (Feb–Aug 2026) \n Rows \n 1 line in scope \n Definition \n Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) \n Periods \n all loaded months, pooled (the tab's default) \n Data as of \n August \n cov_pct \n rf_pct \n Break down GIT-II by district manager \n coverage by district manager in GIT-II \n GIT-II MoM \n coverage of GIT-II MoM \n Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. \n The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. \n This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. \n “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. \n No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. \n coverage \n cov_pct \n Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied \n Coverage % by line — 1 rows \n YTD (Feb–Aug 2026) · Total 83.3%.",
+   "htmlText": "coverage by line ANSWER Coverage % by line — 1 rows YTD (Feb–Aug 2026) · Total 83.3%. Assumptions • “coverage” is defined more than once in the dashboard: “Coverage %” (Coverage & Frequency (Coverage tab)) and “Operational coverage %” (Operational coverage (Executive)). Using the first because it is the one on this page — name the other one to switch. • No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. EVIDENCE Measure Coverage % — Share of in-scope customer rows that were visited at least once in the period (sick-leave-flagged rep-periods excluded). Grouped by Line Period YTD (Feb–Aug 2026) Rows 1 line in scope Definition Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) Periods all loaded months, pooled (the tab's default) Data as of August Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits # Line Coverage % Right Frequency % 1 GIT-II 83.3% 49.5% DRILL DOWN Break down GIT-II by district manager GIT-II MoM ⚠ Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. ⚠ The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. ⚠ This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. Source: Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied"
+  },
+  {
+   "id": "COV-09",
+   "domain": "Coverage",
+   "tab": "coverage",
+   "q": "shared customers by line",
+   "template": "shared customers by line",
+   "ms": 28,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Shared customers (accounts) by line — 1 rows",
+   "detail": "YTD (Feb–Aug 2026) · Total 6,871.",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Feb–Aug 2026)",
+   "assumptions": [
+    "No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes.",
+    "The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use.",
+    "This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope."
+   ],
+   "formula": "Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits",
+   "rows": [
+    [
+     "GIT-II",
+     "6,871"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Shared customers (accounts) — Customer accounts in scope at the reference period — point-in-time, never summed across months."
+    ],
+    [
+     "Grouped by",
+     "Line"
+    ],
+    [
+     "Period",
+     "YTD (Feb–Aug 2026)"
+    ],
+    [
+     "Rows",
+     "1 line in scope"
+    ],
+    [
+     "Definition",
+     "Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation)"
+    ],
+    [
+     "Periods",
+     "all loaded months, pooled (the tab's default)"
+    ],
+    [
+     "Data as of",
+     "August"
+    ]
+   ],
+   "drill": [
+    "shared customers by district manager in GIT-II",
+    "shared customers of GIT-II MoM"
+   ],
+   "text": "Shared customers (accounts) by line — 1 rows \n YTD (Feb–Aug 2026) · Total 6,871. \n 1 \n GIT-II \n 6,871 \n Shared customers (accounts) \n Line \n Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits \n Measure \n Shared customers (accounts) — Customer accounts in scope at the reference period — point-in-time, never summed across months. \n Grouped by \n Line \n Period \n YTD (Feb–Aug 2026) \n Rows \n 1 line in scope \n Definition \n Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) \n Periods \n all loaded months, pooled (the tab's default) \n Data as of \n August \n shared_customers \n Break down GIT-II by district manager \n shared customers by district manager in GIT-II \n GIT-II MoM \n shared customers of GIT-II MoM \n Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. \n The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. \n This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. \n No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. \n coverage \n shared_customers \n Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied \n Shared customers (accounts) by line — 1 rows \n YTD (Feb–Aug 2026) · Total 6,871.",
+   "htmlText": "shared customers by line ANSWER Shared customers (accounts) by line — 1 rows YTD (Feb–Aug 2026) · Total 6,871. Assumptions • No period given — using YTD (Feb–Aug 2026), the same view the dashboard cards default to. EVIDENCE Measure Shared customers (accounts) — Customer accounts in scope at the reference period — point-in-time, never summed across months. Grouped by Line Period YTD (Feb–Aug 2026) Rows 1 line in scope Definition Coverage tab — every in-scope customer row (Analytics.run, the tab's own calculation) Periods all loaded months, pooled (the tab's default) Data as of August Coverage % = mean(Covered Doctor) · Right Frequency % = mean(Right Freq) · Visit achievement = actual ÷ target visits # Line Shared customers (accounts) 1 GIT-II 6,871 DRILL DOWN Break down GIT-II by district manager GIT-II MoM ⚠ Sick-leave rule: rep-periods flagged (>15 days Sick / Maternity leave) are left out of Coverage % and Right Frequency %; their customers still count in volumes. ⚠ The Coverage data starts in Feb 2026, so YTD here means Feb–Aug 2026 — the same span the dashboard cards use. ⚠ This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. Source: Coverage cache · Coverage tab calculation (Analytics.run) · sick-leave rule applied"
+  },
+  {
+   "id": "EXE-01",
+   "domain": "Executive",
+   "tab": "executive",
+   "q": "how is performance",
+   "template": "how is performance",
+   "ms": 2,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Sales achievement — GIT · GIT-II: 88.4%",
+   "detail": "YTD (Jan–Jul 2026).",
+   "message": null,
+   "hint": null,
+   "period": "YTD (Jan–Jul 2026)",
+   "assumptions": [
+    "No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to."
+   ],
+   "caveats": [
+    "This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope."
+   ],
+   "formula": "Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual",
+   "rows": [],
+   "evidence": [
+    [
+     "Measure",
+     "Sales achievement — Actual sales value as a percentage of the target for the same period and scope."
+    ],
+    [
+     "Period",
+     "YTD (Jan–Jul 2026)"
+    ],
+    [
+     "Target basis",
+     "Official Target"
+    ],
+    [
+     "Sales basis",
+     "Non-Tender transactions only, Value basis (EGP)"
+    ],
+    [
+     "Data as of",
+     "2026-07"
+    ]
+   ],
+   "drill": [
+    "sales achievement by business unit",
+    "sales achievement MoM",
+    "sales achievement trend by month"
+   ],
+   "text": "Sales achievement — GIT · GIT-II: 88.4% \n YTD (Jan–Jul 2026). \n Achievement % = actual value ÷ target value × 100  ·  Gap = target − actual \n Measure \n Sales achievement — Actual sales value as a percentage of the target for the same period and scope. \n Period \n YTD (Jan–Jul 2026) \n Target basis \n Official Target \n Sales basis \n Non-Tender transactions only, Value basis (EGP) \n Data as of \n 2026-07 \n achievement \n 88.39675954670429 \n Break down by business unit \n sales achievement by business unit \n Month over month \n sales achievement MoM \n Trend \n sales achievement trend by month \n This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. \n No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. \n sales \n achievement \n Sales cache · target basis Official Target \n Sales achievement — GIT · GIT-II: 88.4% \n YTD (Jan–Jul 2026).",
+   "htmlText": "how is performance ANSWER Sales achievement — GIT · GIT-II: 88.4% YTD (Jan–Jul 2026). Assumptions • No period given — using YTD (Jan–Jul 2026), the same view the dashboard cards default to. EVIDENCE Measure Sales achievement — Actual sales value as a percentage of the target for the same period and scope. Period YTD (Jan–Jul 2026) Target basis Official Target Sales basis Non-Tender transactions only, Value basis (EGP) Data as of 2026-07 Achievement % = actual value ÷ target value × 100 · Gap = target − actual DRILL DOWN Break down by business unit Month over month Trend ⚠ This answer covers GIT · GIT-II only. It is not a company-wide figure, and rankings are within your scope. Source: Sales cache · target basis Official Target"
+  },
+  {
+   "id": "WDY-03",
+   "domain": "Working Days",
+   "tab": "workingdays",
+   "q": "bottom 5 district managers by field working days",
+   "template": "bottom 5 district managers by field working days",
+   "ms": 36,
+   "err": null,
+   "ok": true,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": false,
+   "headline": "Lowest Avg Field Working Days %: Mostafa Mohamed Mohamed Mousa Shabana (80.7%)",
+   "detail": "Aug 2026 (latest loaded month) · Total 96.2%.",
+   "message": null,
+   "hint": null,
+   "period": "Aug 2026 (latest loaded month)",
+   "assumptions": [
+    "No period given — using the latest loaded month, Aug 2026."
+   ],
+   "caveats": [],
+   "formula": "Field Working Days % = All Visit Days ÷ Target Working Days; Target = (Calendar Days − TOT) × tier multiplier",
+   "rows": [
+    [
+     "Mostafa Mohamed Mohamed Mousa Shabana",
+     "80.7%"
+    ],
+    [
+     "Mohamed Rezk Aly Nour",
+     "87.0%"
+    ],
+    [
+     "Ahmed Fathy Ahmed Hamed Nada",
+     "92.4%"
+    ],
+    [
+     "Amira Sobhy Shehata Behery",
+     "94.6%"
+    ],
+    [
+     "Samir Samy Saied Hassan",
+     "96.6%"
+    ]
+   ],
+   "evidence": [
+    [
+     "Measure",
+     "Avg Field Working Days % — All Visit Days ÷ Target Working Days, averaged over the employees in view (the page's “Avg Field Days %”). 100% = the tier's target working days were all worked in the field."
+    ],
+    [
+     "Grouped by",
+     "District Manager"
+    ],
+    [
+     "Period",
+     "Aug 2026 (latest loaded month)"
+    ],
+    [
+     "Rows",
+     "9 district managers in scope"
+    ],
+    [
+     "Data",
+     "Field Working Days cache (Sprint_Missing_KPI_Template.xlsx), scoped to your access by the page's own rule"
+    ],
+    [
+     "Tier",
+     "DM / DSM (×0.8)"
+    ],
+    [
+     "Months",
+     "August"
+    ],
+    [
+     "Data as of",
+     "August"
+    ]
+   ],
+   "drill": [
+    "field working days of Mostafa Mohamed Mohamed Mousa Shabana MoM",
+    "bottom 5 dms by field working days"
+   ],
+   "text": "Lowest Avg Field Working Days %: Mostafa Mohamed Mohamed Mousa Shabana (80.7%) \n Aug 2026 (latest loaded month) · Total 96.2%. \n 1 \n Mostafa Mohamed Mohamed Mousa Shabana \n 80.7% \n 2 \n Mohamed Rezk Aly Nour \n 87.0% \n 3 \n Ahmed Fathy Ahmed Hamed Nada \n 92.4% \n 4 \n Amira Sobhy Shehata Behery \n 94.6% \n 5 \n Samir Samy Saied Hassan \n 96.6% \n 6 \n Esraa Mahmoud AbdelBaky Mohamed \n 97.6% \n 7 \n Christina Mousa Farag Mousa \n 97.8% \n 8 \n Milad Qeriaqes Aziz Qeriaqes \n 97.8% \n 9 \n Mostafa Mohamed Hamza Mahmoud Ahmed \n 121.2% \n Avg Field Working Days % \n District Manager \n Field Working Days % = All Visit Days ÷ Target Working Days; Target = (Calendar Days − TOT) × tier multiplier \n Measure \n Avg Field Working Days % — All Visit Days ÷ Target Working Days, averaged over the employees in view (the page's “Avg Field Days %”). 100% = the tier's target working days were all worked in the field. \n Grouped by \n District Manager \n Period \n Aug 2026 (latest loaded month) \n Rows \n 9 district managers in scope \n Data \n Field Working Days cache (Sprint_Missing_KPI_Template.xlsx), scoped to your access by the page's own rule \n Tier \n DM / DSM (×0.8) \n Months \n August \n Data as of \n August \n wd_field_pct \n Mostafa Mohamed Mohamed Mousa Shabana MoM \n field working days of Mostafa Mohamed Mohamed Mousa Shabana MoM \n Bottom 5 \n bottom 5 dms by field working days \n No period given — using the latest loaded month, Aug 2026. \n workdays \n wd_field_pct \n Field Working Days cache · Sprint_Missing_KPI_Template.xlsx \n Lowest Avg Field Working Days %: Mostafa Mohamed Mohamed Mousa Shabana (80.7%) \n Aug 2026 (latest loaded month) · Total 96.2%.",
+   "htmlText": "bottom 5 district managers by field working days ANSWER Lowest Avg Field Working Days %: Mostafa Mohamed Mohamed Mousa Shabana (80.7%) Aug 2026 (latest loaded month) · Total 96.2%. Assumptions • No period given — using the latest loaded month, Aug 2026. EVIDENCE Measure Avg Field Working Days % — All Visit Days ÷ Target Working Days, averaged over the employees in view (the page's “Avg Field Days %”). 100% = the tier's target working days were all worked in the field. Grouped by District Manager Period Aug 2026 (latest loaded month) Rows 9 district managers in scope Data Field Working Days cache (Sprint_Missing_KPI_Template.xlsx), scoped to your access by the page's own rule Tier DM / DSM (×0.8) Months August Data as of August Field Working Days % = All Visit Days ÷ Target Working Days; Target = (Calendar Days − TOT) × tier multiplier # District Manager Avg Field Working Days % 1 Mostafa Mohamed Mohamed Mousa Shabana 80.7% 2 Mohamed Rezk Aly Nour 87.0% 3 Ahmed Fathy Ahmed Hamed Nada 92.4% 4 Amira Sobhy Shehata Behery 94.6% 5 Samir Samy Saied Hassan 96.6% 6 Esraa Mahmoud AbdelBaky Mohamed 97.6% 7 Christina Mousa Farag Mousa 97.8% 8 Milad Qeriaqes Aziz Qeriaqes 97.8% 9 Mostafa Mohamed Hamza Mahmoud Ahmed 121.2% DRILL DOWN Mostafa Mohamed Mohamed Mousa Shabana MoM Bottom 5"
+  },
+  {
+   "id": "SPR-03",
+   "domain": "Sprint",
+   "tab": "sprint",
+   "q": "who is winning the sprint",
+   "template": "who is winning the sprint",
+   "ms": 0,
+   "err": null,
+   "ok": false,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": true,
+   "headline": null,
+   "detail": null,
+   "message": "(no Ask adapter for this tab and account)",
+   "hint": null,
+   "period": null,
+   "assumptions": [],
+   "caveats": [],
+   "formula": null,
+   "rows": [],
+   "evidence": [],
+   "drill": [],
+   "text": "(no Ask adapter for this tab and account)",
+   "htmlText": "who is winning the sprint I cannot answer that from this data (no Ask adapter for this tab and account)"
+  },
+  {
+   "id": "MKT-02",
+   "domain": "Market Intelligence",
+   "tab": "marketintel",
+   "q": "top 5 brands by sales value",
+   "template": "top 5 brands by sales value",
+   "ms": 0,
+   "err": null,
+   "ok": false,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": true,
+   "headline": null,
+   "detail": null,
+   "message": "(no Ask adapter for this tab and account)",
+   "hint": null,
+   "period": null,
+   "assumptions": [],
+   "caveats": [],
+   "formula": null,
+   "rows": [],
+   "evidence": [],
+   "drill": [],
+   "text": "(no Ask adapter for this tab and account)",
+   "htmlText": "top 5 brands by sales value I cannot answer that from this data (no Ask adapter for this tab and account)"
+  },
+  {
+   "id": "TMK-01",
+   "domain": "To-Market",
+   "tab": "tomarket",
+   "q": "what is the pull-through rate",
+   "template": "what is the pull-through rate",
+   "ms": 0,
+   "err": null,
+   "ok": false,
+   "clarify": false,
+   "missing": false,
+   "denied": false,
+   "noAdapter": true,
+   "headline": null,
+   "detail": null,
+   "message": "(no Ask adapter for this tab and account)",
+   "hint": null,
+   "period": null,
+   "assumptions": [],
+   "caveats": [],
+   "formula": null,
+   "rows": [],
+   "evidence": [],
+   "drill": [],
+   "text": "(no Ask adapter for this tab and account)",
+   "htmlText": "what is the pull-through rate I cannot answer that from this data (no Ask adapter for this tab and account)"
+  },
+  {
+   "id": "MIS-01",
+   "domain": "Missing data",
+   "tab": "sales",
+   "q": "what is the gross margin by brand",
+   "template": "what is the gross margin by brand",
+   "ms": 11,
+   "err": null,
+   "ok": false,
+   "clarify": false,
+   "missing": false,
+   "denied": true,
+   "noAdapter": false,
+   "headline": null,
+   "detail": null,
+   "message": "I could not find “margin” in the data you have access to, so I have not answered for it.",
+   "hint": "Check the spelling, or ask about something inside your own scope (GIT · GIT-II). I never substitute your whole scope for a name I cannot find.",
+   "period": null,
+   "assumptions": [],
+   "caveats": [],
+   "formula": null,
+   "rows": [],
+   "evidence": [],
+   "drill": [],
+   "text": "I could not find “margin” in the data you have access to, so I have not answered for it. \n Check the spelling, or ask about something inside your own scope (GIT · GIT-II). I never substitute your whole scope for a name I cannot find. \n margin",
+   "htmlText": "what is the gross margin by brand I cannot answer that from this data I could not find “margin” in the data you have access to, so I have not answered for it. Check the spelling, or ask about something inside your own scope (GIT · GIT-II). I never substitute your whole scope for a name I cannot find."
+  }
+ ]
+}

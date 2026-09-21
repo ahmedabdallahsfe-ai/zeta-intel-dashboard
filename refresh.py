@@ -998,7 +998,7 @@ def build_kpis(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logge
     coverage_pct = eval_rows["Covered Doctors"].mean() if len(eval_rows) else 0.0
     right_freq_pct = eval_rows["Right Freq"].mean() if len(eval_rows) else 0.0
 
-    customers_per_rep = (headcount and len(latest_active_rows) / headcount) or 0.0
+    customers_per_rep = (headcount and len(eval_rows) / headcount) or 0.0
     avg_visits = (headcount and latest_active_roster["TotalVisits"].sum() / headcount) or 0.0
     avg_freq_achievement = eval_roster["AvgFrequencyAchievement"].mean() if len(eval_roster) else 0.0
 
@@ -1007,17 +1007,18 @@ def build_kpis(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logge
 
     attrition_rate = (resigned / (headcount + resigned)) if (headcount + resigned) else 0.0
 
-    # Visit KPIs: Frequency = commercially mandated target visits (matches analytics.js freqSum)
-    total_target_visits = int(latest_active_rows["Frequency"].fillna(0).sum())
-    total_actual_visits = int(latest_active_rows["Visits Count"].fillna(0).sum())
+    # Visit KPIs: Evaluated population only (Sick Leave Impact Rule & Prorated Targets)
+    effective_tgt = np.where(eval_rows["ProratedFrequency"] >= 0, eval_rows["ProratedFrequency"], eval_rows["Frequency"]) if "ProratedFrequency" in eval_rows.columns else eval_rows["Frequency"]
+    total_target_visits = int(pd.Series(effective_tgt, index=eval_rows.index).fillna(0).sum())
+    total_actual_visits = int(eval_rows["Visits Count"].fillna(0).sum())
     visit_achievement_pct = safe_round(total_actual_visits / total_target_visits) if total_target_visits else None
-    not_seen_count = int((latest_active_rows["Covered Doctors"] == 0).sum())
-    row_count = len(latest_active_rows)
-    not_seen_pct = safe_round(not_seen_count / row_count) if row_count else None
-    total_unique_customers = int(latest_active_rows["Customer Name"].nunique())
+    not_seen_count = int((eval_rows["Covered Doctors"] == 0).sum())
+    eval_row_count = len(eval_rows)
+    not_seen_pct = safe_round(not_seen_count / eval_row_count) if eval_row_count else None
+    total_unique_customers = int(eval_rows["Customer Name"].nunique())
 
-    over_freq_count = int((latest_active_rows["Visits Count"] > latest_active_rows["Frequency"]).sum())
-    below_freq_count = int((latest_active_rows["Visits Count"] < latest_active_rows["Frequency"]).sum())
+    over_freq_count = int((eval_rows["Visits Count"] > eval_rows["Frequency"]).sum())
+    below_freq_count = int((eval_rows["Right Freq"] == 0).sum())
 
     kpis = {
         "activeReps": headcount,
@@ -1032,14 +1033,14 @@ def build_kpis(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logge
         "avgVisits": safe_round(avg_visits, 2),
         "avgFrequencyAchievement": safe_round(avg_freq_achievement),
         "latestMonth": latest_period,
-        # Visit / not-seen KPIs (added for GitHub view-only parity)
+        # Visit / not-seen KPIs (evaluated & prorated population)
         "totalTargetVisits": total_target_visits,
         "totalActualVisits": total_actual_visits,
         "visitAchievementPct": visit_achievement_pct,
         "notSeenCount": not_seen_count,
         "notSeenPct": not_seen_pct,
         "totalUniqueCustomers": total_unique_customers,
-        "totalSharedCustomers": row_count,
+        "totalSharedCustomers": eval_row_count,
         "overFreqCount": over_freq_count,
         "belowFreqCount": below_freq_count,
     }
@@ -1064,16 +1065,14 @@ def build_trend(df: pd.DataFrame, roster: pd.DataFrame, logger: logging.Logger) 
         period_roster = roster[roster["Period"] == period]
         active_roster = period_roster[period_roster["IsActive"]]
         active_headcount = int(len(active_roster))
-        row_count = len(active_rows)
-        freq_sum = int(active_rows["Frequency"].fillna(0).sum())
-        visits_sum = int(active_rows["Visits Count"].fillna(0).sum())
-        covered_sum = int(active_rows["Covered Doctors"].fillna(0).sum())
-        over_freq_count = int((active_rows["Visits Count"] > active_rows["Frequency"]).sum())
-        below_freq_count = int((active_rows["Visits Count"] < active_rows["Frequency"]).sum())
-        # Rates over the evaluated population only (Sick Leave Impact Rule);
-        # every count/volume field below still spans all active rows.
         eval_rows = evaluated_rows(active_rows)
         eval_count = len(eval_rows)
+        effective_tgt = np.where(eval_rows["ProratedFrequency"] >= 0, eval_rows["ProratedFrequency"], eval_rows["Frequency"]) if "ProratedFrequency" in eval_rows.columns else eval_rows["Frequency"]
+        freq_sum = int(pd.Series(effective_tgt, index=eval_rows.index).fillna(0).sum())
+        visits_sum = int(eval_rows["Visits Count"].fillna(0).sum())
+        covered_sum = int(eval_rows["Covered Doctors"].fillna(0).sum())
+        over_freq_count = int((eval_rows["Visits Count"] > eval_rows["Frequency"]).sum())
+        below_freq_count = int((eval_rows["Right Freq"] == 0).sum())
         rows.append({
             "period": period,
             "coveragePct": safe_round(eval_rows["Covered Doctors"].mean()) if eval_count else None,
@@ -1082,15 +1081,15 @@ def build_trend(df: pd.DataFrame, roster: pd.DataFrame, logger: logging.Logger) 
             "activeReps": active_headcount,
             "resignedReps": int(period_roster["IsResigned"].sum()),
             "vacancyCount": count_vacant_slots(df, period)["total"],
-            "customersPerRep": round(row_count / active_headcount, 2) if active_headcount else None,
-            # Visit / not-seen fields (mirrors analytics.js trend.series shape)
+            "customersPerRep": round(eval_count / active_headcount, 2) if active_headcount else None,
+            # Visit / not-seen fields (evaluated & prorated population)
             "totalTargetVisits": freq_sum,
             "totalActualVisits": visits_sum,
             "visitAchievementPct": safe_round(visits_sum / freq_sum) if freq_sum else None,
-            "notSeenCount": row_count - covered_sum,
-            "notSeenPct": safe_round((row_count - covered_sum) / row_count) if row_count else None,
-            "totalUniqueCustomers": int(active_rows["Customer Name"].nunique()),
-            "totalSharedCustomers": row_count,
+            "notSeenCount": eval_count - covered_sum,
+            "notSeenPct": safe_round((eval_count - covered_sum) / eval_count) if eval_count else None,
+            "totalUniqueCustomers": int(eval_rows["Customer Name"].nunique()),
+            "totalSharedCustomers": eval_count,
             "overFreqCount": over_freq_count,
             "belowFreqCount": below_freq_count,
         })

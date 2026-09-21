@@ -276,7 +276,7 @@
        these two brands' sales count toward Sales Achievement instead of being excluded by the existing
        Non-Tender convention. All other brands/products unchanged. 191,352.00 EGP moved Tender->Non-Tender;
        Total Actual Sales Value unchanged to the cent (1,426,495,032.60). -->
-  <script defer src="cache/sales.data.js?v=20260916_shortageupdate"></script>
+  <script defer src="cache/sales.data.js?v=20260921_q3julysep"></script>
   <!-- Zeta Sprint 2026 cache (2026-08-15): built by etl/build_sprint_cache.py from
        sprint/scaling scores.xlsx (point curves) + this page's own Coverage/Sales
        cache sources. Re-linked 2026-08-16 (Ahmed: "add zeta sprint to dashboard") --
@@ -387,11 +387,11 @@
        4 separate raw SKU rows; getBrandPortfolioHealth() and every
        Executive "by Brand" modal both use this now. -->
   <script defer src="js/sales.js?v=20260913_salesachievement_fix"></script>
-  <script defer src="js/iqvia.js?v=20260907_valuerank"></script>
-  <script defer src="js/sprint.js?v=20260916_leaveflag"></script>
-  <script defer src="js/working-days.js?v=20260917_augustext"></script>
-  <script defer src="js/coaching.js?v=20260920_rolechange"></script>
-  <script defer src="js/ims-rx.js?v=20260816_mi_bridge"></script>
+  <script defer src="js/iqvia.js?v=20260921_askapi"></script>
+  <script defer src="js/sprint.js?v=20260921_askapi"></script>
+  <script defer src="js/working-days.js?v=20260921_askapi"></script>
+  <script defer src="js/coaching.js?v=20260921_askapi"></script>
+  <script defer src="js/ims-rx.js?v=20260921_askapi"></script>
   <script defer src="js/news-feed.js?v=20260910_v2"></script>
   <script defer src="js/regulatory-pipeline.js?v=20260910_v1"></script>
 
@@ -418,7 +418,7 @@
        getItemAchievement() -- ELIMBOSIS's two pack sizes per strength
        are merged into one row per strength, not shown as 4 raw SKUs. -->
   <script defer src="cache/tms_ims.data.js"></script>
-  <script defer src="js/executive.js?v=20260914_commercial_mgr_fix"></script>
+  <script defer src="js/executive.js?v=20260921_askapi"></script>
 
   <!-- cache/market_intel.data.js (1.4 MB) is LAZY again as of 2026-09-11:
        this was the original 2026-08-08 lazy-loaded cache (PERFORMANCE_FIX.md)
@@ -427,14 +427,32 @@
        js/app.js, only when the Total Market Intelligence tab opens. See
        loading_performance_regression.md. -->
   <script defer src="js/market-intel.js?v=20260806_cagr"></script>
-  <!-- Ask the Data (2026-08-07). The engine must load before any adapter;
-       both must load before app.js, which mounts them on tab change. -->
-  <script defer src="js/ask-engine.js?v=20260807_ask"></script>
-  <script defer src="js/ask-coverage.js?v=20260807_ask"></script>
-  <script defer src="js/ask-sales.js?v=20260807_ask"></script>
-  <script defer src="js/ask-sfe.js?v=20260807_ask"></script>
-  <script defer src="js/ask-executive.js?v=20260807_ask"></script>
-  <script defer src="js/app.js?v=20260916_proratedtgt"></script>
+  <!-- Ask the Data (2026-08-07; query layer 2026-09-20). Load order matters:
+       engine -> period parser -> query layer -> providers (register themselves
+       with AskQuery) -> legacy per-page adapters -> app.js, which mounts them.
+       EVERY ask-*.js file carries the SAME ?v= build id, and each file states
+       that id in its own header (AskBuild). AskEngine.syncStatus() compares them
+       at runtime and the panel shows a warning if a stale cached file slips in. -->
+  <script defer src="js/ask-engine.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-period.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-query.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-sales.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-coverage.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-sfe.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-lib.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-workdays.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-coaching.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-sprint.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-imsrx.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-iqvia.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-marketintel.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-tomarket.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-pages.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-coverage.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-sales.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-sfe.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-executive.js?v=20260921_askq2"></script>
+  <script defer src="js/app.js?v=20260921_askapi"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

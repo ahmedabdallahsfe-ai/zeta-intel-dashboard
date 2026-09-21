@@ -4070,6 +4070,39 @@
     // Exposed for app.js to gate the nav entry itself -- see the
     // "ACCESS MODEL, round 3" module doc bullet above.
     canView: canViewSprintPage,
+    /**
+     * READ-ONLY accessor for "Ask the Data" (js/ask-prov-sprint.js). Additive: the page never calls it.
+     * Exposes the SAME month caches the page renders from and the SAME scope predicates it filters with
+     * (repInScope / dmOrBmInScope / asmNsmInScope / excludedInScope), plus band() and TIER_LABEL, so an
+     * Ask answer is the page's own ranking. Archived months load through the page's own loadPeriodData.
+     * Returns null when the page is not visible to this user or its cache is missing/stale.
+     */
+    askApi: function () {
+      if (!canViewSprintPage()) return null;
+      decompressCache();
+      if (isCacheStale() || !currentMonthCache) return null;
+      function monthKey(entry) { return entry.key || null; }
+      return {
+        liveMonth: currentMonthCache.meta.evalPeriod,
+        liveKey: String(currentMonthCache.meta.periodStart || "").slice(0, 7),
+        months: function () {
+          const out = [{ name: currentMonthCache.meta.evalPeriod, key: String(currentMonthCache.meta.periodStart || "").slice(0, 7) }];
+          historyIndex.forEach(function (p) { if (p.name !== currentMonthCache.meta.evalPeriod && monthKey(p)) out.push({ name: p.name, key: monthKey(p) }); });
+          return out;
+        },
+        data: function (monthName) {
+          if (currentMonthCache.meta.evalPeriod === monthName) return currentMonthCache;
+          return periodDataCache[monthName] || null;
+        },
+        ensure: async function (monthName) {
+          if (!historyIndex.length) await loadHistoryIndex();
+          return await loadPeriodData(monthName);
+        },
+        ensureIndex: async function () { if (!historyIndex.length) await loadHistoryIndex(); return true; },
+        repInScope: repInScope, dmOrBmInScope: dmOrBmInScope, asmNsmInScope: asmNsmInScope, excludedInScope: excludedInScope,
+        band: band, tierLabel: TIER_LABEL
+      };
+    },
     destroy() {
       document.body.classList.remove("sprint-mode");
       document.removeEventListener("click", onSprintDocumentClick);

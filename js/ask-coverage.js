@@ -1,3 +1,4 @@
+(function(g){(g.AskBuild=g.AskBuild||{})["ask-coverage.js"]="20260921_askq2";})(typeof window!=="undefined"?window:this);
 /**
  * ASK THE DATA — Coverage adapter (Operational & Execution)
  * ============================================================================
@@ -61,10 +62,27 @@
     var bus = allowedBUs();
     var lines = allowedLines();
 
+    // District managers: the dims list is the whole company. A restricted account keeps only those the Coverage
+    // tab itself offers it (its own scoped option list); if that list is unavailable it keeps none — it never
+    // falls back to the unscoped names.
+    var dmList = (dims.managers || []).filter(Boolean).sort();
+    var sc = global.AUTH && global.AUTH.getScope ? global.AUTH.getScope() : null;
+    if (sc && !sc.unrestricted) {
+      var scoped = null;
+      try {
+        var pr = global.AskQuery && global.AskQuery.providerById ? global.AskQuery.providerById("coverage") : null;
+        var pv = pr && pr.vocab ? pr.vocab() : null;
+        scoped = pv && pv.dm ? pv.dm : null;
+      } catch (e) { scoped = null; }
+      var okDm = {};
+      (scoped || []).forEach(function (n) { okDm[n] = 1; });
+      dmList = dmList.filter(function (n) { return okDm[n]; });
+    }
+
     _vocab = {
       bus: bus,
       lines: lines,
-      dms: (dims.managers || []).filter(Boolean).sort(),
+      dms: dmList,
       specialties: (dims.specialties || []).filter(Boolean).sort(),
       classes: (dims.classes || []).filter(Boolean).sort(),
       types: (dims.types || []).filter(Boolean).sort()
@@ -126,7 +144,8 @@
     var E = global.AskEngine;
 
     if (ctx.dm) {
-      var bu = ctx.bu || allowedBUs()[0];
+      var bu = needBU(ctx);
+      if (!bu) return needBUResult(q);
       var dmSum = CD().getFilteredCoverageForDm(bu, ctx.line || null, ctx.dm);
       if (!dmSum || !dmSum.ok) return { ok: false, message: "No operational data found for District Manager " + ctx.dm };
       var headline = ctx.dm + " — " + E.fmtPct(dmSum.coveragePct) + " coverage · " + E.fmtPct(dmSum.rightFreqPct) + " right frequency";
@@ -188,6 +207,7 @@
     var bus = allowedBUs();
     var covSum = CD().getFilteredCoverageSummary(null, null);
     if (!covSum || !covSum.ok) return { ok: false, message: "Operational coverage cache is loading..." };
+    if (covSum.coveragePct === null || covSum.coveragePct === undefined) return { ok: false, missing: true, message: "The Coverage tab holds no blended coverage value for your whole scope. Name a business unit or line and I will give you its figure.", hint: "Nothing is estimated or filled in." };
     var headline = E.fmtPct(covSum.coveragePct) + " coverage · " + E.fmtPct(covSum.rightFreqPct) + " right frequency overall";
     var detail = "Blended across " + bus.length + " Business Unit(s): " + bus.join(", ") + ". Total reps: " + covSum.repCount + ".";
 
@@ -233,7 +253,8 @@
 
     if (wantRep && ctx.dm) {
       // Reps under a specific DM
-      var bu = ctx.bu || allowedBUs()[0];
+      var bu = needBU(ctx);
+      if (!bu) return needBUResult(q);
       var repList = CD().getDmRepsList(bu, ctx.line || null, ctx.dm);
       nameHeader = "Representative";
       if (sortByRF) {
@@ -251,7 +272,8 @@
       });
     } else if (wantDm) {
       // Rank DMs in current BU
-      var targetBU = ctx.bu || allowedBUs()[0];
+      var targetBU = needBU(ctx);
+      if (!targetBU) return needBUResult(q);
       var list = vocab().dms;
       nameHeader = "District Manager";
       scopeTxt = "DMs in " + targetBU;
@@ -285,7 +307,8 @@
       scopeTxt = "lines in " + bus.join(", ");
     } else if (wantSpecialty || wantClass || wantType) {
       // Specialty / Class / Type breakdown
-      var targetBU3 = ctx.bu || allowedBUs()[0];
+      var targetBU3 = needBU(ctx);
+      if (!targetBU3) return needBUResult(q);
       var typeSum = CD().getFilteredCoverageByType(targetBU3, ctx.line || null);
       if (!typeSum || !typeSum.ok) {
         return { ok: false, message: "Coverage ranking is currently unavailable (status: " + (typeSum ? typeSum.status : "unknown") + ")." };
@@ -395,6 +418,44 @@
     };
   }
 
+
+  // ---- NO SILENT DEFAULTS (2026-09-21) -------------------------------------------------
+  // Never answer for an assumed BU / line without saying so, or asking. _assume collects every
+  // choice made on the user's behalf; answer() attaches it to the result as `assumptions`.
+  var _assume = [];
+  function needBU(ctx) {
+    var bu = ctx.bu || (ctx.line ? lineBU(ctx.line) : null);
+    if (bu) return bu;
+    var bus = allowedBUs();
+    if (bus.length === 1) {
+      _assume.push("No business unit named. I used " + bus[0] + ", the only one your account can access.");
+      return bus[0];
+    }
+    return null;
+  }
+  function needBUResult(q) {
+    var bus = allowedBUs();
+    return { ok: false, clarify: true,
+      message: "Which business unit do you mean? I will not pick one for you. Your access covers: " + bus.join(", ") + ".",
+      hint: bus.length ? "Ask again naming one, for example: " + q.replace(/[?.!]+$/, "") + " in " + bus[0] : null,
+      drill: bus.slice(0, 8).map(function (b) { return { label: b, question: q.replace(/[?.!]+$/, "") + " in " + b }; }) };
+  }
+  function lmDefault(ctx) {
+    var v = vocab();
+    if (v.lines && v.lines.length === 1) {
+      ctx.line = v.lines[0]; ctx.bu = lineBU(ctx.line);
+      _assume.push("Your account is limited to line " + ctx.line + ", so I answered for it.");
+    }
+  }
+  function withAssumptions(r) {
+    if (r && typeof r === "object" && _assume.length) {
+      var have = r.assumptions || [];
+      _assume.forEach(function (a) { if (have.indexOf(a) < 0) have.push(a); });
+      r.assumptions = have;
+    }
+    return r;
+  }
+
   var adapter = {
     id: ID,
     title: "Ask the Data",
@@ -473,6 +534,11 @@
     },
 
     answer: function (q, parsed) {
+      _assume = [];
+      return withAssumptions(adapter._answerCore(q, parsed));
+    },
+
+    _answerCore: function (q, parsed) {
       if (!CD() || !SEM()) {
         return { ok: false, message: "The coverage layer has not loaded yet." };
       }
@@ -489,11 +555,7 @@
       var user = global.AUTH ? global.AUTH.getValidSessionUser() : null;
       var isLineManager = user && user.role === "Line Manager";
       if (isLineManager && !ctx.line && !ctx.dm && !ctx.specialty) {
-        var v = vocab();
-        if (v.lines && v.lines.length) {
-          ctx.line = v.lines[0];
-          ctx.bu = lineBU(ctx.line);
-        }
+        lmDefault(ctx);
       }
 
       var res;

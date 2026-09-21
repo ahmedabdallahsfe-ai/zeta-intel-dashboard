@@ -125,7 +125,7 @@ CHC_YTD_SHEET = 'CHC_YTD_PERFROMANCE'
 # None, and the ETL fails loud on "missing required column(s)" the moment
 # it reaches this source.
 Q3_XLSX      = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'Q3_SALES.xlsx')
-Q3_SHEET     = 'April-June'
+Q3_SHEET     = 'July-Sep'   # 2026-09-21: Ahmed re-exported Q3_SALES.xlsx; sheet renamed 'April-June' -> 'July-Sep', blank spacer row before header removed (read_source_header still handles both)
 
 # Shortage Target scenario override file (2026-08-26) -- Ahmed's own real
 # file, already present in ZETA SALES_2026\ before any placeholder of

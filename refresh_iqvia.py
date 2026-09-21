@@ -25,7 +25,7 @@ SHEET_NAME    = 'Egypt Combined Data'
 NEEDED_COLS   = ['ATC4','Corporation','Product','Period',
                  'LC Value','Standard Units Sales',
                  'Line','BU','DEFIND Market_1','DEFIND Market_2','Pack Size','Molecule',
-                 'standard dosage form']
+                 'standard dosage form', 'Item', 'Strength']
 
 def parse_period(s):
     if hasattr(s, 'strftime'):
@@ -69,6 +69,8 @@ corps_r, prods_r, periods_r, atc4s_r = [], [], [], []
 dm1s_r, dm2s_r, lines_r, bus_r, lcvs_r, sus_r = [], [], [], [], [], []
 molecules_r = []
 doses_r = []
+items_r = []
+strengths_r = []
 from collections import defaultdict as _dd
 _prod_su_by_pack = _dd(lambda: _dd(float))
 
@@ -88,6 +90,8 @@ for row in all_rows[1:]:
     dm2s_r.append(g('DEFIND Market_2') or '(none)')
     molecules_r.append(g('Molecule') or '(none)')
     doses_r.append(g('standard dosage form') or '(none)')
+    items_r.append(g('Item') or '(none)')
+    strengths_r.append(g('Strength') or '(none)')
     lines_r.append(g('Line') or '(none)'); bus_r.append(g('BU') or '(none)')
     lcvs_r.append(int(lcv)); sus_r.append(int(su))
     try:
@@ -123,7 +127,7 @@ BACKFILL_ATC4 = {
 if os.path.exists(BACKFILL_XLSX):
     print('\n[2b/4] Backfilling missing ATC4 history...', flush=True)
     from collections import Counter as _Counter
-    _prod_map = _dd(lambda: {'dm1': _Counter(), 'dm2': _Counter(), 'line': _Counter(), 'bu': _Counter(), 'mol': _Counter(), 'dose': _Counter()})
+    _prod_map = _dd(lambda: {'dm1': _Counter(), 'dm2': _Counter(), 'line': _Counter(), 'bu': _Counter(), 'mol': _Counter(), 'dose': _Counter(), 'item': _Counter(), 'strength': _Counter()})
     _existing_atc4_periods = set()
     for i in range(len(corps_r)):
         if atc4s_r[i] in BACKFILL_ATC4:
@@ -132,6 +136,7 @@ if os.path.exists(BACKFILL_XLSX):
             m['dm1'][dm1s_r[i]] += 1; m['dm2'][dm2s_r[i]] += 1
             m['line'][lines_r[i]] += 1; m['bu'][bus_r[i]] += 1
             m['mol'][molecules_r[i]] += 1; m['dose'][doses_r[i]] += 1
+            m['item'][items_r[i]] += 1; m['strength'][strengths_r[i]] += 1
     try:
         _bwb = CalamineWorkbook.from_path(BACKFILL_XLSX)
         _bws = _bwb.get_sheet_by_name(SHEET_NAME)
@@ -158,13 +163,16 @@ if os.path.exists(BACKFILL_XLSX):
                 dm1 = m['dm1'].most_common(1)[0][0]; dm2 = m['dm2'].most_common(1)[0][0]
                 line = m['line'].most_common(1)[0][0]; bu = m['bu'].most_common(1)[0][0]
                 mol = m['mol'].most_common(1)[0][0]; dose = m['dose'].most_common(1)[0][0]
+                item = m['item'].most_common(1)[0][0] if m['item'] else '(none)'
+                strength = m['strength'].most_common(1)[0][0] if m['strength'] else '(none)'
             else:
-                dm1, dm2, line, bu, mol, dose = 'OTHER MARKET', 'OTHER MARKET', 'Other Markets', 'Other Markets', '(none)', '(none)'
+                dm1, dm2, line, bu, mol, dose, item, strength = 'OTHER MARKET', 'OTHER MARKET', 'Other Markets', 'Other Markets', '(none)', '(none)', '(none)', '(none)'
                 _unmapped_rows += 1
             corps_r.append(corp); prods_r.append(prod)
             periods_r.append(period); atc4s_r.append(atc4)
             dm1s_r.append(dm1); dm2s_r.append(dm2)
             molecules_r.append(mol); doses_r.append(dose)
+            items_r.append(item); strengths_r.append(strength)
             lines_r.append(line); bus_r.append(bu)
             lcvs_r.append(int(lcv)); sus_r.append(int(su))
             _added += 1; _added_periods.add(period)
@@ -184,8 +192,10 @@ line_codes, lines_list   = build_lookup(lines_r)
 bu_codes,   bus_list     = build_lookup(bu_raw_list := bus_r) # reference
 mol_codes,  molecules_list = build_lookup(molecules_r)
 dose_codes, doses_list    = build_lookup(doses_r)
+item_codes, items_list    = build_lookup(items_r)
+strength_codes, strengths_list = build_lookup(strengths_r)
 
-log(f'Corps:{len(corps_list)}  Prods:{len(prods_list)}  Periods:{len(periods_list)}  ATC4:{len(atc4s_list)}')
+log(f'Corps:{len(corps_list)}  Prods:{len(prods_list)}  Periods:{len(periods_list)}  ATC4:{len(atc4s_list)}  Items:{len(items_list)}  Strengths:{len(strengths_list)}')
 
 # ── 3. Build Flat Array ─────────────────────────────────────────────────────
 print('\n[3/4] Building compressed flat array...', flush=True)
@@ -194,7 +204,8 @@ flat = []
 for i in range(n):
     flat += [corp_codes[i], prod_codes[i], per_codes[i], atc4_codes[i],
              dm1_codes[i],  dm2_codes[i],  lcvs_r[i],    sus_r[i],
-             line_codes[i], bu_codes[i],   mol_codes[i], dose_codes[i]]
+             line_codes[i], bu_codes[i],   mol_codes[i], dose_codes[i],
+             item_codes[i], strength_codes[i]]
 
 flat_json  = json.dumps(flat, separators=(',',':'))
 compressed = gzip.compress(flat_json.encode('utf-8'), compresslevel=9)
@@ -205,7 +216,7 @@ lookups = {
     'corps': corps_list, 'prods': prods_list, 'periods': periods_list,
     'atc4s': atc4s_list, 'dm1s': dm1s_list, 'dm2s': dm2s_list,
     'lines': lines_list, 'bus': bus_list, 'molecules': molecules_list,
-    'doses': doses_list
+    'doses': doses_list, 'items': items_list, 'strengths': strengths_list
 }
 
 # Pack sizes
