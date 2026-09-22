@@ -8040,7 +8040,7 @@ function initFilters() {
   }
   if(STATE.fRefMonth===null) STATE.fRefMonth = (LOOKUPS.periods||[]).length-1;
   // Populate all dropdown lists
-  var dims = ['corp','dm1','atc4','dm2','bu','line','molecule','product','dosage'];
+  var dims = ['corp','dm1','atc4','dm2','bu','line','molecule','product','dosage','item','strength'];
   for(var d=0;d<dims.length;d++) buildDropdownList(dims[d]);
   // Set timerange select to STATE value
   var tr = document.getElementById('f-timerange');
@@ -8075,7 +8075,7 @@ function msCheckChange(dim, cb) {
 }
 
 function closeAllDropdowns() {
-  ['corp','dm1','atc4','dm2','bu','line','molecule','product','dosage'].forEach(function(d){
+  ['corp','dm1','atc4','dm2','bu','line','molecule','product','dosage','item','strength'].forEach(function(d){
     var el = document.getElementById('f-'+d+'-dd');
     if(el) el.style.display = 'none';
   });
@@ -8166,10 +8166,11 @@ function rerenderCurrent() {
 function clearFilters() {
   STATE.fCorpSel.clear(); STATE.fDm1Sel.clear(); STATE.fAtc4Sel.clear();
   STATE.fDm2Sel.clear(); STATE.fBuSel.clear(); STATE.fLineSel.clear(); STATE.fMoleculeSel.clear(); STATE.fProdSel.clear(); STATE.fDoseSel.clear();
+  STATE.fItemSel.clear(); STATE.fItem = -1; STATE.fStrengthSel.clear(); STATE.fStrength = -1;
   STATE.timeRange='mat'; STATE.fRefMonth=(LOOKUPS.periods||[]).length-1;
   CASCADE.dm1s=null; CASCADE.dm2s=null; CASCADE.atc4s=null; CASCADE.lines=null;
   rebuildFlatForOtherMarket();
-  var dims=['corp','dm1','atc4','dm2','bu','line','molecule','product','dosage'];
+  var dims=['corp','dm1','atc4','dm2','bu','line','molecule','product','dosage','item','strength'];
   for(var i=0;i<dims.length;i++){
     document.querySelectorAll('.ms-check-'+dims[i]).forEach(function(cb){cb.checked=false;});
     updateMsLabel(dims[i]);
@@ -8188,7 +8189,7 @@ function clearFilters() {
 // Close dropdowns when clicking outside
 document.addEventListener('click', function(e) {
   if(!e.target.closest('.ms-wrap') && !e.target.closest('.ms-dd')) {
-    var dims=['corp','dm1','atc4','dm2','bu','line','molecule','product','dosage'];
+    var dims=['corp','dm1','atc4','dm2','bu','line','molecule','product','dosage','item','strength'];
     for(var i=0;i<dims.length;i++){
       var dd=document.getElementById('f-'+dims[i]+'-dd');
       if(dd) dd.style.display='none';
@@ -8210,7 +8211,7 @@ function toggleMobileFilters() {
 
 function updateFilterBadge() {
   var sets = [STATE.fCorpSel, STATE.fDm1Sel, STATE.fAtc4Sel,
-              STATE.fDm2Sel, STATE.fBuSel, STATE.fLineSel, STATE.fMoleculeSel, STATE.fProdSel, STATE.fDoseSel];
+              STATE.fDm2Sel, STATE.fBuSel, STATE.fLineSel, STATE.fMoleculeSel, STATE.fProdSel, STATE.fDoseSel, STATE.fItemSel, STATE.fStrengthSel];
   var count = sets.filter(function(s){ return s && s.size > 0; }).length;
   // Mobile button badge
   var badge  = document.getElementById('filter-active-badge');
