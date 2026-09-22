@@ -1,0 +1,581 @@
+@echo off
+setlocal enabledelayedexpansion
+REM ==========================================================================
+REM refresh.bat
+REM Unified double-click entry point for the ZETA Commercial Excellence Dashboard.
+REM   1) Runs refresh.py (SFE & Coverage aggregation)
+REM   2) Runs refresh_iqvia.py (IQVIA Market Share aggregation)
+REM   3) Commits and pushes all data caches and code changes to GitHub Pages
+REM   4) Opens dashboard.html in Google Chrome
+REM ==========================================================================
+
+cd /d "%~dp0"
+
+echo.
+echo ============================================================
+echo   Zeta Commercial Excellence Dashboard - Unified Refresh
+echo ============================================================
+echo.
+
+REM --- locate a Python interpreter -----------------------------------------
+where python >nul 2>nul
+if errorlevel 1 (
+    where py >nul 2>nul
+    if errorlevel 1 (
+        echo [ERROR] Python was not found on PATH.
+        echo Install Python 3.10+ from https://www.python.org/downloads/
+        echo and make sure "Add python.exe to PATH" is checked during setup.
+        echo.
+        pause
+        exit /b 1
+    ) else (
+        set "PYTHON_CMD=py"
+    )
+) else (
+    set "PYTHON_CMD=python"
+)
+
+REM --- ensure dependencies are installed ------------------------------------
+echo Checking dependencies...
+%PYTHON_CMD% -c "import pandas, openpyxl, python_calamine" >nul 2>nul
+if errorlevel 1 (
+    echo Installing required packages from requirements.txt ...
+    %PYTHON_CMD% -m pip install -r requirements.txt --quiet --disable-pip-version-check
+    if errorlevel 1 (
+        echo [ERROR] Failed to install dependencies. Check your internet connection.
+        pause
+        exit /b 1
+    )
+)
+
+REM --- run the SFE / Coverage Aggregation ----------------------------------
+echo Reading SFE ^& Coverage workbooks...
+echo.
+%PYTHON_CMD% refresh.py
+set "REFRESH_EXIT=%ERRORLEVEL%"
+
+if not "%REFRESH_EXIT%"=="0" (
+    echo ============================================================
+    echo   [ERROR] SFE Refresh FAILED - see logs\refresh.log
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+REM --- run the Sales Aggregation --------------------------------------------
+REM Rewritten 2026-08-12 (Ahmed: "I made changes and it doesn't update" --
+REM traced to this step, not to anything Ahmed did wrong).
+REM
+REM refresh_sales.py was built chunked/resumable for a 45-second sandbox
+REM cap that does not exist on this machine. Its own design means ONE call
+REM often only finishes part of the job (e.g. just the "main" source) and
+REM still exits 0 -- a real success, just not a FINISHED one. The old
+REM version of this section called it exactly once and trusted that exit
+REM code, so most refreshes silently left cache/sales.data.js on stale
+REM data while the rest of the pipeline (Expense, IQVIA, Customer
+REM Analytics...) carried on and the whole run still ended in
+REM "SUCCESSFULLY PUSHED". Nothing on screen said Sales hadn't actually
+REM finished. This is the single biggest source of "I updated Excel and
+REM the dashboard didn't change" reports to date.
+REM
+REM Fix: loop, calling refresh_sales.py again and again, until its own
+REM output proves the cache was actually written ("Sales Aggregation
+REM Complete!" -- printed only after cache/sales.json and
+REM cache/sales.data.js are both safely on disk, see that script's tail).
+REM A capped loop count guards against looping forever if something is
+REM genuinely broken.
+
+REM A stale checkpoint from an earlier interrupted run can make the next
+REM run silently resume against the WRONG rows if the source file changed
+REM since (exactly what happened 2026-08-11/12). The checkpoint only ever
+REM existed to save time under the sandbox's cap -- on this machine there
+REM is no reason to ever risk it. Always start clean.
+if exist "%TEMP%\zeta_sales_agg_checkpoint.db"     del /f /q "%TEMP%\zeta_sales_agg_checkpoint.db"     >nul 2>nul
+if exist "%TEMP%\zeta_sales_agg_checkpoint.db-wal" del /f /q "%TEMP%\zeta_sales_agg_checkpoint.db-wal" >nul 2>nul
+if exist "%TEMP%\zeta_sales_agg_checkpoint.db-shm" del /f /q "%TEMP%\zeta_sales_agg_checkpoint.db-shm" >nul 2>nul
+if exist "%TEMP%\zeta_sales_recon_checkpoint.pkl"  del /f /q "%TEMP%\zeta_sales_recon_checkpoint.pkl"  >nul 2>nul
+
+REM A file still open in Excel can fail to read cleanly or read a
+REM half-saved state. This is advisory only (the ~$ file can be stale) --
+REM it warns and waits for a keypress rather than blocking the run.
+if exist "~$TOTAL_SALES_2026.xlsx" (
+    echo.
+    echo ============================================================
+    echo   TOTAL_SALES_2026.xlsx looks like it may still be open in Excel.
+    echo   Please close Excel completely, then press any key to continue.
+    echo   (If it is not actually open, just press a key to continue.)
+    echo ============================================================
+    pause
+)
+
+echo.
+echo Reading Sales workbook (large files need several passes -- this is normal, just wait)...
+set "SALES_PASS=0"
+set "SALES_DONE=0"
+
+:sales_pass
+set /a SALES_PASS+=1
+if !SALES_PASS! GTR 20 (
+    echo ============================================================
+    echo   [ERROR] Sales Refresh did not finish after 20 passes.
+    echo   Something is likely wrong with the source file or the machine
+    echo   ran out of time. Run refresh.bat again -- it picks up cleanly.
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+echo.
+echo   -- Sales pass !SALES_PASS! --
+%PYTHON_CMD% refresh_sales.py > "%TEMP%\zeta_sales_pass_output.txt" 2>&1
+set "SALES_EXIT=!ERRORLEVEL!"
+type "%TEMP%\zeta_sales_pass_output.txt"
+
+if not "!SALES_EXIT!"=="0" (
+    echo ============================================================
+    echo   [ERROR] Sales Refresh FAILED - see the output above.
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Matched without the trailing "!" from the script's own print text --
+REM this file runs under enabledelayedexpansion, where "!" is a special
+REM character; dropping it avoids relying on an unpaired "!" being passed
+REM through literally instead of misparsed.
+findstr /C:"Sales Aggregation Complete" "%TEMP%\zeta_sales_pass_output.txt" >nul
+if errorlevel 1 (
+    goto sales_pass
+) else (
+    set "SALES_DONE=1"
+)
+
+if "!SALES_DONE!"=="0" (
+    echo ============================================================
+    echo   [ERROR] Sales Refresh did not complete.
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+echo.
+echo   Sales cache fully rebuilt after !SALES_PASS! pass(es).
+
+REM --- run the Expense vs Sales Aggregation --------------------------------
+echo.
+echo Reading Expense workbook and building cache...
+%PYTHON_CMD% etl\build_expense_foundation.py
+%PYTHON_CMD% etl\build_expense_cache.py
+set "EXPENSE_EXIT=%ERRORLEVEL%"
+
+if not "%EXPENSE_EXIT%"=="0" (
+    echo ============================================================
+    echo   [ERROR] Expense Refresh FAILED
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+REM --- run the IQVIA Market Share Aggregation ------------------------------
+REM Added 2026-07-28: this step was documented in the header comment above
+REM but was never actually wired in -- IQVIA refreshes had to be run and
+REM pushed by hand every time. Reads iqvia_source\IQVIA_SOURCE.xlsx (copy it
+REM in from wherever IQVIA exports the latest workbook before running this).
+echo.
+echo Reading IQVIA workbook...
+%PYTHON_CMD% refresh_iqvia.py
+set "IQVIA_EXIT=%ERRORLEVEL%"
+
+if not "%IQVIA_EXIT%"=="0" (
+    echo ============================================================
+    echo   [ERROR] IQVIA Refresh FAILED
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+REM --- run the Customer Analytics Aggregation ------------------------------
+REM Added 2026-08-03: this script's output (cache/customer_analytics.json /
+REM .data.js) was already being staged and committed below, but the script
+REM that GENERATES those files was never actually called here -- every
+REM refresh.bat run since 2026-07-28 silently kept committing a stale
+REM Customer Health cache. This is why Line-scoping (Position/SKU columns
+REM in the Retail/Chain Pharmacy Customer Health drill) doesn't show up yet
+REM even after other refreshes: the cache simply never got rebuilt. Reads
+REM TOTAL_SALES_2026.xlsx directly (same source as refresh_sales.py) --
+REM see etl\build_customer_analytics_cache.py's own header for why it's a
+REM separate script instead of folded into refresh_sales.py.
+echo.
+echo Reading Customer Analytics workbook...
+%PYTHON_CMD% etl\build_customer_analytics_cache.py
+set "CUSTANALYTICS_EXIT=%ERRORLEVEL%"
+
+if not "%CUSTANALYTICS_EXIT%"=="0" (
+    echo ============================================================
+    echo   [ERROR] Customer Analytics Refresh FAILED
+    echo ============================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+REM --- run the Coaching Intelligence Aggregation ---------------------------
+REM Added 2026-08-31. Reads "Visits Details S1 DM.xlsx" (joint/coached field
+REM visit log, Feb1-Jun30 2026 S1) joined against Database Shortcut.xlsx for
+REM active-team rosters and name resolution, and writes cache/coaching.data.js
+REM -- the data layer behind the new Coaching Intelligence tab (js/coaching.js).
+REM
+REM NOT FATAL IF IT FAILS. Same reasoning as Market Intelligence below: if
+REM "Visits Details S1 DM.xlsx" or "Database Shortcut.xlsx" is missing or
+REM moved, blocking the whole refresh -- including the git push of everything
+REM already rebuilt above -- over this one workspace would be the wrong
+REM trade. A warning is printed instead and the Coaching tab keeps serving
+REM its previous cache.
+echo.
+echo Reading Coaching workbooks...
+%PYTHON_CMD% etl\build_coaching_cache.py
+set "COACHING_EXIT=%ERRORLEVEL%"
+
+if not "%COACHING_EXIT%"=="0" (
+    echo.
+    echo   [WARNING] Coaching Intelligence refresh did not complete.
+    echo   The Coaching tab will keep serving its previous cache. Check that
+    echo   "Visits Details S1 DM.xlsx" and "Database Shortcut.xlsx" are
+    echo   present in the project root.
+    echo.
+)
+
+REM --- run the Total Market Intelligence Aggregation ----------------------
+REM Added 2026-08-06. Reads "IMS 2022 to April 2026.xlsx" (the full IMS
+REM competitor panel, 2022-2026) and writes cache/market_intel.data.js --
+REM the data layer behind the Total Market Intelligence workspace
+REM (js/market-intel.js). ~6 seconds; it aggregates 62,065 annual rows into
+REM 62,010 dimensional cells, so it is far quicker than the sales/customer
+REM steps above.
+REM
+REM NOT FATAL IF IT FAILS. Unlike Sales, this workbook is a periodic IMS
+REM delivery that may simply not be present on a given machine. If the file
+REM is missing the script exits non-zero, and blocking the whole refresh --
+REM including the git push of everything already rebuilt above -- over an
+REM optional dataset would be the wrong trade. A warning is printed instead.
+echo.
+echo Reading Market Intelligence workbook...
+%PYTHON_CMD% etl\build_market_intel_cache.py
+set "MARKETINTEL_EXIT=%ERRORLEVEL%"
+
+if not "%MARKETINTEL_EXIT%"=="0" (
+    echo.
+    echo   [WARNING] Market Intelligence refresh did not complete.
+    echo   The Total Market Intelligence page will keep serving its
+    echo   previous cache. Check that "IMS 2022 to April 2026.xlsx"
+    echo   is present in the project root.
+    echo.
+)
+
+REM --- run the Market Intelligence Feed (external news) ETL ---------------
+REM Added 2026-09-12. Runs etl\build_news_cache.py, which internally
+REM fetches every enabled source in config\news_sources.yaml plus the
+REM PubMed dynamic queries (etl\fetch_news.py), cleans/dedupes, classifies
+REM and scores each article, and writes cache\news_latest.data.js (live
+REM feed, <=200 articles) and cache\news_archive.data.js (older/undated,
+REM <=500 articles) -- the data layer behind the Market Intelligence Feed
+REM tab (js\news-feed.js). This step was previously NOT part of refresh.bat
+REM at all -- it had to be run by hand, with nothing in this script
+REM reminding anyone that it existed, so the feed could go stale
+REM indefinitely with no signal. Same class of gap the Control Panel's
+REM period-alignment check exists to catch for the other caches.
+REM
+REM NOT FATAL IF IT FAILS. It makes 10+ live HTTP requests (RSS feeds,
+REM openFDA, 7 PubMed queries); the whole network being unreachable on a
+REM given run must not block the git push of everything already rebuilt
+REM above. Each individual source failing is already handled as non-fatal
+REM inside the ETL itself (see etl\fetch_news.py's per-source health
+REM records) -- this outer check only catches the script failing to run
+REM at all (e.g. a missing config file or dependency).
+echo.
+echo Fetching Market Intelligence Feed (external news, regulatory, PubMed)...
+%PYTHON_CMD% etl\build_news_cache.py
+set "NEWSFEED_EXIT=%ERRORLEVEL%"
+
+if not "%NEWSFEED_EXIT%"=="0" (
+    echo.
+    echo   [WARNING] Market Intelligence Feed refresh did not complete.
+    echo   The feed will keep serving its previous cache. Check
+    echo   logs\news_refresh.log and config\news_sources.yaml.
+    echo.
+)
+
+REM --- run the Regulatory & Egypt Registration Intelligence ETL -----------
+REM Added 2026-09-17 (fixes refresh_bat_audit_2026-09-14.md Finding #1 --
+REM HIGH severity). Runs etl\build_regulatory_cache.py, which internally
+REM calls fetch_regulatory.py (FDA Novel Drug Approvals + EMA Medicines
+REM Dataset) and score_regulatory.py, and writes
+REM cache\regulatory_pipeline.data.js + cache\egypt_registration.data.js --
+REM the data layer behind the "Regulatory & Egypt Registration" tab
+REM (js\regulatory-pipeline.js). This tab and its ETL were built and QA'd
+REM 2026-09-10 (Claude outputs\QA_REPORT_regulatory_module_2026-09-10.md)
+REM but were never wired into this script, so the cache silently went
+REM stale with nothing here to catch or signal it -- exactly the same gap
+REM shape the Market Intelligence Feed step above already documents fixing
+REM (and IQVIA/Customer Analytics before that). Placed right after Market
+REM Intelligence Feed since both are external-source, best-effort pulls.
+REM
+REM NOT FATAL IF IT FAILS. It makes live HTTP requests (FDA, EMA); the
+REM whole network being unreachable, or either source being down, on a
+REM given run must not block the git push of everything already rebuilt
+REM above. Per-source failures are already handled as non-fatal inside
+REM the ETL itself (see logs\regulatory_refresh.log) -- this outer check
+REM only catches the script failing to run at all.
+echo.
+echo Fetching Regulatory ^& Egypt Registration Intelligence (FDA, EMA)...
+%PYTHON_CMD% etl\build_regulatory_cache.py
+set "REGULATORY_EXIT=%ERRORLEVEL%"
+
+if not "%REGULATORY_EXIT%"=="0" (
+    echo.
+    echo   [WARNING] Regulatory ^& Egypt Registration refresh did not complete.
+    echo   The tab will keep serving its previous cache. Check
+    echo   logs\regulatory_refresh.log and config\regulatory_pipeline_settings.yaml.
+    echo.
+)
+
+REM --- run the To-Market vs In-Market (TMS/IMS) Aggregation ----------------
+REM Revised 2026-07-31: this workspace is embedded as-is via iframe (see
+REM js/app.js's renderTomarketTab()) rather than rebuilt into this app's
+REM own cache format, so refresh here just calls the original dashboard's
+REM own refresh script -- "TO MARKET_IN MARKET\refresh_dashboard.py" --
+REM which reads "TMS VS IMS.xlsx" and rewrites that folder's index.html
+REM in place. Runs WITHOUT --push (that flag pushes to two separate,
+REM unrelated GitHub repos this platform's refresh has nothing to do
+REM with -- see that script's own header comment); the regenerated
+REM index.html is committed by THIS repo's own push step below instead.
+if exist "TO MARKET_IN MARKET\TMS VS IMS.xlsx" (
+    echo.
+    echo Reading To-Market vs In-Market workbook...
+    %PYTHON_CMD% "TO MARKET_IN MARKET\refresh_dashboard.py"
+    REM BUG FIX (2026-08-03, found via Ahmed's screenshot: script printed
+    REM "Done!" -- fully succeeded -- yet refresh.bat still reported
+    REM "[ERROR] ... FAILED" and stopped BEFORE ever reaching the git
+    REM commit/push section below. Root cause: this whole block is one
+    REM parenthesized `if exist (...)` unit, so %TMSIMS_EXIT% here was
+    REM being expanded at PARSE time (before the `set` on the line above
+    REM ever ran), not at execution time -- it read as empty, and
+    REM `if not ""=="0"` is always true. So this step failed on EVERY
+    REM run, silently blocking every push refresh.bat ever attempted,
+    REM regardless of whether the Python script itself succeeded. Fixed
+    REM by using delayed expansion (!TMSIMS_EXIT!) instead of %...% --
+    REM setlocal enabledelayedexpansion is already active at the top of
+    REM this file, this block just wasn't using it.
+    set "TMSIMS_EXIT=%ERRORLEVEL%"
+    if not "!TMSIMS_EXIT!"=="0" (
+        echo ============================================================
+        echo   [ERROR] To-Market vs In-Market Refresh FAILED
+        echo ============================================================
+        echo.
+        pause
+        exit /b 1
+    )
+) else (
+    echo.
+    echo [SKIP] "TO MARKET_IN MARKET\TMS VS IMS.xlsx" not found -- skipping To-Market vs In-Market refresh.
+)
+
+REM --- record what was built, from what, and when -------------------------
+REM Added 2026-08-07. MUST RUN LAST: it stats the caches, so anything built
+REM after it will not be reflected until the next refresh.
+REM
+REM The dashboard is a static site -- the browser cannot stat a file on disk,
+REM so it has no way to know that a source workbook was updated AFTER the
+REM cache was built. Only this machine can see both sides. It records them
+REM into cache/build_manifest.data.js, which the Control Panel reads.
+REM
+REM Non-fatal by design: a missing manifest degrades the Control Panel to
+REM live-cache inspection, which is still useful. Losing the whole push over
+REM a reporting artefact would be the wrong trade.
+echo.
+echo Recording build manifest...
+%PYTHON_CMD% etl\build_manifest.py
+if errorlevel 1 (
+    echo   [WARNING] Build manifest not written. The Control Panel will fall
+    echo   back to inspecting the caches loaded in the browser.
+)
+
+echo.
+echo ============================================================
+echo   Refresh complete - pushing to GitHub...
+echo ============================================================
+echo.
+
+set "GIT_CMD=git"
+where git >nul 2>nul
+if errorlevel 1 (
+    if exist "C:\\Program Files\\Git\\cmd\\git.exe" (
+        set "GIT_CMD=C:\\Program Files\\Git\\cmd\\git.exe"
+    ) else if exist "C:\\Program Files (x86)\\Git\\cmd\\git.exe" (
+        set "GIT_CMD=C:\\Program Files (x86)\\Git\\cmd\\git.exe"
+    ) else (
+        set "GIT_CMD="
+    )
+)
+
+if "%GIT_CMD%"=="" (
+    echo [WARNING] Git is not installed or not on PATH.
+    echo Skipping automatic GitHub push. You can commit and push the 
+    echo files in cache/ using GitHub Desktop or manually.
+) else (
+    REM --- clear stale git locks ------------------------------------------
+    REM Added 2026-08-06. Git writes .git\index.lock while it works and
+    REM deletes it afterwards. If a git command is interrupted -- Ctrl+C, a
+    REM crash, or a tool reading the repo over a mounted path that refuses
+    REM the delete -- the lock survives, and every `git add` below then
+    REM fails with "Unable to create index.lock: File exists".
+    REM
+    REM This section only ever checked the exit code of `git push`, so a
+    REM failed add and commit scrolled past in silence: caches rebuilt,
+    REM Chrome opened, "SUCCESSFULLY PUSHED" never printed but nothing
+    REM looked broken either, and nothing reached GitHub. That is exactly
+    REM what happened on 2026-08-06 -- a full ETL cycle was spent before
+    REM anyone noticed the site had not moved.
+    REM
+    REM Deleting the lock is only safe when no git process is running;
+    REM removing a live lock is how an index gets corrupted. So check first.
+    tasklist /FI "IMAGENAME eq git.exe" 2>nul | find /I "git.exe" >nul
+    if errorlevel 1 (
+        if exist ".git\index.lock" (
+            echo [FIX] Removing a stale .git\index.lock left by an interrupted git command.
+            del /f /q ".git\index.lock" >nul 2>nul
+        )
+        if exist ".git\HEAD.lock" (
+            echo [FIX] Removing a stale .git\HEAD.lock.
+            del /f /q ".git\HEAD.lock" >nul 2>nul
+        )
+    ) else (
+        echo [WARNING] A git process is already running. Not touching the lock files.
+    )
+
+    echo Staging and committing updated data files...
+    "%GIT_CMD%" add -f cache/metadata.data.js
+    "%GIT_CMD%" add -f cache/dashboard.data.js
+    "%GIT_CMD%" add -f cache/teamkpis.data.js
+    "%GIT_CMD%" add -f cache/records.data.js
+    "%GIT_CMD%" add -f cache/organogram.data.js
+    "%GIT_CMD%" add -f cache/sales.json
+    "%GIT_CMD%" add -f cache/sales.data.js
+    "%GIT_CMD%" add -f cache/iqvia.json
+    "%GIT_CMD%" add -f cache/iqvia.data.js
+    "%GIT_CMD%" add -f cache/coaching.data.js
+    REM customer_analytics.json is 140MB+ (exceeds GitHub 100MB limit)
+    REM -- only the compressed .data.js version is pushed
+    "%GIT_CMD%" add -f cache/customer_analytics.data.js
+    REM market_intel: -f is REQUIRED. .gitignore line 2 is `cache/`, and the
+    REM `git add -A` further below does NOT override an ignore rule -- it
+    REM only picks up files git already tracks or that aren't ignored. Every
+    REM other cache file above is on the site because it was force-added
+    REM once; this one is newer, so without this line the page deploys and
+    REM then reports "Market Intelligence cache not found". The .json twin
+    REM (4.3MB, uncompressed) is deliberately NOT pushed -- the browser only
+    REM ever reads the gzipped .data.js.
+    "%GIT_CMD%" add -f cache/market_intel.data.js
+    REM Market Intelligence Feed (external news): same -f reason as every
+    REM cache above -- .gitignore line 2 is `cache/`. news_archive.data.js
+    REM is the older/undated overflow the live feed doesn't display by
+    REM default; both are force-added so a rebuild here actually reaches
+    REM the live site instead of silently deploying with the old feed.
+    "%GIT_CMD%" add -f cache/news_latest.data.js
+    "%GIT_CMD%" add -f cache/news_archive.data.js
+    REM Regulatory & Egypt Registration: same -f reason as every cache
+    REM above -- .gitignore line 2 is `cache/`. Added 2026-09-17 alongside
+    REM the ETL step above (refresh_bat_audit_2026-09-14.md Finding #1) --
+    REM without this, a successful rebuild would still never reach the
+    REM live site. Only the .data.js (gzipped) versions are pushed, same
+    REM pattern as market_intel/ims_rx -- the .json twins are local-only.
+    "%GIT_CMD%" add -f cache/regulatory_pipeline.data.js
+    "%GIT_CMD%" add -f cache/egypt_registration.data.js
+    REM Same -f reason as every cache above: .gitignore line 2 is `cache/`,
+    REM and this file is new so `git add -A` would skip it entirely.
+    "%GIT_CMD%" add -f cache/build_manifest.data.js
+    REM Force-add the expense cache file since cache/ is gitignored.
+    "%GIT_CMD%" add -f cache/expense_budget.data.js
+    "%GIT_CMD%" add "TO MARKET_IN MARKET/index.html"
+    "%GIT_CMD%" add assets/*.js
+    "%GIT_CMD%" add js/*.js
+    "%GIT_CMD%" add css/*.css
+    "%GIT_CMD%" add dashboard.html
+    REM Added 2026-08-03 ("1 refresh bat to push everything"): the explicit
+    REM adds above only ever covered specific cache/js/css/html files -- any
+    REM change to refresh.py, refresh_sales.py, refresh_iqvia.py, this batch
+    REM file itself, or the etl/ scripts silently never reached GitHub even
+    REM though this step ran git commit + push regardless. `git add -A`
+    REM picks up everything else (respecting .gitignore, so cache/*.json,
+    REM logs/, *.xlsx, and the credential files added to .gitignore this
+    REM same day -- .github_token, test_credentials.json, Sync_Report.txt --
+    REM all stay excluded exactly as before).
+    "%GIT_CMD%" add -A
+    REM Staging failure must STOP here. Continuing to commit and push after a
+    REM failed add produces the worst outcome available: a run that prints
+    REM "SUCCESSFULLY PUSHED" while the actual changes sit unstaged on disk.
+    if errorlevel 1 (
+        echo.
+        echo ============================================================
+        echo   [ERROR] git add FAILED - nothing has been committed.
+        echo   If the message above mentions index.lock, close any editor,
+        echo   git GUI or antivirus scan touching this folder, then run
+        echo   push_now.bat.
+        echo ============================================================
+        echo.
+        pause
+        exit /b 1
+    )
+
+    "%GIT_CMD%" commit -m "Auto-refresh dashboard data"
+    echo Pushing to GitHub repository...
+    "%GIT_CMD%" push origin main
+    if errorlevel 1 (
+        echo [WARNING] Git push failed. Verify your network or credentials.
+    )
+
+    REM VERIFY, don't assume. `git push` exiting 0 is not proof the branch
+    REM moved -- it exits 0 when there was nothing to push, which is exactly
+    REM what a silently-failed commit looks like. Comparing local HEAD to the
+    REM remote is the only statement worth printing.
+    for /f %%i in ('"%GIT_CMD%" rev-parse HEAD') do set "LOCAL_SHA=%%i"
+    for /f %%i in ('"%GIT_CMD%" rev-parse origin/main') do set "REMOTE_SHA=%%i"
+    if "!LOCAL_SHA!"=="!REMOTE_SHA!" (
+        echo.
+        echo ============================================================
+        echo   SUCCESSFULLY PUSHED TO GITHUB PAGES!
+        echo   commit !LOCAL_SHA:~0,7!
+        echo   View your online dashboard at:
+        echo   https://ahmedabdallahsfe-ai.github.io/zeta-intel-dashboard/dashboard.html
+        echo.
+        echo   Pages takes 1-2 minutes, then hard-refresh with Ctrl+Shift+R.
+        echo ============================================================
+        echo.
+    ) else (
+        echo.
+        echo ============================================================
+        echo   [ERROR] The site was NOT updated.
+        echo   local  !LOCAL_SHA!
+        echo   remote !REMOTE_SHA!
+        echo   Run push_now.bat to retry.
+        echo ============================================================
+        echo.
+        pause
+    )
+)
+
+REM --- open the dashboard in Chrome (fallback: default browser) -----------
+set "DASHBOARD_PATH=%~dp0dashboard.html"
+
+start "" chrome "%DASHBOARD_PATH%" 2>nul
+if errorlevel 1 (
+    start "" "%DASHBOARD_PATH%"
+)
+
+exit /b 0

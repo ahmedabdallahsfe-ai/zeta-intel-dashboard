@@ -142,7 +142,22 @@ if os.path.exists(BACKFILL_XLSX):
         _bws = _bwb.get_sheet_by_name(SHEET_NAME)
         _brows = _bws.to_python(skip_empty_area=False)
         _bheader = [str(c).strip() if c else '' for c in _brows[0]]
-        _bcol = {n: _bheader.index(n) if n in _bheader else -1 for n in ['ATC4','Corporation','Product','Period','LC Value','Units']}
+        _bcol = {n: _bheader.index(n) if n in _bheader else -1 for n in ['ATC4','Corporation','Product','Period','LC Value','Units','Pack','Strength','NFC3']}
+        # 2026-09-22: reference lookups from IQVIA_SOURCE.xlsx itself, used to fill
+        # Item / Dosage Form / Strength / Molecule for backfill products that have
+        # no match in the master (previously all '(none)'). Same rules the master uses:
+        # Item = Product + Pack (no separator); Dosage Form = NFC3_Form_Map[NFC3];
+        # Molecule = Molecule sheet by Product.
+        _nfc3_map, _mol_map = {}, {}
+        try:
+            for r in wb.get_sheet_by_name('NFC3_Form_Map').to_python()[1:]:
+                if r and r[0] and len(r) > 2 and r[2]: _nfc3_map[str(r[0]).strip()] = str(r[2]).strip()
+        except Exception as _e: log(f'WARNING: NFC3_Form_Map not loaded ({_e})')
+        try:
+            for r in wb.get_sheet_by_name('Molecule').to_python()[1:]:
+                if r and r[0] and len(r) > 1 and r[1]: _mol_map.setdefault(str(r[0]).strip(), str(r[1]).strip())
+        except Exception as _e: log(f'WARNING: Molecule sheet not loaded ({_e})')
+        _ref_filled = 0
         def _bg(row, n):
             c = _bcol[n]; return str(row[c]).strip() if c >= 0 and len(row) > c and row[c] is not None else ''
         _added, _added_periods, _unmapped_rows = 0, set(), 0
@@ -168,6 +183,12 @@ if os.path.exists(BACKFILL_XLSX):
             else:
                 dm1, dm2, line, bu, mol, dose, item, strength = 'OTHER MARKET', 'OTHER MARKET', 'Other Markets', 'Other Markets', '(none)', '(none)', '(none)', '(none)'
                 _unmapped_rows += 1
+                _pack = _bg(row, 'Pack')
+                if _pack: item = prod + _pack
+                strength = _bg(row, 'Strength') or '(none)'
+                dose = _nfc3_map.get(_bg(row, 'NFC3'), '(none)')
+                mol = _mol_map.get(prod, '(none)')
+                if item != '(none)' and dose != '(none)': _ref_filled += 1
             corps_r.append(corp); prods_r.append(prod)
             periods_r.append(period); atc4s_r.append(atc4)
             dm1s_r.append(dm1); dm2s_r.append(dm2)
@@ -176,7 +197,7 @@ if os.path.exists(BACKFILL_XLSX):
             lines_r.append(line); bus_r.append(bu)
             lcvs_r.append(int(lcv)); sus_r.append(int(su))
             _added += 1; _added_periods.add(period)
-        log(f'Backfilled {_added:,} rows across {len(_added_periods)} periods for {len(BACKFILL_ATC4)} ATC4 markets ({_unmapped_rows:,} rows used default OTHER MARKET/(none) mapping, no product match)')
+        log(f'Backfilled {_added:,} rows across {len(_added_periods)} periods for {len(BACKFILL_ATC4)} ATC4 markets ({_unmapped_rows:,} rows used default OTHER MARKET/(none) mapping, no product match; {_ref_filled:,} of those got Item/Dosage Form from the combined report Pack/NFC3)')
     except Exception as e:
         log(f'WARNING: ATC4 backfill skipped ({e})')
 else:
@@ -337,7 +358,7 @@ try:
     latest_ti = NP - 1
     prior_ti  = NP - 2
     zeta_idx  = corps_list.index('ZETA PHARM*') if 'ZETA PHARM*' in corps_list else -1
-    STRIDE    = 12  # 2026-09-04: 12th field (Dosage Form) appended; existing indices 0-9 unchanged
+    STRIDE    = 14  # 2026-09-22: flat now has 14 fields (Item, Strength appended at 12-13); indices 0-9 unchanged
     CI,PI,TI,AI,D1I,D2I,LI,SI,LINEI,BUCI = 0,1,2,3,4,5,6,7,8,9
 
     def sum_lcv(ti, corp_i=None, dm1_set=None):

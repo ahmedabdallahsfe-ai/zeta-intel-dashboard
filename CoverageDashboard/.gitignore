@@ -1,0 +1,92 @@
+# Sensitive data - never push
+cache/
+logs/
+*.xlsx
+*.xls
+# backups/ (~68MB of timestamped snapshot folders): contains repeated
+# copies of security-cache.json, permissions-cache.json, userAuth.js, and
+# iqvia.json/data.js -- the same sensitive files cache/ is already
+# blanket-ignored for, just under a different directory name.
+backups/
+
+# Credentials / tokens: .github_token is a live GitHub PAT,
+# test_credentials.json has a real admin email, Sync_Report.txt was
+# flagged sensitive previously. RE-ADDED 2026-08-04 -- this whole section
+# was wiped out by push_to_github.bat overwriting this file with its own
+# old hardcoded .gitignore content (that script writes a fresh .gitignore
+# every time it runs, with no awareness of protections added since). Do
+# NOT run push_to_github.bat -- it undoes this every time.
+.github_token
+test_credentials.json
+Sync_Report.txt
+
+# Scratch / one-off investigation scripts -- ad-hoc debugging scripts from
+# past sessions, not part of the shipped app.
+locate_*.py
+find_*.py
+diag*.py
+check_app_end.py
+inspect_*.py
+view_css_rag*.py
+rewrite_sales_light.py
+implement_phase*.py
+analyze_*.py
+deep_analyze_*.py
+*_output.txt
+cache_analysis.txt
+scratch_*.csv
+*.removed_*
+nav_output.txt
+org_inspect.txt
+sfe_org_output.txt
+test_write.txt
+
+*.bak*
+*.bak_*
+_qa_tarballs_to_delete/
+Claude outputs/
+_to_delete/
+scratch/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+~$*
+push_to_github.bat
+
+cache/customer_analytics.json
+
+# -----------------------------------------------------------------------------
+# Expense vs Sales — Phase A/B artefacts, held local at Ahmed's instruction
+# (2026-08-09) until the data foundation is signed off.
+#
+# expense/ carries the reviewable mapping table and the reconciliation reports.
+# expense_sku_map.csv holds human sign-off decisions, so when this is lifted the
+# folder must be committed, not regenerated -- a rebuild without it would
+# discard every ratified mapping.
+#
+# NOTE FOR WHOEVER LIFTS THIS: cache/ is blanket-ignored above, so
+# cache/expense_budget.data.js will NOT be pushed by a normal commit. The
+# existing caches are only in the repo because they were tracked before that
+# rule was added. Going live needs an explicit  git add -f cache/expense_budget.data.js
+# or the deployed page will request a script that is not there.
+# -----------------------------------------------------------------------------
+expense/
+etl/build_expense_foundation.py
+etl/apply_expense_decisions.py
+etl/build_expense_cache.py
+etl/verify_expense_page.js
+etl/verify_expense_render.js
+
+# Node dev dependencies. The platform ships no npm packages -- these exist only
+# because the Expense verification harness uses jsdom to render the page in a
+# real DOM outside a browser. Ignored so a stray `npm install` can never sweep
+# ~1,800 library files into a commit.
+node_modules/
+package.json
+package-lock.json
+

@@ -1228,3 +1228,79 @@
 .iqvia-dashboard-wrap .conc-expand-inner{ padding:10px 14px 10px 46px; font-size:12px; line-height:1.6; border-top:none; }
 .iqvia-dashboard-wrap .conc-row-clickable{ cursor:pointer; }
 .iqvia-dashboard-wrap .conc-row-clickable:hover td{ background:rgba(93,103,140,.06) !important; }
+/* ══════════════════════════════════════════════════════════════════════
+   FILTER BAR — grouped layout + stacked labels (2026-09-22)
+   Visual only: no filter IDs, handlers or state changed. Groups are
+   wrappers (.tb-fgroup) around the original .tb-filter blocks.
+   Row 1: title · Period · As Of ········· LCV/SU · theme · CSV · alerts
+   Row 2: [Organization] [Market] [Company] [Product] · Clear All
+══════════════════════════════════════════════════════════════════════ */
+/* dashboard.css sets a global .ms-wrap{flex-direction:column}, which pushed the
+   ▼ caret under the text — keep the trigger on one line inside this tab */
+.iqvia-dashboard-wrap .ms-wrap{flex-direction:row;align-items:center;min-height:32px}
+
+.iqvia-dashboard-wrap .tb-fgroup{--grp:var(--acc1)}
+.iqvia-dashboard-wrap .tb-fgroup[data-grp="org"]    {--grp:var(--acc2)}
+.iqvia-dashboard-wrap .tb-fgroup[data-grp="market"] {--grp:var(--acc1)}
+.iqvia-dashboard-wrap .tb-fgroup[data-grp="company"]{--grp:var(--acc4)}
+.iqvia-dashboard-wrap .tb-fgroup[data-grp="product"]{--grp:var(--acc5)}
+
+@media (min-width:769px){
+  .iqvia-dashboard-wrap #topbar{row-gap:10px;padding-top:8px;padding-bottom:10px}
+  /* Row 1 */
+  .iqvia-dashboard-wrap #topbar .tb-title{order:1;flex:0 1 auto;max-width:420px}
+  .iqvia-dashboard-wrap #topbar .tb-period{order:2}
+  .iqvia-dashboard-wrap #topbar .tb-asof{order:3}
+  .iqvia-dashboard-wrap #topbar .tb-metric{order:4;margin-left:auto!important}
+  .iqvia-dashboard-wrap #topbar > .tb-btn,
+  .iqvia-dashboard-wrap #topbar > #notif-btn{order:5}
+  /* forced line break between row 1 and the filter row */
+  .iqvia-dashboard-wrap #topbar::after{content:"";order:9;flex-basis:100%;height:0}
+  /* Row 2 */
+  .iqvia-dashboard-wrap #topbar .tb-fgroup{order:10}
+  .iqvia-dashboard-wrap #topbar .tb-clear{order:11;align-self:flex-end;margin-bottom:1px}
+
+  .iqvia-dashboard-wrap .tb-period label,
+  .iqvia-dashboard-wrap .tb-asof label{font-weight:600;color:var(--txt2)}
+
+  .iqvia-dashboard-wrap .tb-fgroup{
+    position:relative;
+    display:flex;align-items:flex-end;flex-wrap:wrap;
+    gap:8px;
+    padding:14px 10px 8px;
+    border:1px solid var(--border);
+    border-top:2px solid var(--grp);
+    border-radius:10px;
+    background:color-mix(in srgb, var(--grp) 5%, var(--bg1));
+  }
+  .iqvia-dashboard-wrap .tb-fgroup-lbl{
+    position:absolute;top:-9px;left:10px;
+    padding:1px 7px;
+    font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+    line-height:14px;
+    color:var(--grp);
+    background:var(--bg1);
+    border-radius:4px;
+  }
+  /* stacked label above each control */
+  .iqvia-dashboard-wrap .tb-fgroup .tb-filter{
+    flex-direction:column;align-items:stretch;gap:3px;
+  }
+  .iqvia-dashboard-wrap .tb-fgroup .tb-filter label{
+    font-size:11px;font-weight:700;letter-spacing:.02em;
+    color:var(--txt1);
+    padding-left:2px;
+  }
+  .iqvia-dashboard-wrap .tb-fgroup .ms-wrap{min-width:128px;max-width:190px}
+}
+
+/* Mobile drawer: groups become titled sections */
+@media (max-width:768px){
+  .iqvia-dashboard-wrap #filter-group .tb-fgroup{display:block}
+  .iqvia-dashboard-wrap #filter-group .tb-fgroup-lbl{
+    padding:12px 18px 4px;
+    font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--grp);
+  }
+  .iqvia-dashboard-wrap #filter-group .tb-filter label{width:96px}
+}
