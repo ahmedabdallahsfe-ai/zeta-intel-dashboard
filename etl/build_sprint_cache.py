@@ -218,10 +218,10 @@ TEMPLATE_SHEETS = {
 
 # The month being ranked. Bump these three lines each time this script is
 # re-run for a newly-closed period -- everything else derives from them.
-EVAL_PERIOD_NAME = 'July'        # must match a label in dims['periods']
-EVAL_MONTH_STR = '2026-07'       # must match a label in sales lookups['months']
-EVAL_PERIOD_START = datetime.date(2026, 7, 1)
-EVAL_PERIOD_END = datetime.date(2026, 7, 31)
+EVAL_PERIOD_NAME = 'August'        # must match a label in dims['periods']
+EVAL_MONTH_STR = '2026-08'       # must match a label in sales lookups['months']
+EVAL_PERIOD_START = datetime.date(2026, 8, 1)
+EVAL_PERIOD_END = datetime.date(2026, 8, 31)
 
 
 def log(msg):
@@ -1241,7 +1241,12 @@ def main():
                     # against EVAL_PERIOD_NAME is unambiguous for now. If
                     # this template ever spans a second year, this will
                     # need a real year column to stay correct.
-                    if row_month is None or str(row_month).strip().lower() != EVAL_PERIOD_NAME.strip().lower():
+                    # 2026-09-23: compare on the first 3 letters so both full
+                    # names and abbreviations match ('Aug' == 'August', 'Feb'
+                    # == 'February') -- Ahmed's sheet mixes both spellings and
+                    # an exact match silently left every August DM/DSM Field
+                    # Days value pending. 3-letter prefixes are unique per month.
+                    if row_month is None or str(row_month).strip().lower()[:3] != EVAL_PERIOD_NAME.strip().lower()[:3]:
                         continue
                 code = str(int(code)) if isinstance(code, (int, float)) else str(code).strip()
                 vals = {}

@@ -1683,7 +1683,7 @@
       const sparkBadges = ins.mEntries.map(m => {
         const c = m.ach >= 100 ? '#15803d' : m.ach >= 85 ? '#b45309' : '#b91c1c';
         const bg = m.ach >= 100 ? '#f0fdf4' : m.ach >= 85 ? '#fffbeb' : '#fef2f2';
-        const shortM = m.month.replace('2026-', '').replace('01','Jan').replace('02','Feb').replace('03','Mar').replace('04','Apr').replace('05','May').replace('06','Jun').replace('07','Jul');
+        const shortM = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(String(m.month).split('-')[1], 10) - 1] || m.month; // 2026-09-23: all 12 months (was hard-coded to Jul, so Aug showed as "08")
         return `<div style="text-align:center; padding:8px 12px; background:${bg}; border-radius:8px; min-width:60px; flex:1;">
           <div style="font-size:10px; color:${c}; font-weight:700; text-transform:uppercase;">${shortM}</div>
           <div style="font-size:16px; font-weight:800; color:${c};">${m.ach.toFixed(0)}%</div>
