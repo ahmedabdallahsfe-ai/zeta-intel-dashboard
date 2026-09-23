@@ -58,7 +58,7 @@
       file: "cache/customer_analytics.data.js",
       globalVar: "CUSTOMER_ANALYTICS_CACHE",
       label: "Customer analytics",
-      version: "20260923_q3aug",
+      version: "20260923_zcpaug",
     },
     market_intel: {
       file: "cache/market_intel.data.js",
