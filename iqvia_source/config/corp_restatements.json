@@ -1,15 +1,115 @@
 {
-  "_comment": "LIKE-FOR-LIKE CORPORATE RESTATEMENTS (read by refresh_iqvia.py, step 2c). When a product changes corporate owner (demerger, acquisition, licence transfer), IQVIA standard practice is to restate that product's HISTORY under its CURRENT owner, so YoY growth compares the same product basket and an ownership transfer is not counted as organic growth (new owner) or decline (old owner). The raw IQVIA_SOURCE.xlsx is NEVER modified: rows are relabelled in memory only while the cache is built. To reverse a restatement set its 'enabled' to false (or the top-level 'enabled' to false) and re-run refresh_iqvia.py. Matching is exact on Corporation + Product (the corporation must match 'from_corporation', so the same brand name under an unrelated corporation is never touched).",
+  "_comment": "LIKE-FOR-LIKE OWNERSHIP RESTATEMENT REGISTER, read by refresh_iqvia.py step 2c. Methodology: IQVIA_GROWTH_AND_RESTATEMENT_METHODOLOGY.md. The raw IQVIA source files are NEVER modified: matching rows are relabelled in memory while the cache is built. An entry is applied only when enabled=true AND status='approved'. Matching is exact on from_corporation + product; the optional apply_period_from/apply_period_to (inclusive, YYYY-MM) bound the relabelled months. expected_rows/expected_lcv are the audited counts at approval time: the ETL warns if a rebuild produces different numbers, which means the source changed under the mapping and the entry must be re-reviewed. Reverse an entry: set enabled=false and re-run refresh_iqvia.py.",
+  "schema_version": 2,
   "enabled": true,
   "restatements": [
     {
       "id": "OPELLA-2026-01",
       "enabled": true,
+      "status": "approved",
+      "classification": "transfer",
+      "products": [
+        "BRONCHICUM",
+        "MAXILASE",
+        "TELFAST"
+      ],
       "from_corporation": "SANOFI",
       "to_corporation": "OPELLA*",
-      "products": ["BRONCHICUM", "MAXILASE", "TELFAST"],
       "transfer_effective_period": "2026-01",
-      "evidence": "In IQVIA_SOURCE these 3 products are reported under SANOFI 2021-01..2025-12 and under OPELLA* from 2026-01..2026-08, with no overlap (Sanofi consumer-health carve-out into Opella).",
+      "restatement_period": {
+        "from": "2021-01",
+        "to": "2025-12"
+      },
+      "expected_rows": 738,
+      "expected_lcv": 5781792470,
+      "evidence": "IQVIA_SOURCE: the 3 products are reported under SANOFI 2021-01..2025-12 and under OPELLA* 2026-01..2026-08, with no overlap and the same packs (Sanofi consumer-health carve-out into Opella).",
+      "approved_by": "Ahmed (SFE Manager)",
+      "approved_on": "2026-09-24"
+    },
+    {
+      "id": "KARBALTA-2025-07",
+      "enabled": true,
+      "status": "approved",
+      "classification": "transfer",
+      "products": [
+        "KARBALTA"
+      ],
+      "from_corporation": "MASH*",
+      "to_corporation": "RAMEDA*",
+      "transfer_effective_period": "2025-07",
+      "restatement_period": {
+        "from": "2021-01",
+        "to": "2025-06"
+      },
+      "expected_rows": 217,
+      "expected_lcv": 129816618,
+      "evidence": "MASH* sole reporter 2021-01..2025-06; RAMEDA* continuous from 2025-07 to latest (2026-08); same packs (30MG 28, 60MG 30), molecule (duloxetine), ATC4 N06A5 and DM1s. MASH* stays active with 47 other products, so this is a single-product divestment. A single 26K RAMEDA* row in 2024-07 (before its continuous run) is an anomaly that is already under the reference owner.",
+      "approved_by": "Ahmed (SFE Manager)",
+      "approved_on": "2026-09-24"
+    },
+    {
+      "id": "REFLUXELOC-2026-06",
+      "enabled": true,
+      "status": "approved",
+      "classification": "transfer",
+      "products": [
+        "REFLUXELOC"
+      ],
+      "from_corporation": "MODERN PHARMA",
+      "to_corporation": "MODERN EGYPT PHARM",
+      "transfer_effective_period": "2026-06",
+      "restatement_period": {
+        "from": "2025-06",
+        "to": "2026-05"
+      },
+      "expected_rows": 24,
+      "expected_lcv": 3375342,
+      "evidence": "MODERN PHARMA reports only this one product (2025-06..2026-05); MODERN EGYPT PHARM reports it from 2026-06 to latest; same single pack (20MG 20), no gap, no overlap. Consistent with an IQVIA re-coding of the organisation.",
+      "approved_by": "Ahmed (SFE Manager)",
+      "approved_on": "2026-09-24"
+    },
+    {
+      "id": "MEROSATIN-DQ-2022-06",
+      "enabled": true,
+      "status": "approved",
+      "classification": "anomaly_consolidation",
+      "products": [
+        "MEROSATIN"
+      ],
+      "from_corporation": "REPHARMA*",
+      "to_corporation": "SPIMACO*",
+      "transfer_effective_period": "n/a (data-quality correction, not an ownership transfer)",
+      "restatement_period": {
+        "from": "2022-06",
+        "to": "2022-06"
+      },
+      "expected_rows": 1,
+      "expected_lcv": 30,
+      "evidence": "SPIMACO* is the sole reporter 2021-01..2022-09 (product discontinued after 2022-09) and so is the latest-period organisation. REPHARMA* is a single row in 2022-06 for a different pack (10MG 7), LCV 30 EGP / 7 SU, which is 0.01% of lifetime product sales. It is consolidated into the latest organisation as a documented data-quality correction.",
+      "approved_by": "Ahmed (SFE Manager)",
+      "approved_on": "2026-09-24"
+    },
+    {
+      "id": "VAXATO-2021-07",
+      "enabled": true,
+      "status": "approved",
+      "classification": "transfer_bounded",
+      "products": [
+        "VAXATO"
+      ],
+      "from_corporation": "LIPTIS",
+      "to_corporation": "RAMEDA*",
+      "transfer_effective_period": "2021-07",
+      "restatement_period": {
+        "from": "2021-01",
+        "to": "2022-01"
+      },
+      "apply_period_from": "2021-01",
+      "apply_period_to": "2022-01",
+      "expected_rows": 46,
+      "expected_lcv": 87275120,
+      "evidence": "Confirmed transfer: LIPTIS sole reporter of all packs 2021-01..2021-06; RAMEDA* continuous from 2021-07 to latest; LIPTIS leftover stock (<=3% per month) until 2022-01. NOT restated (Option B, Ahmed 2026-09-24): the 2025-10..2026-03 overlap on the new 10MG 20 pack (LIPTIS ~7% of VAXATO in those months, 14-71% of that pack; 11 rows, 5.61M LCV). It stays under LIPTIS unless independent evidence confirms the correct attribution.",
+      "decision_note": "Option B approved: restate only the confirmed 2021-2022 transfer.",
       "approved_by": "Ahmed (SFE Manager)",
       "approved_on": "2026-09-24"
     }

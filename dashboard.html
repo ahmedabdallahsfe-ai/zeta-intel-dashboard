@@ -276,14 +276,14 @@
        these two brands' sales count toward Sales Achievement instead of being excluded by the existing
        Non-Tender convention. All other brands/products unchanged. 191,352.00 EGP moved Tender->Non-Tender;
        Total Actual Sales Value unchanged to the cent (1,426,495,032.60). -->
-  <script defer src="cache/sales.data.js?v=20260923_zcpaug"></script>
+  <script defer src="cache/sales.data.js?v=20260924_chcupd"></script>
   <!-- Zeta Sprint 2026 cache (2026-08-15): built by etl/build_sprint_cache.py from
        sprint/scaling scores.xlsx (point curves) + this page's own Coverage/Sales
        cache sources. Re-linked 2026-08-16 (Ahmed: "add zeta sprint to dashboard") --
        this script tag, the sidebar entry, and app.js's Sprint wiring were dropped
        during the same pass that added IMS Rx role-gating; the underlying cache/js/css
        files were never touched, so no rebuild was needed, only re-wiring. -->
-  <script defer src="cache/sprint.data.js?v=20260923_zcpaug"></script>
+  <script defer src="cache/sprint.data.js?v=20260924_chcupd"></script>
   <!-- Field Working Days Intelligence cache (2026-09-05, Ahmed "implmement
        to zeta intell"): built by etl/build_working_days_cache.py from the
        Sprint KPI template's DM_DSM/ASM/NSM tabs. Separate from
@@ -318,7 +318,7 @@
        there by the time someone opens the Customer Health drill; also
        re-fixed the sentinel-latch bug this regression brought back (see
        decompressCustomerAnalyticsCache() in js/sales.js). -->
-  <script defer src="cache/iqvia.data.js?v=20260924_opella_l4l"></script>
+  <script defer src="cache/iqvia.data.js?v=20260924_l4l_v2"></script>
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
        from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Aug31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's
@@ -348,7 +348,7 @@
   <script defer src="js/semantic-model.js?v=20260804_tomarket_bumgr"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20260923_zcpaug"></script>
+  <script defer src="js/cache-loader.js?v=20260924_chcupd"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
@@ -387,8 +387,8 @@
        4 separate raw SKU rows; getBrandPortfolioHealth() and every
        Executive "by Brand" modal both use this now. -->
   <script defer src="js/sales.js?v=20260924_zikrychain"></script>
-  <script defer src="js/iqvia-growth-config.js?v=20260924_growthrule"></script>
-  <script defer src="js/iqvia.js?v=20260924_growthrule"></script>
+  <script defer src="js/iqvia-growth-config.js?v=20260924_growthv1"></script>
+  <script defer src="js/iqvia.js?v=20260924_growthv1"></script>
   <script defer src="js/iqvia-filterbar.js?v=20260924_hybrid3"></script>
   <script defer src="js/iqvia-sidebar-rail.js?v=20260924_sbrail"></script>
   <script defer src="js/sprint.js?v=20260921_askapi"></script>

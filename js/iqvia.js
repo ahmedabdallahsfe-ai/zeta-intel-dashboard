@@ -296,19 +296,71 @@ function fmtSU(v) {
 }
 function fmtPct(v) { return (v*100).toFixed(1) + '%'; }
 function fmtGrowth(v) {
-  if(!isFinite(v) || isNaN(v)) return '<span class="badge badge-neutral">N/A</span>';
+  // 2026-09-24: unified classes (growthClassOf) instead of bare N/A / Infinity
+  var _k = growthClassOf(v);
+  if (_k === 'new')     return '<span class="badge badge-neutral" style="font-weight:700" title="' + GROWTH_CLASS_TIP['new'] + '">NEW</span>';
+  if (_k === 'lowbase') return '<span class="badge badge-neutral" title="' + GROWTH_CLASS_TIP.lowbase + ' (actual +' + Math.round(v*100).toLocaleString() + '%)">Low base</span>';
+  if (_k === 'exit')    return '<span class="badge badge-down" title="' + GROWTH_CLASS_TIP.exit + '">Exit</span>';
+  if (_k === 'none')    return '<span class="badge badge-neutral" title="' + GROWTH_CLASS_TIP.none + '">\u2014</span>';
   const pct = (v*100).toFixed(1);
   const cls = v > 0 ? 'badge-up' : (v < 0 ? 'badge-down' : 'badge-neutral');
   const sign = v > 0 ? '+' : '';
   return `<span class="badge ${cls}">${sign}${pct}%</span>`;
 }
 function fmtGrowthTxt(v) {
-  if(!isFinite(v)||isNaN(v)) return 'N/A';
+  var _k = growthClassOf(v); if (_k !== 'normal') return GROWTH_CLASS_LABEL[_k];  // 2026-09-24
   return (v>0?'+':'') + (v*100).toFixed(1) + '%';
 }
 function growth(cur, prev) {
   if(!prev || prev === 0) return cur > 0 ? Infinity : 0;
   return (cur - prev) / prev;
+}
+
+// ── UNIFIED GROWTH CLASSIFICATION (2026-09-24, methodology v1.0) ─────────────
+// Normal / Low base / New / Exit, derived from the growth ratio that growth()
+// returns: Infinity = no prior-period base (New), exactly -1 = no current
+// sales (Exit), above lowBaseGrowthPct = Low base, otherwise Normal. Every
+// IQVIA growth display (fmtGrowth/fmtGrowthTxt), index (EVI/RGI) and ranking
+// (rankGrowth) goes through these helpers, so the treatment is identical on
+// every page. Undefined growth is never shown as a number (no Infinity/NaN).
+// Cutoff: js/iqvia-growth-config.js window.IQVIA_GROWTH_RULES.lowBaseGrowthPct
+// (default 1000 = +1,000%). Methodology: IQVIA_GROWTH_AND_RESTATEMENT_METHODOLOGY.md
+function lowBaseGrowth() {
+  var c = window.IQVIA_GROWTH_RULES, v = c ? Number(c.lowBaseGrowthPct) : NaN;
+  return (isFinite(v) && v > 0) ? v / 100 : 10;
+}
+function growthClassOf(v) {
+  if (v === Infinity) return 'new';
+  if (typeof v !== 'number' || !isFinite(v)) return 'none';
+  if (v === -1) return 'exit';
+  if (v > lowBaseGrowth()) return 'lowbase';
+  return 'normal';
+}
+var GROWTH_CLASS_LABEL = { 'new': 'NEW', lowbase: 'Low base', exit: 'Exit', none: '\u2014' };
+var GROWTH_CLASS_TIP = {
+  'new': 'New: no sales in the prior comparison period, so a growth % is not meaningful',
+  lowbase: 'Low base: prior-period sales too small for a meaningful growth %',
+  exit: 'Exit: no sales in the current period',
+  none: 'No sales in either period'
+};
+// Growth index (1+g)/(1+marketG): null unless the item's growth is Normal and
+// the market's growth is defined. EVI = round(index*100); RGI = index.
+function growthIndex(g, mktG) {
+  if (growthClassOf(g) !== 'normal') return null;
+  var m = (mktG == null || (typeof mktG === 'number' && isNaN(mktG))) ? 0 : mktG;
+  if (!isFinite(m) || m <= -1) return null;
+  return (1 + g) / (1 + m);
+}
+function evolutionIndex(g, mktG) { var r = growthIndex(g, mktG); return r == null ? null : Math.round(r * 100); }
+// Cell content for a null EVI/RGI: the item's growth class, never a number.
+function fmtIndexNA(g) {
+  var k = growthClassOf(g); if (k === 'normal') k = 'none';
+  return '<span style="color:var(--txt3)" title="' + GROWTH_CLASS_TIP[k] + '">' + (k === 'new' ? 'NEW' : '\u2014') + '</span>';
+}
+// EVI class label; labels = [>=120, >=105, >=95, >=80, below]. Null EVI -> class name.
+function eviClassLabel(evi, g, labels) {
+  if (evi == null) { var k = growthClassOf(g); return k === 'normal' ? '\u2014' : (k === 'new' ? '\ud83c\udd95 New' : GROWTH_CLASS_LABEL[k]); }
+  return evi>=120?labels[0]:evi>=105?labels[1]:evi>=95?labels[2]:evi>=80?labels[3]:labels[4];
 }
 
 // ── UNIFIED GROWTH-RANKING ELIGIBILITY (2026-09-24) ─────────────────────────
@@ -319,7 +371,8 @@ function growth(cur, prev) {
 //   2. current share of the CURRENTLY FILTERED market >= minSharePct
 //   3. growth measured on the selected metric (LCV in LCV mode, SU in SU mode)
 // Items with no prior-period value but current value > 0 are NEW ENTRANTS:
-// never ranked (growth would be infinite), returned separately.
+// never ranked (growth would be infinite), returned separately. Items whose
+// growth exceeds the Low-base cutoff (lowBaseGrowthPct) are not ranked either.
 // Biggest decliner = lowest growth among eligible items, only if < 0.
 // Threshold is configurable in js/iqvia-growth-config.js
 // (window.IQVIA_GROWTH_RULES.minSharePct, in %); default 0.5 if absent.
@@ -332,12 +385,14 @@ function growthRuleMinShare() {
 function rankGrowth(items, curOf, prevOf) {
   var total = 0;
   items.forEach(function (x) { total += (curOf(x) || 0); });
-  var minShare = growthRuleMinShare(), elig = [], newE = [];
+  var minShare = growthRuleMinShare(), elig = [], newE = [], lowB = [];
   items.forEach(function (x) {
     var c = curOf(x) || 0, p = prevOf(x) || 0;
     if (c <= 0) return;
     if (p <= 0) { newE.push(x); return; }
-    if (total > 0 && c / total >= minShare) elig.push({ x: x, g: (c - p) / p });
+    var g = (c - p) / p;
+    if (g > lowBaseGrowth()) { lowB.push(x); return; }   // Low base: not ranked (methodology v1.0)
+    if (total > 0 && c / total >= minShare) elig.push({ x: x, g: g });
   });
   elig.sort(function (a, b) { return b.g - a.g; });
   newE.sort(function (a, b) { return (curOf(b) || 0) - (curOf(a) || 0); });
@@ -347,7 +402,7 @@ function rankGrowth(items, curOf, prevOf) {
     fastestGr: elig.length ? elig[0].g : undefined,
     decliner: (last && last.g < 0) ? last.x : undefined,
     declinerGr: (last && last.g < 0) ? last.g : undefined,
-    newEntrants: newE, eligibleCount: elig.length, minShare: minShare, total: total
+    newEntrants: newE, lowBase: lowB, eligibleCount: elig.length, minShare: minShare, total: total
   };
 }
 
@@ -1186,7 +1241,7 @@ function renderExecutive() {
   // Corp Evolution Indices (each corp vs market)
   corpList.forEach(c => {
     const cg = STATE.metric==='lcv' ? c.lcvGrowth : c.suGrowth;
-    c.evi = prevTotal > 0 ? Math.round(((1 + cg) / (1 + mktGrowth)) * 100) : 100;
+    c.evi = evolutionIndex(cg, mktGrowth); // 2026-09-24: null when not meaningful (New / Low base / Exit)
   });
 
   // HHI for executive
@@ -1198,7 +1253,7 @@ function renderExecutive() {
   // Auto-generate insights
   const insights = [
     { icon:'📈', text: `Market ${mktGrowth >= 0 ? 'grew' : 'declined'} <strong>${fmtGrowthTxt(mktGrowth)}</strong> vs prior ${rangeLabel} — Evolution Index: <strong style="color:${eviColor}">${mktEVI}</strong>` },
-    { icon:'🏆', text: `<strong>${top1corp}</strong> leads with <strong>${fmtPct(STATE.metric==='lcv'?corpList[0]?.lcvShare:corpList[0]?.suShare)}</strong> ${ml} share (EVI: ${corpList[0]?.evi})` },
+    { icon:'🏆', text: `<strong>${top1corp}</strong> leads with <strong>${fmtPct(STATE.metric==='lcv'?corpList[0]?.lcvShare:corpList[0]?.suShare)}</strong> ${ml} share (EVI: ${corpList[0]?.evi ?? '\u2014'})` },
     { icon:'🚀', text: fastest ? `Fastest growing major corp: <strong>${fastestName}</strong> at <strong>${fmtGrowthTxt(STATE.metric==='lcv'?fastest?.lcvGrowth:fastest?.suGrowth)}</strong> ${ml} growth — EVI: <strong>${fastest?.evi}</strong>` : 'No major growth leader identified' },
     ...(_corpNewTxt ? [{ icon:'🆕', text: `New entrant${_corpNew.length>1?'s':''} (no prior-${rangeLabel} sales, not ranked): <strong>${_corpNewTxt}</strong>` }] : []),
     { icon:'📉', text: decliner ? `Biggest decliner: <strong>${LOOKUPS.corps[decliner.c]}</strong> at <strong>${fmtGrowthTxt(STATE.metric==='lcv'?decliner?.lcvGrowth:decliner?.suGrowth)}</strong> — EVI: <strong style="color:#e05c5c">${decliner?.evi}</strong>` : 'No major decliners' },
@@ -1510,7 +1565,7 @@ function renderCorpIntel() {
     const pv  = prevMap.get(c.c) || {lcv:0, su:0};
     const cur = curMap.get(c.c)  || {lcv:0, su:0};
     const cg  = growth(MV(cur), MV(pv));
-    c.evi = Math.round(((1 + cg) / (1 + (mktPeriodGrowth||0))) * 100);
+    c.evi = evolutionIndex(cg, mktPeriodGrowth||0); c._eviG = cg; // 2026-09-24: null when not meaningful
   });
 
   // Product KPIs
@@ -1646,7 +1701,7 @@ function renderCorpIntel() {
         <td ${STATE.metric==='su'?hl:''}>${fmtGrowth(c.matSuGrowth)}</td>
         <td ${STATE.metric==='su'?hl:''}>${fmtGrowth(c.ytdSuGrowth)}</td>
         <td>${fmtGrowth(STATE.metric==='lcv' ? c.momLcvGrowth : c.momSuGrowth)}</td>
-        <td style="text-align:center;font-weight:700;color:${c.evi>=100?'#2fc97e':'#e05c5c'}">${c.evi}</td>
+        <td style="text-align:center;font-weight:700;color:${c.evi==null?'var(--txt3)':c.evi>=100?'#2fc97e':'#e05c5c'}">${c.evi ?? fmtIndexNA(c._eviG)}</td>
         <td><span class="badge ${c.rankChange>0?'badge-up':c.rankChange<0?'badge-down':'badge-neutral'}">${c.rankChange>0?'▲'+c.rankChange:c.rankChange<0?'▼'+Math.abs(c.rankChange):'—'}</span></td>
       </tr>`).join('')}
       </tbody>
@@ -1812,9 +1867,9 @@ function renderCorpGrowth() {
   const sharePrev    = mktPrevVal > 0 ? corpPrevVal / mktPrevVal : 0;
   const shareChgPp   = (shareCur - sharePrev)*100;
   const evi          = prevVal => mktGr !== -1 ? Math.round(((1+corpGr)/(1+(mktGr||0)))*100) : 100;
-  const corpEVI      = Math.round(((1+corpGr)/(1+(mktGr||0)))*100);
+  const corpEVI      = evolutionIndex(corpGr, mktGr||0); // 2026-09-24
   const priceMixEff  = ((corpLcvGr - corpSuGr)*100).toFixed(1);
-  const volEVI       = Math.round(((1+corpSuGr)/(1+(growth(mktSuCur,mktSuPrev)||0)))*100);
+  const volEVI       = evolutionIndex(corpSuGr, growth(mktSuCur,mktSuPrev)||0); // 2026-09-24
 
   // ── Product list with EVI ─────────────────────────────────────────────────
   const prods = [...prodCur.entries()].map(([p,v])=>{
@@ -1826,7 +1881,7 @@ function renderCorpGrowth() {
     const matGr = growth(MV(mat), MV(pmat));
     const incr = cur - prev;
     const share = corpCurVal > 0 ? cur/corpCurVal : 0;
-    const prodEVI = Math.round(((1+gr)/(1+(mktGr||0)))*100);
+    const prodEVI = evolutionIndex(gr, mktGr||0); // 2026-09-24
     return {p, lcv:v.lcv, su:v.su, cur, prev, gr, matGr, incr, share, prodEVI,
             lcvShare: corpLcvCur>0?v.lcv/corpLcvCur:0,
             suShare:  corpSuCur>0?v.su/corpSuCur:0};
@@ -1872,7 +1927,7 @@ function renderCorpGrowth() {
   const trendPeriods = Array.from({length:Math.min(24,NP)},(_,i)=>NP-Math.min(24,NP)+i);
 
   // EVI color
-  const eviCol = corpEVI>=100?'#2fc97e':'#e05c5c';
+  const eviCol = corpEVI==null?'var(--txt3)':corpEVI>=100?'#2fc97e':'#e05c5c';
 
   // ── Inline corp slicer — always visible, click to toggle ─────────────────
   const cgSlicerItems = corpsSorted.slice(0,50).map(([c])=>{
@@ -1972,8 +2027,8 @@ function renderCorpGrowth() {
     </div>
     <div class="kpi-card" style="border-color:${eviCol}">
       <div class="kpi-label">Evolution Index (EVI)</div>
-      <div class="kpi-value" style="color:${eviCol}">${corpEVI}</div>
-      <div class="kpi-sub">${corpEVI>=120?'🚀 Outperformer':corpEVI>=105?'📈 Above Mkt':corpEVI>=95?'📊 In-Line':corpEVI>=80?'⚠️ Below Mkt':'📉 Declining'}</div>
+      <div class="kpi-value" style="color:${eviCol}">${corpEVI ?? fmtIndexNA(corpGr)}</div>
+      <div class="kpi-sub">${eviClassLabel(corpEVI, corpGr, ['🚀 Outperformer','📈 Above Mkt','📊 In-Line','⚠️ Below Mkt','📉 Declining'])}</div>
     </div>
     <div class="kpi-card orange">
       <div class="kpi-label">Market Share (${ml})</div>
@@ -2014,7 +2069,7 @@ function renderCorpGrowth() {
     </div>
     <div class="kpi-card purple">
       <div class="kpi-label">Volume EVI (SU vs Mkt)</div>
-      <div class="kpi-value" style="color:${volEVI>=100?'#2fc97e':'#e05c5c'}">${volEVI}</div>
+      <div class="kpi-value" style="color:${volEVI==null?'var(--txt3)':volEVI>=100?'#2fc97e':'#e05c5c'}">${volEVI ?? '\u2014'}</div>
       <div class="kpi-sub">Volume vs market volume growth</div>
     </div>
     <div class="kpi-card cyan">
@@ -2114,7 +2169,7 @@ function renderCorpGrowth() {
       </tr></thead>
       <tbody id="tbl-cg-body">
       ${prods.slice(0,25).map((p,i)=>{
-        const cls = p.prodEVI>=120?'🚀 Outperformer':p.prodEVI>=105?'📈 Above Mkt':p.prodEVI>=95?'📊 In-Line':p.prodEVI>=80?'⚠️ Below Mkt':'📉 Declining';
+        const cls = eviClassLabel(p.prodEVI, p.gr, ['🚀 Outperformer','📈 Above Mkt','📊 In-Line','⚠️ Below Mkt','📉 Declining']);
         return `<tr>
           <td><span class="rank-badge ${i<3?'top3':''}">${i+1}</span></td>
           <td style="font-weight:500">${LOOKUPS.prods[p.p]||''}</td>
@@ -2124,7 +2179,7 @@ function renderCorpGrowth() {
           <td ${STATE.metric==='su'?hl:''}>${fmtPct(p.suShare)}</td>
           <td>${fmtGrowth(p.gr)}</td>
           <td><span class="badge ${p.incr>=0?'badge-up':'badge-down'}">${p.incr>=0?'+':''}${fmtLCV(p.incr)}</span></td>
-          <td style="text-align:center;font-weight:700;color:${p.prodEVI>=100?'#2fc97e':'#e05c5c'}">${p.prodEVI}</td>
+          <td style="text-align:center;font-weight:700;color:${p.prodEVI==null?'var(--txt3)':p.prodEVI>=100?'#2fc97e':'#e05c5c'}">${p.prodEVI ?? fmtIndexNA(p.gr)}</td>
           <td style="white-space:nowrap">${cls}</td>
         </tr>`;
       }).join('')}
@@ -2163,7 +2218,7 @@ function renderCorpGrowth() {
     {label:'Market Share', value:fmtPct(shareCur), sub:ml+' share, '+rangeLabel, cls:'g'},
     {label:'Incremental '+ml, value:(incrVal>=0?'+':'')+fmtLCV(incrVal), valueColor:incrVal>=0?'#2fc97e':'#e05c5c', sub:'vs prior '+rangeLabel, cls:'p'},
     {label:'Growth Driver', value:_cgDriver, sub:(parseFloat(priceMixEff)>=0?'+':'')+priceMixEff+'pp price/mix effect', cls:'o'}
-  ], `<b>${corpName}</b>'s ${ml} reached <b>${fmtLCV(corpCurVal)}</b> (${fmtGrowthTxt(corpGr)} vs prior ${rangeLabel}), EVI <b>${corpEVI}</b>, <b>${fmtPct(shareCur)}</b> share. Growth driver: ${_cgDriver}.`);
+  ], `<b>${corpName}</b>'s ${ml} reached <b>${fmtLCV(corpCurVal)}</b> (${fmtGrowthTxt(corpGr)} vs prior ${rangeLabel}), EVI <b>${corpEVI ?? '\u2014'}</b>, <b>${fmtPct(shareCur)}</b> share. Growth driver: ${_cgDriver}.`);
   document.getElementById('s-corp-growth').innerHTML = _cgStrip + h;
 
   // ── Charts ────────────────────────────────────────────────────────────────
@@ -2496,7 +2551,7 @@ function renderDm1Intel() {
           return [
             d.fullLabel,
             'Market '+ml+': ' + fmtLCV(d.mktLcv),
-            ''+rangeLabel+' Growth: ' + (d.gr*100).toFixed(1) + '%',
+            ''+rangeLabel+' Growth: ' + fmtGrowthTxt(d.gr),
             'Top Zeta Product: ' + (d.topProd!=='—' ? d.topProd : 'Not present')
           ];
         }}}
@@ -2834,7 +2889,7 @@ function renderDm2Intel() {
             d.fullLabel,
             'Parent DM1: ' + d.parentName,
             'Market '+ml+': ' + fmtLCV(d.mktLcv),
-            ''+rangeLabel+' Growth: ' + (d.gr*100).toFixed(1) + '%',
+            ''+rangeLabel+' Growth: ' + fmtGrowthTxt(d.gr),
             'Top Zeta Product: ' + (d.topProd!=='—' ? d.topProd : 'Not present')
           ];
         }}}
@@ -3199,7 +3254,8 @@ function renderAtc4Intel() {
         });
         return Object.values(quads).map(q => {
           const totalLcv = q.mkts.reduce((s,m)=>s+m.lcv,0);
-          const avgGr    = q.mkts.length ? q.mkts.reduce((s,m)=>s+m.lcvGr,0)/q.mkts.length : 0;
+          const _qNorm   = q.mkts.filter(m=>growthClassOf(m.lcvGr)==='normal'); // 2026-09-24: New / Low base excluded from the average
+          const avgGr    = _qNorm.length ? _qNorm.reduce((s,m)=>s+m.lcvGr,0)/_qNorm.length : null;
           const top5     = q.mkts.slice(0,5);
           return `
           <div style="background:${q.bg};border:1px solid ${q.border};border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px">
@@ -3221,7 +3277,7 @@ function renderAtc4Intel() {
               </div>
               <div style="flex:1;text-align:center">
                 <div style="font-size:11px;color:var(--txt3);margin-bottom:2px">Avg Growth</div>
-                <div style="font-weight:600;font-size:13px;color:${avgGr>=0?'#2fc97e':'#e05c5c'}">${avgGr>=0?'+':''}${(avgGr*100).toFixed(1)}%</div>
+                <div style="font-weight:600;font-size:13px;color:${avgGr==null?'var(--txt3)':avgGr>=0?'#2fc97e':'#e05c5c'}">${avgGr==null?'\u2014':(avgGr>=0?'+':'')+(avgGr*100).toFixed(1)+'%'}</div>
               </div>
               <div style="flex:1;text-align:center">
                 <div style="font-size:11px;color:var(--txt3);margin-bottom:2px">Avg HHI</div>
@@ -3231,7 +3287,7 @@ function renderAtc4Intel() {
             <div style="display:flex;flex-direction:column;gap:4px">
               ${top5.map(m=>`
                 <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(255,255,255,0.04);border-radius:6px">
-                  <span style="font-size:10px;font-weight:600;color:${q.color};min-width:22px">${(m.lcvGr*100).toFixed(0)}%</span>
+                  <span style="font-size:10px;font-weight:600;color:${q.color};min-width:22px">${growthClassOf(m.lcvGr)==='normal'?(m.lcvGr*100).toFixed(0)+'%':GROWTH_CLASS_LABEL[growthClassOf(m.lcvGr)]}</span>
                   <span style="font-size:11px;color:var(--txt1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${LOOKUPS.atc4s[m.a4]||''}">${(LOOKUPS.atc4s[m.a4]||'').substring(0,26)}</span>
                   <span style="font-size:10px;color:var(--txt3)">${fmtLCV(m.lcv)}</span>
                 </div>`).join('')}
@@ -3443,7 +3499,7 @@ function renderAtc4Intel() {
           return [
             d.fullLabel,
             'Market LCV: '    + fmtLCV(d.lcv),
-            ''+rangeLabel+' Growth: '    + (d.lcvGr*100).toFixed(1)+'%',
+            ''+rangeLabel+' Growth: '    + fmtGrowthTxt(d.lcvGr),
             'Unit Growth: '   + (d.suGr*100).toFixed(1)+'%',
             'Price Trend: '   + (d.priceChg*100).toFixed(1)+'%',
             'Competitors: '   + d.numCorps + ' corps',
@@ -3627,7 +3683,7 @@ function renderProductIntel() {
     const ytdGrowth = growth(MV(ytd), MV(pytd));
     const curGrowth = growth(MV(v),   MV(pv));
     // Evolution Index vs market MAT growth
-    const evi = Math.round(((1 + curGrowth) / (1 + (mktMatGrowth||0))) * 100);
+    const evi = evolutionIndex(curGrowth, mktMatGrowth||0); // 2026-09-24
     return {
       p, lcv:v.lcv, su:v.su,
       lcvShare: totalCurLcv > 0 ? v.lcv / totalCurLcv : 0,
@@ -3646,7 +3702,8 @@ function renderProductIntel() {
 
   // Classify
   prods.forEach(p => {
-    if(p.evi >= 120)      p.class = '🚀 Outperformer';
+    if(p.evi == null)     p.class = eviClassLabel(null, p.curGrowth, []);  // 2026-09-24
+    else if(p.evi >= 120) p.class = '🚀 Outperformer';
     else if(p.evi >= 105) p.class = '📈 Above Market';
     else if(p.evi >= 95)  p.class = '📊 In-Line';
     else if(p.evi >= 80)  p.class = '⚠️ Below Market';
@@ -3667,7 +3724,7 @@ function renderProductIntel() {
   const donutTotal  = donutVals.reduce((s,v)=>s+v,0);
 
   const outperformers = prods.filter(p=>p.evi>=110).length;
-  const underperformers = prods.filter(p=>p.evi<90).length;
+  const underperformers = prods.filter(p=>p.evi!=null&&p.evi<90).length;
 
   // Single-product monthly trend (2026-09-04): shown only when exactly one
   // product is selected in the global Product filter.
@@ -3766,7 +3823,7 @@ function renderProductIntel() {
         <td ${STATE.metric==='su'?hl:''}>${fmtPct(p.suShare)}</td>
         <td>${fmtGrowth(p.matGrowth)}</td>
         <td>${fmtGrowth(p.ytdGrowth)}</td>
-        <td style="text-align:center;font-weight:700;color:${p.evi>=100?'#2fc97e':'#e05c5c'}">${p.evi}</td>
+        <td style="text-align:center;font-weight:700;color:${p.evi==null?'var(--txt3)':p.evi>=100?'#2fc97e':'#e05c5c'}">${p.evi ?? fmtIndexNA(p.curGrowth)}</td>
         <td><span class="badge ${p.rankChange>0?'badge-up':p.rankChange<0?'badge-down':'badge-neutral'}">${p.rankChange>0?'▲'+p.rankChange:p.rankChange<0?'▼'+Math.abs(p.rankChange):'—'}</span></td>
         <td style="white-space:nowrap">${p.class}</td>
       </tr>`).join('')}
@@ -4694,10 +4751,10 @@ function renderZetaCmd() {
   const zetaSuGr  = growth(zetaSuCur,  zetaSuPrev);
   const mktSuGr   = growth(mktSuCur,   mktSuPrev);
 
-  const zetaEVI   = Math.round(((1+zetaGr)/(1+(mktGr||0)))*100);
-  const volEVI    = Math.round(((1+zetaSuGr)/(1+(mktSuGr||0)))*100);
-  const eviCol    = zetaEVI>=100?'#2fc97e':'#e05c5c';
-  const eviLabel  = zetaEVI>=120?'🚀 Outperformer':zetaEVI>=105?'📈 Above Market':zetaEVI>=95?'📊 In-Line':zetaEVI>=80?'⚠️ Below Market':'📉 Lagging';
+  const zetaEVI   = evolutionIndex(zetaGr, mktGr||0);      // 2026-09-24
+  const volEVI    = evolutionIndex(zetaSuGr, mktSuGr||0);  // 2026-09-24
+  const eviCol    = zetaEVI==null?'var(--txt3)':zetaEVI>=100?'#2fc97e':'#e05c5c';
+  const eviLabel  = eviClassLabel(zetaEVI, zetaGr, ['🚀 Outperformer','📈 Above Market','📊 In-Line','⚠️ Below Market','📉 Lagging']);
 
   const shareCur    = mktCurVal>0  ? zetaCurVal/mktCurVal   : 0;
   const sharePrev   = mktPrevVal>0 ? zetaPrevVal/mktPrevVal : 0;
@@ -4726,7 +4783,7 @@ function renderZetaCmd() {
   const prods = [...prodCur.entries()].map(([p,v])=>{
     const pv=prodPrev.get(p)||{lcv:0,su:0};
     const cur=MV(v),prev=MV(pv),gr=growth(cur,prev);
-    const prodEVI=Math.round(((1+gr)/(1+(mktGr||0)))*100);
+    const prodEVI=evolutionIndex(gr, mktGr||0); // 2026-09-24
     const incr=cur-prev;
     return {p,lcv:v.lcv,su:v.su,cur,prev,gr,prodEVI,incr,
       share:zetaCurVal>0?cur/zetaCurVal:0,
@@ -4830,7 +4887,7 @@ function renderZetaCmd() {
     </div>
     <div class="kpi-card" style="border-color:${eviCol}">
       <div class="kpi-label">Evolution Index (EVI)</div>
-      <div class="kpi-value" style="color:${eviCol}">${zetaEVI}</div>
+      <div class="kpi-value" style="color:${eviCol}">${zetaEVI ?? fmtIndexNA(zetaGr)}</div>
       <div class="kpi-sub">${eviLabel}</div>
     </div>
     <div class="kpi-card green">
@@ -4896,7 +4953,7 @@ function renderZetaCmd() {
     </div>
     <div class="kpi-card purple">
       <div class="kpi-label">Volume EVI (SU vs Mkt)</div>
-      <div class="kpi-value" style="color:${volEVI>=100?'#2fc97e':'#e05c5c'}">${volEVI}</div>
+      <div class="kpi-value" style="color:${volEVI==null?'var(--txt3)':volEVI>=100?'#2fc97e':'#e05c5c'}">${volEVI ?? '\u2014'}</div>
       <div class="kpi-sub">Volume vs market volume</div>
     </div>
     <div class="kpi-card cyan">
@@ -5018,7 +5075,7 @@ function renderZetaCmd() {
       </tr></thead>
       <tbody id="tbl-zcmd-body">
       ${prods.slice(0,30).map((p,i)=>{
-        const cls=p.prodEVI>=120?'🚀 Outperformer':p.prodEVI>=105?'📈 Above Market':p.prodEVI>=95?'📊 In-Line':p.prodEVI>=80?'⚠️ Below Market':'📉 Lagging';
+        const cls=eviClassLabel(p.prodEVI, p.gr, ['🚀 Outperformer','📈 Above Market','📊 In-Line','⚠️ Below Market','📉 Lagging']);
         return `<tr>
           <td><span class="rank-badge ${i<3?'top3':''}">${i+1}</span></td>
           <td style="font-weight:500">${LOOKUPS.prods[p.p]||''}</td>
@@ -5028,7 +5085,7 @@ function renderZetaCmd() {
           <td ${STATE.metric==='su'?hl:''}>${fmtPct(p.suShare)}</td>
           <td>${fmtGrowth(p.gr)}</td>
           <td><span class="badge ${p.incr>=0?'badge-up':'badge-down'}">${p.incr>=0?'+':''}${fmtLCV(p.incr)}</span></td>
-          <td style="text-align:center;font-weight:700;color:${p.prodEVI>=100?'#2fc97e':'#e05c5c'}">${p.prodEVI}</td>
+          <td style="text-align:center;font-weight:700;color:${p.prodEVI==null?'var(--txt3)':p.prodEVI>=100?'#2fc97e':'#e05c5c'}">${p.prodEVI ?? fmtIndexNA(p.gr)}</td>
           <td style="white-space:nowrap">${cls}</td>
         </tr>`;
       }).join('')}
@@ -5064,7 +5121,7 @@ function renderZetaCmd() {
     {label:'Total '+ml, value:fmtLCV(zetaCurVal), sub:fmtGrowth(zetaGr)+' vs prior '+rangeLabel},
     {label:'Evolution Index', value:zetaEVI, valueColor:eviCol, sub:(zetaEVI>=110?'🚀 Outperforming':zetaEVI>=95?'📊 In-line':'📉 Underperforming')+' market'},
     {label:'Gap to Leader', value:(zetaRank===1?'🏆 Leader':'-'+fmtLCV(gapToLeader)), sub:zetaRank===1?'Market leader':leaderName, cls:'p'}
-  ], `Zeta ranks <b>#${zetaRank}</b> (${rankDelta>0?'▲'+rankDelta:rankDelta<0?'▼'+Math.abs(rankDelta):'no change'} vs prior ${rangeLabel}), <b>${fmtPct(shareCur)}</b> share, EVI <b>${zetaEVI}</b>. ${zetaRank===1?'Zeta leads the market.':'Trails leader <b>'+leaderName+'</b> by <b>'+fmtLCV(gapToLeader)+'</b>.'}`);
+  ], `Zeta ranks <b>#${zetaRank}</b> (${rankDelta>0?'▲'+rankDelta:rankDelta<0?'▼'+Math.abs(rankDelta):'no change'} vs prior ${rangeLabel}), <b>${fmtPct(shareCur)}</b> share, EVI <b>${zetaEVI ?? '\u2014'}</b>. ${zetaRank===1?'Zeta leads the market.':'Trails leader <b>'+leaderName+'</b> by <b>'+fmtLCV(gapToLeader)+'</b>.'}`);
   document.getElementById('s-zeta-cmd').innerHTML = _zcmdStrip + h;
 
   // ── Charts ────────────────────────────────────────────────────────────────
@@ -5194,12 +5251,16 @@ function renderZetaMarket() {
     const shareDelta = zetaShare - prevShare;
     const mktGr      = growth(mktLcv, mktPrevLcv);
     const zetaGr     = growth(lcv, prevLcv);
-    const rgi        = Math.abs(1+mktGr)>0.005 ? (1+zetaGr)/(1+mktGr) : null;
+    const rgi        = Math.abs(1+mktGr)>0.005 ? growthIndex(zetaGr, mktGr) : null; // 2026-09-24: null unless Zeta growth is Normal and market growth defined
     const headroom   = (1-zetaShare)*mktLcv;
     return {d, lcv, mktLcv, zetaShare, prevShare, shareDelta, mktGr, zetaGr, rgi, headroom};
   }).sort((a,b)=>b.lcv-a.lcv);
 
   const outperformN = dm1List.filter(x=>x.rgi!=null&&x.rgi>=1).length;
+  // 2026-09-24: outperformance is only judged where RGI is comparable (Normal
+  // Zeta growth, defined market growth); New / Low-base markets are counted separately.
+  const _rgiComparableN = dm1List.filter(x=>x.rgi!=null).length;
+  const _rgiNotCompN    = dm1List.length - _rgiComparableN;
 
   // ── Top product per DM1 (Zeta, current period) ──────────────────────────────
   const _dm1ProdMap = new Map(); // dm1 → Map(prod → lcv)
@@ -5252,8 +5313,8 @@ function renderZetaMarket() {
     if(ctrCycN>0)
       b.push(`<span style="color:#ffb800;font-weight:700">💡 Counter-cyclical</span> — Zeta growing in <b>${ctrCycN}</b> declining market${ctrCycN>1?'s':''} — resilience signal worth flagging to leadership.`);
     // Signal 6 — outperform ratio
-    const pct=(outperformN/(dm1List.length||1)*100).toFixed(0);
-    b.push(`<span style="color:var(--txt2);font-weight:700">📊 Portfolio coverage</span> — Zeta outperforms market in <b>${outperformN}/${dm1List.length}</b> markets (${pct}%); RGI≥1 threshold.`);
+    const pct=(outperformN/(_rgiComparableN||1)*100).toFixed(0);
+    b.push(`<span style="color:var(--txt2);font-weight:700">📊 Portfolio coverage</span> — Zeta outperforms market in <b>${outperformN}/${_rgiComparableN}</b> comparable markets (${pct}%); RGI≥1 threshold.${_rgiNotCompN?` ${_rgiNotCompN} market${_rgiNotCompN>1?'s':''} not comparable (Zeta new / low base, or new market).`:''}`);
     return `<div class="commentary" style="margin-bottom:16px;border-left:3px solid var(--acc1);padding-left:14px;padding-top:2px;padding-bottom:2px">
       <div style="font-size:10.5px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">⚡ Dynamic Insights — ${rangeLabel}${ctxLabel}</div>
       ${b.map(x=>`<p style="font-size:12.5px;line-height:1.6;margin-bottom:4px">${x}</p>`).join('')}
@@ -5285,10 +5346,13 @@ function renderZetaMarket() {
     topProd:dm1TopProdName.get(x.d)||'—' 
   });
   const bubbleDS=[
-    {label:'Outperforming (RGI ≥ 1)', data:bubbleDm1.filter(x=>x.rgi==null||x.rgi>=1).map(mkBub),
+    {label:'Outperforming (RGI ≥ 1)', data:bubbleDm1.filter(x=>x.rgi!=null&&x.rgi>=1).map(mkBub),
      backgroundColor:'rgba(47,201,126,.65)',borderColor:'rgba(47,201,126,.9)',borderWidth:1},
     {label:'Underperforming (RGI < 1)',data:bubbleDm1.filter(x=>x.rgi!=null&&x.rgi<1).map(mkBub),
-     backgroundColor:'rgba(224,92,92,.65)',borderColor:'rgba(224,92,92,.9)',borderWidth:1}
+     backgroundColor:'rgba(224,92,92,.65)',borderColor:'rgba(224,92,92,.9)',borderWidth:1},
+    // 2026-09-24: New / Low-base markets were previously drawn as "Outperforming"
+    {label:'Not comparable (New / Low base)',data:bubbleDm1.filter(x=>x.rgi==null&&isFinite(x.mktGr)).map(mkBub),
+     backgroundColor:'rgba(150,155,175,.45)',borderColor:'rgba(150,155,175,.85)',borderWidth:1}
   ];
 
   // ── Colour helpers ───────────────────────────────────────────────────────────
@@ -5306,8 +5370,8 @@ function renderZetaMarket() {
   <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
     ${kpi('Zeta Total '+ml, fmtLCV(totalZetaLcv), fmtGrowth(zetaGrOvr)+' vs prior', zetaGrOvr>0?'green':'red')}
     ${kpi('Total Market '+ml, fmtLCV(totalMktLcv), 'Market growth: '+fmtGrowth(mktGrOvr), 'blue')}
-    ${(()=>{ const validRgi=dm1List.filter(x=>x.rgi!=null); const avgRgi=validRgi.length?validRgi.reduce((s,x)=>s+x.rgi,0)/validRgi.length:0; const prevRgi=1; return kpi('Avg Portfolio RGI', avgRgi.toFixed(2)+'×', outperformN+' of '+dm1List.length+' mkts RGI≥1', avgRgi>=1.1?'green':avgRgi>=1?'orange':'red'); })()}
-    ${kpi('Markets Outperforming', outperformN+' / '+dm1List.length, 'Zeta growth &gt; Market growth (RGI ≥ 1)', outperformN>=dm1List.length/2?'green':'orange')}
+    ${(()=>{ const validRgi=dm1List.filter(x=>x.rgi!=null); const avgRgi=validRgi.length?validRgi.reduce((s,x)=>s+x.rgi,0)/validRgi.length:0; const prevRgi=1; return kpi('Avg Portfolio RGI', avgRgi.toFixed(2)+'×', outperformN+' of '+validRgi.length+' comparable mkts RGI≥1', avgRgi>=1.1?'green':avgRgi>=1?'orange':'red'); })()}
+    ${kpi('Markets Outperforming', outperformN+' / '+_rgiComparableN, 'Zeta growth &gt; Market growth (RGI ≥ 1)'+(_rgiNotCompN?' · '+_rgiNotCompN+' not comparable (New / Low base)':''), outperformN>=_rgiComparableN/2?'green':'orange')}
   </div>
 
   ${insightHTML}
@@ -5351,7 +5415,7 @@ function renderZetaMarket() {
       <td style="font-size:11px;color:var(--acc1);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${dm1TopProdName.get(x.d)||'—'}">${(dm1TopProdName.get(x.d)||'—').substring(0,14)}</td>
       <td>${fmtGrowth(x.mktGr)}</td>
       <td>${fmtGrowth(x.zetaGr)}</td>
-      <td style="${rgiClr(x.rgi)};font-weight:700">${x.rgi!=null?x.rgi.toFixed(2):'—'}</td>
+      <td style="${rgiClr(x.rgi)};font-weight:700">${x.rgi!=null?x.rgi.toFixed(2):fmtIndexNA(x.zetaGr)}</td>
       <td style="color:var(--txt2)">${fmtLCV(x.headroom)}</td>
     </tr>`).join('')}
     </tbody></table></div>
@@ -5388,9 +5452,9 @@ function renderZetaMarket() {
     {label:'Zeta Total '+ml, value:fmtLCV(totalZetaLcv), sub:fmtGrowth(zetaGrOvr)+' vs prior', cls:'g'},
     {label:'Total Market '+ml, value:fmtLCV(totalMktLcv), sub:'Market growth: '+fmtGrowth(mktGrOvr)},
     {label:'Weighted Share', value:fmtPct(avgShare), sub:'Across '+dm1List.length+' DM1 markets', cls:'p'},
-    {label:'Avg Portfolio RGI', value:_zmAvgRgi.toFixed(2)+'×', valueColor:_zmAvgRgi>=1.1?'#2fc97e':_zmAvgRgi>=1?'#ffb800':'#e05c5c', sub:outperformN+' of '+dm1List.length+' mkts RGI≥1'},
-    {label:'Markets Outperforming', value:outperformN+' / '+dm1List.length, sub:'Zeta growth > market growth', cls:'o'}
-  ], `Zeta holds <b>${fmtPct(avgShare)}</b> weighted share across <b>${dm1List.length}</b> DM1 markets (<b>${fmtLCV(totalZetaLcv)}</b> ${ml}, ${fmtGrowth(zetaGrOvr)} vs prior). Outperforming market in <b>${outperformN}/${dm1List.length}</b> markets (avg RGI ${_zmAvgRgi.toFixed(2)}×).`);
+    {label:'Avg Portfolio RGI', value:_zmAvgRgi.toFixed(2)+'×', valueColor:_zmAvgRgi>=1.1?'#2fc97e':_zmAvgRgi>=1?'#ffb800':'#e05c5c', sub:outperformN+' of '+_rgiComparableN+' comparable mkts RGI≥1'},
+    {label:'Markets Outperforming', value:outperformN+' / '+_rgiComparableN, sub:'Zeta growth > market growth'+(_rgiNotCompN?' · '+_rgiNotCompN+' not comparable':''), cls:'o'}
+  ], `Zeta holds <b>${fmtPct(avgShare)}</b> weighted share across <b>${dm1List.length}</b> DM1 markets (<b>${fmtLCV(totalZetaLcv)}</b> ${ml}, ${fmtGrowth(zetaGrOvr)} vs prior). Outperforming market in <b>${outperformN}/${_rgiComparableN}</b> comparable markets (avg RGI ${_zmAvgRgi.toFixed(2)}×).`);
   document.getElementById(SEC).innerHTML = _zmStrip + pageHtml;
 
   // ── Strategic bubble chart — direct Chart.js for precise axis control ─────────
@@ -5599,8 +5663,8 @@ function renderZetaComp() {
   const allCorps = [...corpCur.entries()].map(([c,v])=>{
     const pv  = corpPrev.get(c)||{lcv:0,su:0};
     const cur = MV(v), prev = MV(pv);
-    const gr  = prev>0 ? growth(cur,prev) : (cur>0?9.99:0);
-    const EVI = mktGr>-1 ? Math.round(((1+gr)/(1+(mktGr||0)))*100) : 100;
+    const gr  = growth(cur,prev);          // 2026-09-24: zero base = New (was a hard-coded +999%)
+    const EVI = evolutionIndex(gr, mktGr); // 2026-09-24: null when not meaningful (New / Low base / Exit)
     const shareCur  = mktCurVal>0  ? cur/mktCurVal  : 0;
     const sharePrev = mktPrevVal>0 ? prev/mktPrevVal : 0;
     const shareChgPp = (shareCur-sharePrev)*100;
@@ -5646,7 +5710,7 @@ function renderZetaComp() {
 
   // Outgrowers
   const outgrowMkt  = allCorps.filter(x=>x.c!==ZETA_IDX&&x.EVI>=110&&!x.isLaunch);
-  const outgrowZeta = allCorps.filter(x=>x.c!==ZETA_IDX&&x.gr>zetaGr&&!x.isLaunch&&x.cur>zetaEntry.cur*0.05);
+  const outgrowZeta = allCorps.filter(x=>x.c!==ZETA_IDX&&growthClassOf(x.gr)==='normal'&&x.gr>zetaGr&&!x.isLaunch&&x.cur>zetaEntry.cur*0.05);
 
   // Share flow: who gained / lost
   const shareGainers = allCorps.filter(x=>x.c!==ZETA_IDX&&x.shareChgPp>0).sort((a,b)=>b.shareChgPp-a.shareChgPp);
@@ -5710,7 +5774,7 @@ function renderZetaComp() {
   function bfCard(x, zone){
     if(!x) return `<div style="background:var(--bg3);border:1px dashed var(--border);border-radius:12px;padding:16px;display:flex;align-items:center;justify-content:center;color:var(--txt3);font-size:12px">No player</div>`;
     const name=(LOOKUPS.corps[x.c]||'').substring(0,18);
-    const grStr=x.gr>=9?'New':((x.gr*100).toFixed(1)+'%');
+    const grStr=growthClassOf(x.gr)==='normal'?((x.gr*100).toFixed(1)+'%'):GROWTH_CLASS_LABEL[growthClassOf(x.gr)]; // 2026-09-24: unified classes (was: >= +900% shown as 'New')
     const grCol=x.gr>mktGr?'#36c994':x.gr>=0?'#9da8c5':'#ff5c6b';
     const eviCol=x.EVI>=110?'#36c994':x.EVI>=95?'#9da8c5':'#ff5c6b';
     const gapSign=zone==='above'?'gap ↑':'gap ↓';
@@ -5728,7 +5792,7 @@ function renderZetaComp() {
       <div style="font-size:clamp(16px,1.3vw,20px);font-weight:700;color:${zone==='zeta'?'#9775fa':'var(--txt1)'}">${fmtLCV(x.cur)}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <span style="color:${grCol};font-size:12px;font-weight:600">${grStr} ${x.gr>mktGr?'▲ mkt':x.gr>=0?'≈ mkt':'▼ mkt'}</span>
-        <span style="color:${eviCol};font-size:11px">EVI ${x.EVI}</span>
+        <span style="color:${eviCol};font-size:11px">EVI ${x.EVI ?? '\u2014'}</span>
       </div>
       <div style="font-size:11px;color:var(--txt3)">${gapSign}: ${fmtLCV(gapVal)}</div>
       <div style="font-size:11px;color:var(--txt2)">Share: ${fmtPct(x.shareCur)} <span style="color:${x.shareChgPp>=0?'#36c994':'#ff5c6b'}">${x.shareChgPp>=0?'+':''}${x.shareChgPp.toFixed(2)}pp</span></div>
@@ -5802,8 +5866,8 @@ function renderZetaComp() {
     </div>
     <div class="kpi-card" style="border-color:${eviCol}">
       <div class="kpi-label">Evolution Index</div>
-      <div class="kpi-value" style="color:${eviCol}">${zetaEVI}</div>
-      <div class="kpi-sub">${zetaEVI>=110?'🚀 Outperforming':zetaEVI>=95?'📊 In-Line':'📉 Underperforming'} market</div>
+      <div class="kpi-value" style="color:${eviCol}">${zetaEVI ?? '\u2014'}</div>
+      <div class="kpi-sub">${zetaEVI==null?'Not comparable':zetaEVI>=110?'🚀 Outperforming':zetaEVI>=95?'📊 In-Line':'📉 Underperforming'} market</div>
     </div>
     <div class="kpi-card green">
       <div class="kpi-label">Market Share (${ml})</div>
@@ -5907,7 +5971,7 @@ function renderZetaComp() {
           <td>${fmtPct(x.shareCur)}</td>
           <td><span class="badge ${x.shareChgPp>=0?'badge-up':'badge-down'}">${x.shareChgPp>=0?'+':''}${x.shareChgPp.toFixed(2)}pp</span></td>
           <td>${x.prev>0?fmtGrowth(x.gr):'<span class="badge badge-neutral">New</span>'}</td>
-          <td style="text-align:center;font-weight:700;color:${x.EVI>=110?'#36c994':x.EVI>=95?'var(--txt2)':'#ff5c6b'}">${x.prev>0?x.EVI:'—'}</td>
+          <td style="text-align:center;font-weight:700;color:${x.EVI>=110?'#36c994':x.EVI>=95?'var(--txt2)':'#ff5c6b'}">${x.EVI!=null?x.EVI:fmtIndexNA(x.gr)}</td>
           <td style="text-align:center">${rdStr}</td>
           <td style="font-size:11px">${flags}</td>
           <td style="min-width:160px">${prodPills(x.c,3,true)}</td>
@@ -6077,9 +6141,11 @@ function renderWinners() {
   const curCorpRanks=[...corpCur.entries()].sort((a,b)=>MV(b[1])-MV(a[1]));
   const curCorpRankMap=new Map(curCorpRanks.map(([c],i)=>[c,i+1]));
   corps.forEach(c=>{
-    c.curRank=curCorpRankMap.get(c.c)||99;
-    c.prevRank=prevCorpRankMap.get(c.c)||99;
-    c.rankChange=c.prevRank-c.curRank;
+    // 2026-09-24: no placeholder ranks (#99). New = not ranked last period,
+    // Exit = not ranked now; neither has a rank movement.
+    c.curRank=curCorpRankMap.get(c.c)??null;
+    c.prevRank=prevCorpRankMap.get(c.c)??null;
+    c.rankChange=(c.curRank!=null&&c.prevRank!=null)?c.prevRank-c.curRank:null;
   });
 
   const corpGainers=corps.filter(c=>c.shareChange>0).sort((a,b)=>b.shareChange-a.shareChange).slice(0,10);
@@ -6131,9 +6197,10 @@ function renderWinners() {
   const curProdRanks=[...prodCur.entries()].sort((a,b)=>MV(b[1])-MV(a[1]));
   const curProdRankMap=new Map(curProdRanks.map(([p],i)=>[p,i+1]));
   prods.forEach(p=>{
-    p.curRank=curProdRankMap.get(p.p)||9999;
-    p.prevRank=prevProdRankMap.get(p.p)||9999;
-    p.rankChange=p.prevRank-p.curRank;
+    // 2026-09-24: no placeholder ranks (#9999) -- see corporation note above.
+    p.curRank=curProdRankMap.get(p.p)??null;
+    p.prevRank=prevProdRankMap.get(p.p)??null;
+    p.rankChange=(p.curRank!=null&&p.prevRank!=null)?p.prevRank-p.curRank:null;
   });
 
   const prodGainers=prods.filter(p=>p.shareChange>0).sort((a,b)=>b.shareChange-a.shareChange).slice(0,10);
@@ -6190,9 +6257,9 @@ function renderWinners() {
       <th>Corporation</th><th>Rank Now</th><th>Rank Before</th><th>Rank Δ</th>
       <th>Share Now</th><th>Share Before</th><th>Share Δ</th><th>Growth</th>
     </tr></thead><tbody id="tbl-wl-body">
-    ${corps.sort((a,b)=>a.curRank-b.curRank).map(c=>`<tr>
+    ${corps.sort((a,b)=>(a.curRank??1e9)-(b.curRank??1e9)).map(c=>`<tr>
       <td style="font-weight:500">${LOOKUPS.corps[c.c]||''}</td>
-      <td>#${c.curRank}</td><td>#${c.prevRank}</td>
+      <td>${c.curRank!=null?'#'+c.curRank:fmtGrowth(-1)}</td><td>${c.prevRank!=null?'#'+c.prevRank:fmtGrowth(Infinity)}</td>
       <td><span class="badge ${c.rankChange>0?'badge-up':c.rankChange<0?'badge-down':'badge-neutral'}">${c.rankChange>0?'▲'+c.rankChange:c.rankChange<0?'▼'+Math.abs(c.rankChange):'—'}</span></td>
       <td>${fmtPct(c.share)}</td><td>${fmtPct(c.prevShare)}</td>
       <td><span class="badge ${c.shareChange>0?'badge-up':c.shareChange<0?'badge-down':'badge-neutral'}">${(c.shareChange*100).toFixed(2)}pp</span></td>
@@ -6249,10 +6316,10 @@ function renderWinners() {
       <th>Product</th><th>Corporation</th><th>Rank Now</th><th>Rank Before</th><th>Rank Δ</th>
       <th>Share Now</th><th>Share Δ</th><th>Growth</th><th>Incremental ${ml}</th>
     </tr></thead><tbody id="tbl-wl-prod-body">
-    ${prods.sort((a,b)=>a.curRank-b.curRank).slice(0,50).map(p=>`<tr>
+    ${prods.sort((a,b)=>(a.curRank??1e9)-(b.curRank??1e9)).slice(0,50).map(p=>`<tr>
       <td style="font-weight:500">${p.prodLabel}</td>
       <td style="color:var(--acc1);font-size:11px;font-weight:500">${p.corpLabel}</td>
-      <td>#${p.curRank}</td><td>#${p.prevRank}</td>
+      <td>${p.curRank!=null?'#'+p.curRank:fmtGrowth(-1)}</td><td>${p.prevRank!=null?'#'+p.prevRank:fmtGrowth(Infinity)}</td>
       <td><span class="badge ${p.rankChange>0?'badge-up':p.rankChange<0?'badge-down':'badge-neutral'}">${p.rankChange>0?'▲'+p.rankChange:p.rankChange<0?'▼'+Math.abs(p.rankChange):'—'}</span></td>
       <td>${fmtPct(p.share)}</td>
       <td><span class="badge ${p.shareChange>0?'badge-up':p.shareChange<0?'badge-down':'badge-neutral'}">${(p.shareChange*100).toFixed(2)}pp</span></td>
@@ -8692,6 +8759,31 @@ function renderGuide() {
     +'<tr><td style="padding:7px 10px;font-weight:700;color:var(--acc1)">All</td><td style="padding:7px 10px;color:var(--txt2)">Full history</td><td style="padding:7px 10px;color:var(--txt3)">Long-term trends.</td></tr>'
     +'</tbody></table>';
   function card(t,b){return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:12px"><div style="font-weight:700;color:var(--txt1);font-size:14px;margin-bottom:12px">'+t+'</div><div style="color:var(--txt2);font-size:13px;line-height:1.7">'+b+'</div></div>';}
+  // ── Growth & ranking methodology (2026-09-24, v1.0) ─────────────────────
+  // Thresholds are read live from js/iqvia-growth-config.js and the active
+  // ownership restatements from the cache audit trail (IQVIA_CACHE.restatements
+  // written by refresh_iqvia.py), so this text always matches what is applied.
+  function _gEsc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var _gMin = (growthRuleMinShare()*100).toLocaleString(), _gLow = (lowBaseGrowth()*100).toLocaleString();
+  function grow(t,r,s){ return '<tr style="border-bottom:1px solid var(--border)"><td style="font-weight:700;color:var(--acc1);padding:7px 10px;vertical-align:top;white-space:nowrap">'+t+'</td><td style="color:var(--txt2);padding:7px 10px;vertical-align:top">'+r+'</td><td style="color:var(--txt3);padding:7px 10px;vertical-align:top">'+s+'</td></tr>'; }
+  var _gRs = (window.IQVIA_CACHE && window.IQVIA_CACHE.restatements) || [];
+  var _gRsList = _gRs.length ? _gRs.map(function(r){
+      return '<li><b>'+_gEsc((r.products||[]).join(', '))+'</b>: '+_gEsc(r.from)+' &rarr; '+_gEsc(r.to)
+        +' <span style="color:var(--txt3)">('+_gEsc(r.classification||'')+'; '+(r.rows||0).toLocaleString()+' row'+(r.rows===1?'':'s')
+        +(r.periods&&r.periods.length?', '+_gEsc(r.periods[0])+'&ndash;'+_gEsc(r.periods[1]):'')+(r.audit_ok===false?'; <b style="color:#e05c5c">audit mismatch</b>':'')+')</span></li>'; }).join('')
+    : '<li>None active.</li>';
+  var _gm='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:6px 10px;font-size:11px;color:var(--txt3)">Term</th><th style="text-align:left;padding:6px 10px;font-size:11px;color:var(--txt3)">Rule</th><th style="text-align:left;padding:6px 10px;font-size:11px;color:var(--txt3)">How it is shown</th></tr></thead><tbody>'
+    +grow('Growth','Current vs prior comparison period (e.g. MAT vs prior MAT) on the <b>selected metric</b>: LCV in LCV mode, SU in SU mode.','% with sign')
+    +grow('Fastest Growing','Highest growth among <b>eligible</b> items. Eligible = prior-period sales &gt; 0, growth not Low base, and current share &ge; <b>'+_gMin+'%</b> of the <b>currently filtered</b> market. One rule for Company, DM1, DM2 and ATC4.','Name + growth')
+    +grow('Biggest Decliner','Lowest growth among the same eligible items, only when negative.','Name + growth')
+    +grow('New / New entrant','No sales in the prior comparison period (after ownership restatement). Growth is undefined, so it is never ranked or counted.','<b>NEW</b>, listed separately with current sales')
+    +grow('Low base','Growth above <b>+'+_gLow+'%</b> (current &gt; '+(lowBaseGrowth()+1).toLocaleString()+'&times; prior): the base is too small for a meaningful %. Not ranked, counted or averaged.','<b>Low base</b> (actual % on hover)')
+    +grow('Exit','No sales in the current period.','<b>Exit</b>')
+    +grow('EVI / RGI','(1 + item growth) / (1 + market growth); EVI &times;100. Only for Normal growth; outperformance counts and averages use comparable items only.','Number, or NEW / &mdash;')
+    +grow('Ownership restatement','When a product changes owner, its history is restated to the <b>latest</b> owner so YoY is like-for-like (not counted as organic growth or decline). The raw IQVIA file is never modified; every mapping is approved, logged and reversible.','Applied in the data refresh')
+    +'</tbody></table>'
+    +'<div style="margin-top:10px;font-size:12px;color:var(--txt2)"><b style="color:var(--txt1)">Active restatements</b> (register <code>iqvia_source/config/corp_restatements.json</code>; audit trail written at every refresh):<ul style="margin:6px 0 0 18px;padding:0">'+_gRsList+'</ul></div>'
+    +'<div style="margin-top:8px;font-size:11px;color:var(--txt3)">Thresholds: <code>js/iqvia-growth-config.js</code>. Full methodology and governance: <code>IQVIA_GROWTH_AND_RESTATEMENT_METHODOLOGY.md</code>.</div>';
   var pg='<div class="section-title">Dashboard Guide &amp; Best Practices</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'
     +'<div>'+card('Glossary: All metrics explained',tbl)+'</div>'
@@ -8700,6 +8792,7 @@ function renderGuide() {
     +card('HHI: Market Concentration - How to act on it',hhi)
     +card('Filters: Best practice','<div style="font-size:12px;display:flex;flex-direction:column;gap:8px"><div><b style="color:var(--acc1)">Corp:</b> Deselect Zeta to see pure market. Select only Zeta for Zeta-only view.</div><div><b style="color:var(--acc1)">DM1:</b> Narrow to one therapeutic area for BU presentations.</div><div><b style="color:var(--acc1)">BU:</b> BU Managers see their BU automatically. Admins can switch BUs to compare.</div><div><b style="color:var(--acc1)">As Of:</b> Move anchor back to simulate a historical view.</div><div style="background:rgba(76,110,245,.08);border:1px solid rgba(76,110,245,.2);border-radius:6px;padding:8px;margin-top:4px"><b style="color:var(--acc1)">Tip:</b> Always set BU filter before sharing a screenshot.</div></div>')
     +'</div></div>'
+    +card('Growth &amp; Ranking Methodology (v1.0, 2026-09-24)', _gm)
     +'<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:12px">'
     +'<div style="font-weight:700;color:var(--txt1);font-size:14px;margin-bottom:14px">Page-by-Page Guide</div>'
     +srow('[KPI]','Executive Command','Top KPIs: market size, Zeta share, growth.','Green=growing, Red=declining. Watch share delta.','Screenshot for weekly leadership when share moves.')

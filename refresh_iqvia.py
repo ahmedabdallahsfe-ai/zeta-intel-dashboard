@@ -220,22 +220,40 @@ if os.path.exists(CORP_RESTATEMENTS_FILE):
         _rs_cfg = json.load(open(CORP_RESTATEMENTS_FILE, encoding='utf-8'))
         if _rs_cfg.get('enabled', True):
             print('\n[2c/4] Applying like-for-like corporate restatements...', flush=True)
+            _mismatch = 0
             for _r in _rs_cfg.get('restatements', []):
+                _rid = _r.get('id')
                 if not _r.get('enabled', True):
-                    log(f"Restatement {_r.get('id')} disabled -- skipped"); continue
+                    log(f"Restatement {_rid} disabled -- skipped"); continue
+                # 2026-09-24 (schema v2): only APPROVED entries are applied.
+                if _r.get('status', '') != 'approved':
+                    log(f"Restatement {_rid} status={_r.get('status','(missing)')!r} -- not approved, skipped"); continue
                 _fc, _tc = _r['from_corporation'], _r['to_corporation']
                 _prods = set(_r.get('products', []))
+                _pf, _pt = _r.get('apply_period_from'), _r.get('apply_period_to')   # optional inclusive YYYY-MM bounds
                 _n = 0; _lcv = 0; _pers = set(); _seen = set()
                 for i in range(len(corps_r)):
                     if prods_r[i] in _prods and corps_r[i] in (_fc, _tc): _seen.add(prods_r[i])
                     if corps_r[i] == _fc and prods_r[i] in _prods:
-                        corps_r[i] = _tc; _n += 1; _lcv += lcvs_r[i]; _pers.add(str(periods_r[i]))
+                        _per = str(periods_r[i])
+                        if (_pf and _per < _pf) or (_pt and _per > _pt): continue
+                        corps_r[i] = _tc; _n += 1; _lcv += lcvs_r[i]; _pers.add(_per)
                 _missing = sorted(_prods - _seen)
-                log(f"Restatement {_r.get('id')}: {_fc} -> {_tc}, {len(_prods)} products, {_n:,} rows relabelled, LCV {_lcv:,.0f}, periods {min(_pers) if _pers else '-'}..{max(_pers) if _pers else '-'}")
-                if _missing: log(f"WARNING: restatement {_r.get('id')} products not found under {_fc}/{_tc}: {_missing}")
-                _restatement_log.append({'id': _r.get('id'), 'from': _fc, 'to': _tc, 'products': sorted(_prods),
+                _bound = f" [bounded {_pf or '*'}..{_pt or '*'}]" if (_pf or _pt) else ''
+                log(f"Restatement {_rid} ({_r.get('classification','')}): {_fc} -> {_tc}{_bound}, {len(_prods)} product(s), {_n:,} rows relabelled, LCV {_lcv:,.0f}, periods {min(_pers) if _pers else '-'}..{max(_pers) if _pers else '-'}")
+                if _missing: log(f"WARNING: restatement {_rid} products not found under {_fc}/{_tc}: {_missing}")
+                _exp_r, _exp_v = _r.get('expected_rows'), _r.get('expected_lcv')
+                _ok = (_exp_r is None or _exp_r == _n) and (_exp_v is None or _exp_v == _lcv)
+                if not _ok:
+                    _mismatch += 1
+                    log(f"WARNING: restatement {_rid} audit MISMATCH -- expected {_exp_r} rows / LCV {_exp_v}, got {_n} / {_lcv}. The source changed under this mapping: re-review before release.")
+                _restatement_log.append({'id': _rid, 'classification': _r.get('classification', ''), 'status': _r.get('status'),
+                                         'from': _fc, 'to': _tc, 'products': sorted(_prods),
                                          'rows': _n, 'lcv': _lcv, 'periods': [min(_pers), max(_pers)] if _pers else [],
-                                         'effective': _r.get('transfer_effective_period', ''), 'missing': _missing})
+                                         'bounds': [_pf, _pt] if (_pf or _pt) else None,
+                                         'effective': _r.get('transfer_effective_period', ''), 'missing': _missing,
+                                         'expected_rows': _exp_r, 'expected_lcv': _exp_v, 'audit_ok': _ok})
+            log(f"Restatement audit: {len(_restatement_log)} applied, {_mismatch} mismatch(es)")
         else:
             log('Corporate restatements disabled in config -- skipped')
     except Exception as e:
