@@ -82,7 +82,7 @@ SUBTYPE_TO_CLUSTER = {
     "Tarshobi PH": "Chain Pharmacy", "Walid El Tarshobi": "Chain Pharmacy", "Yasser Hefny": "Chain Pharmacy",
     "Al Safa": "Chain Pharmacy", "Dawaa": "Chain Pharmacy", "Gardenia": "Chain Pharmacy",
     "HEFNY PHs": "Chain Pharmacy", "Optimus": "Chain Pharmacy", "Sehha": "Chain Pharmacy",
-    "Yodawi": "Chain Pharmacy", "Chain": "Chain Pharmacy",
+    "Yodawi": "Chain Pharmacy", "Chain": "Chain Pharmacy", "Zikry  Ph": "Chain Pharmacy", "Zikry Ph": "Chain Pharmacy",
     "EgyDrug_Pharmacies": "Retail",
     "Behera PHs": "Stores", "Elsyadla": "Stores", "Stores": "Stores", "SubAgent": "Stores",
     "Special PHs": "Retail", "Account": "Retail", "Retail": "Retail",

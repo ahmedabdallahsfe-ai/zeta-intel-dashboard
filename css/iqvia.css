@@ -1304,3 +1304,66 @@
   }
   .iqvia-dashboard-wrap #filter-group .tb-filter label{width:96px}
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   COMPACT STICKY FILTER BAR — hybrid collapse (2026-09-24)
+   Pairs with js/iqvia-filterbar.js. Visual only; desktop only (>768px).
+   Collapsed: 1 row = title · Period · As Of · Filters (n) · chips · LCV/SU · tools
+   Open:      + grouped panel + [note · Clear All · Close · Apply]
+══════════════════════════════════════════════════════════════════════ */
+@media (min-width:769px){
+  .iqvia-dashboard-wrap #topbar #mi-fp-toggle{order:4}
+  .iqvia-dashboard-wrap #topbar #mi-fp-chips{order:5}
+  .iqvia-dashboard-wrap #topbar .tb-metric{order:6;margin-left:0!important}
+  .iqvia-dashboard-wrap #topbar > .tb-btn:not(#mi-fp-toggle),
+  .iqvia-dashboard-wrap #topbar > #notif-btn{order:7}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions{order:12}
+
+  .iqvia-dashboard-wrap #topbar.mi-fp-collapsed{row-gap:0;padding-top:6px;padding-bottom:6px}
+  .iqvia-dashboard-wrap #topbar.mi-fp-collapsed .tb-fgroup,
+  .iqvia-dashboard-wrap #topbar.mi-fp-collapsed #mi-fp-actions{display:none!important}
+  .iqvia-dashboard-wrap #topbar.mi-fp-collapsed::after{display:none}
+  .iqvia-dashboard-wrap #topbar.mi-fp-open{box-shadow:0 10px 28px rgba(0,0,0,.28)}
+
+  .iqvia-dashboard-wrap .mi-fp-toggle{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--txt1)}
+  .iqvia-dashboard-wrap .mi-fp-count{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--bg1);
+    color:var(--txt3);font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+  .iqvia-dashboard-wrap .mi-fp-count.mi-fp-count-on{background:var(--acc1);color:#fff}
+  .iqvia-dashboard-wrap .mi-fp-caret{font-size:9px;opacity:.7;transition:transform .15s}
+  .iqvia-dashboard-wrap #topbar.mi-fp-open .mi-fp-toggle,
+  .iqvia-dashboard-wrap #topbar.mi-fp-open .mi-fp-toggle:hover,
+  .iqvia-dashboard-wrap #topbar.mi-fp-open .mi-fp-toggle:focus{border-color:var(--acc1)!important;color:var(--acc1)!important;
+    background:color-mix(in srgb, var(--acc1) 12%, var(--bg2))!important}
+  .iqvia-dashboard-wrap #topbar.mi-fp-open .mi-fp-caret{transform:rotate(180deg)}
+
+  .iqvia-dashboard-wrap .mi-fp-chips{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:6px;
+    overflow-x:auto;white-space:nowrap;scrollbar-width:thin;cursor:pointer;padding:2px 0}
+  .iqvia-dashboard-wrap .mi-fp-chip{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;max-width:280px;
+    padding:3px 4px 3px 10px;border-radius:14px;font-size:11.5px;color:var(--txt1);
+    background:color-mix(in srgb, var(--acc1) 14%, var(--bg2));border:1px solid color-mix(in srgb, var(--acc1) 40%, var(--border))}
+  .iqvia-dashboard-wrap .mi-fp-chip b{font-weight:700;color:var(--acc1);flex-shrink:0}
+  .iqvia-dashboard-wrap .mi-fp-chip-v{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .iqvia-dashboard-wrap .mi-fp-chip-x{border:0;background:transparent;color:var(--txt2);cursor:pointer;
+    font-size:13px;line-height:1;width:18px;height:18px;border-radius:50%;flex-shrink:0}
+  .iqvia-dashboard-wrap .mi-fp-chip-x:hover{background:var(--bg3);color:var(--acc3)}
+  .iqvia-dashboard-wrap .mi-fp-none{font-size:11.5px;color:var(--txt3);font-style:italic}
+  .iqvia-dashboard-wrap .mi-fp-clear-link{border:0;background:transparent;color:var(--txt2);font-size:11.5px;
+    text-decoration:underline;cursor:pointer;flex-shrink:0;padding:0 4px}
+  .iqvia-dashboard-wrap .mi-fp-clear-link:hover{color:var(--acc3)}
+
+  .iqvia-dashboard-wrap .mi-fp-actions{flex-basis:100%;display:flex;align-items:center;justify-content:flex-end;gap:8px;
+    padding-top:8px;border-top:1px solid var(--border)}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions .tb-clear{order:1;align-self:auto;margin:0}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions .mi-fp-note{order:0}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions .mi-fp-close{order:2}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions .mi-fp-apply{order:3}
+  .iqvia-dashboard-wrap .mi-fp-note{margin-right:auto;font-size:11.5px;color:var(--acc4);font-weight:600}
+  .iqvia-dashboard-wrap .mi-fp-apply{background:var(--acc1);border-color:var(--acc1);color:#fff;font-weight:700;min-width:96px}
+  .iqvia-dashboard-wrap .mi-fp-apply:hover{filter:brightness(1.08);color:#fff}
+  .iqvia-dashboard-wrap .mi-fp-apply.mi-fp-pending{box-shadow:0 0 0 3px color-mix(in srgb, var(--acc1) 35%, transparent)}
+}
+@media (max-width:768px){
+  .iqvia-dashboard-wrap #mi-fp-toggle,
+  .iqvia-dashboard-wrap #mi-fp-chips,
+  .iqvia-dashboard-wrap #mi-fp-actions{display:none!important}
+}

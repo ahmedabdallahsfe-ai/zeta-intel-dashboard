@@ -34,6 +34,22 @@
       return set ? set.size : 0;
     } catch (e) { return 0; }
   }
+  // Full value names for the chip (the dropdown's own label truncates to 14 chars)
+  function chipValue(dim) {
+    try {
+      var cfg = (typeof MS_CFG !== 'undefined') ? MS_CFG[dim] : null;
+      var set = cfg ? STATE[cfg.stateKey] : null;
+      var names = (cfg && typeof LOOKUPS !== 'undefined') ? LOOKUPS[cfg.lookupKey] : null;
+      if (set && names) {
+        var arr = Array.from(set);
+        if (arr.length === 1) return String(names[arr[0]] || '').trim() || '1 selected';
+        if (arr.length === 2) return arr.map(function (i) { return String(names[i] || '').trim(); }).join(', ');
+        return arr.length + ' selected';
+      }
+    } catch (e) { /* fall through */ }
+    var lbl = document.getElementById('f-' + dim + '-label');
+    return lbl ? lbl.textContent.trim() : '';
+  }
   function activeDims() { return DIMS.filter(function (d) { return selSize(d[0]) > 0; }); }
 
   // ---- wrap the three dropdown entry points (defer only the redraw) -------
@@ -101,9 +117,8 @@
     if (cnt) { cnt.textContent = act.length; cnt.classList.toggle('mi-fp-count-on', act.length > 0); }
     if (!act.length) { box.innerHTML = '<span class="mi-fp-none">No filters · all market data</span>'; return; }
     box.innerHTML = act.map(function (d) {
-      var lbl = document.getElementById('f-' + d[0] + '-label');
-      var val = lbl ? lbl.textContent.trim() : (selSize(d[0]) + ' selected');
-      return '<span class="mi-fp-chip" title="' + esc(d[1] + ': ' + val) + '"><b>' + esc(d[1]) + '</b> ' + esc(val) +
+      var val = chipValue(d[0]);
+      return '<span class="mi-fp-chip" title="' + esc(d[1] + ': ' + val) + '"><b>' + esc(d[1]) + '</b><span class="mi-fp-chip-v">' + esc(val) + '</span>' +
         '<button type="button" class="mi-fp-chip-x" data-dim="' + d[0] + '" aria-label="Remove ' + esc(d[1]) + ' filter">×</button></span>';
     }).join('') + '<button type="button" class="mi-fp-clear-link" id="mi-fp-clear-link">Clear all</button>';
   }

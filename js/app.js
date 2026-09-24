@@ -2655,14 +2655,14 @@ const DRILLDOWN_COLS_UNIQUE = [
 function wireNotSeenModal() {
   const overlay  = document.getElementById("ns-modal-overlay");
   const closeBtn = document.getElementById("ns-modal-close");
-  const searchEl = document.getElementById("ns-modal-search");
+  let   searchEl = document.getElementById("ns-modal-search");
   const body     = document.getElementById("ns-modal-body");
   const badge    = document.getElementById("ns-modal-badge");
   const info     = document.getElementById("ns-modal-info");
   const prevBtn  = document.getElementById("ns-modal-prev");
   const nextBtn  = document.getElementById("ns-modal-next");
   const pageLabel= document.getElementById("ns-modal-page-label");
-  const exportBtn= document.getElementById("ns-modal-export");
+  let   exportBtn= document.getElementById("ns-modal-export");
 
   const PAGE_SIZE = 50;
   let _allRows = [];
@@ -2673,16 +2673,16 @@ function wireNotSeenModal() {
 
   const COLS = [
     { key: "customerName", label: "Customer Name", width: "16%" },
-    { key: "specialty",    label: "Specialty",     width: "9%"  },
+    { key: "specialty",    label: "Specialty",     width: "8%"  },
     { key: "klass",        label: "Class",         width: "5%"  },
     { key: "type",         label: "Type",          width: "5%"  },
-    { key: "employee",     label: "Employee",       width: "12%" },
-    { key: "team",         label: "Team",           width: "8%" },
-    { key: "manager",      label: "Manager",        width: "10%" },
-    { key: "frequency",    label: "Freq",           width: "5%", align: "right" },
-    { key: "area",         label: "Area",           width: "8%" },
-    { key: "lastVisitDate",label: "Last Visit",     width: "8%"  },
-    { key: "visitedMonths",label: "Visited Months", width: "14%" },
+    { key: "employee",     label: "Employee",      width: "11%" },
+    { key: "team",         label: "Team",          width: "8%"  },
+    { key: "manager",      label: "Manager",       width: "11%" },
+    { key: "area",         label: "Area",          width: "9%"  },
+    { key: "frequency",    label: "Freq",          width: "5%", align: "right" },
+    { key: "lastVisitDate",label: "Last Visit",    width: "8%"  },
+    { key: "visitedMonths",label: "Visited Months",width: "14%" },
   ];
 
   function esc(s) { return UI.escapeHtml(String(s ?? "")); }
@@ -2738,6 +2738,14 @@ function wireNotSeenModal() {
   function openModal() {
     if (typeof Analytics === "undefined" || !Analytics.getNotSeenCustomers) return;
     _allRows = Analytics.getNotSeenCustomers(_lastFilterState || Analytics.defaultFilters());
+    // 2026-09-24: this overlay is shared with the Over/Below Freq, At-Risk,
+    // Team and other popups (openFreqModal etc.), which rename the title and
+    // replace the search box + Export button with clones bound to THEIR list.
+    // Reset the title and re-bind both controls to Not Seen on every open, so
+    // Not Seen never inherits the previous popup's title, search or export.
+    const titleEl = document.getElementById("ns-modal-title-text");
+    if (titleEl) titleEl.textContent = "Not Seen Customers";
+    bindSearchAndExport();
     badge.textContent = _allRows.length.toLocaleString();
     searchEl.value = "";
     _filtered = _allRows;
@@ -2821,19 +2829,31 @@ function wireNotSeenModal() {
     openFreqModal("team", rows, `Customers — Team: ${teamName}`, DRILLDOWN_COLS_COVERAGE);
   });
 
-  searchEl.addEventListener("input", Utils.debounce((e) => {
-    _filtered = applySearch(e.target.value.trim());
-    _page = 1;
-    renderBody();
-  }, 200));
+  function bindSearchAndExport() {
+    const curSearch = document.getElementById("ns-modal-search");
+    const freshSearch = curSearch.cloneNode(true);
+    freshSearch.placeholder = "Search by customer, employee, specialty…";
+    curSearch.parentNode.replaceChild(freshSearch, curSearch);
+    searchEl = freshSearch;
+    searchEl.addEventListener("input", Utils.debounce((e) => {
+      _filtered = applySearch(e.target.value.trim());
+      _page = 1;
+      renderBody();
+    }, 200));
+
+    const curExport = document.getElementById("ns-modal-export");
+    const freshExport = curExport.cloneNode(true);
+    curExport.parentNode.replaceChild(freshExport, curExport);
+    exportBtn = freshExport;
+    exportBtn.addEventListener("click", () => {
+      if (typeof Exporter === "undefined") return;
+      Exporter.tableToExcel(COLS, sortRows(_filtered, _sortKey, _sortDir), `not-seen-customers_${filenameSuffix}`);
+    });
+  }
 
   prevBtn.addEventListener("click", () => { _page--; renderBody(); });
   nextBtn.addEventListener("click", () => { _page++; renderBody(); });
 
-  exportBtn.addEventListener("click", () => {
-    if (typeof Exporter === "undefined") return;
-    Exporter.tableToExcel(COLS, sortRows(_filtered, _sortKey, _sortDir), `not-seen-customers_${filenameSuffix}`);
-  });
 }
 
 /* ── KOL Coverage ─────────────────────────────────────────────────────────── */
