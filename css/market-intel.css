@@ -858,3 +858,31 @@ body.market-intel-mode #app-root { padding: 0; max-width: none; }
 .mi-ask-explore-chip:active {
   transform: translateY(0);
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   ASK COMPACT (Market Intelligence / IQVIA tab only) — 2026-09-24
+   Visual only; ask-engine.js / app.js untouched. Resting state = one slim
+   row (icon · title · search · Ask). Example chips appear while the panel
+   has focus; once a question is answered the answer shows in full.
+   Scoped to [data-ask-panel="iqvia"] so every other page keeps its panel.
+══════════════════════════════════════════════════════════════════════ */
+.mi-ask-hero[data-ask-panel="iqvia"] {
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: 14px; row-gap: 8px;
+  padding: 10px 16px; margin-bottom: 10px; border-radius: 12px;
+}
+.mi-ask-hero[data-ask-panel="iqvia"]::after { border-radius: 12px; }
+.mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-head { margin-bottom: 0; align-items: center; gap: 10px; flex: 0 0 auto; }
+.mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-icon { width: 30px; height: 30px; border-radius: 9px; }
+.mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-icon svg { width: 16px; height: 16px; }
+.mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-title { font-size: 15px; margin: 0; white-space: nowrap; }
+.mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-sub { display: none; }
+.mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-bar { flex: 1 1 380px; min-width: 0; }
+.mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-input { padding: 9px 14px; font-size: 13.5px; }
+.mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-go { padding: 9px 20px; }
+.mi-ask-hero[data-ask-panel="iqvia"] > :not(.mi-ask-head):not(.mi-ask-bar) { flex-basis: 100%; }
+.mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-ex { margin-top: 0; }
+/* chips only while the user is working in the panel, or once answered */
+.mi-ask-hero[data-ask-panel="iqvia"]:not(:focus-within):not(.is-answered) .mi-ask-ex { display: none; }
+@media (max-width: 720px) {
+  .mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-bar { flex-basis: 100%; }
+}

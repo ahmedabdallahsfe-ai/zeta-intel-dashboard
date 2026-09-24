@@ -1,0 +1,17 @@
+{
+  "_comment": "LIKE-FOR-LIKE CORPORATE RESTATEMENTS (read by refresh_iqvia.py, step 2c). When a product changes corporate owner (demerger, acquisition, licence transfer), IQVIA standard practice is to restate that product's HISTORY under its CURRENT owner, so YoY growth compares the same product basket and an ownership transfer is not counted as organic growth (new owner) or decline (old owner). The raw IQVIA_SOURCE.xlsx is NEVER modified: rows are relabelled in memory only while the cache is built. To reverse a restatement set its 'enabled' to false (or the top-level 'enabled' to false) and re-run refresh_iqvia.py. Matching is exact on Corporation + Product (the corporation must match 'from_corporation', so the same brand name under an unrelated corporation is never touched).",
+  "enabled": true,
+  "restatements": [
+    {
+      "id": "OPELLA-2026-01",
+      "enabled": true,
+      "from_corporation": "SANOFI",
+      "to_corporation": "OPELLA*",
+      "products": ["BRONCHICUM", "MAXILASE", "TELFAST"],
+      "transfer_effective_period": "2026-01",
+      "evidence": "In IQVIA_SOURCE these 3 products are reported under SANOFI 2021-01..2025-12 and under OPELLA* from 2026-01..2026-08, with no overlap (Sanofi consumer-health carve-out into Opella).",
+      "approved_by": "Ahmed (SFE Manager)",
+      "approved_on": "2026-09-24"
+    }
+  ]
+}

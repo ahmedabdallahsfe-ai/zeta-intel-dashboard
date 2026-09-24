@@ -311,6 +311,46 @@ function growth(cur, prev) {
   return (cur - prev) / prev;
 }
 
+// ── UNIFIED GROWTH-RANKING ELIGIBILITY (2026-09-24) ─────────────────────────
+// ONE methodology for every "Fastest Growing / Biggest Decliner" card
+// (Company = Executive, DM1, DM2, ATC4). Business rule approved by Ahmed
+// (SFE Manager) 2026-09-24:
+//   1. prior-period value > 0 on the SELECTED metric (LCV or SU)
+//   2. current share of the CURRENTLY FILTERED market >= minSharePct
+//   3. growth measured on the selected metric (LCV in LCV mode, SU in SU mode)
+// Items with no prior-period value but current value > 0 are NEW ENTRANTS:
+// never ranked (growth would be infinite), returned separately.
+// Biggest decliner = lowest growth among eligible items, only if < 0.
+// Threshold is configurable in js/iqvia-growth-config.js
+// (window.IQVIA_GROWTH_RULES.minSharePct, in %); default 0.5 if absent.
+// Ownership transfers are handled upstream (like-for-like restatement in
+// refresh_iqvia.py via iqvia_source/config/corp_restatements.json).
+function growthRuleMinShare() {
+  var c = window.IQVIA_GROWTH_RULES, v = c ? Number(c.minSharePct) : NaN;
+  return (isFinite(v) && v >= 0) ? v / 100 : 0.005;
+}
+function rankGrowth(items, curOf, prevOf) {
+  var total = 0;
+  items.forEach(function (x) { total += (curOf(x) || 0); });
+  var minShare = growthRuleMinShare(), elig = [], newE = [];
+  items.forEach(function (x) {
+    var c = curOf(x) || 0, p = prevOf(x) || 0;
+    if (c <= 0) return;
+    if (p <= 0) { newE.push(x); return; }
+    if (total > 0 && c / total >= minShare) elig.push({ x: x, g: (c - p) / p });
+  });
+  elig.sort(function (a, b) { return b.g - a.g; });
+  newE.sort(function (a, b) { return (curOf(b) || 0) - (curOf(a) || 0); });
+  var last = elig[elig.length - 1];
+  return {
+    fastest: elig.length ? elig[0].x : undefined,
+    fastestGr: elig.length ? elig[0].g : undefined,
+    decliner: (last && last.g < 0) ? last.x : undefined,
+    declinerGr: (last && last.g < 0) ? last.g : undefined,
+    newEntrants: newE, eligibleCount: elig.length, minShare: minShare, total: total
+  };
+}
+
 // ===================== CHART FACTORY =====================
 const COLORS = ['#4c6ef5','#36c994','#ff5c6b','#ff9f45','#9775fa','#20c4f4','#f4d344','#cc5de8','#74c69d','#f76707','#3d85c8','#e06666','#ffd966','#8e7cc3','#a61c00'];
 const charts = {};
@@ -1130,9 +1170,14 @@ function renderExecutive() {
   // commentary
   const top1corp    = LOOKUPS.corps[corpList[0]?.c||0];
   const top1prod    = LOOKUPS.prods[prodList[0]?.p||0];
-  const fastest     = corpList.filter(c=>MV(c)>1e5).sort((a,b)=>b.lcvGrowth-a.lcvGrowth)[0];
+  // 2026-09-24: unified growth eligibility (see rankGrowth) — replaces the
+  // old ">100K, sort by LCV growth" rule that let zero-base corps win.
+  const _corpRank   = rankGrowth(corpList, c=>MV(c), c=>STATE.metric==='lcv'?c.prevLcv:c.prevSu);
+  const fastest     = _corpRank.fastest;
   const fastestName = fastest ? LOOKUPS.corps[fastest.c] : 'N/A';
-  const decliner    = corpList.filter(c=>MV(c)>1e5).sort((a,b)=>a.lcvGrowth-b.lcvGrowth)[0];
+  const decliner    = _corpRank.decliner;
+  const _corpNew    = _corpRank.newEntrants;
+  const _corpNewTxt = _corpNew.length ? `${LOOKUPS.corps[_corpNew[0].c]} (${fmtLCV(MV(_corpNew[0]))} ${ml})${_corpNew.length>1?` +${_corpNew.length-1} more`:''}` : '';
 
   // Evolution Index: current / prior × 100
   const mktEVI = prevTotal > 0 ? Math.round((curTotal / prevTotal) * 100) : 100;
@@ -1155,6 +1200,7 @@ function renderExecutive() {
     { icon:'📈', text: `Market ${mktGrowth >= 0 ? 'grew' : 'declined'} <strong>${fmtGrowthTxt(mktGrowth)}</strong> vs prior ${rangeLabel} — Evolution Index: <strong style="color:${eviColor}">${mktEVI}</strong>` },
     { icon:'🏆', text: `<strong>${top1corp}</strong> leads with <strong>${fmtPct(STATE.metric==='lcv'?corpList[0]?.lcvShare:corpList[0]?.suShare)}</strong> ${ml} share (EVI: ${corpList[0]?.evi})` },
     { icon:'🚀', text: fastest ? `Fastest growing major corp: <strong>${fastestName}</strong> at <strong>${fmtGrowthTxt(STATE.metric==='lcv'?fastest?.lcvGrowth:fastest?.suGrowth)}</strong> ${ml} growth — EVI: <strong>${fastest?.evi}</strong>` : 'No major growth leader identified' },
+    ...(_corpNewTxt ? [{ icon:'🆕', text: `New entrant${_corpNew.length>1?'s':''} (no prior-${rangeLabel} sales, not ranked): <strong>${_corpNewTxt}</strong>` }] : []),
     { icon:'📉', text: decliner ? `Biggest decliner: <strong>${LOOKUPS.corps[decliner.c]}</strong> at <strong>${fmtGrowthTxt(STATE.metric==='lcv'?decliner?.lcvGrowth:decliner?.suGrowth)}</strong> — EVI: <strong style="color:#e05c5c">${decliner?.evi}</strong>` : 'No major decliners' },
     { icon:'🎯', text: `Top 5 control <strong>${fmtPct(cr5)}</strong> ${ml} share — CR10: <strong>${fmtPct(cr10)}</strong> — HHI: <strong>${Math.round(hhi).toLocaleString()}</strong> (${hhi<1000?'Low':hhi<1800?'Moderate':'High'} concentration)` },
     { icon:'💡', text: `LCV/SU price ratio: <strong>${lcvSuRatio} EGP/unit</strong> — market has <strong>${nCorps}</strong> active corps across <strong>${nProds}</strong> products` },
@@ -1243,7 +1289,7 @@ function renderExecutive() {
       <p>The Egypt pharmaceutical market reached <strong>${fmtLCV(curTotal)} ${ml}</strong> (${rangeLabel}),
          <strong>${fmtGrowthTxt(mktGrowth)}</strong> vs prior period.
          <strong>${top1corp}</strong> leads at ${fmtPct(STATE.metric==='lcv'?corpList[0]?.lcvShare:corpList[0]?.suShare)} ${ml} share.
-         Fastest grower: <strong>${fastestName}</strong> (${fmtGrowthTxt(fastest?.lcvGrowth)}).
+         Fastest grower: <strong>${fastestName}</strong> (${fmtGrowthTxt(STATE.metric==='lcv'?fastest?.lcvGrowth:fastest?.suGrowth)}).${_corpNewTxt?` New entrant: <strong>${_corpNewTxt}</strong>.`:''}
          Top 10 corps control ${fmtPct(top10Corps.reduce((s,c)=>s+(STATE.metric==='lcv'?c.lcvShare:c.suShare),0))} ${ml} market.</p>
     </div>
     <div class="commentary" style="margin:0">
@@ -1323,7 +1369,7 @@ function renderExecutive() {
     {label:'Market Evolution Index', value:mktEVI, valueColor:eviColor, sub:(mktEVI>=110?'🚀 Accelerating':mktEVI>=100?'📈 Growing':'📉 Declining')},
     {label:'Fastest Grower', value:(fastestName||'N/A').substring(0,18), sub:fastest?fmtGrowthTxt(_fastGr)+' — EVI '+fastest.evi:'—', cls:'g'},
     {label:'Concentration', value:fmtPct(cr5), sub:'CR10 '+fmtPct(cr10)+' | HHI '+Math.round(hhi).toLocaleString(), cls:'o'}
-  ], `Market reached <b>${fmtLCV(curTotal)} ${ml}</b> (${fmtGrowthTxt(mktGrowth)} vs prior ${rangeLabel}). <b>${top1corp}</b> leads at <b>${fmtPct(_leadShare)}</b> share. Fastest grower: <b>${fastestName}</b> (${fastest?fmtGrowthTxt(_fastGr):'N/A'}). Top 10 corps control <b>${fmtPct(cr10)}</b> of the market.`);
+  ], `Market reached <b>${fmtLCV(curTotal)} ${ml}</b> (${fmtGrowthTxt(mktGrowth)} vs prior ${rangeLabel}). <b>${top1corp}</b> leads at <b>${fmtPct(_leadShare)}</b> share. Fastest grower: <b>${fastestName}</b> (${fastest?fmtGrowthTxt(_fastGr):'N/A'}).${_corpNewTxt?` New entrant: <b>${_corpNewTxt}</b>.`:''} Top 10 corps control <b>${fmtPct(cr10)}</b> of the market.`);
   document.getElementById('s-executive').innerHTML = _exStrip + html;
 
   // ── % tooltip helper ──────────────────────────────────────────────────────
@@ -2275,7 +2321,8 @@ function renderDm1Intel() {
   let zetaTotal = 0; zetaByDm1.forEach(v => zetaTotal += mv(v));
   const zetaOverallShare = totalMarket > 0 ? zetaTotal/totalMarket : 0;
   const dm1sWithZeta = [...zetaByDm1.values()].filter(v=>mv(v)>0).length;
-  const topGrowing = markets.filter(m=>m.mktPrev>0).sort((a,b)=>b.gr-a.gr)[0];
+  // 2026-09-24: unified growth eligibility (prior>0, share>=threshold, selected metric)
+  const topGrowing = rankGrowth(markets, m=>m.mktLcv, m=>m.mktPrev).fastest;
 
   function quadrant(m) {
     const hg=m.gr>medianGr, hl=m.mktLcv>medianLcv, hz=m.zetaShare>0.02;
@@ -2604,7 +2651,8 @@ function renderDm2Intel() {
   // ── Totals ────────────────────────────────────────────────────────────────
   let zetaTotal = 0; zetaByDm2.forEach(v => zetaTotal += mv(v));
   const zetaOverallShare = totalMarket > 0 ? zetaTotal/totalMarket : 0;
-  const topGrowing = markets.filter(m=>m.mktPrev>0).sort((a,b)=>b.gr-a.gr)[0];
+  // 2026-09-24: unified growth eligibility (prior>0, share>=threshold, selected metric)
+  const topGrowing = rankGrowth(markets, m=>m.mktLcv, m=>m.mktPrev).fastest;
 
   // ── Active filter hint ────────────────────────────────────────────────────
   const filterHints = [];
@@ -3090,7 +3138,11 @@ function renderAtc4Intel() {
 
   // ── Totals / KPI ────────────────────────────────────────────────────────
   const fragmented     = markets.filter(m=>m.hhi<0.15).length;
-  const topGrowing     = markets.filter(m=>m.prevLcv>0).sort((a,b)=>b.lcvGr-a.lcvGr)[0];
+  // 2026-09-24: unified growth eligibility; growth now on the SELECTED metric
+  // (was always LCV, even in SU mode).
+  const topGrowing     = rankGrowth(markets, m=>MV(m), m=>STATE.metric==='lcv'?m.prevLcv:m.prevSu).fastest;
+  const _a4Gr          = STATE.metric==='lcv' ? topGrowing?.lcvGr : topGrowing?.suGr;
+  const _a4Ml          = STATE.metric==='lcv' ? 'LCV' : 'SU';
   const filterHints    = [];
   if (STATE.fAtc4Sel.size>0) filterHints.push(STATE.fAtc4Sel.size+' ATC4 selected');
   if (STATE.fDm1Sel.size>0)  filterHints.push(STATE.fDm1Sel.size+' DM1 selected');
@@ -3119,7 +3171,7 @@ function renderAtc4Intel() {
       <div class="kpi-sub">HHI &lt; 0.15 &mdash; high opportunity</div></div>
     <div class="kpi-card orange"><div class="kpi-label">Fastest Growing ATC4</div>
       <div class="kpi-value" style="font-size:14px">${(LOOKUPS.atc4s[topGrowing?.a4]||'&mdash;').substring(0,20)}</div>
-      <div class="kpi-sub">${fmtGrowthTxt(topGrowing?.lcvGr)} ${rangeLabel} LCV growth</div></div>
+      <div class="kpi-sub">${fmtGrowthTxt(_a4Gr)} ${rangeLabel} ${_a4Ml} growth</div></div>
     <div class="kpi-card purple"><div class="kpi-label">New Entrants (${rangeLabel})</div>
       <div class="kpi-value">${topNewEntrants.length}</div>
       <div class="kpi-sub">Products not in prior ${rangeLabel} ${filterHints.length?'&bull; filtered':''}</div></div>
@@ -3345,9 +3397,9 @@ function renderAtc4Intel() {
   const _a4Strip = execStrip([
     {label:'Total ATC4 Market LCV', value:fmtLCV(totalMarket), sub:markets.length+' ATC4 classes active'},
     {label:'Fragmented Markets', value:fragmented, sub:'HHI < 0.15 — high opportunity', cls:'g'},
-    {label:'Fastest Growing ATC4', value:_a4TopMkt, sub:fmtGrowthTxt(topGrowing?.lcvGr)+' '+rangeLabel+' LCV growth', cls:'o'},
+    {label:'Fastest Growing ATC4', value:_a4TopMkt, sub:fmtGrowthTxt(_a4Gr)+' '+rangeLabel+' '+_a4Ml+' growth', cls:'o'},
     {label:'New Entrants', value:topNewEntrants.length, sub:'Products not in prior '+rangeLabel, cls:'p'}
-  ], `Market spans <b>${fmtLCV(totalMarket)}</b> LCV across <b>${markets.length}</b> ATC4 classes, <b>${fragmented}</b> fragmented (HHI &lt; 0.15) — high entry opportunity. Fastest growing: <b>${_a4TopMkt}</b> (${fmtGrowthTxt(topGrowing?.lcvGr)}).`);
+  ], `Market spans <b>${fmtLCV(totalMarket)}</b> LCV across <b>${markets.length}</b> ATC4 classes, <b>${fragmented}</b> fragmented (HHI &lt; 0.15) — high entry opportunity. Fastest growing: <b>${_a4TopMkt}</b> (${fmtGrowthTxt(_a4Gr)}).`);
   document.getElementById(SEC).innerHTML = _a4Strip + html;
 
   // ── Bubble Chart ──────────────────────────────────────────────────────

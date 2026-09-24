@@ -203,6 +203,46 @@ if os.path.exists(BACKFILL_XLSX):
 else:
     log('Backfill source file not found -- skipping ATC4 historical backfill')
 
+# ── 2c. LIKE-FOR-LIKE CORPORATE RESTATEMENT (2026-09-24) ─────────────────────
+# Products that changed corporate owner (e.g. SANOFI -> OPELLA* in 2026-01) are
+# relabelled to their CURRENT owner across ALL history, so prior-year vs
+# current comparisons are like-for-like and an ownership transfer does not
+# appear as infinite growth for the new owner / a collapse for the old one.
+# Mapping lives in iqvia_source/config/corp_restatements.json (documented,
+# approval-stamped, individually switchable). Raw IQVIA_SOURCE.xlsx is NOT
+# modified -- rows are relabelled in memory only. Reverse: set enabled=false
+# in the JSON and re-run this script. Runs AFTER the ATC4 backfill (2b) so
+# backfilled history is restated the same way.
+CORP_RESTATEMENTS_FILE = os.path.join(ROOT_DIR, 'iqvia_source', 'config', 'corp_restatements.json')
+_restatement_log = []
+if os.path.exists(CORP_RESTATEMENTS_FILE):
+    try:
+        _rs_cfg = json.load(open(CORP_RESTATEMENTS_FILE, encoding='utf-8'))
+        if _rs_cfg.get('enabled', True):
+            print('\n[2c/4] Applying like-for-like corporate restatements...', flush=True)
+            for _r in _rs_cfg.get('restatements', []):
+                if not _r.get('enabled', True):
+                    log(f"Restatement {_r.get('id')} disabled -- skipped"); continue
+                _fc, _tc = _r['from_corporation'], _r['to_corporation']
+                _prods = set(_r.get('products', []))
+                _n = 0; _lcv = 0; _pers = set(); _seen = set()
+                for i in range(len(corps_r)):
+                    if prods_r[i] in _prods and corps_r[i] in (_fc, _tc): _seen.add(prods_r[i])
+                    if corps_r[i] == _fc and prods_r[i] in _prods:
+                        corps_r[i] = _tc; _n += 1; _lcv += lcvs_r[i]; _pers.add(str(periods_r[i]))
+                _missing = sorted(_prods - _seen)
+                log(f"Restatement {_r.get('id')}: {_fc} -> {_tc}, {len(_prods)} products, {_n:,} rows relabelled, LCV {_lcv:,.0f}, periods {min(_pers) if _pers else '-'}..{max(_pers) if _pers else '-'}")
+                if _missing: log(f"WARNING: restatement {_r.get('id')} products not found under {_fc}/{_tc}: {_missing}")
+                _restatement_log.append({'id': _r.get('id'), 'from': _fc, 'to': _tc, 'products': sorted(_prods),
+                                         'rows': _n, 'lcv': _lcv, 'periods': [min(_pers), max(_pers)] if _pers else [],
+                                         'effective': _r.get('transfer_effective_period', ''), 'missing': _missing})
+        else:
+            log('Corporate restatements disabled in config -- skipped')
+    except Exception as e:
+        log(f'WARNING: corporate restatements skipped ({e})')
+else:
+    log('No corp_restatements.json -- corporate restatement step skipped')
+
 corp_codes, corps_list   = build_lookup(corps_r)
 prod_codes, prods_list   = build_lookup(prods_r)
 per_codes,  periods_list = build_lookup(periods_r)
@@ -422,7 +462,8 @@ cache_obj = {
     'packSizes': _pack_sizes_arr,
     'targets': targets_list,
     'users': zeta_users,
-    'kpis': kpi_data
+    'kpis': kpi_data,
+    'restatements': _restatement_log
 }
 
 # Write JSON

@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="css/dashboard.css?v=20260916_noattrition" />
   <!-- Fully scoped under .iqvia-dashboard-wrap (namespaced 2026-07-26) — safe to load
        on every tab; cannot leak into Coverage/Organogram/Sales styling. -->
-  <link rel="stylesheet" href="css/iqvia.css?v=20260924_hybrid4" />
+  <link rel="stylesheet" href="css/iqvia.css?v=20260924_sbrail" />
   <!-- Shared Design System (Phase 3 foundation) — tokens/animations/layout/components/
        utilities, all under a .ds- prefix guaranteed not to collide with the existing
        .sc-*/.sfe-*/.iqvia-* class families. Consumer: Executive Command Center
@@ -21,7 +21,7 @@
        components (.iqvia-dashboard-wrap, .kpi-card, .kpi-grid, .tb-btn, .badge-*) --
        see js/coaching.js header for why. -->
   <link rel="stylesheet" href="css/coaching.css?v=20260901_v5" />
-  <link rel="stylesheet" href="css/market-intel.css?v=20260806_cagr" />
+  <link rel="stylesheet" href="css/market-intel.css?v=20260924_askcompact" />
   <link rel="stylesheet" href="css/sprint.css?v=20260916_leaveflag" />
   <link rel="stylesheet" href="css/working-days.css?v=20260906_hireleft" />
   <link rel="stylesheet" href="css/imsrx.css?v=20260816_mi_bridge" />
@@ -318,7 +318,7 @@
        there by the time someone opens the Customer Health drill; also
        re-fixed the sentinel-latch bug this regression brought back (see
        decompressCustomerAnalyticsCache() in js/sales.js). -->
-  <script defer src="cache/iqvia.data.js?v=20260922_aug26_itemdose"></script>
+  <script defer src="cache/iqvia.data.js?v=20260924_opella_l4l"></script>
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
        from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Aug31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's
@@ -387,8 +387,10 @@
        4 separate raw SKU rows; getBrandPortfolioHealth() and every
        Executive "by Brand" modal both use this now. -->
   <script defer src="js/sales.js?v=20260924_zikrychain"></script>
-  <script defer src="js/iqvia.js?v=20260924_stride14exec"></script>
+  <script defer src="js/iqvia-growth-config.js?v=20260924_growthrule"></script>
+  <script defer src="js/iqvia.js?v=20260924_growthrule"></script>
   <script defer src="js/iqvia-filterbar.js?v=20260924_hybrid3"></script>
+  <script defer src="js/iqvia-sidebar-rail.js?v=20260924_sbrail"></script>
   <script defer src="js/sprint.js?v=20260921_askapi"></script>
   <script defer src="js/working-days.js?v=20260921_askapi"></script>
   <script defer src="js/coaching.js?v=20260921_askapi"></script>

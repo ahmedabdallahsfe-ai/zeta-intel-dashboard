@@ -485,7 +485,7 @@
 
 /* ── Executive Summary Strip (2026-09-04) — compact headline tiles + narrative,
    reused across every analytical page in place of/alongside the generic AI
-   Insights box. Uses the same --bg2/--border/--txt*/--acc* tokens as the rest
+   Insights box. Uses the same --bg2 / --border / --txt(n) / --acc(n) tokens as the rest
    of the dashboard so it auto-adapts to the light theme. ── */
 .iqvia-dashboard-wrap .exec-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
 .iqvia-dashboard-wrap .exec-stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-card);padding:14px 14px 12px;position:relative;overflow:hidden}
@@ -1366,4 +1366,28 @@
   .iqvia-dashboard-wrap #mi-fp-toggle,
   .iqvia-dashboard-wrap #mi-fp-chips,
   .iqvia-dashboard-wrap #mi-fp-actions{display:none!important}
+}
+
+/* ══════════════════════════════════════════════
+   SIDEBAR ICON RAIL — hover peek (2026-09-24)
+   Pairs with js/iqvia-sidebar-rail.js. Desktop only.
+   Peek expands to full width OVER the content: the negative
+   margin keeps the flex footprint at 52px, so charts do not reflow.
+══════════════════════════════════════════════ */
+@media (min-width: 1025px) {
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail{position:relative}
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek{
+    width:var(--sidebar-w);min-width:var(--sidebar-w);
+    margin-right:calc(52px - var(--sidebar-w));
+    z-index:650; /* above sticky #topbar (600), below drawers/modals (699+) */
+    box-shadow:6px 0 24px rgba(0,0,0,.28);
+  }
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .nav-label,
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .nav-group,
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .logo-txt,
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .logo-sub{display:revert}
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .nav-item{padding:clamp(7px,.6vw,10px) clamp(10px,.9vw,16px);justify-content:flex-start;margin:1px 5px}
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek #iqvia-sb-logo{justify-content:flex-start;padding:clamp(12px,1vw,18px) clamp(10px,.9vw,16px)}
+  /* rail: logo image must fit 52px */
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed:not(.mi-rail-peek) #iqvia-sb-logo img{max-width:36px;height:auto}
 }
