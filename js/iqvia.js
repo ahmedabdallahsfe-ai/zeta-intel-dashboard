@@ -8936,7 +8936,7 @@ function computeDM1DM2Core(bu, line) {
     function buildWindow(pidxSet) {
       const dm1Tot = new Map(), dm2Tot = new Map();
       const zetaProdDm1 = new Map(), zetaProdDm2 = new Map();
-      for (let i = 0; i < N; i += 12) {
+      for (let i = 0; i < N; i += 14) { // 2026-09-24: row width is 14 (Item+Strength added); 12 misread every row
         if (!pidxSet.has(flat[i + TI])) continue;
         if (LOOKUPS.bus[flat[i + BUCI]] !== bu) continue;
         const c = flat[i + CI], p = flat[i + PI], d1 = flat[i + D1I], d2 = flat[i + D2I];
@@ -9168,7 +9168,7 @@ function computeZetaMarketRank(bu, line) {
                               // alongside the existing SU (units) basis -- one
                               // pass computes both, no extra scan needed.
   const N = flat.length;
-  for (let i = 0; i < N; i += 12) {
+  for (let i = 0; i < N; i += 14) { // 2026-09-24: row width is 14 (Item+Strength added); 12 misread every row
     if (!ytdIdxSet.has(flat[i + TI])) continue;
     if (LOOKUPS.bus[flat[i + BUCI]] !== bu) continue;
     if (!d1Set.has(flat[i + D1I])) continue;
@@ -9282,7 +9282,7 @@ function computeZetaCorporateMarketIntel() {
   const marketSuByD1 = new Map();
   const marketLcvByD1 = new Map();
   const N = flat.length;
-  for (let i = 0; i < N; i += 12) {
+  for (let i = 0; i < N; i += 14) { // 2026-09-24: row width is 14 (Item+Strength added); 12 misread every row
     if (!ytdIdxSet.has(flat[i + TI])) continue;
     if (LOOKUPS.bus[flat[i + BUCI]] === 'Other Markets') continue;
     const d1 = flat[i + D1I];
@@ -9525,7 +9525,7 @@ window.IQVIADashboard = {
 
     let zc1 = 0, tc1 = 0, zp1 = 0, tp1 = 0;
     let zc2 = 0, tc2 = 0, zp2 = 0, tp2 = 0;
-    for (let i = 0; i < flat.length; i += 12) {
+    for (let i = 0; i < flat.length; i += 14) { // 2026-09-24: row width is 14 (Item+Strength added); 12 misread every row
       const bu = LOOKUPS.bus[flat[i + BUCI]];
       if (bu === 'Other Markets') continue;
       const t = flat[i + TI];
@@ -9646,7 +9646,7 @@ window.IQVIADashboard = {
     });
 
     const N = flat.length;
-    for (let i = 0; i < N; i += 12) {
+    for (let i = 0; i < N; i += 14) { // 2026-09-24: row width is 14 (Item+Strength added); 12 misread every row
       // flat[i+BUCI] is an INDEX into LOOKUPS.bus, not the raw string
       // (same convention as every other dimension in this row format --
       // see the identical LOOKUPS.bus.indexOf(...) pattern used a few
