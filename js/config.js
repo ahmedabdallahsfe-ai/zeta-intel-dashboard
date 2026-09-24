@@ -102,6 +102,7 @@ const CONFIG = {
   filters: {
     fields: [
       { id: "period", label: "Period", field: "Period" },
+      { id: "businessUnit", label: "BU Head", field: "BU" }, // 2026-09-24: restored -- fully wired in filters.js/analytics.js, only this UI entry was missing
       { id: "team", label: "Team", field: "Team" },
       { id: "nsm", label: "National Sales Manager", field: "National Sales Manager" },
       { id: "areaManager", label: "Area Manager", field: "Area Manager" },
@@ -120,6 +121,7 @@ const CONFIG = {
     // [] = "Latest" for period, "All" for everything else.
     defaults: {
       period: [],
+      businessUnit: [],
       team: [],
       nsm: [],
       areaManager: [],
