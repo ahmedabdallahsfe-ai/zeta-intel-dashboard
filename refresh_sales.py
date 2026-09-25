@@ -111,6 +111,17 @@ JUNE_TGT_SHEET  = 'SalesPositionTargets'
 CHC_YTD_XLSX  = os.path.join(ROOT_DIR, 'ZETA SALES_2026', 'CHC_BU_YTD_PERFROMANCE.xlsx')
 CHC_YTD_SHEET = 'CHC_YTD_PERFROMANCE'
 
+# NEW 2026 CHC TARGET (2026-09-25, Ahmed: "OFFICIAL TGT = NEW TGT 2026 FOR
+# CHC AND WORKING TGT = OLD ONE"). Same workbook, second sheet. It is a
+# row-for-row copy of CHC_YTD_SHEET with ONLY TargetValue/TargetQuantity
+# re-phased (198M annual, flat monthly; verified 2026-09-25: all
+# non-target columns identical). Only its TARGET rows are read, and they
+# are tagged Official (mask bit5). Actuals and the old target (Working)
+# still come from CHC_YTD_SHEET exactly as before -- no double counting.
+# Rollback: remove the CHC_NEW_TGT_LABEL entry from SOURCES.
+CHC_NEW_TGT_SHEET = 'CHC_YTD_PERFROMANCE TGT NEW'
+CHC_NEW_TGT_LABEL = 'chc_ytd_newtgt'
+
 # Q3 (July 2026) actuals + official/working targets for the 14 non-CHC lines (2026-09-10)
 #
 # File quirk (verified directly against the real file, 2026-09-10): the
@@ -1057,7 +1068,7 @@ def get_progress(conn):
 # output-formatting changes). On mismatch the checkpoint is discarded and
 # the run starts clean, which costs one full re-read but guarantees every
 # row in the cache was produced by exactly one version of the rules.
-ETL_RULES_VERSION = '2026-09-15.fix_unknown_month'  # Exclude unparseable/blank date rows (removes 2026-Unknown month)
+ETL_RULES_VERSION = '2026-09-25.chc_new_official_tgt'  # CHC new 2026 target loaded as Official (CHC_NEW_TGT_SHEET). Previous: '2026-09-15.fix_unknown_month'  # Exclude unparseable/blank date rows (removes 2026-Unknown month)
 # actual-sales preservation (e.g. Noon/online accounts). '_hdrfix' (same day, added on top): Q3_XLSX's
 # real file has one blank spacer row before its header (see the Q3_XLSX comment above) -- without
 # read_source_header() skipping it, every column resolves to None and validate_source() fails loud
@@ -1239,6 +1250,11 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                     except:
                         skip_row = True  # unparseable target index excluded
 
+            # New CHC target sheet (2026-09-25): targets only -- its actual
+            # rows duplicate CHC_YTD_SHEET's and must never be counted twice.
+            if source_label == CHC_NEW_TGT_LABEL and not is_mirror:
+                skip_row = True
+
             if not skip_row:
                 month = parse_month(gv(r, col['Date']))
                 if not month:
@@ -1252,8 +1268,9 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 # CHC_YTD_XLSX now. See CHC_LINES / CHC_AUTHORITY_LABEL
                 # above for the double-counting this prevents.
                 if line in CHC_LINES:
-                    if source_label == CHC_AUTHORITY_LABEL:
-                        _chc_seen_in_authority[line] += 1
+                    if source_label in (CHC_AUTHORITY_LABEL, CHC_NEW_TGT_LABEL):
+                        if source_label == CHC_AUTHORITY_LABEL:
+                            _chc_seen_in_authority[line] += 1
                     else:
                         _chc_seen_elsewhere[source_label] += 1
                         skip_row = True
@@ -1294,7 +1311,14 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 # CHC/CHC_SALES: keep TargetIndex=1 only, relabelled to
                 # Working. Their TargetIndex=0 rows are duplicates of the
                 # same target and are dropped. See WORKING_ONLY_LINES.
-                if is_mirror and line in WORKING_ONLY_LINES:
+                if is_mirror and line in WORKING_ONLY_LINES and source_label == CHC_NEW_TGT_LABEL:
+                    # New 2026 CHC target -> Official (2026-09-25). Same
+                    # keep-TargetIndex=1-only rule as the Working copy below.
+                    if t_idx == WORKING_ONLY_KEEP_INDEX:
+                        is_official_scenario = True
+                    else:
+                        skip_row = True
+                elif is_mirror and line in WORKING_ONLY_LINES:
                     _wol_seen[(line, month)][t_idx] += 1
                     if t_idx == WORKING_ONLY_KEEP_INDEX:
                         is_official_scenario = False
@@ -1487,6 +1511,7 @@ SOURCES = [
     ('june',     JUNE_XLSX,    JUNE_SHEET_NAME, 'june_rows_done',  'june_complete'),
     ('june_tgt', JUNE_TGT_XLSX, JUNE_TGT_SHEET, 'junetgt_rows_done', 'junetgt_complete'),
     (CHC_AUTHORITY_LABEL, CHC_YTD_XLSX, CHC_YTD_SHEET, 'chcytd_rows_done', 'chcytd_complete'),
+    (CHC_NEW_TGT_LABEL, CHC_YTD_XLSX, CHC_NEW_TGT_SHEET, 'chcnewtgt_rows_done', 'chcnewtgt_complete'),
     ('q3',       Q3_XLSX,      Q3_SHEET,      'q3_rows_done',      'q3_complete'),
 ]
 REQUIRED_SOURCE_LABELS = {label for label, *_ in SOURCES}  # every current source is required
@@ -1505,6 +1530,7 @@ TARGETS_REQUIRED_COLS = {'Date', 'Line', 'TargetValue', 'TargetIndex'}
 SOURCE_KIND = {  # label -> 'actuals' | 'targets' | 'mixed' (both actuals and target rows expected)
     'q1': 'actuals', 'q2': 'actuals', 'q_tgt': 'targets',
     'june': 'actuals', 'june_tgt': 'targets', CHC_AUTHORITY_LABEL: 'mixed',
+    CHC_NEW_TGT_LABEL: 'targets',
     'q3': 'mixed',
 }
 VALID_MONTHS = {f'2026-{m:02d}' for m in range(1, 13)}

@@ -800,8 +800,18 @@ def main():
     # they fall through to Working exactly as before this change.
     SCENARIO_PRIORITY = ('shortage', 'official', 'working')
 
+    # SPRINT CHC TARGET LOCK (2026-09-25, Ahmed: "keep zeta sprint as its
+    # as, i will tell decision later"). The sales cache now carries the NEW
+    # 2026 CHC target as Official (and hence Shortage) for CHC/CHC_SALES;
+    # the OLD target stays Working. Sprint keeps scoring CHC against the
+    # OLD (Working) target until Ahmed decides. To switch Sprint to the new
+    # target later, set this to an empty set and rebuild Sprint.
+    SPRINT_PINNED_WORKING_LINES = {'CHC', 'CHC_SALES'}
+
     def resolve_target_scenario(raw):
         canon = normalize_line(raw)
+        if canon in SPRINT_PINNED_WORKING_LINES or raw in SPRINT_PINNED_WORKING_LINES:
+            return 'working'
         cov = scenarioCoverage.get(canon) or scenarioCoverage.get(raw)
         if not cov:
             return 'official'  # unchanged fallback for lines with no coverage info at all

@@ -284,14 +284,14 @@
        these two brands' sales count toward Sales Achievement instead of being excluded by the existing
        Non-Tender convention. All other brands/products unchanged. 191,352.00 EGP moved Tender->Non-Tender;
        Total Actual Sales Value unchanged to the cent (1,426,495,032.60). -->
-  <script defer src="cache/sales.data.js?v=20260924_chcupd"></script>
+  <script defer src="cache/sales.data.js?v=20260925_chcnewtgt"></script>
   <!-- Zeta Sprint 2026 cache (2026-08-15): built by etl/build_sprint_cache.py from
        sprint/scaling scores.xlsx (point curves) + this page's own Coverage/Sales
        cache sources. Re-linked 2026-08-16 (Ahmed: "add zeta sprint to dashboard") --
        this script tag, the sidebar entry, and app.js's Sprint wiring were dropped
        during the same pass that added IMS Rx role-gating; the underlying cache/js/css
        files were never touched, so no rebuild was needed, only re-wiring. -->
-  <script defer src="cache/sprint.data.js?v=20260924_chcupd"></script>
+  <script defer src="cache/sprint.data.js?v=20260925_chcnewtgt"></script>
   <!-- Field Working Days Intelligence cache (2026-09-05, Ahmed "implmement
        to zeta intell"): built by etl/build_working_days_cache.py from the
        Sprint KPI template's DM_DSM/ASM/NSM tabs. Separate from
@@ -356,7 +356,7 @@
   <script defer src="js/semantic-model.js?v=20260804_tomarket_bumgr"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20260925_restore"></script>
+  <script defer src="js/cache-loader.js?v=20260925_chcnewtgt"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
@@ -394,7 +394,7 @@
        (2.5MG / 5MG combining both pack sizes each) instead of shown as
        4 separate raw SKU rows; getBrandPortfolioHealth() and every
        Executive "by Brand" modal both use this now. -->
-  <script defer src="js/sales.js?v=20260924_zikrychain"></script>
+  <script defer src="js/sales.js?v=20260925_chcnewtgt"></script>
   <script defer src="js/iqvia-growth-config.js?v=20260924_growthv1"></script>
   <script defer src="js/iqvia.js?v=20260925_blendshare"></script>
   <script defer src="js/iqvia-filterbar.js?v=20260925_renavfix"></script>
@@ -434,7 +434,7 @@
        getItemAchievement() -- ELIMBOSIS's two pack sizes per strength
        are merged into one row per strength, not shown as 4 raw SKUs. -->
   <script defer src="cache/tms_ims.data.js?v=20260925_estopening"></script>
-  <script defer src="js/executive.js?v=20260925_estopening"></script>
+  <script defer src="js/executive.js?v=20260925_chcnewtgt"></script>
 
   <!-- cache/market_intel.data.js (1.4 MB) is LAZY again as of 2026-09-11:
        this was the original 2026-08-08 lazy-loaded cache (PERFORMANCE_FIX.md)

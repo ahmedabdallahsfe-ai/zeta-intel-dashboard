@@ -4044,6 +4044,12 @@
         note.textContent = "Shortage Target activates after the next cache refresh";
         scenarioSelect.appendChild(note);
       }
+      // CHC new 2026 target note (2026-09-25, Ahmed: Official = new CHC
+      // target, Working = old one). Informational only.
+      const chcTgtNote = document.createElement("div");
+      chcTgtNote.style.cssText = "font-size:9px;color:#64748b;margin-top:3px;max-width:190px;line-height:1.35;";
+      chcTgtNote.textContent = "CHC: Official = New 2026 target (198M) · Working = previous target";
+      scenarioSelect.appendChild(chcTgtNote);
       wrap.appendChild(scenarioSelect);
       scenarioSelect.querySelector("select").addEventListener("change", (e) => {
         if (global.AUTH && global.AUTH.setActiveScenario(e.target.value)) {

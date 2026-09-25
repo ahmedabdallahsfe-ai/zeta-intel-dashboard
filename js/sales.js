@@ -1381,6 +1381,7 @@
         </select>
         ${scenarioNoteHtml}
         ${shortagePendingNoteHtml}
+        <div style="font-size:9px; color:#64748b; margin-top:3px; max-width:190px; line-height:1.35;">CHC: Official = New 2026 target (198M) · Working = previous target</div>
       </div>
     ` : `
       <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px; background:#f1f5f9; border-radius:8px; padding:5px 12px;">
