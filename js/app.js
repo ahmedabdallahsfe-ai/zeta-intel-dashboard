@@ -364,6 +364,8 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - IMS Rx Market Intelligence";
     } else if (tab === "sprint") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Sprint 2026";
+    } else if (tab === "listintel") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - List Intelligence";
     } else if (tab === "workingdays") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Field Working Days Intelligence";
     } else if (tab === "marketnews") {
@@ -475,6 +477,16 @@ function startAppBody() {
     const allowed = window.AUTH && typeof window.AUTH.canViewWorkingDays === "function"
       ? window.AUTH.canViewWorkingDays() : false;
     workingDaysMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // List Intelligence (2026-09-25): CEO / VP / Commercial Director / SFE Manager /
+  // BEX / Admin / BU Manager (all lines) + Line Managers (own lines only, see
+  // AUTH.listIntelScope and js/list-intel.js applyScope).
+  const listIntelMenuItem = document.getElementById("menu-item-listintel");
+  if (listIntelMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewListIntel === "function"
+      ? window.AUTH.canViewListIntel() : false;
+    listIntelMenuItem.style.display = allowed ? "" : "none";
   }
 
   // Coaching Intelligence (2026-08-31): visible to every management-tier
@@ -590,6 +602,9 @@ function startAppBody() {
       }
       if (currentTab === "workingdays" && window.WorkingDaysDashboard) {
         window.WorkingDaysDashboard.destroy();
+      }
+      if (currentTab === "listintel" && window.ListIntelDashboard) {
+        window.ListIntelDashboard.destroy();
       }
       if (currentTab === "marketnews" && window.MarketNewsDashboard) {
         window.MarketNewsDashboard.destroy();
@@ -722,6 +737,11 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             renderWorkingDaysTab(document.getElementById("app-root"));
+          } else if (tab === "listintel") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderListIntelTab(document.getElementById("app-root"));
           } else if (tab === "coaching") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
@@ -991,6 +1011,35 @@ function renderWorkingDaysTab(container) {
   }
   if (window.WorkingDaysDashboard) {
     window.WorkingDaysDashboard.init("app-root");
+  }
+}
+
+/**
+ * List Intelligence (2026-09-25): CRM customer lists vs Promo Grid targets.
+ * Same defence-in-depth gate as the other restricted tabs (js/list-intel.js
+ * re-checks inside init()). cache/list_intel.data.js is lazy -- fetched here
+ * via CacheLoader only when the tab is opened, never on page load.
+ */
+async function renderListIntelTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewListIntel === "function"
+    ? window.AUTH.canViewListIntel() : false;
+  if (!allowed) {
+    document.body.classList.add("list-intel-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "List Intelligence is available to CEO, VP / Commercial Lead, SFE Manager, BEx, Admin, BU Managers and Line Managers (own lines).",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.CacheLoader) {
+    await window.CacheLoader.ensure("list_intel");
+  }
+  if (window.ListIntelDashboard) {
+    window.ListIntelDashboard.init("app-root");
   }
 }
 

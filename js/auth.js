@@ -318,6 +318,51 @@
   var WORKING_DAYS_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "BU Manager",
                              "Commercial Director", "Marketing Consultant", "Line Manager", "NSM", "National Sales Manager"];
 
+  // -------------------------------------------------------------------
+  // LIST INTELLIGENCE ACCESS (2026-09-25, Ahmed)
+  // -------------------------------------------------------------------
+  // CEO, Commercial Lead / VP, SFE Manager, BEx, Admin and BU Managers see
+  // ALL lines. Line Managers (Phase 3, 2026-09-25) see ONLY their own lines,
+  // matched on each rep's ORIGINAL CRM line -- so CHC and CHC_Sales stay
+  // separate for access even though CHC_Sales is merged into CHC for
+  // reporting. Area-level managers have no logins yet (Ahmed: Line Managers
+  // only for now).
+  var LIST_INTEL_ROLES = ["CEO", "VP", "Commercial Director", "SFE Manager", "BEX", "Admin", "BU Manager"];
+  var LIST_INTEL_SCOPED_ROLES = ["Line Manager"];
+  // Login line name (upper-cased) -> CRM list line(s) (upper-cased). Any name
+  // not listed maps to itself. Approved by Ahmed 2026-09-25.
+  var LIST_INTEL_LINE_MAP = {
+    "DERMA": ["DERMA"],
+    "CNS": ["NEUROSCIENCE-I", "NEUROSCIENCE-II"],
+    "CHC": ["CHC"],
+    "CHC_SALES": ["CHC_SALES"]
+  };
+
+  /**
+   * List Intelligence entitlement for the signed-in user:
+   *   null                         -> no access
+   *   { all: true }                -> every line
+   *   { all: false, lines: [...] } -> only reps whose ORIGINAL CRM line
+   *                                   (upper-cased) is in `lines`
+   */
+  function listIntelScope() {
+    var u = getValidSessionUser();
+    if (!u) return null;
+    if (LIST_INTEL_ROLES.indexOf(u.role) >= 0) return { all: true };
+    if (LIST_INTEL_SCOPED_ROLES.indexOf(u.role) < 0) return null;
+    var out = [];
+    (u.lines || []).forEach(function (l) {
+      var k = String(l || "").trim().toUpperCase();
+      if (!k) return;
+      (LIST_INTEL_LINE_MAP[k] || [k]).forEach(function (m) { if (out.indexOf(m) < 0) out.push(m); });
+    });
+    return out.length ? { all: false, lines: out } : null;
+  }
+
+  function canViewListIntel() {
+    return listIntelScope() !== null;
+  }
+
   function canViewWorkingDays() {
     var u = getValidSessionUser();
     if (!u) return false;
@@ -601,6 +646,11 @@
     IMS_RX_ROLES: IMS_RX_ROLES,
     canViewSprint: canViewSprint,
     SPRINT_ROLES: SPRINT_ROLES,
+    canViewListIntel: canViewListIntel,
+    listIntelScope: listIntelScope,
+    LIST_INTEL_ROLES: LIST_INTEL_ROLES,
+    LIST_INTEL_SCOPED_ROLES: LIST_INTEL_SCOPED_ROLES,
+    LIST_INTEL_LINE_MAP: LIST_INTEL_LINE_MAP,
     canViewWorkingDays: canViewWorkingDays,
     WORKING_DAYS_ROLES: WORKING_DAYS_ROLES,
     canViewCoaching: canViewCoaching,

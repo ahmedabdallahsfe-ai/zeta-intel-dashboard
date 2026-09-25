@@ -90,3 +90,8 @@ node_modules/
 package.json
 package-lock.json
 
+# List Intelligence sources (2026-09-25): raw CRM list exports + promo grids
+# (*.xlsx is already ignored) AND the frozen standalone page
+# field_force_dashboard*.html, which embeds doctor names + street addresses.
+# Only the ETL output cache/list_intel.data.js (no addresses) is ever published.
+List Intell/

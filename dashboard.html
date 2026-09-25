@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="css/dashboard.css?v=20260916_noattrition" />
   <!-- Fully scoped under .iqvia-dashboard-wrap (namespaced 2026-07-26) — safe to load
        on every tab; cannot leak into Coverage/Organogram/Sales styling. -->
-  <link rel="stylesheet" href="css/iqvia.css?v=20260924_sbrail" />
+  <link rel="stylesheet" href="css/iqvia.css?v=20260925_slimchrome" />
   <!-- Shared Design System (Phase 3 foundation) — tokens/animations/layout/components/
        utilities, all under a .ds- prefix guaranteed not to collide with the existing
        .sc-*/.sfe-*/.iqvia-* class families. Consumer: Executive Command Center
@@ -21,9 +21,10 @@
        components (.iqvia-dashboard-wrap, .kpi-card, .kpi-grid, .tb-btn, .badge-*) --
        see js/coaching.js header for why. -->
   <link rel="stylesheet" href="css/coaching.css?v=20260901_v5" />
-  <link rel="stylesheet" href="css/market-intel.css?v=20260924_askcompact" />
+  <link rel="stylesheet" href="css/market-intel.css?v=20260925_askall" />
   <link rel="stylesheet" href="css/sprint.css?v=20260916_leaveflag" />
   <link rel="stylesheet" href="css/working-days.css?v=20260906_hireleft" />
+  <link rel="stylesheet" href="css/list-intel.css?v=20260925_insights" />
   <link rel="stylesheet" href="css/imsrx.css?v=20260816_mi_bridge" />
   <link rel="stylesheet" href="css/news-feed.css?v=20260910_v3_ticker" />
   <link rel="stylesheet" href="css/regulatory-pipeline.css?v=20260910_v1" />
@@ -132,6 +133,10 @@
         <li class="menu-item" data-tab="coverage" id="menu-item-coverage">
           <span class="menu-icon">📊</span>
           <span class="menu-label">Operational and Execution</span>
+        </li>
+        <li class="menu-item" data-tab="listintel" id="menu-item-listintel" style="display:none;">
+          <span class="menu-icon">📋</span>
+          <span class="menu-label">List Intelligence</span>
         </li>
         <li class="menu-item" data-tab="sfe" id="menu-item-sfe">
           <span class="menu-icon">👥</span>
@@ -334,7 +339,7 @@
 
   <!-- App-wide authentication roster & loader -->
   <script defer src="cache/auth.data.js?v=20260816_mc_access"></script>
-  <script defer src="js/auth.js?v=20260914_ims_rx_linemanager"></script>
+  <script defer src="js/auth.js?v=20260925_golive"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script defer src="js/config.js?v=20260924_buhead"></script>
@@ -348,7 +353,7 @@
   <script defer src="js/semantic-model.js?v=20260804_tomarket_bumgr"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20260924_chcupd"></script>
+  <script defer src="js/cache-loader.js?v=20260925_listintel"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
@@ -391,8 +396,13 @@
   <script defer src="js/iqvia.js?v=20260924_growthv1"></script>
   <script defer src="js/iqvia-filterbar.js?v=20260925_renavfix"></script>
   <script defer src="js/iqvia-sidebar-rail.js?v=20260924_sbrail"></script>
+  <script defer src="js/iqvia-fit.js?v=20260925_slimchrome"></script>
+  <script defer src="js/askdata-dock.js?v=20260925_askall"></script>
   <script defer src="js/sprint.js?v=20260921_askapi"></script>
   <script defer src="js/working-days.js?v=20260921_askapi"></script>
+  <!-- List Intelligence (2026-09-25): module only; its data (cache/list_intel.data.js)
+       is lazy-loaded by js/cache-loader.js when the tab is opened. -->
+  <script defer src="js/list-intel.js?v=20260925_insights"></script>
   <script defer src="js/coaching.js?v=20260921_askapi"></script>
   <script defer src="js/ims-rx.js?v=20260921_askapi"></script>
   <script defer src="js/news-feed.js?v=20260910_v2"></script>
@@ -455,7 +465,7 @@
   <script defer src="js/ask-sales.js?v=20260921_askq2"></script>
   <script defer src="js/ask-sfe.js?v=20260921_askq2"></script>
   <script defer src="js/ask-executive.js?v=20260921_askq2"></script>
-  <script defer src="js/app.js?v=20260924_notseenfix"></script>
+  <script defer src="js/app.js?v=20260925_golive"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

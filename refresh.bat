@@ -278,6 +278,27 @@ if not "%MARKETINTEL_EXIT%"=="0" (
     echo.
 )
 
+REM --- run the List Intelligence ETL (CRM lists vs Promo Grids) -----------
+REM Added 2026-09-25 (Phase 1). Reads "List Intell\All Lists*.xlsx" and the
+REM 16 "<LINE> Promo Grid.xlsx" files, writes cache\list_intel.json + .data.js.
+REM NOT FATAL: a missing/renamed source keeps the previous cache and prints a
+REM warning, so it can never block the git push of everything rebuilt above.
+REM Published since go-live (Phase 3, 2026-09-25): see the git add -f line
+REM for cache/list_intel.data.js in the git block below. Only the gzipped
+REM .data.js (no street addresses) is pushed; list_intel.json stays local and
+REM the raw "List Intell" folder is git-ignored.
+echo.
+echo Reading List Intelligence workbooks (CRM lists + Promo Grids)...
+%PYTHON_CMD% etl\build_list_intel_cache.py
+set "LISTINTEL_EXIT=%ERRORLEVEL%"
+if not "%LISTINTEL_EXIT%"=="0" (
+    echo.
+    echo   [WARNING] List Intelligence refresh did not complete.
+    echo   The previous cache is kept. Check the "List Intell" folder:
+    echo   one "All Lists*.xlsx" and one "[LINE] Promo Grid.xlsx" per line.
+    echo.
+)
+
 REM --- run the Market Intelligence Feed (external news) ETL ---------------
 REM Added 2026-09-12. Runs etl\build_news_cache.py, which internally
 REM fetches every enabled source in config\news_sources.yaml plus the
@@ -502,6 +523,10 @@ if "%GIT_CMD%"=="" (
     "%GIT_CMD%" add -f cache/build_manifest.data.js
     REM Force-add the expense cache file since cache/ is gitignored.
     "%GIT_CMD%" add -f cache/expense_budget.data.js
+    REM List Intelligence (go-live 2026-09-25): same -f reason as every cache
+    REM above -- .gitignore line 2 is `cache/`. Access is enforced in the page
+    REM (js/auth.js listIntelScope + js/list-intel.js applyScope).
+    "%GIT_CMD%" add -f cache/list_intel.data.js
     "%GIT_CMD%" add "TO MARKET_IN MARKET/index.html"
     "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js

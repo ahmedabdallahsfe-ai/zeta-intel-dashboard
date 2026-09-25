@@ -886,3 +886,73 @@ body.market-intel-mode #app-root { padding: 0; max-width: none; }
 @media (max-width: 720px) {
   .mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-bar { flex-basis: 100%; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   ASK DOCK (Market Intelligence / IQVIA tab only) — 2026-09-25
+   js/iqvia-ask-dock.js adds .mi-ask-docked to #ask-panel-slot when it holds
+   the IQVIA panel: the band above the module is removed from the page flow
+   and the panel opens (.mi-ask-open) as a floating card under the Market
+   Intelligence top bar, from its "Ask the Data" button. Panel markup and
+   ask-engine.js are unchanged. Desktop only (the JS never docks ≤768px).
+══════════════════════════════════════════════════════════════════════ */
+#ask-panel-slot.mi-ask-docked { display: none; }
+#ask-panel-slot.mi-ask-docked.mi-ask-open {
+  display: block; position: fixed; z-index: 680;        /* above #topbar 600 + sidebar rail 650, below modals 699+ */
+  width: min(760px, calc(100vw - 40px));
+  padding: 0 !important; margin: 0; overflow-y: auto;
+  border-radius: 14px;
+  box-shadow: 0 18px 50px -12px rgba(15,23,42,.45), 0 2px 8px rgba(15,23,42,.18);
+  animation: miAskDrop .14s ease-out;
+}
+@keyframes miAskDrop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+#ask-panel-slot.mi-ask-docked .mi-ask-hero {
+  margin: 0; padding-right: 44px;              /* room for the close × */
+}
+/* examples always visible in the floating panel (it is only open on demand) */
+#ask-panel-slot.mi-ask-docked .mi-ask-hero[data-ask-panel="iqvia"] .mi-ask-ex { display: flex; }
+#ask-panel-slot.mi-ask-docked .mi-ask-dock-x {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  width: 28px; height: 28px; border-radius: 8px; border: 1px solid #bfe4f7;
+  background: #fff; color: #475569; font-size: 18px; line-height: 1; cursor: pointer;
+}
+#ask-panel-slot.mi-ask-docked .mi-ask-dock-x:hover { background: #e0f2fe; color: #0369a1; }
+
+/* the top-bar button */
+.iqvia-dashboard-wrap #topbar .mi-ask-btn {
+  position: relative; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  border-color: rgba(14,165,233,.55); color: #0ea5e9; font-weight: 600;
+}
+.iqvia-dashboard-wrap #topbar .mi-ask-btn:hover,
+.iqvia-dashboard-wrap #topbar .mi-ask-btn[aria-expanded="true"] { background: #0ea5e9; border-color: #0ea5e9; color: #fff; }
+.iqvia-dashboard-wrap #topbar .mi-ask-btn-ico { font-size: 12px; }
+.iqvia-dashboard-wrap #topbar .mi-ask-btn-dot {
+  display: none; position: absolute; top: -3px; right: -3px;
+  width: 9px; height: 9px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 2px var(--bg1, #fff);
+}
+.iqvia-dashboard-wrap #topbar .mi-ask-btn.mi-ask-has-answer .mi-ask-btn-dot { display: block; }
+@media (max-width: 768px) { .iqvia-dashboard-wrap #topbar .mi-ask-btn { display: none; } }
+/* narrower desktops: short label so the filter chips keep their room */
+@media (max-width: 1760px) { .iqvia-dashboard-wrap #topbar .mi-ask-btn-long { display: none; } }
+@media (max-width: 1500px) { .iqvia-dashboard-wrap #topbar .mi-ask-btn-txt { display: none; } }
+
+/* ── 2026-09-25: dock extended to EVERY page with an Ask panel (js/askdata-dock.js).
+   Market Intelligence keeps its button in the module top bar (above); every
+   other page gets #app-ask-btn in the app header, before "What's New". ── */
+#ask-panel-slot.mi-ask-docked .mi-ask-hero::after { border-radius: 14px; }
+.app-ask-btn {
+  position: relative; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;
+  background: #F0F9FF; color: #0369A1; border: 1px solid #7DD3FC;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.app-ask-btn:hover, .app-ask-btn[aria-expanded="true"] { background: #0EA5E9; border-color: #0EA5E9; color: #fff; }
+.app-ask-btn:focus-visible { outline: 2px solid #0EA5E9; outline-offset: 2px; }
+.app-ask-btn .mi-ask-btn-ico { font-size: 12px; }
+.app-ask-btn .mi-ask-btn-dot {
+  display: none; position: absolute; top: -3px; right: -3px;
+  width: 9px; height: 9px; border-radius: 50%; background: #F59E0B; box-shadow: 0 0 0 2px #fff;
+}
+.app-ask-btn.mi-ask-has-answer .mi-ask-btn-dot { display: block; }
+body.mi-iqvia-mode .app-ask-btn { padding-top: 5px; padding-bottom: 5px; }
+@media (max-width: 768px) { .app-ask-btn { display: none; } }
+@media print { .app-ask-btn, .mi-ask-btn { display: none !important; } }

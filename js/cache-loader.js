@@ -72,6 +72,12 @@
       label: "Coaching intelligence",
       version: "20260920_rolechange",
     },
+    list_intel: {
+      file: "cache/list_intel.data.js",
+      globalVar: "LIST_INTEL_CACHE",
+      label: "List intelligence",
+      version: "20260925_p2",
+    },
     ims_rx: {
       file: "cache/ims_rx.data.js",
       globalVar: "IMS_RX_CACHE",
