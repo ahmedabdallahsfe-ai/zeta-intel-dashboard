@@ -256,7 +256,7 @@
   <script defer src="cache/metadata.data.js?v=20260916_leavemonthly"></script>
   <script defer src="cache/dashboard.data.js?v=20260916_proratedtgt"></script>
   <script defer src="cache/teamkpis.data.js?v=20260724"></script>
-  <script defer src="cache/records.data.js?v=20260916_proratedtgt"></script>
+  <!-- Row-level records cache (5.48 MB): LAZY loaded via CacheLoader.ensure("records") on demand or idle preload -->
   <script defer src="cache/organogram.data.js?v=20260914_august"></script>
   <!-- v20260726_hierarchyfix = corrected BUHead/NSM/RM/DM/Rep naming + CM (Emp6) capture (cache/meta.schemaVersion 2).
        js/sales.js checks this schema and shows a pending-refresh placeholder if the cache on disk is still the
@@ -326,7 +326,7 @@
        there by the time someone opens the Customer Health drill; also
        re-fixed the sentinel-latch bug this regression brought back (see
        decompressCustomerAnalyticsCache() in js/sales.js). -->
-  <script defer src="cache/iqvia.data.js?v=20260924_l4l_v2"></script>
+  <!-- IQVIA Market Share cache (5.28 MB): LAZY loaded via CacheLoader.ensure("iqvia") when the Market Share / IQVIA tab opens -->
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
        from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Aug31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's

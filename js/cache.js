@@ -46,20 +46,14 @@ const CacheStore = (() => {
   function init() {
     let rawDashboard = window[CONFIG.cache.dashboardVar] || null;
     metadata = window[CONFIG.cache.metadataVar] || null;
-    let rawRecords = window[CONFIG.cache.recordsVar] || null;
 
     // Overwrite globals if they are compressed
     if (rawDashboard && rawDashboard.b64Data) {
       rawDashboard = decompressB64Gzip(rawDashboard.b64Data);
       window[CONFIG.cache.dashboardVar] = rawDashboard;
     }
-    if (rawRecords && rawRecords.b64Data) {
-      rawRecords = decompressB64Gzip(rawRecords.b64Data);
-      window[CONFIG.cache.recordsVar] = rawRecords;
-    }
 
     dashboard = rawDashboard;
-    records = rawRecords;
 
     // records.data.js is optional (used for filter recomputation only).
     // Dashboard renders from pre-computed cache even without it.
@@ -83,6 +77,17 @@ const CacheStore = (() => {
    * Consumed by analytics.js to recompute every KPI/chart/table when a
    * filter changes, without touching the workbook or refresh.py. */
   function getRecords() {
+    if (!records) {
+      records = window[CONFIG.cache.recordsVar] || null;
+    }
+    if (!records && window.CacheLoader && typeof window.CacheLoader.ensure === "function") {
+      window.CacheLoader.ensure("records");
+      records = window[CONFIG.cache.recordsVar] || null;
+    }
+    if (records && records.b64Data) {
+      records = decompressB64Gzip(records.b64Data);
+      window[CONFIG.cache.recordsVar] = records;
+    }
     return records;
   }
 

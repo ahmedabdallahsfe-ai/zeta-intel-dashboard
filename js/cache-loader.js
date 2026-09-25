@@ -54,6 +54,18 @@
   // That is a real fix worth doing (4.85 MB), just a bigger one -- flagged
   // to Ahmed, not done in this pass. See loading_performance_regression.md.
   var CACHES = {
+    records: {
+      file: "cache/records.data.js",
+      globalVar: "DASHBOARD_RECORDS",
+      label: "Row-level records",
+      version: "20260916_proratedtgt",
+    },
+    iqvia: {
+      file: "cache/iqvia.data.js",
+      globalVar: "IQVIA_CACHE",
+      label: "IQVIA Market Share",
+      version: "20260924_l4l_v2",
+    },
     customer_analytics: {
       file: "cache/customer_analytics.data.js",
       globalVar: "CUSTOMER_ANALYTICS_CACHE",

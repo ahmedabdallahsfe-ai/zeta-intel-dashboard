@@ -9539,6 +9539,13 @@ function _askWithState(d, sel, refIdx, fn) {
 
 window.IQVIADashboard = {
   init(containerId) {
+    if (window.IQVIA_CACHE) {
+      B64_DATA = window.IQVIA_CACHE.b64Data;
+      LOOKUPS = window.IQVIA_CACHE.lookups;
+      PACK_SIZES = window.IQVIA_CACHE.packSizes;
+      TARGETS_2026 = window.IQVIA_CACHE.targets;
+      ZETA_USERS = window.IQVIA_CACHE.users;
+    }
     const container = document.getElementById(containerId);
     if (!container) return;
 
