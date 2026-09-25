@@ -52,7 +52,7 @@
   var SESSION_TTL_MS = 8 * 3600 * 1000;
 
   function users() {
-    return (global.IQVIA_CACHE && global.IQVIA_CACHE.users) || {};
+    return global.AUTH_USERS || (global.IQVIA_CACHE && global.IQVIA_CACHE.users) || {};
   }
 
   async function sha256(str) {
