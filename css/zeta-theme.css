@@ -1,0 +1,85 @@
+/* ==========================================================================
+   ZETA THEME LAYER -- Night mode + readable sidebar (2026-09-25, approved by Ahmed)
+   --------------------------------------------------------------------------
+   Loaded LAST, after every module stylesheet. Pairs with js/zeta-theme.js.
+   1. Sidebar: grouped sections, high-contrast labels, filled active state,
+      tooltips on the collapsed rail. Applies in both themes.
+   2. Night mode: html[data-theme="dark"] re-points the design-system tokens
+      and restyles the app chrome; js/zeta-theme.js darkens the hard-coded
+      light colours the modules still carry (inline styles, per-module hex).
+   ========================================================================== */
+
+/* ---------- 1. SIDEBAR (both themes) ---------- */
+.sidebar-nav { width: 256px; padding: 18px 12px 12px; }
+.sidebar-nav .sidebar-brand { padding: 4px 8px 16px; margin-bottom: 8px; }
+.sidebar-nav .sidebar-brand .brand-text { font-size: 0.8rem !important; line-height: 1.25 !important; }
+.sidebar-menu { gap: 2px; }
+.zt-group { list-style: none; margin: 14px 10px 4px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .09em; text-transform: uppercase; color: #94A3B8; cursor: default; }
+.zt-group:first-child { margin-top: 2px; }
+.menu-item { gap: 11px; padding: 8px 10px; border-radius: 8px; border-left: 0 !important;
+  color: #1E293B; font-size: 13.5px; font-weight: 500; line-height: 1.25; }
+.menu-item .menu-icon { font-size: 1.05rem; width: 22px; text-align: center; flex: 0 0 22px; }
+.menu-item:hover { background: #EEF2F7; color: #0F172A; }
+.menu-item.active { background: #0F4C81 !important; color: #FFFFFF !important; font-weight: 650;
+  box-shadow: 0 1px 2px rgba(15,76,129,.35); }
+.menu-item.active .menu-icon { transform: none; }
+.menu-item:focus-visible { outline: 2px solid #0F4C81; outline-offset: 1px; }
+/* collapsed rail: name appears as a tooltip */
+.sidebar-nav.collapsed .zt-group { height: 1px; margin: 8px 12px; font-size: 0; background: #E2E8F0; }
+.sidebar-nav.collapsed .menu-item { position: relative; width: 44px; height: 40px; padding: 0 !important; }
+.sidebar-nav.collapsed .menu-item::after { content: attr(data-label); position: fixed; left: 72px; transform: translateY(-2px);
+  background: #0F172A; color: #fff; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 6px;
+  white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s; z-index: 1000; }
+.sidebar-nav.collapsed .menu-item:hover::after { opacity: 1; }
+
+/* theme switch in the top bar */
+.zt-theme-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border-radius: 8px; border: 1px solid #CBD5E1; background: #FFFFFF; color: #0F172A;
+  font: 600 12.5px/1 inherit; cursor: pointer; }
+.zt-theme-btn:hover { border-color: #0F4C81; }
+.zt-theme-btn .zt-ico { font-size: 14px; }
+
+/* while js/zeta-theme.js reads/writes colours (a switch or a new render) */
+html.zt-notrans *, html.zt-notrans *::before, html.zt-notrans *::after { transition: none !important; }
+
+/* ---------- 2. NIGHT MODE ---------- */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --color-primary: #60A5FA; --color-primary-hover: #93C5FD; --color-primary-active: #BFDBFE;
+  --color-primary-light: #13294A;
+  --color-success: #4ADE80; --color-success-light: #0F2E1C;
+  --color-warning: #FBBF24; --color-warning-light: #33260A;
+  --color-danger: #F87171;  --color-danger-light: #3A1414;
+  --color-info: #22D3EE;    --color-info-light: #0B2E36;
+  --color-background: #0B1220; --color-surface: #111A2B; --color-surface-alt: #16213A;
+  --color-surface-inverse: #E6EDF7; --color-border: #26324A; --color-border-strong: #33415C;
+  --color-text-primary: #E6EDF7; --color-text-secondary: #A3B1C6; --color-text-tertiary: #7A8BA5;
+  --color-text-inverse: #0B1220;
+  --chart-1: #60A5FA; --chart-2: #4ADE80; --chart-3: #FBBF24; --chart-4: #F87171; --chart-5: #A78BFA;
+  --chart-6: #22D3EE; --chart-7: #F472B6; --chart-8: #A3E635; --chart-9: #FB923C; --chart-10: #94A3B8;
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] .dashboard-wrapper,
+html[data-theme="dark"] .main-content-area { background: #0B1220 !important; color: #E6EDF7; }
+html[data-theme="dark"] .topbar { background: #0E1626 !important; border-color: #26324A !important; }
+html[data-theme="dark"] .topbar h1, html[data-theme="dark"] #topbar-title { color: #E6EDF7 !important; }
+html[data-theme="dark"] .topbar-logo, html[data-theme="dark"] .brand-logo-img { background: #FFFFFF; border-radius: 6px; }
+html[data-theme="dark"] .sidebar-nav { background: #0E1626 !important; border-color: #26324A !important; }
+html[data-theme="dark"] .sidebar-brand { border-color: #26324A !important; }
+html[data-theme="dark"] .sidebar-brand .brand-text { color: #E6EDF7 !important; }
+html[data-theme="dark"] .zt-group { color: #6B7C96; }
+html[data-theme="dark"] .menu-item { color: #CBD5E1; }
+html[data-theme="dark"] .menu-item:hover { background: #1A2540; color: #FFFFFF; }
+html[data-theme="dark"] .menu-item.active { background: #1D4E89 !important; color: #FFFFFF !important; box-shadow: inset 3px 0 0 #60A5FA; }
+html[data-theme="dark"] .sidebar-nav.collapsed .zt-group { background: #26324A; }
+html[data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb { background: #33415C; }
+html[data-theme="dark"] .zt-theme-btn { background: #16213A; border-color: #33415C; color: #E6EDF7; }
+html[data-theme="dark"] input, html[data-theme="dark"] select, html[data-theme="dark"] textarea {
+  background-color: #0F1829 !important; color: #E6EDF7 !important; border-color: #33415C !important; }
+html[data-theme="dark"] input::placeholder { color: #6B7C96 !important; }
+html[data-theme="dark"] select:disabled, html[data-theme="dark"] input:disabled { color: #56657D !important; background-color: #0D1523 !important; }
+html[data-theme="dark"] ::-webkit-scrollbar-track { background: #0B1220; }
+html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #33415C; }
+html[data-theme="dark"] .loading-overlay { background: rgba(11,18,32,.92) !important; }
+html[data-theme="dark"] img:not(.brand-logo-img):not(.topbar-logo) { filter: brightness(.92); }
