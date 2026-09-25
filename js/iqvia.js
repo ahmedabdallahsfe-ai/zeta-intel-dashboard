@@ -9899,6 +9899,56 @@ window.IQVIADashboard = {
    * function (Market Intelligence, the standalone Evidence Dashboard)
    * is unaffected.
    */
+  /**
+   * ENTERPRISE SEMANTIC INTERFACE -- getBlendedBuShare(bu, line)
+   * ------------------------------------------------------------------
+   * 2026-09-25 (Ahmed: "this is blended share 7.3% ... consider it in the
+   * Executive Command Center"). Exactly the figure the Market Intelligence
+   * page shows with the BU (and optional Line) filter: Zeta SU / ALL market
+   * SU on the IQVIA rows tagged to that BU (and Line), YTD, plus the prior
+   * YTD share, delta and EVI. One volume-weighted ratio -- replaces the
+   * Executive card's simple average of the DM1 and DM2 blends. Same
+   * session + AUTH gating as getDM1DM2MarketIntel(). Read-only.
+   */
+  getBlendedBuShare(bu, line) {
+    const user = getValidSessionUser();
+    if (!user) return { ok: false, status: 'auth_required', source: 'iqvia', bu: bu, line: line || null };
+    if (window.AUTH && !window.AUTH.isBuAllowed(bu)) return { ok: false, status: 'access_denied', source: 'iqvia', bu: bu, line: line || null };
+    if (window.AUTH && line && !window.AUTH.isLineAllowed(line)) return { ok: false, status: 'access_denied', source: 'iqvia', bu: bu, line: line || null };
+    if (!flat) { try { loadData(); } catch (e) { /* logged by loadData() */ } }
+    if (!flat) return { ok: false, status: 'cache_unavailable', source: 'iqvia', bu: bu, line: line || null };
+    const buIdx = LOOKUPS.bus.indexOf(bu);
+    if (buIdx < 0) return { ok: false, status: 'bu_not_found', source: 'iqvia', bu: bu, line: line || null };
+    let lineIdx = -1;
+    if (line) {
+      const want = String(line).trim().toUpperCase();
+      lineIdx = LOOKUPS.lines.findIndex(l => l && String(l).trim().toUpperCase() === want);
+      if (lineIdx < 0) return { ok: false, status: 'line_not_found', source: 'iqvia', bu: bu, line: line };
+    }
+    const zetaIdx = LOOKUPS.corps.findIndex(c => c && c.toUpperCase().includes('ZETA PHARM'));
+    const cur = getPeriodIndices('ytd'), prev = getPrevPeriodIndices('ytd');
+    let zc = 0, tc = 0, zp = 0, tp = 0;
+    for (let i = 0; i < flat.length; i += 14) {
+      if (flat[i + BUCI] !== buIdx) continue;
+      if (lineIdx >= 0 && flat[i + LINEI] !== lineIdx) continue;
+      const t = flat[i + TI];
+      const isCur = cur.has(t);
+      if (!isCur && !prev.has(t)) continue;
+      const su = flat[i + SI], z = flat[i + CI] === zetaIdx;
+      if (isCur) { tc += su; if (z) zc += su; } else { tp += su; if (z) zp += su; }
+    }
+    const sharePct = tc > 0 ? (zc / tc) * 100 : null;
+    const priorYearSharePct = tp > 0 ? (zp / tp) * 100 : null;
+    const zg = zp > 0 ? (zc - zp) / zp : null, mg = tp > 0 ? (tc - tp) / tp : null;
+    return {
+      ok: true, status: 'ready', source: 'iqvia', bu: bu, line: line || null, asOfDate: refPeriodLabel(),
+      basis: 'YTD · SU basis', sharePct: sharePct, priorYearSharePct: priorYearSharePct,
+      deltaPts: (sharePct !== null && priorYearSharePct !== null) ? sharePct - priorYearSharePct : null,
+      evi: (zg !== null && mg !== null) ? Math.round(((1 + zg) / (1 + mg)) * 100) : null,
+      zetaUnitsYTD: zc, marketUnitsYTD: tc,
+    };
+  },
+
   getDM1DM2MarketIntel(bu, line) {
     const user = getValidSessionUser();
     if (!user) {

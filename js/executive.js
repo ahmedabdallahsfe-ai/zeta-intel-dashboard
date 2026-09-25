@@ -1418,11 +1418,25 @@
     }
     const d1 = dm1dm2.total.dm1.ytd.su, d2 = dm1dm2.total.dm2.ytd.su;
     const avg = (a, b) => (a != null && b != null) ? (a + b) / 2 : (a != null ? a : b);
-    const sharePct = avg(d1.sharePct, d2.sharePct);
+    // 2026-09-25 (Ahmed): headline = the BLENDED share the Market
+    // Intelligence page shows for this BU/Line (Zeta SU / all market SU,
+    // YTD) via IQVIADashboard.getBlendedBuShare(), instead of the simple
+    // average of the DM1 and DM2 blends (which is not a real share). DM1 /
+    // DM2 stay in the comparison rows. Target is unchanged (average of the
+    // DM1/DM2 blended targets); achievement and gap are recomputed against
+    // the blended share. Falls back to the old average if unavailable.
+    const blendedOf = (b, l) => {
+      const r = safeCall("iqvia", "IQVIADashboard", "getBlendedBuShare", b, l);
+      return (r && r.ok && r.sharePct != null) ? r : null;
+    };
+    const blend = blendedOf(bu, lineArg);
+    const sharePct = blend ? blend.sharePct : avg(d1.sharePct, d2.sharePct);
     const targetPct = avg(d1.blendedTargetPct, d2.blendedTargetPct);
-    const achievementPct = avg(d1.achievementPct, d2.achievementPct);
+    const achievementPct = blend
+      ? ((targetPct != null && targetPct > 0) ? (sharePct / targetPct) * 100 : null)
+      : avg(d1.achievementPct, d2.achievementPct);
     const gapPts = (sharePct != null && targetPct != null) ? sharePct - targetPct : null;
-    const evi = avg(d1.evi, d2.evi);
+    const evi = (blend && blend.evi != null) ? blend.evi : avg(d1.evi, d2.evi);
 
     let rankInfo, rankUnit;
     const activeLine = (line !== "All") ? line : (global.AUTH && global.AUTH.getScope().lines && global.AUTH.getScope().lines.length === 1 ? global.AUTH.getScope().lines[0] : null);
@@ -1430,7 +1444,8 @@
       const vals = {};
       getAllowedBUList().forEach(b => {
         const bd1d2 = b === bu ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", b, null);
-        vals[b] = (bd1d2 && bd1d2.ok && bd1d2.total) ? avg(bd1d2.total.dm1.ytd.su.sharePct, bd1d2.total.dm2.ytd.su.sharePct) : null;
+        const bb = blendedOf(b, null);
+        vals[b] = bb ? bb.sharePct : ((bd1d2 && bd1d2.ok && bd1d2.total) ? avg(bd1d2.total.dm1.ytd.su.sharePct, bd1d2.total.dm2.ytd.su.sharePct) : null);
       });
       rankInfo = rank(vals, "desc")[bu];
       rankUnit = "Business Units";
@@ -1440,7 +1455,8 @@
       lines.forEach(l => {
         const queryLine = l === "CHC_SALES" ? "CHC" : l;
         const ld1d2 = l === activeLine ? dm1dm2 : safeCall("iqvia", "IQVIADashboard", "getDM1DM2MarketIntel", bu, queryLine);
-        vals[l] = (ld1d2 && ld1d2.ok && ld1d2.total) ? avg(ld1d2.total.dm1.ytd.su.sharePct, ld1d2.total.dm2.ytd.su.sharePct) : null;
+        const lb = blendedOf(bu, queryLine);
+        vals[l] = lb ? lb.sharePct : ((ld1d2 && ld1d2.ok && ld1d2.total) ? avg(ld1d2.total.dm1.ytd.su.sharePct, ld1d2.total.dm2.ytd.su.sharePct) : null);
       });
       const rankKey = activeLine || line;
       rankInfo = rank(vals, "desc")[rankKey];
@@ -1469,7 +1485,7 @@
 
     return {
       kpiId: "marketShare", name: "Market Share",
-      mainValue: fmtPct1(sharePct), mainValueSub: "YTD · SU basis · excl. Other Markets" + (activeLineLabel ? " · " + activeLineLabel : ""),
+      mainValue: fmtPct1(sharePct), mainValueSub: (blend ? "Blended · YTD · SU basis" : "YTD · SU basis · excl. Other Markets") + (activeLineLabel ? " · " + activeLineLabel : ""),
       performance: { target: fmtPct1(targetPct), achievementPct: fmtPct1(achievementPct), variance: fmtSignedPts(gapPts) },
       comparison: comparison,
       rank: rankInfo ? rankInfo.rank : null, rankOf: rankInfo ? rankInfo.of : null, rankUnit: rankUnit,
@@ -2280,9 +2296,21 @@
       }
     }
     const pullThroughRate = countRates > 0 ? (sumRates / countRates) : null;
+    // Distributor opening stock (2026-09-25): optional OPENING rows from
+    // "TO MARKET_IN MARKET/Opening Stock.xlsx" -- units on hand at the start
+    // of the first month. Same BU / Private / Line scope as the rows above.
+    let openingUnits = 0, openingEstimated = false;
+    (cache.OPENING || []).forEach(o => {
+      if (buIdxSet ? !buIdxSet.has(o[0]) : (o[0] !== buIdx)) return;
+      if (o[2] !== privateIdx) return;
+      if (lineIndices && !lineIndices.includes(o[1])) return;
+      openingUnits += o[4] || 0;
+      if (o[5]) openingEstimated = true;   // from 'Minimum implied', not a real count
+    });
+
     const activeMonthsCount = velocityMonthIndices.length;
     const dailyVelocity = (activeMonthsCount > 0) ? (imsVelocityUnits / (activeMonthsCount * 30)) : 0;
-    const calculatedInventory = totalTmsUnits - totalImsUnits;
+    const calculatedInventory = openingUnits + totalTmsUnits - totalImsUnits;
     const currentInventory = calculatedInventory > 0 ? calculatedInventory : null;
     const stockDays = (currentInventory !== null && dailyVelocity > 0) ? (currentInventory / dailyVelocity) : null;
 
@@ -2298,6 +2326,8 @@
       // month -- stock days cannot be computed without the opening balance.
       // Same reading as the To-Market vs In-Market "Channel Inventory" tab.
       netInventory: calculatedInventory,
+      openingUnits,
+      openingEstimated,
       firstMonthLabel: cache.MONTHS[0],
       latestMonthLabel: cache.MONTHS[latestMonthIdx]
     };
@@ -2389,6 +2419,24 @@
       }
     });
 
+    // Opening stock (see getTmsImsMetrics): product-level rows only -- a
+    // whole-Line total (product -1) cannot be split across brands/SKUs.
+    const openingByProd = {};
+    let openingEstimated = false;
+    (cache.OPENING || []).forEach(o => {
+      if (buIdxSet ? !buIdxSet.has(o[0]) : (o[0] !== buIdx)) return;
+      if (o[2] !== privateIdx || o[3] < 0) return;
+      if (o[5]) openingEstimated = true;
+      if (lineIndices && !lineIndices.includes(o[1])) return;
+      openingByProd[o[3]] = (openingByProd[o[3]] || 0) + (o[4] || 0);
+    });
+    Object.keys(openingByProd).forEach(pk => {
+      const prod = productData[pk];
+      if (!prod) return;
+      prod.opening = openingByProd[pk];
+      brandData[prod.brandIdx].opening = (brandData[prod.brandIdx].opening || 0) + openingByProd[pk];
+    });
+
     const activeMonthsCount = velocityMonthIndices.length;
 
     const brandsList = Object.keys(brandData).map(k => {
@@ -2407,7 +2455,7 @@
       }
       const pullThrough = countRates > 0 ? (sumRates / countRates) : null;
       const dailyVelocity = (activeMonthsCount > 0) ? (data.velocityIms / (activeMonthsCount * 30)) : 0;
-      const calculatedInventory = data.totalTms - data.totalIms;
+      const calculatedInventory = (data.opening || 0) + data.totalTms - data.totalIms;
       const inventory = calculatedInventory > 0 ? calculatedInventory : null;
       const stockDays = (inventory !== null && dailyVelocity > 0) ? (inventory / dailyVelocity) : null;
 
@@ -2435,7 +2483,7 @@
       }
       const pullThrough = countRates > 0 ? (sumRates / countRates) : null;
       const dailyVelocity = (activeMonthsCount > 0) ? (data.velocityIms / (activeMonthsCount * 30)) : 0;
-      const calculatedInventory = data.totalTms - data.totalIms;
+      const calculatedInventory = (data.opening || 0) + data.totalTms - data.totalIms;
       const inventory = calculatedInventory > 0 ? calculatedInventory : null;
       const stockDays = (inventory !== null && dailyVelocity > 0) ? (inventory / dailyVelocity) : null;
 
@@ -2451,7 +2499,7 @@
       };
     });
 
-    return { brands: brandsList, products: productsList };
+    return { brands: brandsList, products: productsList, openingEstimated };
   }
 
   function getFlagSpan(val, type) {
@@ -2502,6 +2550,9 @@
     });
 
     let bodyHtml = `<div style="font-size:14px;font-weight:600;margin-bottom:8px;">Brand Summary (${labelBuLine})</div>` + brandTable;
+    if (!isPt && data.openingEstimated) {
+      bodyHtml = `<div style="font-size:12px;color:var(--color-warning,#B45309);background:var(--color-warning-light,#FEF3C7);padding:8px 10px;border-radius:6px;margin-bottom:10px;">Estimated: opening stock uses each product's minimum implied stock (TO MARKET_IN MARKET/Opening Stock.xlsx). Enter the distributor's real 1 Dec 2025 stock there for exact days.</div>` + bodyHtml;
+    }
 
     if (bu === "CHC") {
       const productRows = data.products.map(p => {
@@ -2640,8 +2691,10 @@
         rank: null, rankOf: null, rankUnit: null,
         status: "At Risk",
         trend: null,
-        trendLabel: "Distributors sold " + gap + " more units than were shipped since " + scoped.firstMonthLabel +
-          ", so they are selling stock bought before " + scoped.firstMonthLabel + ". Stock days need the distributor's opening balance -- request it to calculate cover.",
+        trendLabel: scoped.openingUnits > 0
+          ? "Opening stock (" + Math.round(scoped.openingUnits).toLocaleString() + " units) + sell-in is still " + gap + " units below sell-out since " + scoped.firstMonthLabel + " -- check the figures in Opening Stock.xlsx."
+          : "Distributors sold " + gap + " more units than were shipped since " + scoped.firstMonthLabel +
+            ", so they are selling stock bought before " + scoped.firstMonthLabel + ". Add the opening stock in TO MARKET_IN MARKET/Opening Stock.xlsx to calculate cover.",
         clickable: true, dblClickable: true,
       };
     }
@@ -2649,7 +2702,8 @@
     return {
       kpiId: "stockDays", name: "Distributor Stock Days",
       mainValue: hasStock ? Math.round(scoped.stockDays) + " Days" : "—",
-      mainValueSub: "Private Channel · " + scoped.latestMonthLabel + (activeLineLabel ? " · " + activeLineLabel : ""),
+      mainValueSub: "Private Channel · " + scoped.latestMonthLabel + (activeLineLabel ? " · " + activeLineLabel : "") +
+        (scoped.openingEstimated ? " · est. opening stock" : ""),
       performance: { 
         target: "30-45 Days", 
         achievementPct: hasStock ? Math.round(scoped.stockDays) + " Days" : "—", 
@@ -2660,7 +2714,8 @@
       status: statusFromStockDays(scoped.stockDays),
       trend: null, 
       trendLabel: hasInventory 
-        ? "Target inventory cover: 30 to 45 stock days. Current: " + Math.round(scoped.currentInventory).toLocaleString() + " Units." 
+        ? "Target inventory cover: 30 to 45 stock days. Current: " + Math.round(scoped.currentInventory).toLocaleString() + " Units" +
+          (scoped.openingUnits > 0 ? " (incl. " + (scoped.openingEstimated ? "ESTIMATED minimum " : "") + "opening stock " + Math.round(scoped.openingUnits).toLocaleString() + ")." : ".") 
         : "Target inventory cover: 30 to 45 stock days. Current stock calculation excludes opening stock.",
       clickable: true, dblClickable: true,
     };

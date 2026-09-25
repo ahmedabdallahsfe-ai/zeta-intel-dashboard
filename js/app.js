@@ -545,9 +545,7 @@ function startAppBody() {
   // drill on the Sales tab, without costing first paint. CacheLoader
   // schedules this on requestIdleCallback; ensure() never rejects.
   if (window.CacheLoader) {
-    window.CacheLoader.preload("records", 2000);
-    window.CacheLoader.preload("customer_analytics", 4000);
-    window.CacheLoader.preload("iqvia", 6000);
+    window.CacheLoader.preload("customer_analytics");
   }
 
   // Expose global switchTab helper for Executive widget, ticker, and modal click-throughs
@@ -699,13 +697,7 @@ function startAppBody() {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
             }
-            if (window.CacheLoader && typeof window.CacheLoader.ensure === "function") {
-              window.CacheLoader.ensure("iqvia").then(function () {
-                if (window.IQVIADashboard) {
-                  window.IQVIADashboard.init("app-root");
-                }
-              });
-            } else if (window.IQVIADashboard) {
+            if (window.IQVIADashboard) {
               window.IQVIADashboard.init("app-root");
             }
           } else if (tab === "executive") {

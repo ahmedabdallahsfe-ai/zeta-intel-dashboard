@@ -256,7 +256,7 @@
   <script defer src="cache/metadata.data.js?v=20260916_leavemonthly"></script>
   <script defer src="cache/dashboard.data.js?v=20260916_proratedtgt"></script>
   <script defer src="cache/teamkpis.data.js?v=20260724"></script>
-  <!-- Row-level records cache (5.48 MB): LAZY loaded via CacheLoader.ensure("records") on demand or idle preload -->
+  <script defer src="cache/records.data.js?v=20260916_proratedtgt"></script>
   <script defer src="cache/organogram.data.js?v=20260914_august"></script>
   <!-- v20260726_hierarchyfix = corrected BUHead/NSM/RM/DM/Rep naming + CM (Emp6) capture (cache/meta.schemaVersion 2).
        js/sales.js checks this schema and shows a pending-refresh placeholder if the cache on disk is still the
@@ -326,7 +326,7 @@
        there by the time someone opens the Customer Health drill; also
        re-fixed the sentinel-latch bug this regression brought back (see
        decompressCustomerAnalyticsCache() in js/sales.js). -->
-  <!-- IQVIA Market Share cache (5.28 MB): LAZY loaded via CacheLoader.ensure("iqvia") when the Market Share / IQVIA tab opens -->
+  <script defer src="cache/iqvia.data.js?v=20260924_l4l_v2"></script>
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
        from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Aug31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's
@@ -342,7 +342,7 @@
 
   <!-- App-wide authentication roster & loader -->
   <script defer src="cache/auth.data.js?v=20260816_mc_access"></script>
-  <script defer src="js/auth.js?v=20260925_commmgr"></script>
+  <script defer src="js/auth.js?v=20260925_restore"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script defer src="js/config.js?v=20260924_buhead"></script>
@@ -356,11 +356,11 @@
   <script defer src="js/semantic-model.js?v=20260804_tomarket_bumgr"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20260925_listintel"></script>
+  <script defer src="js/cache-loader.js?v=20260925_restore"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
-  <script defer src="js/cache.js?v=20260724"></script>
+  <script defer src="js/cache.js?v=20260925_restore"></script>
   <script defer src="js/loader.js?v=20260724"></script>
   <script defer src="js/analytics.js?v=20260916_proratedtgt"></script>
   <script defer src="js/ui.js?v=20260724"></script>
@@ -396,7 +396,7 @@
        Executive "by Brand" modal both use this now. -->
   <script defer src="js/sales.js?v=20260924_zikrychain"></script>
   <script defer src="js/iqvia-growth-config.js?v=20260924_growthv1"></script>
-  <script defer src="js/iqvia.js?v=20260924_growthv1"></script>
+  <script defer src="js/iqvia.js?v=20260925_blendshare"></script>
   <script defer src="js/iqvia-filterbar.js?v=20260925_renavfix"></script>
   <script defer src="js/iqvia-sidebar-rail.js?v=20260924_sbrail"></script>
   <script defer src="js/iqvia-fit.js?v=20260925_slimchrome"></script>
@@ -433,8 +433,8 @@
        calls sales.js's getItemStrengthGroups() instead of
        getItemAchievement() -- ELIMBOSIS's two pack sizes per strength
        are merged into one row per strength, not shown as 4 raw SKUs. -->
-  <script defer src="cache/tms_ims.data.js"></script>
-  <script defer src="js/executive.js?v=20260925_stockdays"></script>
+  <script defer src="cache/tms_ims.data.js?v=20260925_estopening"></script>
+  <script defer src="js/executive.js?v=20260925_estopening"></script>
 
   <!-- cache/market_intel.data.js (1.4 MB) is LAZY again as of 2026-09-11:
        this was the original 2026-08-08 lazy-loaded cache (PERFORMANCE_FIX.md)
@@ -468,7 +468,7 @@
   <script defer src="js/ask-sales.js?v=20260921_askq2"></script>
   <script defer src="js/ask-sfe.js?v=20260921_askq2"></script>
   <script defer src="js/ask-executive.js?v=20260921_askq2"></script>
-  <script defer src="js/app.js?v=20260925_commmgr"></script>
+  <script defer src="js/app.js?v=20260925_restore"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

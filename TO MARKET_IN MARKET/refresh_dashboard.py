@@ -19,6 +19,12 @@ import urllib.error
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 EXCEL_FILE = os.path.join(SCRIPT_DIR, 'TMS VS IMS.xlsx')
 HTML_FILE = os.path.join(SCRIPT_DIR, 'index.html')
+# Optional distributor opening stock (2026-09-25, Ahmed): units on hand at the
+# distributor at the START of the first month in 'Raw Data'. Read only if the
+# file exists; blank quantities are ignored. Feeds only the main dashboard
+# cache (cache/tms_ims.data.js -> OPENING), never index.html's data block.
+OPENING_FILE = os.path.join(SCRIPT_DIR, 'Opening Stock.xlsx')
+OPENING_JS = "[]"
 TOKEN_FILE = os.path.join(SCRIPT_DIR, '.github_token')
 
 # GitHub repos: owner/repo format
@@ -105,6 +111,51 @@ def extract_data():
                     1 if typ=='IMS' else 0,
                     round(qty), round(val)])
 
+    # ---- optional opening stock -> OPENING rows [bu, line, salesType, product(-1 = whole BU/line), qty]
+    global OPENING_JS
+    opening = []
+    if os.path.exists(OPENING_FILE):
+        try:
+            owb = openpyxl.load_workbook(OPENING_FILE, read_only=True, data_only=True)
+            orows = list(owb.worksheets[0].iter_rows(values_only=True))
+            hdr = [str(h).strip() if h is not None else '' for h in orows[0]]
+            col = {h: i for i, h in enumerate(hdr)}
+            missing = [h for h in ['Business Unit', 'Line', 'Code', 'Sales Type', 'Opening Qty'] if h not in col]
+            if missing:
+                print(f"      [WARN] Opening Stock.xlsx: missing column(s) {missing} -- ignored")
+            else:
+                code_to_prod = {}
+                for i, pk in enumerate(prods):
+                    code_to_prod.setdefault(pk.split('|')[0], i)
+                skipped = 0
+                for orow in orows[1:]:
+                    if not orow: continue
+                    q = orow[col['Opening Qty']]
+                    est = 0
+                    # Blank Opening Qty -> use 'Minimum implied (units)' as an
+                    # ESTIMATE (2026-09-25, Ahmed: show CHC days like the other
+                    # BUs now). Flagged est=1 so the dashboard labels it; any
+                    # real figure typed into Opening Qty replaces it.
+                    if (q is None or str(q).strip() == '') and 'Minimum implied (units)' in col:
+                        q = orow[col['Minimum implied (units)']]; est = 1
+                    if q is None or str(q).strip() == '': continue
+                    try: q = float(q)
+                    except Exception: skipped += 1; continue
+                    obu_raw = str(orow[col['Business Unit']] or '').strip()
+                    obu = bu_norm.get(obu_raw, obu_raw)
+                    oln_raw = str(orow[col['Line']] or '').strip()
+                    oln = line_norm.get(oln_raw, canonical_lines.get(oln_raw.upper().replace('-', ' ').replace('  ', ' ').strip(), oln_raw))
+                    ost = str(orow[col['Sales Type']] or 'Private').strip()
+                    ocode = str(orow[col['Code']] or '').strip()
+                    if obu not in bus or oln not in lines or ost not in sts or (ocode and ocode not in code_to_prod):
+                        skipped += 1; continue
+                    opening.append([bus.index(obu), lines.index(oln), sts.index(ost),
+                                    code_to_prod[ocode] if ocode else -1, round(q), est])
+                print(f"      Opening stock: {len(opening)} row(s), {sum(o[4] for o in opening):,} units ({sum(1 for o in opening if o[5])} estimated from 'Minimum implied')" + (f" ({skipped} skipped -- check BU/Line/Code/Sales Type)" if skipped else ""))
+        except Exception as exc:
+            print(f"      [WARN] Opening Stock.xlsx could not be read ({exc}) -- ignored")
+    OPENING_JS = json.dumps(opening)
+
     datajs = (
         f"const MONTHS={json.dumps(MONTHS)};\n"
         f"const BUS={json.dumps(bus)};\n"
@@ -152,7 +203,8 @@ def rebuild_html(datajs):
             "(function(global) {\n"
             "  \"use strict\";\n"
             "  " + "\n  ".join(wrapped_lines) + "\n"
-            "  global.TMS_IMS_CACHE = { MONTHS, BUS, LINES, BRANDS, STYPES, PRODUCTS, ROWS };\n"
+            "  var OPENING=" + OPENING_JS + ";\n"
+            "  global.TMS_IMS_CACHE = { MONTHS, BUS, LINES, BRANDS, STYPES, PRODUCTS, ROWS, OPENING };\n"
             "})(window);\n"
         )
         cache_path = os.path.join(main_cache_dir, 'tms_ims.data.js')
