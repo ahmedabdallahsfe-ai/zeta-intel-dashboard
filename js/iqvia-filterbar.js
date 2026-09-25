@@ -20,10 +20,16 @@
     ['atc4', 'ATC4'], ['corp', 'Corporation'], ['molecule', 'Molecule'], ['product', 'Product'],
     ['item', 'Item'], ['strength', 'Strength'], ['dosage', 'Dosage Form']
   ];
-  var S = { open: false, pending: false, wrapped: false, built: false };
+  var S = { open: false, pending: false, wrapped: false, built: false, globals: false };
 
   function isDesktop() { return window.innerWidth > 768; }
-  function topbar() { return document.querySelector('.iqvia-dashboard-wrap #topbar'); }
+  function topbar() {
+    var all = document.querySelectorAll('.iqvia-dashboard-wrap #topbar');
+    for (var i = all.length - 1; i >= 0; i--) { if (all[i].offsetParent !== null) return all[i]; }
+    return all.length ? all[all.length - 1] : null;
+  }
+  // Scoped lookup inside the current topbar (avoids stale/duplicate ids after a re-init)
+  function q(id) { var tb = topbar(); return tb ? tb.querySelector('#' + id) : document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   function selSize(dim) {
@@ -85,8 +91,8 @@
   }
 
   // ---- open / close ------------------------------------------------------
-  function setOpen(open) {
-    var tb = topbar(); if (!tb) return;
+  function setOpen(open, tbArg) {
+    var tb = tbArg || topbar(); if (!tb) return;
     if (!open) {
       if (typeof window.closeAllDropdowns === 'function') window.closeAllDropdowns();
       flush();
@@ -94,26 +100,26 @@
     S.open = !!open;
     tb.classList.toggle('mi-fp-open', S.open);
     tb.classList.toggle('mi-fp-collapsed', !S.open);
-    var btn = document.getElementById('mi-fp-toggle');
+    var btn = tb.querySelector('#mi-fp-toggle');
     if (btn) btn.setAttribute('aria-expanded', S.open ? 'true' : 'false');
     renderChips();
   }
 
   function markPending() {
-    var ap = document.getElementById('mi-fp-apply');
+    var ap = q('mi-fp-apply');
     if (ap) {
       ap.classList.toggle('mi-fp-pending', S.pending);
       ap.textContent = S.pending ? 'Apply changes' : 'Apply';
     }
-    var note = document.getElementById('mi-fp-note');
+    var note = q('mi-fp-note');
     if (note) note.textContent = S.pending ? 'Changes not applied yet' : '';
   }
 
   // ---- chips ---------------------------------------------------------------
   function renderChips() {
-    var box = document.getElementById('mi-fp-chips'); if (!box) return;
+    var box = q('mi-fp-chips'); if (!box) return;
     var act = activeDims();
-    var cnt = document.getElementById('mi-fp-count');
+    var cnt = q('mi-fp-count');
     if (cnt) { cnt.textContent = act.length; cnt.classList.toggle('mi-fp-count-on', act.length > 0); }
     if (!act.length) { box.innerHTML = '<span class="mi-fp-none">No filters · all market data</span>'; return; }
     box.innerHTML = act.map(function (d) {
@@ -124,10 +130,21 @@
   }
 
   // ---- build the controls once the IQVIA topbar exists --------------------
+  // IQVIADashboard.init() rebuilds the topbar every time the tab is opened,
+  // so enhancement is re-applied whenever a topbar lacks #mi-fp-toggle.
+  function freshTopbar() {   // cheap: no layout reads (runs from the MutationObserver)
+    var all = document.querySelectorAll('.iqvia-dashboard-wrap #topbar');
+    for (var i = 0; i < all.length; i++) {
+      var t = all[i];
+      if (!t.querySelector('#mi-fp-toggle') && t.querySelector('.tb-fgroup')) return t;
+    }
+    return null;
+  }
   function build() {
-    var tb = topbar();
-    if (!tb || S.built || !tb.querySelector('.tb-fgroup')) return false;
+    var tb = freshTopbar();
+    if (!tb) return false;
     wrapEntryPoints();
+    S.open = false; S.pending = false;   // fresh DOM = fresh, fully-rendered state
 
     var toggle = document.createElement('button');
     toggle.type = 'button'; toggle.id = 'mi-fp-toggle'; toggle.className = 'tb-btn mi-fp-toggle';
@@ -149,28 +166,33 @@
     tb.appendChild(actions);
     // existing Clear All (calls iqvia.js clearFilters -- unchanged) joins the actions row
     var clr = tb.querySelector('.tb-clear');
-    if (clr) actions.insertBefore(clr, document.getElementById('mi-fp-close'));
+    if (clr) actions.insertBefore(clr, actions.querySelector('#mi-fp-close'));
 
     toggle.addEventListener('click', function (e) { e.stopPropagation(); setOpen(!S.open); });
-    document.getElementById('mi-fp-apply').addEventListener('click', function () { setOpen(false); });
-    document.getElementById('mi-fp-close').addEventListener('click', function () { setOpen(false); });
+    actions.querySelector('#mi-fp-apply').addEventListener('click', function () { setOpen(false); });
+    actions.querySelector('#mi-fp-close').addEventListener('click', function () { setOpen(false); });
     chips.addEventListener('click', function (e) {
       var x = e.target.closest('.mi-fp-chip-x');
       if (x) { e.stopPropagation(); window.msClearAll(x.getAttribute('data-dim')); return; }
       if (e.target.closest('#mi-fp-clear-link')) { e.stopPropagation(); if (typeof window.clearFilters === 'function') window.clearFilters(); renderChips(); return; }
       if (!S.open) setOpen(true);   // click the chip area to edit
     });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open) setOpen(false); });
-    window.addEventListener('resize', function () { if (!isDesktop() && S.open) setOpen(false); });
+    if (!S.globals) {   // document/window listeners: attach once only
+      S.globals = true;
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open) setOpen(false); });
+      window.addEventListener('resize', function () { if (!isDesktop() && S.open) setOpen(false); });
+    }
 
     S.built = true;
-    setOpen(false);   // collapsed by default
+    setOpen(false, tb);   // collapsed by default (every time the tab is rebuilt)
     return true;
   }
 
+  // Observer stays alive: every return to Market Intelligence brings a new
+  // topbar that must be collapsed again. Callback = one lookup + flag check.
   function boot() {
-    if (build()) return;
-    var mo = new MutationObserver(function () { if (build()) mo.disconnect(); });
+    build();
+    var mo = new MutationObserver(function () { build(); });
     mo.observe(document.documentElement, { childList: true, subtree: true });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
