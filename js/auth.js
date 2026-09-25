@@ -192,7 +192,7 @@
   // -------------------------------------------------------------------
   // "make it exclusive to ceo admin vp sfe bex" + 2026-08-16: "let rx and
   // Total Market Intelligence appear to Marketing Consultant".
-  var MARKET_INTEL_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "Group Brand Manager"];
+  var MARKET_INTEL_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "Group Brand Manager", "BU Manager", "Commercial Manager", "Commercial Director", "Line Manager"];
 
   function canViewMarketIntel() {
     var u = getValidSessionUser();
@@ -203,7 +203,7 @@
   function canViewMarketNews() {
     var u = getValidSessionUser();
     if (!u) return false;
-    return u.role !== "Commercial Manager";
+    return true;
   }
 
   // -------------------------------------------------------------------
