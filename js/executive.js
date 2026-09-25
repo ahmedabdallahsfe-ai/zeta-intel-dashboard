@@ -2291,6 +2291,14 @@
       pullThroughRate,
       stockDays,
       currentInventory,
+      // 2026-09-25: the raw cumulative TMS - IMS balance, kept even when it
+      // is <= 0 (currentInventory is null then). A negative balance means
+      // distributors sold more than was shipped since the first month in
+      // the cache, i.e. they are drawing down stock bought before that
+      // month -- stock days cannot be computed without the opening balance.
+      // Same reading as the To-Market vs In-Market "Channel Inventory" tab.
+      netInventory: calculatedInventory,
+      firstMonthLabel: cache.MONTHS[0],
       latestMonthLabel: cache.MONTHS[latestMonthIdx]
     };
   }
@@ -2614,6 +2622,29 @@
 
     const hasStock = scoped.stockDays !== null && scoped.stockDays !== undefined;
     const hasInventory = scoped.currentInventory !== null && scoped.currentInventory !== undefined;
+    // Sell-out ran ahead of sell-in (e.g. CHC: IMS 367.8K vs TMS 310.1K units,
+    // Dec 2025 - Aug 2026): say so instead of an unexplained "—".
+    const drawnDown = !hasStock && typeof scoped.netInventory === "number" && scoped.netInventory <= 0 && scoped.pullThroughRate !== null;
+    if (drawnDown) {
+      const gap = Math.round(-scoped.netInventory).toLocaleString();
+      return {
+        kpiId: "stockDays", name: "Distributor Stock Days",
+        mainValue: "Stock drawn down",
+        mainValueSub: "Private Channel · " + scoped.latestMonthLabel + (activeLineLabel ? " · " + activeLineLabel : ""),
+        performance: {
+          target: "30-45 Days",
+          achievementPct: "Not computable",
+          variance: "-" + gap + " Units (sell-out > sell-in)"
+        },
+        comparison: null,
+        rank: null, rankOf: null, rankUnit: null,
+        status: "At Risk",
+        trend: null,
+        trendLabel: "Distributors sold " + gap + " more units than were shipped since " + scoped.firstMonthLabel +
+          ", so they are selling stock bought before " + scoped.firstMonthLabel + ". Stock days need the distributor's opening balance -- request it to calculate cover.",
+        clickable: true, dblClickable: true,
+      };
+    }
 
     return {
       kpiId: "stockDays", name: "Distributor Stock Days",

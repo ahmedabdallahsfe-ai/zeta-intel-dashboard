@@ -1911,7 +1911,7 @@ window.ListIntelDashboard = {
     if (!container) return;
     document.body.classList.add('list-intel-mode');
     if (!canViewPage()) {
-      message(container, '\u{1F512}', 'Access restricted', 'List Intelligence is available to CEO, VP / Commercial Lead, SFE Manager, BEx and Admin (all lines), BU Managers (own BU), Group Brand Managers and Line Managers (own lines).');
+      message(container, '\u{1F512}', 'Access restricted', 'List Intelligence is available to CEO, VP / Commercial Lead, Commercial Manager, SFE Manager, BEx and Admin (all lines), BU Managers (own BU), Group Brand Managers and Line Managers (own lines).');
       return;
     }
     if (!loadCache()) {

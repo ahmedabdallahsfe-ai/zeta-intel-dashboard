@@ -322,8 +322,8 @@
   // LIST INTELLIGENCE ACCESS (2026-09-25, Ahmed)
   // -------------------------------------------------------------------
   // Access by line responsibility (updated 2026-09-25, Ahmed):
-  //   CEO, Commercial Lead / VP, Commercial Director, SFE Manager, BEx, Admin
-  //     -> ALL lines.
+  //   CEO, Commercial Lead / VP, Commercial Director, Commercial Manager
+  //   (added 2026-09-25, Ahmed), SFE Manager, BEx, Admin -> ALL lines.
   //   BU Manager                  -> only the lines of their own BU.
   //   Group Brand Manager         -> only their own lines / BU.
   //   Line Manager                -> only their own line(s).
@@ -334,7 +334,7 @@
   // a Line Manager with no line sees nothing. Matching is on each rep's
   // ORIGINAL CRM line, so CHC and CHC_Sales stay separate for access even
   // though CHC_Sales is merged into CHC for reporting.
-  var LIST_INTEL_ROLES = ["CEO", "VP", "Commercial Director", "SFE Manager", "BEX", "Admin"];
+  var LIST_INTEL_ROLES = ["CEO", "VP", "Commercial Director", "Commercial Manager", "SFE Manager", "BEX", "Admin"];
   var LIST_INTEL_SCOPED_ROLES = ["BU Manager", "Group Brand Manager", "Line Manager"];
   // Login line name (upper-cased) -> CRM list line(s) (upper-cased). Any name
   // not listed maps to itself. Approved by Ahmed 2026-09-25.

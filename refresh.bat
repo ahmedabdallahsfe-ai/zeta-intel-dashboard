@@ -200,6 +200,21 @@ if not "%IQVIA_EXIT%"=="0" (
     exit /b 1
 )
 
+REM --- rebuild the sign-in roster (cache/auth.data.js) ----------------------
+REM Added 2026-09-25: js/auth.js signs people in from cache/auth.data.js, which
+REM etl\build_auth_cache.py extracts from the users inside cache/iqvia.data.js
+REM (built one step above from the User Config workbook). This step was never
+REM wired in, so accounts added to the config (2 Group Brand Managers and a
+REM Commercial Manager as of 2026-09-25) reached the IQVIA cache but could not
+REM sign in. NOT FATAL: the script refuses to write an empty or hash-less
+REM roster, and auth.js falls back to IQVIA_CACHE.users if this file is absent.
+echo.
+echo Rebuilding sign-in roster...
+%PYTHON_CMD% etl\build_auth_cache.py
+if errorlevel 1 (
+    echo [WARNING] Sign-in roster rebuild failed -- the previous cache/auth.data.js is kept.
+)
+
 REM --- run the Customer Analytics Aggregation ------------------------------
 REM Added 2026-08-03: this script's output (cache/customer_analytics.json /
 REM .data.js) was already being staged and committed below, but the script
@@ -407,6 +422,27 @@ if exist "TO MARKET_IN MARKET\TMS VS IMS.xlsx" (
     echo [SKIP] "TO MARKET_IN MARKET\TMS VS IMS.xlsx" not found -- skipping To-Market vs In-Market refresh.
 )
 
+REM --- Zeta Sprint 2026 rankings + Field Working Days ----------------------
+REM Added 2026-09-25 (Ahmed: rebuild both on every run). Both were manual
+REM until now (refresh_bat_audit_2026-09-14.md Finding #6). ORDER MATTERS:
+REM build_sprint_cache.py reads the Coverage, Sales and Coaching caches built
+REM above, and build_working_days_cache.py reads cache\sprint.json. The Sprint
+REM month is set inside build_sprint_cache.py (EVAL_PERIOD_NAME); a rerun only
+REM refreshes that month with the latest data and re-archives it under
+REM cache\sprint_history\. NOT FATAL: a failure warns and keeps the previous
+REM caches.
+echo.
+echo Rebuilding Zeta Sprint rankings...
+%PYTHON_CMD% etl\build_sprint_cache.py
+if errorlevel 1 (
+    echo [WARNING] Zeta Sprint rebuild failed -- previous sprint cache kept. Field Working Days skipped.
+) else (
+    echo.
+    echo Rebuilding Field Working Days...
+    %PYTHON_CMD% etl\build_working_days_cache.py
+    if errorlevel 1 echo [WARNING] Field Working Days rebuild failed -- previous cache kept.
+)
+
 REM --- record what was built, from what, and when -------------------------
 REM Added 2026-08-07. MUST RUN LAST: it stats the caches, so anything built
 REM after it will not be reflected until the next refresh.
@@ -527,6 +563,11 @@ if "%GIT_CMD%"=="" (
     REM above -- .gitignore line 2 is `cache/`. Access is enforced in the page
     REM (js/auth.js listIntelScope + js/list-intel.js applyScope).
     "%GIT_CMD%" add -f cache/list_intel.data.js
+    REM Zeta Sprint month archives (2026-09-25): cache/ is gitignored and a new
+    REM month's archive file is untracked, so without -f the history index would
+    REM list a month whose file never reaches the live site.
+    "%GIT_CMD%" add -f cache/sprint_history/*.data.js
+    "%GIT_CMD%" add -f cache/sprint_history/index.js
     "%GIT_CMD%" add "TO MARKET_IN MARKET/index.html"
     "%GIT_CMD%" add assets/*.js
     "%GIT_CMD%" add js/*.js

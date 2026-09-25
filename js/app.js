@@ -1030,7 +1030,7 @@ async function renderListIntelTab(container) {
       ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
           icon: "\u{1F512}",
           title: "Access restricted",
-          hint: "List Intelligence is available to CEO, VP / Commercial Lead, SFE Manager, BEx and Admin (all lines), BU Managers (own BU), Group Brand Managers and Line Managers (own lines).",
+          hint: "List Intelligence is available to CEO, VP / Commercial Lead, Commercial Manager, SFE Manager, BEx and Admin (all lines), BU Managers (own BU), Group Brand Managers and Line Managers (own lines).",
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;
