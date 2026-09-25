@@ -321,14 +321,21 @@
   // -------------------------------------------------------------------
   // LIST INTELLIGENCE ACCESS (2026-09-25, Ahmed)
   // -------------------------------------------------------------------
-  // CEO, Commercial Lead / VP, SFE Manager, BEx, Admin and BU Managers see
-  // ALL lines. Line Managers (Phase 3, 2026-09-25) see ONLY their own lines,
-  // matched on each rep's ORIGINAL CRM line -- so CHC and CHC_Sales stay
-  // separate for access even though CHC_Sales is merged into CHC for
-  // reporting. Area-level managers have no logins yet (Ahmed: Line Managers
-  // only for now).
-  var LIST_INTEL_ROLES = ["CEO", "VP", "Commercial Director", "SFE Manager", "BEX", "Admin", "BU Manager"];
-  var LIST_INTEL_SCOPED_ROLES = ["Line Manager"];
+  // Access by line responsibility (updated 2026-09-25, Ahmed):
+  //   CEO, Commercial Lead / VP, Commercial Director, SFE Manager, BEx, Admin
+  //     -> ALL lines.
+  //   BU Manager                  -> only the lines of their own BU.
+  //   Group Brand Manager         -> only their own lines / BU.
+  //   Line Manager                -> only their own line(s).
+  // Scoped users are matched on the "Allowed Lines" of their login
+  // (Zeta_Dashboard_User_Config.xlsx via etl/sync_users.py); if Lines is ALL
+  // but a BU is set, the BU's lines are used (LIST_INTEL_BU_LINES). A BU
+  // Manager / Group Brand Manager whose login says ALL for both BU and Lines sees all lines;
+  // a Line Manager with no line sees nothing. Matching is on each rep's
+  // ORIGINAL CRM line, so CHC and CHC_Sales stay separate for access even
+  // though CHC_Sales is merged into CHC for reporting.
+  var LIST_INTEL_ROLES = ["CEO", "VP", "Commercial Director", "SFE Manager", "BEX", "Admin"];
+  var LIST_INTEL_SCOPED_ROLES = ["BU Manager", "Group Brand Manager", "Line Manager"];
   // Login line name (upper-cased) -> CRM list line(s) (upper-cased). Any name
   // not listed maps to itself. Approved by Ahmed 2026-09-25.
   var LIST_INTEL_LINE_MAP = {
@@ -337,12 +344,22 @@
     "CHC": ["CHC"],
     "CHC_SALES": ["CHC_SALES"]
   };
+  // Login BU (upper-cased) -> login lines, mirroring the "BU & Lines" sheet
+  // of Zeta_Dashboard_User_Config.xlsx (CHC also owns CHC_Sales, as in the
+  // CHC BU Manager's login). Only used when a login's Lines is ALL.
+  var LIST_INTEL_BU_LINES = {
+    "CHC": ["CHC", "CHC_SALES"],
+    "CLUSTER": ["CVM-I", "CVM-II", "ORTHO-I", "ORTHO-II", "PEDIA"],
+    "DIAB": ["DIAB-I", "DIAB-II", "DIAB-III", "DIAB-IV"],
+    "GIT": ["GIT-I", "GIT-II", "GIT-III", "DERMA", "CNS"]
+  };
 
   /**
    * List Intelligence entitlement for the signed-in user:
    *   null                         -> no access
    *   { all: true }                -> every line
-   *   { all: false, lines: [...] } -> only reps whose ORIGINAL CRM line
+   *   { all: false, lines: [...], basis: "line"|"bu", bu: [...] }
+   *                                -> only reps whose ORIGINAL CRM line
    *                                   (upper-cased) is in `lines`
    */
   function listIntelScope() {
@@ -350,13 +367,20 @@
     if (!u) return null;
     if (LIST_INTEL_ROLES.indexOf(u.role) >= 0) return { all: true };
     if (LIST_INTEL_SCOPED_ROLES.indexOf(u.role) < 0) return null;
+    var up = function (x) { return String(x || "").trim().toUpperCase(); };
+    var loginLines = (u.lines || []).map(up).filter(Boolean);
+    var bus = (u.bu || []).map(up).filter(Boolean);
+    var basis = "line";
+    if (!loginLines.length && u.role !== "Line Manager") {
+      if (!bus.length) return { all: true };            // login says ALL / ALL
+      basis = "bu";
+      bus.forEach(function (b) { (LIST_INTEL_BU_LINES[b] || []).forEach(function (l) { loginLines.push(l); }); });
+    }
     var out = [];
-    (u.lines || []).forEach(function (l) {
-      var k = String(l || "").trim().toUpperCase();
-      if (!k) return;
+    loginLines.forEach(function (k) {
       (LIST_INTEL_LINE_MAP[k] || [k]).forEach(function (m) { if (out.indexOf(m) < 0) out.push(m); });
     });
-    return out.length ? { all: false, lines: out } : null;
+    return out.length ? { all: false, lines: out, basis: basis, bu: (u.bu || []).slice(), role: u.role } : null;
   }
 
   function canViewListIntel() {
@@ -651,6 +675,7 @@
     LIST_INTEL_ROLES: LIST_INTEL_ROLES,
     LIST_INTEL_SCOPED_ROLES: LIST_INTEL_SCOPED_ROLES,
     LIST_INTEL_LINE_MAP: LIST_INTEL_LINE_MAP,
+    LIST_INTEL_BU_LINES: LIST_INTEL_BU_LINES,
     canViewWorkingDays: canViewWorkingDays,
     WORKING_DAYS_ROLES: WORKING_DAYS_ROLES,
     canViewCoaching: canViewCoaching,

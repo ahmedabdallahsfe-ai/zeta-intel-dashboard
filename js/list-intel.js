@@ -754,6 +754,169 @@ function actualTotalCalls(rep){
   return custs.filter(c=>types.includes(c[1])).reduce((s,c)=> s + (c[5]||0), 0);
 }
 
+// ---------------------------------------------------------------------------
+// Per-rep Insights & Actions (2026-09-25). Read-only diagnostics built from the
+// same rules as the rest of the tab: capFlag() for capacity, repMetrics() for
+// list size, the Promo Grid segmentation / frequency targets, and custsFor()
+// (plan-matched customers). Nothing here changes a stored value.
+// ---------------------------------------------------------------------------
+let _dupIdx = null, _dupKey = null;
+function dupIndex(){               // line|name|area -> Set(employee), active PM lists only
+  if (_dupIdx && _dupKey === _scopeKey) return _dupIdx;
+  _dupIdx = {}; _dupKey = _scopeKey;
+  for (const r of REPS){ if (r.vacant || r.plan!=='PM') continue;
+    for (const c of custsFor(r)){ const k = r.line+'\u0001'+c[0]+'\u0001'+(c[4]||''); (_dupIdx[k] || (_dupIdx[k] = new Set())).add(r.employee); } }
+  return _dupIdx;
+}
+const C_CLASSES = ['C1','C2','C3'];
+const sumK = (o, ks) => ks.reduce((s,k)=>s+((o&&o[k])||0),0);
+
+function repInsights(rep){
+  const m = repMetrics(rep, STATE.tolerance);
+  const custs = custsFor(rep);
+  const items = [];                                   // {sev:'bad'|'mid'|'good', area, title, detail, action}
+  const push = (sev, area, title, detail, action) => items.push({sev, area, title, detail, action});
+  const noun = rep.plan==='PM' ? 'doctors' : 'customers';
+
+  if (rep.vacant){
+    push('bad','Coverage','Vacant territory', `${fmt(custs.length)} customers on this list have no rep calling on them.`,
+      `Reassign the A-class customers to neighbouring reps now, and prioritise recruitment for this ${esc(rep.plan)} post.`);
+    return {items, flag:null, gaps:1};
+  }
+
+  // Frequency vs Promo Grid, per customer (drives both the A-class gap and capacity levers)
+  let aDocs=0, aBelow=0, aCallsShort=0, cAbove=0, cCallsOver=0;
+  if (rep.classesFreqTarget && !rep.noSegTarget){
+    for (const c of custs){
+      const ft = rep.classesFreqTarget[c[3]]; if (ft==null || c[5]==null) continue;
+      if (A_CLASSES.includes(c[3])){ aDocs++; if (c[5] < ft){ aBelow++; aCallsShort += ft - c[5]; } }
+      else if (C_CLASSES.includes(c[3]) && c[5] > ft){ cAbove++; cCallsOver += c[5] - ft; }
+    }
+  }
+  aCallsShort = round2(aCallsShort); cCallsOver = round2(cCallsOver);
+
+  // 1. Capacity
+  const flag = capFlag(rep);
+  if (flag){
+    const dev = round2(rep.crmFreq - rep.crmCapacity);
+    const pct = rep.crmCapacity ? Math.round(100*rep.crmFreq/rep.crmCapacity) : null;
+    const det = `Planned ${fmt(rep.crmFreq)} calls vs capacity ${fmt(rep.crmCapacity)} (${fmt(rep.crmTargetCallRate)}/day × ${fmt(rep.crmWorkingDays)} days)${pct!==null?' = <b>'+pct+'%</b>':''}.`;
+    if (flag==='OVER'){
+      const levers = [];
+      if (cCallsOver>0) levers.push(`cut frequency on ${fmt(cAbove)} C-class customers visited above grid (−${fmt(cCallsOver)} calls)`);
+      levers.push('drop the lowest-class customers from the list', 'or move customers to a colleague who is under capacity');
+      push('bad','Capacity','Over capacity', det, `Remove <b>${fmt(Math.abs(dev))}</b> planned calls per cycle: ${levers.join(', ')}. The plan is not executable as it stands.`);
+    } else if (flag==='UNDER'){
+      const levers = [];
+      if (aCallsShort>0) levers.push(`raise frequency on the ${fmt(aBelow)} A-class doctors below grid (+${fmt(aCallsShort)} calls)`);
+      levers.push(rep.plan==='PM' ? 'add target doctors from the class the segment mix is short of' : 'add hospitals / accounts to the list');
+      push('mid','Capacity','Under capacity', det, `Fill <b>${fmt(Math.abs(dev))}</b> unused calls per cycle: ${levers.join('; ')}.`);
+    } else {
+      push('good','Capacity','Capacity OK', det, 'Workload matches capacity. Keep changes calls-neutral: any customer added should replace one removed.');
+    }
+  }
+
+  // 2. List size vs flat Promo Grid target
+  if (m.status==='BELOW RANGE') push('bad','List size','List below target',
+    `${fmt(m.current)} customers vs target ${fmt(m.target)} (gap ${fmtSigned(m.rawGap)}${STATE.tolerance?`; lower limit ${fmt(m.lower)}`:''}).`,
+    `Add <b>${fmt(Math.ceil(Math.abs(m.deviation)))}</b> customers to reach ${STATE.tolerance?'the lower limit':'target'}${STATE.tolerance&&m.rawGap<m.deviation?` (${fmt(Math.ceil(Math.abs(m.rawGap)))} to reach full target)`:''}, prioritising A/B class.`);
+  else if (m.status==='ABOVE RANGE') push('mid','List size','List above target',
+    `${fmt(m.current)} customers vs target ${fmt(m.target)} (gap ${fmtSigned(m.rawGap)}${STATE.tolerance?`; upper limit ${fmt(m.upper)}`:''}).`,
+    `Remove <b>${fmt(Math.ceil(Math.abs(m.deviation)))}</b> customers, starting with C-class and unclassified ones.`);
+  else push('good','List size','List size within range', `${fmt(m.current)} customers vs target ${fmt(m.target)}.`, 'No change to list size needed.');
+
+  // 3. Segment mix vs Promo Grid (current minus target, per class)
+  if (rep.classesTarget && !rep.noSegTarget){
+    const short = [], over = [];
+    for (const k of CLASS_KEYS){ const d = (rep.classesCurrent[k]||0) - (rep.classesTarget[k]||0); if (d<0) short.push(`${k} ${d}`); else if (d>0) over.push(`${k} +${d}`); }
+    const aCur = sumK(rep.classesCurrent, A_CLASSES), aT = sumK(rep.classesTarget, A_CLASSES);
+    const cCur = sumK(rep.classesCurrent, C_CLASSES), cT = sumK(rep.classesTarget, C_CLASSES);
+    const aGap = aCur - aT, cGap = cCur - cT;
+    if (short.length || over.length){
+      const B_CLASSES = ['B1','B2','B3'];
+      const bGap = sumK(rep.classesCurrent, B_CLASSES) - sumK(rep.classesTarget, B_CLASSES);
+      const acts = [];
+      if (aGap<0) acts.push(`add <b>${fmt(-aGap)}</b> A-class ${noun}`);
+      if (bGap<0) acts.push(`add <b>${fmt(-bGap)}</b> B-class ${noun}`);
+      if (cGap>0) acts.push(`replace <b>${fmt(cGap)}</b> C-class customers${(aGap<0||bGap<0)?' to make room':''}`);
+      if (bGap>0) acts.push(`review <b>${fmt(bGap)}</b> surplus B-class customers`);
+      if (aGap>0) acts.push(`keep the <b>+${fmt(aGap)}</b> extra A-class only if capacity allows`);
+      if (!acts.length) acts.push('re-balance sub-classes as listed (tier totals are on grid)');
+      acts[0] = acts[0].charAt(0).toUpperCase() + acts[0].slice(1);
+      push(aGap<0 ? 'bad' : 'mid','Segment mix', aGap<0 ? 'A-class short of grid' : 'Segment mix off grid',
+        `A-class ${fmt(aCur)} vs ${fmt(aT)} · C-class ${fmt(cCur)} vs ${fmt(cT)}.${short.length?' Short: '+short.join(', ')+'.':''}${over.length?' Over: '+over.join(', ')+'.':''}`,
+        acts.join('; ') + '.');
+    } else push('good','Segment mix','Segment mix on grid', `Every class matches the Promo Grid target (A-class ${fmt(aCur)}).`, 'No change needed.');
+  }
+
+  // 4. A-class frequency
+  if (aDocs){
+    const fund = flag==='UNDER' ? (rep.crmCapacity-rep.crmFreq >= aCallsShort ? ' (fits within spare capacity)' : ` (spare capacity covers ${fmt(round2(rep.crmCapacity-rep.crmFreq))}; fund the rest by ${cCallsOver>0?'cutting C-class frequency':'trimming low-class customers'})`)
+      : `, funded by ${cCallsOver>0?`cutting C-class frequency (${fmt(cCallsOver)} calls available) or `:''}trimming low-class customers so capacity is not exceeded`;
+    if (aBelow) push(aBelow/aDocs>=0.3?'bad':'mid','Frequency','A-class under-visited',
+      `${fmt(aBelow)} of ${fmt(aDocs)} A-class ${noun} (${Math.round(100*aBelow/aDocs)}%) are planned below the grid frequency.`,
+      `Raise their frequency to grid: <b>+${fmt(aCallsShort)}</b> calls per cycle${flag?fund:''}. Filter the customer list below by Class A1–A3 to see them.`);
+    else push('good','Frequency','A-class frequency on grid', `All ${fmt(aDocs)} A-class ${noun} are planned at or above grid frequency.`, 'No change needed.');
+  }
+
+  // 5. Unclassified customers
+  const others = (rep.classesCurrent && rep.classesCurrent.Others) || 0;
+  if (others) push('mid','Data','Unclassified customers', `${fmt(others)} customers on the list have no A/B/C class.`, `Classify or remove these <b>${fmt(others)}</b> customers so they count against the grid.`);
+
+  // 6. Duplicates with another rep on the same line
+  if (rep.plan==='PM'){
+    const idx = dupIndex(); const peers = new Set(); let dups = 0;
+    for (const c of custs){ const s = idx[rep.line+'\u0001'+c[0]+'\u0001'+(c[4]||'')]; if (s && s.size>1){ dups++; s.forEach(e=>{ if (e!==rep.employee) peers.add(e); }); } }
+    if (dups) push('mid','Overlap','Doctors shared with colleagues',
+      `${fmt(dups)} doctors on this list are also on another ${esc(rep.line)} rep's list (${[...peers].slice(0,3).map(esc).join(', ')}${peers.size>3?` +${peers.size-3} more`:''}).`,
+      `Agree one owner per doctor with the line manager and release the rest: frees capacity without losing coverage.`);
+  }
+
+  if (rep.reconFlag) push('mid','Data','Promo Grid reconciliation issue', 'This Line/Plan has an open reconciliation flag (see Data Quality).', 'Confirm the target with SFE before acting on the list-size gap.');
+
+  const gaps = items.filter(i=>i.sev!=='good').length;
+  return {items, flag, gaps};
+}
+
+// One-line action summary per rep (used by the Rep Action List export)
+function repActionSummary(rep){
+  const {items} = repInsights(rep);
+  const areaOrder = ['Coverage','Capacity','List size','Segment mix','Frequency','Overlap','Data'];
+  return items.filter(i=>i.sev!=='good').sort((a,b)=>(a.sev==='bad'?0:1)-(b.sev==='bad'?0:1) || areaOrder.indexOf(a.area)-areaOrder.indexOf(b.area)).filter(i=>i.sev!=='good').map(i=>`[${i.area}] ${i.action.replace(/<[^>]+>/g,'')}`).join(' | ');
+}
+
+function renderRepInsights(rep){
+  const {items, flag, gaps} = repInsights(rep);
+  const order = {bad:0, mid:1, good:2};
+  const areaOrder = ['Coverage','Capacity','List size','Segment mix','Frequency','Overlap','Data'];
+  const sorted = items.slice().sort((a,b)=>order[a.sev]-order[b.sev] || areaOrder.indexOf(a.area)-areaOrder.indexOf(b.area));
+  const actions = sorted.filter(i=>i.sev!=='good');
+  const flagLbl = rep.vacant ? 'Vacant' : flag==='OVER' ? 'Over capacity' : flag==='UNDER' ? 'Under capacity' : flag==='OK' ? 'Capacity OK' : 'Capacity n/a';
+  const flagCls = rep.vacant ? 'cap-over' : flag==='OVER' ? 'cap-over' : flag==='UNDER' ? 'cap-under' : flag==='OK' ? 'cap-ok' : '';
+  return `
+    <div class="li-repins">
+      <div class="li-repins-head">
+        <div>
+          <h3>Insights &amp; Actions — ${esc(rep.employee)}</h3>
+          <div class="mini">${gaps ? `${gaps} gap${gaps>1?'s':''} found · ${actions.length} action${actions.length>1?'s':''}` : 'No gaps: this rep is within every target'} · tolerance ${STATE.tolerance?'±10% on':'off'}</div>
+        </div>
+        <div class="li-repins-flag ${flagCls}" data-tip="Capacity status: planned calls vs call rate × working days${STATE.tolerance?', ±10% band':''}">
+          <span class="mini">Capacity status</span><b>${flagLbl}</b>
+          ${(!rep.vacant && rep.crmCapacity!=null && rep.crmFreq!=null)?`<span class="mini">${fmt(rep.crmFreq)} / ${fmt(rep.crmCapacity)} calls</span>`:''}
+        </div>
+      </div>
+      <div class="ins-grid li-repins-grid">
+        ${sorted.map(i=>`<div class="ins-card ${i.sev}">
+          <div class="ins-title">${esc(i.area)}</div>
+          <div class="li-repins-t">${esc(i.title)}</div>
+          <div class="ins-sub">${i.detail}</div>
+          <div class="ins-action"><b>Action:</b> ${i.action}</div>
+        </div>`).join('')}
+      </div>
+      ${actions.length ? `<div class="li-repins-plan"><b>Action plan (priority order)</b><ol>${actions.map(i=>`<li><span class="li-repins-tag ${i.sev}">${esc(i.area)}</span> ${i.action}</li>`).join('')}</ol></div>` : ''}
+    </div>`;
+}
+
 function renderRepDetail(rep){
   const host = document.getElementById('li_repDetailHost');
   const m = repMetrics(rep, STATE.tolerance);
@@ -769,6 +932,7 @@ function renderRepDetail(rep){
           <div class="desc">${esc(rep.manager)} · ${esc(rep.area)} · ${rep.vacant?'Vacant territory':'Active representative'}</div>
         </div>
       </div>
+      ${renderRepInsights(rep)}
       <div class="li-2col" style="padding:14px;">
         <div>
           <h3 style="font-size:12.5px;margin:0 0 8px;">Segmentation — Target vs Current</h3>
@@ -1407,13 +1571,13 @@ function downloadCurrentCustomerList(){
 
 /* ---------------- B) Rep Action List ---------------- */
 function downloadRepActionList(reps){
-  const headers = ['Business Unit','Line','Plan','Area','Manager','Representative','Employee Status','Target','Current','Raw Gap','Lower Limit','Upper Limit','Actionable Deviation','Status','Review Required','Planned Calls','Capacity','Capacity Flag'];
+  const headers = ['Business Unit','Line','Plan','Area','Manager','Representative','Employee Status','Target','Current','Raw Gap','Lower Limit','Upper Limit','Actionable Deviation','Status','Review Required','Planned Calls','Capacity','Capacity Flag','Recommended Actions'];
   const rows = reps.map(r=>{
     const m = repMetrics(r, STATE.tolerance);
     const reviewRequired = r.vacant ? 'N/A – Vacant' : (m.status==='WITHIN RANGE' ? 'No' : 'Yes');
     return [r.bu, r.origLine, r.plan, r.area, r.manager, r.employee, r.vacant?'Vacant':'Active',
       m.target, m.current, m.rawGap, m.lower, m.upper, r.vacant?'':m.deviation, m.displayStatus, reviewRequired,
-      r.crmFreq, r.crmCapacity, ({OVER:'Over capacity',OK:'Capacity OK',UNDER:'Under capacity'})[capFlag(r)]||''];
+      r.crmFreq, r.crmCapacity, ({OVER:'Over capacity',OK:'Capacity OK',UNDER:'Under capacity'})[capFlag(r)]||'', repActionSummary(r)];
   });
   saveTable('Rep_Action_List'+filterSuffix(), headers, rows, 'Rep Action List');
 }
@@ -1706,7 +1870,7 @@ function shellHtml() {
       <div>
         <div class="li-title-row"><span class="li-tag">FIELD FORCE</span><h1>List Intelligence</h1></div>
         <div class="li-sub">CRM customer lists vs Promo Grid targets · ${nLines} line${nLines === 1 ? '' : 's'} · Physicians (PM) &amp; AM Accounts plans · Pharmacy out of scope${asOf ? ' · CRM lists as of ' + esc(asOf) : ''}</div>
-        ${SCOPE && !SCOPE.all ? `<div class="li-scope">Your view: ${SCOPE.lines.map(esc).join(', ')} only</div>` : ''}
+        ${SCOPE && !SCOPE.all ? `<div class="li-scope">Your view${SCOPE.role==='BU Manager' && SCOPE.bu && SCOPE.bu.length ? ` (${SCOPE.bu.map(esc).join(', ')} BU)` : ''}: ${SCOPE.lines.map(esc).join(', ')} only</div>` : ''}
       </div>
       <div class="li-tol">
         <span class="lbl">Tolerance</span>
@@ -1747,7 +1911,7 @@ window.ListIntelDashboard = {
     if (!container) return;
     document.body.classList.add('list-intel-mode');
     if (!canViewPage()) {
-      message(container, '\u{1F512}', 'Access restricted', 'List Intelligence is available to CEO, VP / Commercial Lead, SFE Manager, BEx, Admin, BU Managers and Line Managers (own lines).');
+      message(container, '\u{1F512}', 'Access restricted', 'List Intelligence is available to CEO, VP / Commercial Lead, SFE Manager, BEx and Admin (all lines), BU Managers (own BU), Group Brand Managers and Line Managers (own lines).');
       return;
     }
     if (!loadCache()) {
