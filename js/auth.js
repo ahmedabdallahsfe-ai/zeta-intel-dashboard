@@ -278,6 +278,19 @@
   }
 
   // -------------------------------------------------------------------
+  // BU BUSINESS REVIEW (2026-09-26, Ahmed: "my challenge notes") -- YTD BU/line
+  // review with IQVIA brand/competitor comments and questions for BU heads.
+  // SFE Manager only (js/bu-review.js re-checks in init()).
+  // -------------------------------------------------------------------
+  var BU_REVIEW_ROLES = ["SFE Manager", "SFE", "sfe"];
+
+  function canViewBuReview() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return BU_REVIEW_ROLES.indexOf(u.role) >= 0 || (u.role && String(u.role).toLowerCase().indexOf("sfe") >= 0);
+  }
+
+  // -------------------------------------------------------------------
   // COACHING INTELLIGENCE ACCESS (2026-08-31, Ahmed)
   // -------------------------------------------------------------------
   // New tab built on cache/coaching.data.js (etl/build_coaching_cache.py,
@@ -670,6 +683,8 @@
     IMS_RX_ROLES: IMS_RX_ROLES,
     canViewSprint: canViewSprint,
     SPRINT_ROLES: SPRINT_ROLES,
+    canViewBuReview: canViewBuReview,
+    BU_REVIEW_ROLES: BU_REVIEW_ROLES,
     canViewListIntel: canViewListIntel,
     listIntelScope: listIntelScope,
     LIST_INTEL_ROLES: LIST_INTEL_ROLES,

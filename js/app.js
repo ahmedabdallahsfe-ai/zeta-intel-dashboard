@@ -366,6 +366,8 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Sprint 2026";
     } else if (tab === "listintel") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - List Intelligence";
+    } else if (tab === "bureview") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - BU Business Review";
     } else if (tab === "workingdays") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Field Working Days Intelligence";
     } else if (tab === "marketnews") {
@@ -482,6 +484,14 @@ function startAppBody() {
   // List Intelligence (2026-09-25): CEO / VP / Commercial Director / SFE Manager /
   // BEX / Admin / BU Manager (all lines) + Line Managers (own lines only, see
   // AUTH.listIntelScope and js/list-intel.js applyScope).
+  // BU Business Review (2026-09-26): SFE Manager only (AUTH.canViewBuReview).
+  const buReviewMenuItem = document.getElementById("menu-item-bureview");
+  if (buReviewMenuItem) {
+    const allowedBr = window.AUTH && typeof window.AUTH.canViewBuReview === "function"
+      ? window.AUTH.canViewBuReview() : false;
+    buReviewMenuItem.style.display = allowedBr ? "" : "none";
+  }
+
   const listIntelMenuItem = document.getElementById("menu-item-listintel");
   if (listIntelMenuItem) {
     const allowed = window.AUTH && typeof window.AUTH.canViewListIntel === "function"
@@ -605,6 +615,9 @@ function startAppBody() {
       }
       if (currentTab === "listintel" && window.ListIntelDashboard) {
         window.ListIntelDashboard.destroy();
+      }
+      if (currentTab === "bureview" && window.BuReviewDashboard) {
+        window.BuReviewDashboard.destroy();
       }
       if (currentTab === "marketnews" && window.MarketNewsDashboard) {
         window.MarketNewsDashboard.destroy();
@@ -742,6 +755,11 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             await renderListIntelTab(document.getElementById("app-root"));
+          } else if (tab === "bureview") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderBuReviewTab(document.getElementById("app-root"));
           } else if (tab === "coaching") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
@@ -1040,6 +1058,35 @@ async function renderListIntelTab(container) {
   }
   if (window.ListIntelDashboard) {
     window.ListIntelDashboard.init("app-root");
+  }
+}
+
+/**
+ * BU Business Review (2026-09-26): YTD BU/line review with comments, IQVIA
+ * brand/competitor analysis and challenge questions. SFE Manager only;
+ * js/bu-review.js re-checks inside init(). cache/business_review.data.js is
+ * lazy -- fetched via CacheLoader only when the tab is opened.
+ */
+async function renderBuReviewTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewBuReview === "function"
+    ? window.AUTH.canViewBuReview() : false;
+  if (!allowed) {
+    document.body.classList.add("bu-review-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "The BU Business Review is available to the SFE Manager only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.CacheLoader) {
+    try { await window.CacheLoader.ensure("business_review"); } catch (e) { console.error("[BuReview] cache load failed", e); }
+  }
+  if (window.BuReviewDashboard) {
+    window.BuReviewDashboard.init("app-root");
   }
 }
 

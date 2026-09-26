@@ -443,6 +443,16 @@ if errorlevel 1 (
     if errorlevel 1 echo [WARNING] Field Working Days rebuild failed -- previous cache kept.
 )
 
+REM --- BU Business Review (2026-09-26) -------------------------------------
+REM Reads the Sales, Coverage records, Coaching, Field Working Days and IQVIA
+REM caches built above and writes cache\business_review.json + .data.js.
+REM MUST RUN AFTER Sprint / Field Working Days. NOT FATAL: a failure keeps the
+REM previous cache. Not yet git add -f'd (the tab is local until go-live).
+echo.
+echo Rebuilding BU Business Review...
+%PYTHON_CMD% etl\build_business_review_cache.py
+if errorlevel 1 echo [WARNING] BU Business Review rebuild failed -- previous cache kept.
+
 REM --- record what was built, from what, and when -------------------------
 REM Added 2026-08-07. MUST RUN LAST: it stats the caches, so anything built
 REM after it will not be reflected until the next refresh.
