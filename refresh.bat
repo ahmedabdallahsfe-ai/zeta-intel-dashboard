@@ -447,7 +447,7 @@ REM --- BU Business Review (2026-09-26) -------------------------------------
 REM Reads the Sales, Coverage records, Coaching, Field Working Days and IQVIA
 REM caches built above and writes cache\business_review.json + .data.js.
 REM MUST RUN AFTER Sprint / Field Working Days. NOT FATAL: a failure keeps the
-REM previous cache. Not yet git add -f'd (the tab is local until go-live).
+REM previous cache. Force-added in the git block below.
 echo.
 echo Rebuilding BU Business Review...
 %PYTHON_CMD% etl\build_business_review_cache.py
@@ -573,6 +573,8 @@ if "%GIT_CMD%"=="" (
     REM above -- .gitignore line 2 is `cache/`. Access is enforced in the page
     REM (js/auth.js listIntelScope + js/list-intel.js applyScope).
     "%GIT_CMD%" add -f cache/list_intel.data.js
+    REM BU Business Review (go-live 2026-09-26): same -f reason as every cache above.
+    "%GIT_CMD%" add -f cache/business_review.data.js
     REM Zeta Sprint month archives (2026-09-25): cache/ is gitignored and a new
     REM month's archive file is untracked, so without -f the history index would
     REM list a month whose file never reaches the live site.
