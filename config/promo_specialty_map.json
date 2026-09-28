@@ -1,0 +1,289 @@
+{
+  "_comment": "Promo Grid specialty -> IMS Rx specialty crosswalk for the IMS Rx 'Geo & Specialty' tab. Approved by Ahmed 2026-09-28. Edit here, then run: python etl/build_ims_rx_cache.py --dm-only. Keys are Promo Grid header labels (case/space-insensitive). status: mapped | no_ims_equivalent (promoted, but IMS Rx has no such specialty -> shown as 'promoted, not measurable') | excluded.",
+  "imsRxSpecialties": [
+    "IM",
+    "G.P.",
+    "PAED.",
+    "OTORH.",
+    "PULM",
+    "GYN",
+    "ORTHO.",
+    "URO.",
+    "DERM.",
+    "OPHTHALM",
+    "SURG.",
+    "DENTIST",
+    "NEURO/PSYCH",
+    "CARD.",
+    "ENDO/DIABET"
+  ],
+  "specialtyMap": {
+    "IM": {
+      "ims": [
+        "IM"
+      ],
+      "status": "mapped"
+    },
+    "GP": {
+      "ims": [
+        "G.P."
+      ],
+      "status": "mapped"
+    },
+    "GP/IM": {
+      "ims": [
+        "IM",
+        "G.P."
+      ],
+      "status": "mapped"
+    },
+    "IM/GP": {
+      "ims": [
+        "IM",
+        "G.P."
+      ],
+      "status": "mapped"
+    },
+    "GP/Neuro": {
+      "ims": [
+        "G.P.",
+        "NEURO/PSYCH"
+      ],
+      "status": "mapped"
+    },
+    "Neuro": {
+      "ims": [
+        "NEURO/PSYCH"
+      ],
+      "status": "mapped"
+    },
+    "Pedia": {
+      "ims": [
+        "PAED."
+      ],
+      "status": "mapped"
+    },
+    "ENT": {
+      "ims": [
+        "OTORH."
+      ],
+      "status": "mapped"
+    },
+    "Chest": {
+      "ims": [
+        "PULM"
+      ],
+      "status": "mapped"
+    },
+    "Chest + ENT": {
+      "ims": [
+        "PULM",
+        "OTORH."
+      ],
+      "status": "mapped"
+    },
+    "Derma": {
+      "ims": [
+        "DERM."
+      ],
+      "status": "mapped"
+    },
+    "Gyna": {
+      "ims": [
+        "GYN"
+      ],
+      "status": "mapped"
+    },
+    "Andorology": {
+      "ims": [
+        "URO."
+      ],
+      "status": "mapped",
+      "note": "Andrology (spelled 'Andorology' in CHC grid)"
+    },
+    "Ortho": {
+      "ims": [
+        "ORTHO."
+      ],
+      "status": "mapped"
+    },
+    "Rheuma": {
+      "ims": [
+        "ORTHO."
+      ],
+      "status": "mapped"
+    },
+    "Rheumatology": {
+      "ims": [
+        "ORTHO."
+      ],
+      "status": "mapped"
+    },
+    "Ortho & Rheuma": {
+      "ims": [
+        "ORTHO."
+      ],
+      "status": "mapped"
+    },
+    "Ortho & neuro": {
+      "ims": [
+        "ORTHO.",
+        "NEURO/PSYCH"
+      ],
+      "status": "mapped"
+    },
+    "Cardio": {
+      "ims": [
+        "CARD."
+      ],
+      "status": "mapped"
+    },
+    "Cardiology": {
+      "ims": [
+        "CARD."
+      ],
+      "status": "mapped"
+    },
+    "Endo/Diabetes": {
+      "ims": [
+        "ENDO/DIABET"
+      ],
+      "status": "mapped"
+    },
+    "Endo-Diab": {
+      "ims": [
+        "ENDO/DIABET"
+      ],
+      "status": "mapped"
+    },
+    "Diabetes": {
+      "ims": [
+        "ENDO/DIABET"
+      ],
+      "status": "mapped"
+    },
+    "IM & Diabetes": {
+      "ims": [
+        "IM",
+        "ENDO/DIABET"
+      ],
+      "status": "mapped"
+    },
+    "IM/GIT/ ENDO": {
+      "ims": [
+        "IM",
+        "ENDO/DIABET"
+      ],
+      "status": "mapped",
+      "note": "GIT part has no IMS Rx equivalent (Ahmed: GIT stays GIT)"
+    },
+    "Surg": {
+      "ims": [
+        "SURG."
+      ],
+      "status": "mapped"
+    },
+    "SURG": {
+      "ims": [
+        "SURG."
+      ],
+      "status": "mapped"
+    },
+    "SUR": {
+      "ims": [
+        "SURG."
+      ],
+      "status": "mapped"
+    },
+    "Surgery": {
+      "ims": [
+        "SURG."
+      ],
+      "status": "mapped"
+    },
+    "Vascular": {
+      "ims": [],
+      "status": "no_ims_equivalent",
+      "note": "Ahmed: Vascular stays Vascular; IMS Rx has no vascular specialty",
+      "display": "Vascular"
+    },
+    "Vacsular": {
+      "ims": [],
+      "status": "no_ims_equivalent",
+      "note": "typo of Vascular (ORTHO-II detailing block)",
+      "display": "Vascular"
+    },
+    "GIT": {
+      "ims": [],
+      "status": "no_ims_equivalent",
+      "note": "Ahmed: GIT stays GIT; IMS Rx has no GI specialty",
+      "display": "GIT"
+    },
+    "GI": {
+      "ims": [],
+      "status": "no_ims_equivalent",
+      "note": "= GIT (GIT-III grid)",
+      "display": "GIT"
+    },
+    "Nephro": {
+      "ims": [],
+      "status": "no_ims_equivalent",
+      "note": "Ahmed: Nephro stays Nephro; IMS Rx has no nephrology specialty",
+      "display": "Nephro"
+    },
+    "NS": {
+      "ims": [],
+      "status": "no_ims_equivalent",
+      "note": "Neurosurgery - verified: ORTHO-II line block spells 'Neurosurgery'; IMS Rx has no neurosurgery specialty",
+      "display": "Neurosurgery"
+    },
+    "NU": {
+      "ims": [],
+      "status": "no_ims_equivalent",
+      "note": "typo of NS (same column in ORTHO-II detailing block) = Neurosurgery, NOT Urology",
+      "display": "Neurosurgery"
+    },
+    "Mic.": {
+      "ims": [],
+      "status": "excluded",
+      "note": "Ahmed: -> Others (excluded)"
+    },
+    "Onco": {
+      "ims": [],
+      "status": "excluded",
+      "note": "no IMS Rx equivalent"
+    },
+    "Nutritionist": {
+      "ims": [],
+      "status": "excluded",
+      "note": "no IMS Rx equivalent"
+    },
+    "bariatric": {
+      "ims": [],
+      "status": "excluded",
+      "note": "no IMS Rx equivalent"
+    },
+    "Others": {
+      "ims": [],
+      "status": "excluded",
+      "note": "no IMS Rx equivalent"
+    }
+  },
+  "lineGridFiles": {
+    "_comment": "Target line -> Promo Grid file prefix(es) in 'List Intell/'. Lines not listed match the file prefix case-insensitively.",
+    "CNS": [
+      "NEUROSCIENCE-I",
+      "NEUROSCIENCE-II"
+    ]
+  },
+  "brandAliases": {
+    "_comment": "'LINE|TARGET PRODUCT' -> Promo Grid row label, for names that differ. Single candidate in the line's own grid; listed for Ahmed to confirm.",
+    "CHC|DOZOVA A KSM66": "Dozova Ashwaganda",
+    "CHC|DOZOVA Q10 C E": "Dozova Co Q10",
+    "CHC|DOZOVA WOMAN MAX": "Dozova Women max",
+    "PEDIA|BILASTIGEC": "Bilastegic",
+    "ORTHO-I|DOZOVA FLEXETA": "Flexeta",
+    "DIAB-III|EMPACOZA TRIO XR": "EMPACOZA TRIO",
+    "DIAB-II|EMPACOMBOMET": "Empacombo Met XR"
+  }
+}

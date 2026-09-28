@@ -88,7 +88,7 @@
       file: "cache/ims_rx.data.js",
       globalVar: "IMS_RX_CACHE",
       label: "IMS Rx",
-      version: "20260815_v1",
+      version: "20260928_specmap",
     },
   };
 

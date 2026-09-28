@@ -118,6 +118,10 @@ SOURCE_IMS_RX = os.path.join(ROOT_DIR, 'IMS RX TOTAL YEAR 2025.xlsx')
 SOURCE_MARKET_INTEL = os.path.join(ROOT_DIR, 'IMS 2022 to April 2026.xlsx')
 OUT_JS = os.path.join(ROOT_DIR, 'cache', 'ims_rx.data.js')
 OUT_JSON = os.path.join(ROOT_DIR, 'cache', 'ims_rx.json')
+# 2026-09-28: DM1/DM2 market definitions are read from the IQVIA cache
+# (built by refresh_iqvia.py from iqvia_source/IQVIA_SOURCE.xlsx) -- see
+# attach_market_defs() below. Derived artifact, never a raw source.
+IQVIA_CACHE_JSON = os.path.join(ROOT_DIR, 'cache', 'iqvia.json')
 
 SHEET_IMS_RX = 'Consolidated Product Data'
 SHEET_MARKET_INTEL_ANNUAL = 'IMS 2022 - 2026 '   # trailing space is in the workbook
@@ -274,6 +278,357 @@ def resolve_market_intel(brand_norm, sku_index, bucket):
     if not matched:
         return [], 0.0, 0.0
     return sorted(corps), units2025, value2025
+
+
+
+# -----------------------------------------------------------------------------
+# DM1 / DM2 MARKET DEFINITIONS (added 2026-09-28)
+# -----------------------------------------------------------------------------
+# IMS Rx has no "DEFIND Market_1/2" of its own. The authoritative market
+# definitions live in IQVIA_SOURCE.xlsx and are already compiled into
+# cache/iqvia.json (flat rows: corp, prod, period, atc4, dm1, dm2, ...,
+# stride 14). This step derives, from that cache, which DM1/DM2 markets each
+# Product x ATC4 pair belongs to and attaches it to the Rx cache.
+#
+# JOIN KEY: norm(Product) + norm(ATC4) -- IQVIA product names are brand-level,
+# same grain as IMS Rx. ATC4 is part of the key so a brand name reused in an
+# unrelated class (e.g. TELFAST under R01B0 nasal preps) is NOT pulled into
+# the R06A0 antihistamine market.
+#
+# MEMBERSHIP, NOT ALLOCATION: IMS Rx is brand-level (no strength / pack), but
+# several IQVIA markets split the same brand by strength or form (ELEMBOSIS
+# 2.5 vs 5, Duloxetine 20/30 vs 60, BELASTINE tab vs combined oral
+# antihistamine, ESOMEPRAZOLE sachet vs PPI oral solid). A brand's Rx
+# therefore counts in EVERY market its IQVIA SKUs belong to -- market totals
+# overlap and must never be summed across markets. 'OTHER MARKET' / '(none)'
+# are not markets and are excluded.
+#
+# OUTPUT (lookups): dm1s, dm2s (market names), prodAtc4Dm = list of
+#   [productIdx, atc4Idx, [dm1 idx...], [dm2 idx...]] for pairs present in Rx.
+NON_MARKET_DM = {'', '(NONE)', 'OTHER MARKET'}
+IQVIA_STRIDE = 14
+
+
+def attach_market_defs(cache):
+    L = cache['lookups']
+    meta = cache.setdefault('meta', {})
+    L['dm1s'], L['dm2s'], L['prodAtc4Dm'] = [], [], []
+    try:
+        with open(IQVIA_CACHE_JSON, 'r', encoding='utf-8') as fh:
+            q = json.load(fh)
+        ql = q['lookups']
+        flat = json.loads(gzip.decompress(base64.b64decode(q['b64Data'])).decode('utf-8'))
+    except Exception as e:
+        log(f'WARNING: DM1/DM2 market definitions NOT attached ({e}) -- filters will be empty')
+        meta['marketDefs'] = {'attached': False, 'error': str(e)}
+        return
+    if len(flat) % IQVIA_STRIDE:
+        log('WARNING: cache/iqvia.json flat length is not a multiple of 14 -- market defs skipped')
+        meta['marketDefs'] = {'attached': False, 'error': 'iqvia stride mismatch'}
+        return
+
+    pair_dm = {}
+    for k in range(0, len(flat), IQVIA_STRIDE):
+        d1 = ql['dm1s'][flat[k + 4]]
+        d2 = ql['dm2s'][flat[k + 5]]
+        ok1 = norm(d1) not in NON_MARKET_DM
+        ok2 = norm(d2) not in NON_MARKET_DM
+        if not (ok1 or ok2):
+            continue
+        key = (norm(ql['prods'][flat[k + 1]]), norm(ql['atc4s'][flat[k + 3]]))
+        e = pair_dm.setdefault(key, (set(), set()))
+        if ok1:
+            e[0].add(d1)
+        if ok2:
+            e[1].add(d2)
+
+    dm1_names = sorted({d for a, _ in pair_dm.values() for d in a}, key=lambda x: x.upper())
+    dm2_names = sorted({d for _, b in pair_dm.values() for d in b}, key=lambda x: x.upper())
+    i1 = {n: i for i, n in enumerate(dm1_names)}
+    i2 = {n: i for i, n in enumerate(dm2_names)}
+
+    f = cache['fact']
+    rows, st = f['rows'], f['stride']
+    pi, ai, ti = f['fields'].index('product'), f['fields'].index('atc4'), f['fields'].index('period')
+    products, atc4s = L['products'], L['atc4s']
+    pair_map = {}
+    for key, (a, b) in pair_dm.items():
+        pair_map[key] = (sorted(i1[x] for x in a), sorted(i2[x] for x in b))
+
+    out, seen = [], set()
+    rx_last, rx_last_mapped = 0.0, 0.0
+    last_p = max(rows[ti::st]) if rows else 0
+    dm1_rx = {}
+    for i in range(len(f['rx'])):
+        base = i * st
+        pa = (rows[base + pi], rows[base + ai])
+        m = pair_map.get((norm(products[pa[0]]), norm(atc4s[pa[1]])))
+        if rows[base + ti] == last_p:
+            rx_last += f['rx'][i]
+            if m:
+                rx_last_mapped += f['rx'][i]
+                for d in m[0]:
+                    dm1_rx[d] = dm1_rx.get(d, 0.0) + f['rx'][i]
+        if m and pa not in seen:
+            seen.add(pa)
+            out.append([pa[0], pa[1], m[0], m[1]])
+    out.sort()
+
+    L['dm1s'], L['dm2s'], L['prodAtc4Dm'] = dm1_names, dm2_names, out
+    no_rx = [dm1_names[i] for i in range(len(dm1_names)) if i not in dm1_rx]
+    meta['marketDefs'] = {
+        'attached': True,
+        'source': 'cache/iqvia.json (IQVIA_SOURCE.xlsx DEFIND Market_1/2)',
+        'joinKey': 'norm(Product) + norm(ATC4)',
+        'rule': 'membership: a brand counts in every DM its IQVIA SKUs belong to; '
+                'markets overlap, never sum across markets',
+        'pairsMapped': len(out),
+        'dm1Count': len(dm1_names), 'dm2Count': len(dm2_names),
+        'latestPeriodRxMappedPct': round(rx_last_mapped / rx_last * 100, 2) if rx_last else 0,
+        'dm1WithoutRx': no_rx,
+        'attachedAt': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    log(f'market defs: {len(out):,} Product x ATC4 pairs -> {len(dm1_names)} DM1 / '
+        f'{len(dm2_names)} DM2 markets; {len(dm1_names) - len(no_rx)} DM1 have Rx '
+        f'(none: {", ".join(no_rx) or "-"})')
+
+
+# -----------------------------------------------------------------------------
+# PROMOTED SPECIALTIES + TARGET MARKETS (added 2026-09-28, Geo & Specialty tab)
+# -----------------------------------------------------------------------------
+# Joins three inputs into cache['promo']:
+#   1. cache/iqvia.json targets (TARGET_MARKET_SHARE.xlsx: BU, Line, Product,
+#      DM1, DM2) -- which Zeta brand owns which market, and in which line.
+#      Also used client-side for Target-Achievement-style market scoping.
+#   2. 'List Intell/<LINE> Promo Grid.xlsx' -> 'Specialty' blocks: brand rows
+#      with a non-zero allocation (List block) or detailing weight = promoted.
+#   3. config/promo_specialty_map.json -- Promo label -> IMS Rx specialty
+#      crosswalk (Ahmed-approved) + brand aliases + line -> grid file map.
+# A brand is matched ONLY in its own line's grid (no cross-line fallback --
+# the same brand is promoted to different specialties by different lines,
+# e.g. BILASTIGEC Pedia vs Derma). Unmatched brands carry status and are
+# shown as "no Promo Grid data", never guessed.
+PROMO_DIR = os.path.join(ROOT_DIR, 'List Intell')
+PROMO_MAP_JSON = os.path.join(ROOT_DIR, 'config', 'promo_specialty_map.json')
+# 2026-09-28: Ahmed edits the specialty crosswalk in Excel (yellow cells). When this
+# file exists its 'Mapping' sheet REPLACES specialtyMap from the JSON; brand aliases
+# and the line -> grid file map stay in the JSON.
+PROMO_MAP_XLSX = os.path.join(ROOT_DIR, 'config', 'promo_specialty_map.xlsx')
+_FORM_TOKENS = {'TAB', 'TABS', 'TABLET', 'SACHET', 'SACH', 'CAP', 'CAPS', 'XR', 'SR', 'MG', 'SYRUP', 'SUSP'}
+
+
+def _squash(v):
+    return re.sub(r'[^A-Z0-9]', '', norm(v))
+
+
+def _parse_promo_grid(path):
+    """{brand label: set(promo specialty labels)} from every 'Specialty' block."""
+    out = {}
+    wb = CalamineWorkbook.from_path(path)
+    for sh in wb.sheet_names:
+        rows = wb.get_sheet_by_name(sh).to_python(skip_empty_area=False)
+        i = 0
+        while i < len(rows):
+            v = [clean(c) for c in rows[i]]
+            if not (v and v[0] == 'Specialty'):
+                i += 1
+                continue
+            hdr = []
+            for x in v[1:]:
+                if x.upper() in ('TOTAL', ''):
+                    break
+                hdr.append(x)
+            j = i + 1
+            while j < len(rows):
+                w = [clean(c) for c in rows[j]]
+                f = w[0] if w else ''
+                if f == '' or f.upper() in ('TOTAL', 'SPECIALTY') or f.startswith(('Promotional', 'Physicians')):
+                    break
+                if f != 'List' and not f.startswith('Detailing'):
+                    for k, h in enumerate(hdr):
+                        val = to_float(w[k + 1]) if k + 1 < len(w) else None
+                        if val and val > 0:
+                            out.setdefault(f, set()).add(h)
+                j += 1
+            i = j
+    return out
+
+
+def _match_brand(line, prod, grid, aliases):
+    alias = aliases.get(f'{norm(line)}|{norm(prod)}')
+    if alias:
+        hit = [b for b in grid if norm(b) == norm(alias)]
+        return (hit[0], 'alias') if hit else (None, 'alias_not_found')
+    sp = _squash(prod)
+    exact = [b for b in grid if _squash(b) == sp]
+    if exact:
+        return exact[0], 'exact'
+    pref = []
+    for b in grid:
+        nb = norm(b)
+        if nb.startswith(norm(prod) + ' '):
+            rest = re.split(r'[\s,]+', nb[len(norm(prod)):].strip())
+            if all(t in _FORM_TOKENS or re.fullmatch(r'[\d.]+(MG)?', t) for t in rest if t):
+                pref.append(b)
+    if len(pref) == 1:
+        return pref[0], 'strength_form_suffix'
+    return None, ('ambiguous' if pref else 'not_in_grid')
+
+
+def _load_specialty_xlsx(path, spec_idx):
+    """Mapping sheet -> {NORM label: {ims:[..], status, display, note}} + warnings."""
+    wb = CalamineWorkbook.from_path(path)
+    rows = wb.get_sheet_by_name('Mapping').to_python(skip_empty_area=False)
+    out, warn = {}, []
+    for r in rows[1:]:
+        v = [clean(c) for c in r] + [''] * 8
+        lab = v[0]
+        if not lab:
+            continue
+        ims = [x for x in v[2:5] if x]
+        bad = [x for x in ims if norm(x) not in spec_idx]
+        if bad:
+            warn.append(f"'{lab}': unknown IMS Rx specialty {bad}")
+            ims = [x for x in ims if norm(x) in spec_idx]
+        choice = v[5].lower()
+        if ims:
+            status = 'mapped'
+        elif choice.startswith('promoted'):
+            status = 'no_ims_equivalent'
+        elif choice.startswith('exclude'):
+            status = 'excluded'
+        else:
+            status = 'unset'
+            warn.append(f"'{lab}': no IMS Rx specialty and column F empty -> treated as unmapped")
+        out[norm(lab)] = {'ims': ims, 'status': status, 'display': v[6] or None, 'note': v[7]}
+    return out, warn
+
+
+def attach_promo_specialties(cache):
+    L = cache['lookups']
+    meta = cache.setdefault('meta', {})
+    cache['promo'] = {'targets': [], 'specialtyMapStatus': {}}
+    try:
+        with open(IQVIA_CACHE_JSON, 'r', encoding='utf-8') as fh:
+            targets = json.load(fh).get('targets') or []
+        with open(PROMO_MAP_JSON, 'r', encoding='utf-8') as fh:
+            cfg = json.load(fh)
+    except Exception as e:
+        log(f'WARNING: promoted-specialty data NOT attached ({e})')
+        meta['promoSpecialties'] = {'attached': False, 'error': str(e)}
+        return
+    spec_idx = {norm(s): i for i, s in enumerate(L['specialties'])}
+    smap = {norm(k): v for k, v in cfg.get('specialtyMap', {}).items() if not k.startswith('_')}
+    map_source, map_warn = 'config/promo_specialty_map.json', []
+    if os.path.exists(PROMO_MAP_XLSX):
+        try:
+            smap, map_warn = _load_specialty_xlsx(PROMO_MAP_XLSX, spec_idx)
+            map_source = 'config/promo_specialty_map.xlsx'
+        except Exception as e:
+            log(f'WARNING: could not read {os.path.basename(PROMO_MAP_XLSX)} ({e}) -- using the JSON mapping')
+    for w_ in map_warn:
+        log('MAPPING WARNING: ' + w_)
+    aliases = {k: v for k, v in cfg.get('brandAliases', {}).items() if not k.startswith('_')}
+    line_files = {norm(k): v for k, v in cfg.get('lineGridFiles', {}).items() if not k.startswith('_')}
+
+    files = {}
+    if os.path.isdir(PROMO_DIR):
+        for fn in os.listdir(PROMO_DIR):
+            if fn.lower().endswith('.xlsx') and ' pro' in fn.lower() and not fn.startswith('~$'):
+                files[norm(fn.split(' Pro')[0].split(' pro')[0])] = os.path.join(PROMO_DIR, fn)
+    grid_cache = {}
+
+    def grid_for(line):
+        keys = line_files.get(norm(line)) or [line]
+        keys = keys if isinstance(keys, list) else [keys]
+        merged, used = {}, []
+        for k in keys:
+            path = files.get(norm(k))
+            if not path:
+                continue
+            if path not in grid_cache:
+                grid_cache[path] = _parse_promo_grid(path)
+            used.append(os.path.basename(path))
+            for b, sp in grid_cache[path].items():
+                merged.setdefault(b, set()).update(sp)
+        return merged, used
+
+    unknown_labels = set()
+    out = []
+    for t in targets:
+        grid, used = grid_for(t.get('line', ''))
+        rec = {k: t.get(k) for k in ('bu', 'line', 'prod', 'dm1', 'dm2', 'tgtDm1', 'tgtDm2')}
+        rec['gridFiles'] = used
+        if not used:
+            rec.update(status='no_grid_file', promoted=[], promotedUnmeasurable=[])
+        elif not grid:
+            rec.update(status='grid_has_no_specialty_sheet', promoted=[], promotedUnmeasurable=[])
+        else:
+            brand, how = _match_brand(t.get('line', ''), t.get('prod', ''), grid, aliases)
+            rec['gridBrand'], rec['match'] = brand, how
+            promoted, unmeas, excluded = set(), set(), set()
+            if brand:
+                for lab in grid[brand]:
+                    m = smap.get(norm(lab))
+                    if m is None or m.get('status') == 'unset':
+                        unknown_labels.add(lab)
+                        continue
+                    if m.get('status') == 'mapped':
+                        for ims in m.get('ims', []):
+                            if norm(ims) in spec_idx:
+                                promoted.add(spec_idx[norm(ims)])
+                        if 'GIT part' in (m.get('note') or ''):
+                            unmeas.add('GIT')
+                    elif m.get('status') == 'no_ims_equivalent':
+                        unmeas.add(m.get('display') or lab)
+                    else:
+                        excluded.add(lab)
+            rec.update(status='ok' if brand else how, promoted=sorted(promoted),
+                       promotedUnmeasurable=sorted(unmeas), excludedLabels=sorted(excluded))
+        out.append(rec)
+
+    cache['promo']['targets'] = out
+    cache['promo']['specialtyMapStatus'] = {k: v.get('status') for k, v in smap.items()}
+    ok = sum(1 for r in out if r['status'] == 'ok')
+    meta['promoSpecialties'] = {
+        'attached': True, 'source': 'List Intell/*Promo Grid.xlsx + ' + map_source, 'mappingWarnings': map_warn,
+        'targetsWithPromo': ok, 'targets': len(out),
+        'unmappedPromoLabels': sorted(unknown_labels),
+        'issues': [f"{r['line']}|{r['prod']}: {r['status']}" for r in out if r['status'] != 'ok'],
+    }
+    log(f'promoted specialties: {ok}/{len(out)} target products matched to a Promo Grid row'
+        + (f'; UNMAPPED labels: {sorted(unknown_labels)}' if unknown_labels else ''))
+
+
+def write_cache(cache):
+    json_str = json.dumps(cache, separators=(',', ':'), ensure_ascii=False)
+    gz = gzip.compress(json_str.encode('utf-8'), compresslevel=9)
+    b64 = base64.b64encode(gz).decode('ascii')
+    tmp = OUT_JSON + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as fh:
+        fh.write(json_str)
+    os.replace(tmp, OUT_JSON)
+    tmp = OUT_JS + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as fh:
+        fh.write('window.IMS_RX_CACHE = {b64Data:"' + b64 + '"};\n')
+    os.replace(tmp, OUT_JS)
+    log(f'wrote {os.path.basename(OUT_JSON)}  {os.path.getsize(OUT_JSON) // 1024:,} KB')
+    log(f'wrote {os.path.basename(OUT_JS)}  {os.path.getsize(OUT_JS) // 1024:,} KB (gzip+base64)')
+
+
+def dm_only():
+    """--dm-only: re-attach DM1/DM2 market definitions to the EXISTING Rx cache
+    (cache/ims_rx.json) without re-reading the two source workbooks. Run after
+    every refresh_iqvia.py so a market remap in IQVIA_SOURCE.xlsx reaches IMS Rx."""
+    if not os.path.exists(OUT_JSON):
+        print('ERROR: cache/ims_rx.json not found -- run a full build first.')
+        sys.exit(1)
+    with open(OUT_JSON, 'r', encoding='utf-8') as fh:
+        cache = json.load(fh)
+    attach_market_defs(cache)
+    attach_promo_specialties(cache)
+    write_cache(cache)
+    print(f'\nIMS RX market definitions attached in {time.time() - t0:.1f}s\n')
 
 
 def main():
@@ -465,6 +820,9 @@ def main():
         },
     }
 
+    attach_market_defs(cache)
+    attach_promo_specialties(cache)
+
     json_str = json.dumps(cache, separators=(',', ':'), ensure_ascii=False)
     gz = gzip.compress(json_str.encode('utf-8'), compresslevel=9)
     b64 = base64.b64encode(gz).decode('ascii')
@@ -506,4 +864,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if '--dm-only' in sys.argv:
+        dm_only()
+    else:
+        main()

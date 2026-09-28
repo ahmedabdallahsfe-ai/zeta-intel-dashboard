@@ -62,6 +62,7 @@
     ["overview", "🧭 Executive Overview"],
     ["dynamics", "📈 Market Dynamics"],
     ["company", "🏢 Company Performance"],
+    ["geo", "🗺️ Geo & Specialty"],
     // Queued, not yet built -- see file header. Left commented rather than
     // rendered-but-broken so the nav bar never advertises a page that
     // doesn't exist yet:
@@ -88,6 +89,7 @@
       const t0 = performance.now();
       cache = gunzipB64Json(window.IMS_RX_CACHE.b64Data);
       buildCompanyIndex();
+      buildMarketIndex();
       console.log(`[IMS Rx] Cache loaded & decompressed in ${(performance.now() - t0).toFixed(1)}ms.`);
     } catch (e) {
       console.error("[IMS Rx] Failed to decompress IMS Rx cache", e);
@@ -131,6 +133,59 @@
   // buildCompanyIndex(). Every place that resolves a filter spec's display
   // names goes through this, on both Market Dynamics (md*) and Company
   // Performance (cf*).
+  // -------------------------------------------------------------------
+  // DM1 / DM2 market index (added 2026-09-28). lookups.prodAtc4Dm is built
+  // by etl/build_ims_rx_cache.py's attach_market_defs() from cache/iqvia.json
+  // -- the SAME DEFIND Market_1/2 definitions Market Intelligence uses,
+  // joined on Product + ATC4. MEMBERSHIP, not allocation: IMS Rx is
+  // brand-level (no strength/pack), so a brand whose IQVIA SKUs sit in two
+  // markets (e.g. ELEMBOSIS 2.5 and 5) counts fully in BOTH. Market totals
+  // overlap -- never sum Rx across DM selections as if they were exclusive.
+  // A row with no market returns [] and is excluded when a DM filter is on.
+  // -------------------------------------------------------------------
+
+  let marketOfPair = null; // Map(product*atc4Count + atc4 -> {dm1:[..], dm2:[..]})
+  const NO_MARKETS = [];
+
+  function buildMarketIndex() {
+    if (marketOfPair) return;
+    marketOfPair = new Map();
+    const L = cache.lookups;
+    const k = (L.atc4s || []).length;
+    (L.prodAtc4Dm || []).forEach((r) => {
+      marketOfPair.set(r[0] * k + r[1], { dm1: r[2], dm2: r[3] });
+    });
+  }
+
+  function hasMarketDefs() {
+    return !!(cache && cache.lookups && cache.lookups.dm1s && cache.lookups.dm1s.length);
+  }
+
+  function marketsOfRow(base, which) {
+    if (!marketOfPair) buildMarketIndex();
+    const f = cache.fact;
+    const key = f.rows[base + f.fields.indexOf("product")] * cache.lookups.atc4s.length
+      + f.rows[base + f.fields.indexOf("atc4")];
+    const m = marketOfPair.get(key);
+    return m ? m[which] : NO_MARKETS;
+  }
+
+  /** Filter membership test that understands multi-valued fields (DM1/DM2
+   * return an array of market indices; every other field a single index). */
+  function selHasValue(sel, v) {
+    if (Array.isArray(v)) {
+      for (let j = 0; j < v.length; j++) if (sel.has(v[j])) return true;
+      return false;
+    }
+    return sel.has(v);
+  }
+
+  /** Visible filter specs -- DM filters are hidden when the loaded cache
+   * predates the market-definition step (no lookups.dm1s). */
+  function visibleSpecs(specs) {
+    return hasMarketDefs() ? specs : specs.filter((s) => !s.multi);
+  }
+
   function namesForSpec(spec) {
     return spec.key === "company" ? companyNames : cache.lookups[spec.lookup];
   }
@@ -224,7 +279,7 @@
   function resetMdFilters() {
     MDx = {
       period: new Set([2]),   // defaults to MAT Dec 2025
-      product: null, company: null, molecule: null, atc3: null, atc4: null,
+      product: null, company: null, dm1: null, dm2: null, molecule: null, atc3: null, atc4: null,
       specialty: null, region: null, cat: null,
     };
   }
@@ -237,6 +292,8 @@
     { key: "period", label: "Period", lookup: "periods", field: "period", sort: "index" },
     { key: "product", label: "Product", lookup: "products", field: "product" },
     { key: "company", label: "Company", lookup: "companies", field: "company" },
+    { key: "dm1", label: "Market (DM1)", lookup: "dm1s", field: "dm1", multi: true },
+    { key: "dm2", label: "Market (DM2)", lookup: "dm2s", field: "dm2", multi: true },
     { key: "molecule", label: "Molecule", lookup: "molecules", field: "molecule" },
     { key: "atc3", label: "ATC3", lookup: "atc3s", field: "atc3" },
     { key: "atc4", label: "ATC4", lookup: "atc4s", field: "atc4" },
@@ -247,6 +304,7 @@
 
   function mdFieldValue(base, fieldKey) {
     const f = cache.fact;
+    if (fieldKey === "dm1" || fieldKey === "dm2") return marketsOfRow(base, fieldKey);
     if (fieldKey === "atc3") {
       return cache.lookups.atc4ParentAtc3[f.rows[base + f.fields.indexOf("atc4")]];
     }
@@ -262,7 +320,7 @@
       if (spec.key === excludeKey) continue;
       const sel = MDx[spec.key];
       if (!sel || sel.size === 0) continue;
-      if (!sel.has(mdFieldValue(base, spec.field))) return false;
+      if (!selHasValue(sel, mdFieldValue(base, spec.field))) return false;
     }
     return true;
   }
@@ -279,6 +337,7 @@
       const base = i * stride;
       if (!mdRowMatches(base, spec.key)) continue;
       const v = mdFieldValue(base, spec.field);
+      if (Array.isArray(v)) { v.forEach((m) => acc.set(m, (acc.get(m) || 0) + f.rx[i])); continue; }
       acc.set(v, (acc.get(v) || 0) + f.rx[i]);
     }
     const out = [];
@@ -354,7 +413,7 @@
 
   function mdRenderFilterBar() {
     let h = '<div class="imsrx-filterbar">';
-    MD_FILTER_SPECS.forEach((spec) => {
+    visibleSpecs(MD_FILTER_SPECS).forEach((spec) => {
       const opts = mdOptionsFor(spec);
       const sel = MDx[spec.key];
       const n = sel ? sel.size : 0;
@@ -382,6 +441,7 @@
         </div>
       </div>`;
     });
+    if (MDx.dm1 || MDx.dm2) h += `<div class="imsrx-dm-note" style="flex-basis:100%;font-size:11px;color:var(--txt3,#64748B);margin-top:4px">Market (DM1/DM2) uses the IQVIA market definitions (Product + ATC4). IMS Rx is brand-level, so a brand in several markets (e.g. different strengths) counts fully in each &mdash; don't add market totals together.</div>`;
     h += `<button type="button" class="imsrx-reset" id="imsrx-md-reset">Reset filters${mdActiveFilterCount() ? ` (${mdActiveFilterCount()})` : ""}</button>`;
     h += "</div>";
     return h;
@@ -910,7 +970,7 @@
   function resetCfFilters() {
     CFx = {
       period: new Set([2]),   // defaults to MAT Dec 2025
-      company: null, product: null, molecule: null, atc3: null, atc4: null,
+      company: null, product: null, dm1: null, dm2: null, molecule: null, atc3: null, atc4: null,
       specialty: null, region: null, cat: null,
     };
   }
@@ -919,6 +979,8 @@
     { key: "period", label: "Period", lookup: "periods", field: "period", sort: "index" },
     { key: "company", label: "Company", lookup: "companies", field: "company" },
     { key: "product", label: "Product", lookup: "products", field: "product" },
+    { key: "dm1", label: "Market (DM1)", lookup: "dm1s", field: "dm1", multi: true },
+    { key: "dm2", label: "Market (DM2)", lookup: "dm2s", field: "dm2", multi: true },
     { key: "molecule", label: "Molecule", lookup: "molecules", field: "molecule" },
     { key: "atc3", label: "ATC3", lookup: "atc3s", field: "atc3" },
     { key: "atc4", label: "ATC4", lookup: "atc4s", field: "atc4" },
@@ -935,6 +997,7 @@
 
   function cfFieldValue(base, fieldKey) {
     const f = cache.fact;
+    if (fieldKey === "dm1" || fieldKey === "dm2") return marketsOfRow(base, fieldKey);
     if (fieldKey === "atc3") {
       return cache.lookups.atc4ParentAtc3[f.rows[base + f.fields.indexOf("atc4")]];
     }
@@ -950,7 +1013,7 @@
       if (spec.key === excludeKey) continue;
       const sel = CFx[spec.key];
       if (!sel || sel.size === 0) continue;
-      if (!sel.has(cfFieldValue(base, spec.field))) return false;
+      if (!selHasValue(sel, cfFieldValue(base, spec.field))) return false;
     }
     return true;
   }
@@ -964,6 +1027,7 @@
       const base = i * stride;
       if (!cfRowMatches(base, spec.key)) continue;
       const v = cfFieldValue(base, spec.field);
+      if (Array.isArray(v)) { v.forEach((m) => acc.set(m, (acc.get(m) || 0) + f.rx[i])); continue; }
       acc.set(v, (acc.get(v) || 0) + f.rx[i]);
     }
     const out = [];
@@ -1128,7 +1192,7 @@
 
   function cfRenderFilterBar() {
     let h = '<div class="imsrx-filterbar">';
-    CF_FILTER_SPECS.forEach((spec) => {
+    visibleSpecs(CF_FILTER_SPECS).forEach((spec) => {
       const opts = cfOptionsFor(spec);
       const sel = CFx[spec.key];
       const n = sel ? sel.size : 0;
@@ -1156,6 +1220,7 @@
         </div>
       </div>`;
     });
+    if (CFx.dm1 || CFx.dm2) h += `<div class="imsrx-dm-note" style="flex-basis:100%;font-size:11px;color:var(--txt3,#64748B);margin-top:4px">Market (DM1/DM2) uses the IQVIA market definitions (Product + ATC4). IMS Rx is brand-level, so a brand in several markets (e.g. different strengths) counts fully in each &mdash; don't add market totals together.</div>`;
     h += `<button type="button" class="imsrx-reset" id="imsrx-cf-reset">Reset filters${cfActiveFilterCount() ? ` (${cfActiveFilterCount()})` : ""}</button>`;
     h += "</div>";
     return h;
@@ -1530,6 +1595,7 @@
   function getPageContentHTML() {
     if (STATE.subTab === "dynamics") return renderDynamics();
     if (STATE.subTab === "company") return renderCompany();
+    if (STATE.subTab === "geo") return renderGeo();
     return renderOverview();
   }
 
@@ -1582,6 +1648,8 @@
     } else if (STATE.subTab === "company") {
       wireCfFilterBar(root);
       drawCfCharts();
+    } else if (STATE.subTab === "geo") {
+      wireGeo(document.getElementById("imsrx-tab-content"));
     } else {
       renderMoversChart();
     }
@@ -1630,6 +1698,685 @@
       },
     });
     charts.push(chart);
+  }
+
+  // =====================================================================
+  // GEO & SPECIALTY (added 2026-09-28, design approved by Ahmed)
+  // ---------------------------------------------------------------------
+  // Market Rx distribution by Region and Specialty for ONE selected IQVIA
+  // market (DM1 or DM2 -- see buildMarketIndex) and one Product focus,
+  // reading from "where is the volume?" to "where is the opportunity?":
+  //   Market Rx -> Market Mix % -> Product Rx -> Product Mix % ->
+  //   Product Share % -> Fair-Share Index -> Rx Gap
+  //
+  // FORMULAS (row x = one region or one specialty, context C = period +
+  // market + the OTHER panel's chip selection):
+  //   Market Mix %(x)  = MktRx(x) / SUM MktRx(C)
+  //   Product Mix %(x) = ProdRx(x) / SUM ProdRx(C)
+  //   Share %(x)       = ProdRx(x) / MktRx(x)
+  //   Index(x)         = ProdMix(x) / MktMix(x) * 100  (= Share(x)/Share(C)*100)
+  //                      <90 Under-indexed | 90-110 In-line | >110 Over-indexed
+  //   Rx Gap(x)        = MktRx(x) * Share(C) - ProdRx(x)   (+ = shortfall)
+  // MATRIX / OPPORTUNITY cells use the product's share of the WHOLE market
+  // (period, no chips) as benchmark so cells are comparable across the grid.
+  // Only positive gaps count as opportunity (gaps net to ~0 by construction).
+  // SMALL-CELL RULE: a row/cell whose market Rx is < 0.5% of the market's
+  // total Rx in the period shows "—" for Share / Index / Gap (Rx still shown).
+  // OPPORTUNITY TYPE: specialty promoted for the focus brand in the line that
+  // owns this market (cache.promo, from the Promo Grids via
+  // config/promo_specialty_map.json) -> "Focus-specialty growth" (was Execution Gap); otherwise "New-specialty potential" (was Targeting
+  // Gap; no Promo Grid data for the brand -> "No Promo data" (never guessed).
+  // ACCESS: page role gate unchanged; the MARKET list is scoped like the
+  // Target Achievement page (js/iqvia.js applyUserFilter): explicit
+  // "Allowed Markets DM1" wins, else markets of the user's Lines, else BU,
+  // from the target file. Unrestricted users see every market.
+  // =====================================================================
+
+  const GEO_SMALL_CELL = 0.005;
+  const GEO_IDX_LO = 90;
+  const GEO_IDX_HI = 110;
+  const GEO_TOP_SPECS = 8;
+  let GEO = null;
+  const geoMemo = new Map();
+
+  function geoNorm(v) { return String(v == null ? "" : v).replace(/\s+/g, " ").trim().toUpperCase(); }
+
+  function geoUser() {
+    return (window.AUTH && typeof window.AUTH.getValidSessionUser === "function")
+      ? window.AUTH.getValidSessionUser() : null;
+  }
+
+  /** Allowed market indices for kind ('dm1'|'dm2') -- null = unrestricted.
+   * Mirrors js/iqvia.js applyUserFilter()'s market-scope rule. */
+  function geoAllowedMarkets(kind) {
+    if (kind === "atc4") {
+      // ATC4 basis: restricted users get the ATC4 classes their assigned DM1 markets sit in.
+      const dm = geoAllowedMarkets("dm1");
+      if (!dm) return null;
+      const out = new Set();
+      (cache.lookups.prodAtc4Dm || []).forEach((r) => { if (r[2].some((d) => dm.has(d))) out.add(r[1]); });
+      return out;
+    }
+    const u = geoUser();
+    if (!u) return null;
+    const bu = u.bu, ln = u.lines, dm = u.dm1s;
+    if (!(bu && bu.length) && !(ln && ln.length) && !(dm && dm.length)) return null;
+    const names = new Set();
+    if (dm && dm.length) {
+      dm.forEach((d) => names.add(geoNorm(d)));          // DM2 mirrors DM1 names (same as iqvia.js)
+    } else {
+      const lnSet = new Set((ln || []).map(geoNorm));
+      const buSet = new Set((bu || []).map(geoNorm));
+      ((cache.promo && cache.promo.targets) || []).forEach((t) => {
+        const ok = lnSet.size ? lnSet.has(geoNorm(t.line)) : buSet.has(geoNorm(t.bu));
+        if (ok) names.add(geoNorm(kind === "dm1" ? t.dm1 : t.dm2));
+      });
+    }
+    const out = new Set();
+    (cache.lookups[kind + "s"] || []).forEach((n, i) => { if (names.has(geoNorm(n))) out.add(i); });
+    return out;
+  }
+
+  function geoZetaSet() {
+    const s = new Set();
+    for (let p = 0; p < companyOfProduct.length; p++) {
+      const c = companyOfProduct[p];
+      if (c >= 0 && /ZETA/i.test(companyNames[c] || "")) s.add(p);
+    }
+    return s;
+  }
+
+  /** One pass over the fact table for (kind, market, period, prior):
+   * per-brand Region x Specialty cells (current + prior). Memoised. */
+  function geoCube(kind, market, period) {
+    const key = kind + "|" + market + "|" + period;
+    if (geoMemo.has(key)) return geoMemo.get(key);
+    const f = cache.fact, st = f.stride;
+    const fi = (k) => f.fields.indexOf(k);
+    const PI = fi("period"), PR = fi("product"), RG = fi("region"), SP = fi("specialty"), AT = fi("atc4");
+    const nR = cache.lookups.regions.length, nS = cache.lookups.specialties.length, nC = nR * nS;
+    const prior = period - 1;
+    const brands = new Map(); // product -> {cur:Float64Array, pri:Float64Array}
+    const mktCur = new Float64Array(nC), mktPri = new Float64Array(nC);
+    for (let i = 0; i < f.rx.length; i++) {
+      const b = i * st;
+      const p = f.rows[b + PI];
+      if (p !== period && p !== prior) continue;
+      if (kind === "atc4") { if (f.rows[b + AT] !== market) continue; }
+      else if (marketsOfRow(b, kind).indexOf(market) < 0) continue;
+      const c = f.rows[b + RG] * nS + f.rows[b + SP];
+      const prod = f.rows[b + PR];
+      let e = brands.get(prod);
+      if (!e) { e = { cur: new Float64Array(nC), pri: new Float64Array(nC) }; brands.set(prod, e); }
+      if (p === period) { e.cur[c] += f.rx[i]; mktCur[c] += f.rx[i]; }
+      else { e.pri[c] += f.rx[i]; mktPri[c] += f.rx[i]; }
+    }
+    const cube = { nR, nS, brands, mktCur, mktPri, hasPrior: prior >= 0 };
+    geoMemo.set(key, cube);
+    return cube;
+  }
+
+  function geoFocusCells(cube, focus) {
+    const nC = cube.nR * cube.nS;
+    const cur = new Float64Array(nC), pri = new Float64Array(nC);
+    const set = focus === "zeta" ? geoZetaSet() : new Set([focus]);
+    cube.brands.forEach((e, p) => {
+      if (!set.has(p)) return;
+      for (let c = 0; c < nC; c++) { cur[c] += e.cur[c]; pri[c] += e.pri[c]; }
+    });
+    return { cur, pri };
+  }
+
+  function geoSum(arr, nS, rSet, sSet) {
+    let t = 0;
+    for (let c = 0; c < arr.length; c++) {
+      const r = Math.floor(c / nS), s = c % nS;
+      if (rSet && rSet.size && !rSet.has(r)) continue;
+      if (sSet && sSet.size && !sSet.has(s)) continue;
+      t += arr[c];
+    }
+    return t;
+  }
+
+  /** Target-file rows that belong to market idx under basis kind. For ATC4, a target
+   * belongs when its brand has Rx pairs in that ATC4 (a brand promoted by two lines,
+   * e.g. BILASTIGEC Pedia + Derma, contributes both lines' promoted specialties). */
+  function geoTargetsFor(kind, mIdx) {
+    const T = (cache.promo && cache.promo.targets) || [];
+    if (kind !== "atc4") {
+      const mn = geoNorm(cache.lookups[kind + "s"][mIdx]);
+      return T.filter((t) => geoNorm(kind === "dm1" ? t.dm1 : t.dm2) === mn);
+    }
+    const names = new Set();
+    (cache.lookups.prodAtc4Dm || []).forEach((r) => { if (r[1] === mIdx) names.add(geoNorm(cache.lookups.products[r[0]])); });
+    return T.filter((t) => names.has(geoNorm(t.prod)));
+  }
+
+  /** Promo info for the focus in this market -- {known, promoted:Set, unmeasurable:[], source, reason}. */
+  function geoPromo(kind, mIdx, focus) {
+    const rows = geoTargetsFor(kind, mIdx);
+    let pick = rows;
+    if (focus !== "zeta") {
+      const pn = geoNorm(cache.lookups.products[focus]);
+      pick = rows.filter((t) => geoNorm(t.prod) === pn);
+    }
+    if (!pick.length) return { known: false, reason: focus === "zeta" ? "No Zeta target brand in this market" : "Not a Zeta target brand in this market", promoted: new Set(), unmeasurable: [] };
+    const ok = pick.filter((t) => t.status === "ok");
+    if (!ok.length) {
+      const why = { grid_has_no_specialty_sheet: "Promo Grid has no specialty sheet (" + (pick[0].gridFiles || []).join(", ") + ")",
+        not_in_grid: "Brand not found in the " + pick[0].line + " Promo Grid", no_grid_file: "No Promo Grid file for line " + pick[0].line };
+      return { known: false, reason: why[pick[0].status] || pick[0].status, promoted: new Set(), unmeasurable: [] };
+    }
+    const promoted = new Set(), unm = new Set(), src = [];
+    ok.forEach((t) => {
+      t.promoted.forEach((i) => promoted.add(i));
+      (t.promotedUnmeasurable || []).forEach((x) => unm.add(x));
+      src.push(t.line + " grid: " + t.gridBrand);
+    });
+    return { known: true, promoted, unmeasurable: [...unm], source: [...new Set(src)].join(" · ") };
+  }
+
+  // ---- "How to read this" guides (added 2026-09-28) ----------------------
+  // One highlighted box per section: plain-language WHAT / HOW + a live
+  // "What it says now" sentence computed from the numbers on screen.
+  // Toggle: GEO.guides (remembered per browser, best-effort localStorage).
+  const GEO_GUIDE_KEY = "imsrx_geo_guides_v1";
+  function geoGuidesPref() { try { return localStorage.getItem(GEO_GUIDE_KEY) !== "0"; } catch (e) { return true; } }
+  function geoGuidesSave(on) { try { localStorage.setItem(GEO_GUIDE_KEY, on ? "1" : "0"); } catch (e) { /* private mode */ } }
+
+  function geoGuide(what, how, now) {
+    if (!GEO.guides) return "";
+    return `<div class="imsrx-geo-guide"><div class="gd-h">💡 How to read this</div>
+      <p><b>What it shows:</b> ${what}</p><p><b>How to use it:</b> ${how}</p>
+      ${now ? `<p class="gd-now"><b>What it says now:</b> ${now}</p>` : ""}</div>`;
+  }
+
+  function geoGuidePanel(dim, data, promo) {
+    const noun = dim === "region" ? "region" : "doctor specialty";
+    const rows = data.rows;
+    const short = rows.filter((r) => r.gap != null && r.gap > 0).sort((a, b) => b.gap - a.gap)[0];
+    const strong = rows.filter((r) => r.index != null).sort((a, b) => b.index - a.index)[0];
+    let now;
+    if (!(data.pT > 0)) now = "Our product has no prescriptions in this selection.";
+    else {
+      now = short
+        ? `Biggest room to grow is <b>${escAttr(short.name)}</b> — our share there is ${gPct(short.share, 2)} vs our ${gPct(data.ctxShare, 2)} average ${(dim === "region" ? GEO.specs.size : GEO.regions.size) ? "in this selection" : "in the market"}, about <b>${gRx(short.gap)} Rx</b> of potential.`
+        : "No " + noun + " is below our average share.";
+      if (strong && (!short || strong.idx !== short.idx) && strong.index > GEO_IDX_HI)
+        now += ` Strongest is <b>${escAttr(strong.name)}</b> (share ${gPct(strong.share, 2)}, ${Math.round(strong.index)} vs 100 average).`;
+    }
+    const promoLine = dim === "specialty" && promo.known ? " <b>●</b> = a specialty we promote to (Promo Grid); <b>○</b> = not promoted." : "";
+    return geoGuide(
+      `How the market's prescriptions split by ${noun} (<b>Market Mix %</b>), how <b>our</b> prescriptions split (<b>Product Mix %</b>), and how strong we are in each ${noun}.`,
+      `If our mix % is <b>lower</b> than the market's in a ${noun}, we are under-represented there. <b>Share %</b> = our Rx ÷ all Rx in that ${noun}. ` +
+      `<b>Index</b> compares that share with our average: 100 = average, <b>below 90 = below average</b>, <b>above 110 = above average</b>. ` +
+      `<b>Rx Gap</b> = extra prescriptions we would get if this ${noun} reached our average share (orange/red = room to grow, green = ahead). Click a row to filter the rest of the page.${promoLine}`,
+      now);
+  }
+
+  function geoGuideMatrix(cells) {
+    const judged = cells.filter((x) => x.index != null);
+    const weak = judged.filter((x) => x.index < GEO_IDX_LO).length, strong = judged.filter((x) => x.index > GEO_IDX_HI).length;
+    return geoGuide(
+      "Every region × specialty combination in one grid, compared with our share of the whole market.",
+      "Switch between <b>Share %</b>, <b>Index</b> and <b>Rx Gap</b> with the buttons. <b style='color:#B91C1C'>Red</b> = below our average, <b>grey</b> = in line, <b style='color:#15803D'>green</b> = above. " +
+      "In Rx Gap mode, darker orange = more room to grow. “—” = too small to judge (under 0.5% of the market). Click a cell to focus the whole page on it.",
+      judged.length ? `<b>${weak}</b> cells below our average (red) and <b>${strong}</b> above it (green) out of ${judged.length} that are large enough to judge.` : "");
+  }
+
+  function geoGuideOpportunity(tot, top, promo) {
+    let now = "";
+    if (top) {
+      now = promo.known
+        ? `Growth available in focus specialties <b>${gRx(tot.exec)} Rx</b> and in new specialties <b>${gRx(tot.target)} Rx</b>. ` : `Total potential <b>${gRx(tot.none)} Rx</b> (no Promo Grid data to split it). `;
+      now += `Biggest single opportunity: <b>${escAttr(cache.lookups.regions[top.r])} × ${escAttr(cache.lookups.specialties[top.s])}</b>, about <b>${gRx(top.gap)} Rx</b>.`;
+    }
+    return geoGuide(
+      "The region × specialty cells with the most room to grow, ranked by the extra prescriptions available if we reached our normal share.",
+      "<b>📈 Focus-specialty growth</b> = a specialty we already promote to, where our share is below our average → the quickest place to grow (coverage, call frequency, message). " +
+      "<b>🌱 New-specialty potential</b> = a specialty we do not promote to yet → worth reviewing whether it should join the promotion plan. " +
+      "<b>Cell leader</b> = the brand winning that cell — the competitor to study.",
+      now);
+  }
+
+  function geoGuideCompetitors(rows, tot, focusRank) {
+    let now = "";
+    if (rows.length && tot > 0) {
+      now = `Leader is <b>${escAttr(cache.lookups.products[rows[0].p])}</b> with ${gPct(rows[0].v / tot, 1)} of prescriptions.`;
+      if (focusRank >= 0) now += ` Our brand ranks <b>#${focusRank + 1}</b> of ${rows.length} with ${gPct(rows[focusRank].v / tot, 1)}.`;
+    }
+    return geoGuide(
+      "Who wins the prescriptions in exactly what you have selected (market, region, specialty).",
+      "Look at <b>Share %</b> to see who dominates, and <b>Δ Share</b> to see who is gaining (green) or losing (red) vs last year. Our brand is highlighted.",
+      now);
+  }
+
+  function resetGeo() {
+    GEO = { period: 2, kind: "dm1", market: null, focus: null, regions: new Set(), specs: new Set(), matrix: "share", allSpecs: false, guides: geoGuidesPref() };
+  }
+
+  function geoMarketOptions() {
+    const names = cache.lookups[GEO.kind + "s"] || [];
+    const allowed = geoAllowedMarkets(GEO.kind);
+    const out = [];
+    names.forEach((n, i) => { if (!allowed || allowed.has(i)) out.push({ idx: i, name: n }); });
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    return out;
+  }
+
+  function geoEnsureSelection() {
+    const opts = geoMarketOptions();
+    if (!opts.length) { GEO.market = null; return; }
+    if (GEO.market == null || !opts.some((o) => o.idx === GEO.market)) {
+      // default: first allowed market that has Rx in the period
+      const withRx = opts.find((o) => { const c = geoCube(GEO.kind, o.idx, GEO.period); return c.mktCur.some((v) => v > 0); });
+      GEO.market = (withRx || opts[0]).idx;
+      GEO.focus = null;
+    }
+    if (GEO.focus == null) {
+      const cube = geoCube(GEO.kind, GEO.market, GEO.period);
+      const tProds = new Set(geoTargetsFor(GEO.kind, GEO.market).map((t) => geoNorm(t.prod)));
+      const zeta = geoZetaSet();
+      let best = null, bestV = -1, bestZ = null, bestZV = -1;
+      cube.brands.forEach((e, p) => {
+        const v = e.cur.reduce((a, b) => a + b, 0);
+        if (tProds.has(geoNorm(cache.lookups.products[p])) && v > bestV) { best = p; bestV = v; }
+        if (zeta.has(p) && v > bestZV) { bestZ = p; bestZV = v; }
+      });
+      GEO.focus = best != null ? best : (bestZ != null ? bestZ : "zeta");
+    }
+  }
+
+  // ---- formatting helpers (local to this tab) ----
+  function gPct(v, d) { return v == null || !isFinite(v) ? "—" : (v * 100).toFixed(d == null ? 1 : d) + "%"; }
+  function gRx(v) { return v == null ? "—" : fmtBig(v); }
+  function gSigned(v) { return v == null || !isFinite(v) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtBig(Math.abs(v)); }
+  function gPp(v) { return v == null || !isFinite(v) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v * 100).toFixed(1) + " pp"; }
+  function gBand(ix) { return ix == null ? "" : ix < GEO_IDX_LO ? "under" : ix > GEO_IDX_HI ? "over" : "inline"; }
+  function gIndexBadge(ix) {
+    if (ix == null || !isFinite(ix)) return '<span class="imsrx-geo-muted">—</span>';
+    const b = gBand(ix), lbl = b === "under" ? "Under" : b === "over" ? "Over" : "In-line";
+    return `<span class="imsrx-geo-ix imsrx-geo-ix-${b}" title="${lbl}-indexed">${Math.round(ix)}</span>`;
+  }
+
+  /** Panel rows for one dimension ('region'|'specialty') under the OTHER panel's chips. */
+  function geoPanelRows(dim, cube, fc, mktTotalAll) {
+    const nS = cube.nS, nR = cube.nR;
+    const n = dim === "region" ? nR : nS;
+    const rSel = dim === "region" ? null : GEO.regions;
+    const sSel = dim === "region" ? GEO.specs : null;
+    const mkt = new Float64Array(n), prod = new Float64Array(n), mktP = new Float64Array(n), prodP = new Float64Array(n);
+    for (let c = 0; c < cube.mktCur.length; c++) {
+      const r = Math.floor(c / nS), s = c % nS;
+      if (rSel && rSel.size && !rSel.has(r)) continue;
+      if (sSel && sSel.size && !sSel.has(s)) continue;
+      const x = dim === "region" ? r : s;
+      mkt[x] += cube.mktCur[c]; prod[x] += fc.cur[c]; mktP[x] += cube.mktPri[c]; prodP[x] += fc.pri[c];
+    }
+    const mT = mkt.reduce((a, b) => a + b, 0), pT = prod.reduce((a, b) => a + b, 0);
+    const ctxShare = mT > 0 ? pT / mT : 0;
+    const rows = [];
+    for (let x = 0; x < n; x++) {
+      if (mkt[x] <= 0 && prod[x] <= 0) continue;
+      const small = mkt[x] < GEO_SMALL_CELL * mktTotalAll;
+      const share = mkt[x] > 0 ? prod[x] / mkt[x] : null;
+      const shareP = mktP[x] > 0 ? prodP[x] / mktP[x] : null;
+      rows.push({
+        idx: x,
+        name: dim === "region" ? cache.lookups.regions[x] : cache.lookups.specialties[x],
+        mkt: mkt[x], mktMix: mT > 0 ? mkt[x] / mT : null,
+        prod: prod[x], prodMix: pT > 0 ? prod[x] / pT : null,
+        share: small ? null : share,
+        dShare: small || !cube.hasPrior || share == null || shareP == null ? null : share - shareP,
+        index: small || !(ctxShare > 0) || share == null ? null : share / ctxShare * 100,
+        gap: small ? null : mkt[x] * ctxShare - prod[x],
+        small,
+      });
+    }
+    rows.sort((a, b) => b.mkt - a.mkt);
+    return { rows, mT, pT, ctxShare };
+  }
+
+  function geoMixBar(mMix, pMix) {
+    const m = mMix == null ? 0 : mMix * 100, p = pMix == null ? 0 : pMix * 100;
+    return `<div class="imsrx-geo-twin" title="Market mix ${m.toFixed(1)}% · Product mix ${p.toFixed(1)}%">
+      <span class="imsrx-geo-twin-m" style="width:${Math.min(100, m).toFixed(1)}%"></span>
+      <span class="imsrx-geo-twin-p" style="width:${Math.min(100, p).toFixed(1)}%"></span></div>`;
+  }
+
+  function geoPanelHtml(dim, data, promo) {
+    const sel = dim === "region" ? GEO.regions : GEO.specs;
+    let rows = data.rows;
+    let others = null;
+    if (dim === "specialty" && !GEO.allSpecs && rows.length > GEO_TOP_SPECS) {
+      const rest = rows.slice(GEO_TOP_SPECS).filter((r) => !sel.has(r.idx));
+      rows = rows.slice(0, GEO_TOP_SPECS).concat(rows.slice(GEO_TOP_SPECS).filter((r) => sel.has(r.idx)));
+      if (rest.length) {
+        others = rest.reduce((a, r) => ({ mkt: a.mkt + r.mkt, prod: a.prod + r.prod }), { mkt: 0, prod: 0 });
+        others.n = rest.length;
+      }
+    }
+    const title = dim === "region" ? "① Region distribution" : "② Specialty distribution";
+    const ctx = dim === "region"
+      ? (GEO.specs.size ? `for ${GEO.specs.size === 1 ? escAttr(cache.lookups.specialties[[...GEO.specs][0]]) : GEO.specs.size + " specialties"}` : "all specialties")
+      : (GEO.regions.size ? `in ${GEO.regions.size === 1 ? escAttr(cache.lookups.regions[[...GEO.regions][0]]) : GEO.regions.size + " regions"}` : "all regions");
+    let h = `<div class="imsrx-geo-card">
+      <div class="imsrx-geo-card-h"><h3>${title}</h3><span class="imsrx-geo-ctx">${ctx} · click to filter, Ctrl/⌘+click to multi-select</span></div>
+      ${geoGuidePanel(dim, data, promo)}
+      <div class="imsrx-geo-tbl-wrap"><table class="imsrx-geo-tbl${sel.size ? " has-sel" : ""}">
+      <thead>
+        <tr class="imsrx-geo-grp"><th></th>
+          <th colspan="2" class="g-vol">Where is the volume?</th>
+          <th colspan="2" class="g-we">Where are we?</th>
+          <th colspan="2" class="g-str">How strong?</th>
+          <th class="g-ix">Over / under?</th>
+          <th class="g-gap">At stake</th></tr>
+        <tr><th>${dim === "region" ? "Region" : "Specialty"}</th>
+          <th class="num g-vol">Market Rx</th><th class="num g-vol">Market Mix %</th>
+          <th class="num g-we">Product Rx</th><th class="num g-we">Product Mix %</th>
+          <th class="num g-str">Share %</th><th class="num g-str">Δ Share</th>
+          <th class="num g-ix">Index</th><th class="num g-gap">Rx Gap</th></tr>
+      </thead><tbody>`;
+    rows.forEach((r) => {
+      const on = sel.has(r.idx);
+      const promoTag = dim === "specialty" && promo.known
+        ? (promo.promoted.has(r.idx) ? '<span class="imsrx-geo-pm" title="Promoted specialty (Promo Grid)">●</span>' : '<span class="imsrx-geo-npm" title="Not promoted">○</span>') : "";
+      h += `<tr class="imsrx-geo-row${on ? " on" : ""}" data-geo-dim="${dim}" data-geo-idx="${r.idx}" tabindex="0">
+        <td class="nm">${promoTag}${escAttr(r.name)}</td>
+        <td class="num">${gRx(r.mkt)}</td>
+        <td class="num mix">${gPct(r.mktMix)}${geoMixBar(r.mktMix, r.prodMix)}</td>
+        <td class="num">${gRx(r.prod)}</td>
+        <td class="num">${gPct(r.prodMix)}</td>
+        <td class="num strong">${r.small ? '<span class="imsrx-geo-muted" title="Market Rx below 0.5% of market total">—</span>' : gPct(r.share, 2)}</td>
+        <td class="num ${r.dShare > 0 ? "pos" : r.dShare < 0 ? "neg" : ""}">${gPp(r.dShare)}</td>
+        <td class="num">${gIndexBadge(r.index)}</td>
+        <td class="num ${r.gap > 0 ? "neg" : r.gap < 0 ? "pos" : ""}">${gSigned(r.gap)}</td></tr>`;
+    });
+    if (others) {
+      h += `<tr class="imsrx-geo-others"><td class="nm">Others (${others.n})</td><td class="num">${gRx(others.mkt)}</td>
+        <td class="num">${gPct(data.mT ? others.mkt / data.mT : null)}</td><td class="num">${gRx(others.prod)}</td>
+        <td class="num">${gPct(data.pT ? others.prod / data.pT : null)}</td><td colspan="4"></td></tr>`;
+    }
+    h += `<tr class="imsrx-geo-total"><td class="nm">Total in context</td><td class="num">${gRx(data.mT)}</td><td class="num">100%</td>
+      <td class="num">${gRx(data.pT)}</td><td class="num">100%</td><td class="num strong">${gPct(data.ctxShare, 2)}</td><td colspan="3"></td></tr>`;
+    h += "</tbody></table></div>";
+    if (dim === "specialty" && data.rows.length > GEO_TOP_SPECS) {
+      h += `<button type="button" class="imsrx-geo-link" id="imsrx-geo-allspecs">${GEO.allSpecs ? "Show top " + GEO_TOP_SPECS : "Show all " + data.rows.length + " specialties"}</button>`;
+    }
+    return h + "</div>";
+  }
+
+  function geoCellStats(cube, fc, nationalShare, mktTotalAll) {
+    const cells = [];
+    for (let c = 0; c < cube.mktCur.length; c++) {
+      const m = cube.mktCur[c], p = fc.cur[c];
+      const small = m < GEO_SMALL_CELL * mktTotalAll;
+      const share = m > 0 ? p / m : null;
+      cells.push({
+        c, r: Math.floor(c / cube.nS), s: c % cube.nS, mkt: m, prod: p, small,
+        share: small ? null : share,
+        index: small || !(nationalShare > 0) || share == null ? null : share / nationalShare * 100,
+        gap: small ? null : m * nationalShare - p,
+      });
+    }
+    return cells;
+  }
+
+  function geoMatrixHtml(cube, cells, specOrder, promo) {
+    const mode = GEO.matrix;
+    const maxGap = Math.max(1, ...cells.filter((x) => x.gap > 0).map((x) => x.gap));
+    let h = `<div class="imsrx-geo-card">
+      <div class="imsrx-geo-card-h"><h3>③ Region × Specialty matrix</h3>
+        <div class="imsrx-geo-seg">${[["share", "Share %"], ["index", "Index"], ["gap", "Rx Gap"]].map(([k, l]) =>
+          `<button type="button" data-geo-matrix="${k}" class="${mode === k ? "on" : ""}">${l}</button>`).join("")}</div>
+        <span class="imsrx-geo-ctx">benchmark = product share of the whole market · colour: <span class="imsrx-geo-ix imsrx-geo-ix-under">&lt;90</span> <span class="imsrx-geo-ix imsrx-geo-ix-inline">90–110</span> <span class="imsrx-geo-ix imsrx-geo-ix-over">&gt;110</span>${mode === "gap" ? " · darker = larger shortfall" : ""}</span></div>
+      ${geoGuideMatrix(cells)}
+      <div class="imsrx-geo-tbl-wrap"><table class="imsrx-geo-mx"><thead><tr><th></th>`;
+    specOrder.forEach((s) => {
+      const pm = promo.known && promo.promoted.has(s) ? '<span class="imsrx-geo-pm">●</span>' : "";
+      h += `<th class="${GEO.specs.has(s) ? "on" : ""}">${pm}${escAttr(cache.lookups.specialties[s])}</th>`;
+    });
+    h += "</tr></thead><tbody>";
+    for (let r = 0; r < cube.nR; r++) {
+      h += `<tr><th class="${GEO.regions.has(r) ? "on" : ""}">${escAttr(cache.lookups.regions[r])}</th>`;
+      specOrder.forEach((s) => {
+        const x = cells[r * cube.nS + s];
+        const sel = (GEO.regions.size || GEO.specs.size) && (!GEO.regions.size || GEO.regions.has(r)) && (!GEO.specs.size || GEO.specs.has(s));
+        let txt, cls = "", style = "";
+        if (x.mkt <= 0) { txt = ""; cls = "empty"; }
+        else if (x.small) { txt = "—"; cls = "small"; }
+        else if (mode === "gap") {
+          txt = gSigned(x.gap);
+          if (x.gap > 0) style = `background:rgba(234,88,12,${(0.12 + 0.6 * x.gap / maxGap).toFixed(2)})`;
+          else cls = "neutral";
+        } else {
+          txt = mode === "share" ? gPct(x.share, 1) : Math.round(x.index);
+          cls = "b-" + gBand(x.index);
+        }
+        const tip = `${cache.lookups.regions[r]} × ${cache.lookups.specialties[s]} — Market Rx ${gRx(x.mkt)}, Product Rx ${gRx(x.prod)}, Share ${gPct(x.share, 2)}, Index ${x.index == null ? "—" : Math.round(x.index)}, Gap ${gSigned(x.gap)}`;
+        h += `<td class="imsrx-geo-cell ${cls}${sel ? " on" : ""}" style="${style}" data-geo-cell="${r},${s}" title="${escAttr(tip)}">${txt}</td>`;
+      });
+      h += "</tr>";
+    }
+    return h + "</tbody></table></div></div>";
+  }
+
+  function geoLeaderIn(cube, cellFilter) {
+    let best = null, bestV = 0, tot = 0;
+    cube.brands.forEach((e, p) => {
+      let v = 0;
+      for (let c = 0; c < e.cur.length; c++) if (cellFilter(c)) v += e.cur[c];
+      tot += v;
+      if (v > bestV) { bestV = v; best = p; }
+    });
+    return best == null ? null : { p: best, share: tot > 0 ? bestV / tot : 0 };
+  }
+
+  function geoOpportunityHtml(cube, cells, promo) {
+    const inCtx = (x) => (!GEO.regions.size || GEO.regions.has(x.r)) && (!GEO.specs.size || GEO.specs.has(x.s));
+    const opp = cells.filter((x) => inCtx(x) && x.gap != null && x.gap > 0).sort((a, b) => b.gap - a.gap);
+    const typeOf = (x) => !promo.known ? "none" : promo.promoted.has(x.s) ? "exec" : "target";
+    const tot = { exec: 0, target: 0, none: 0 };
+    opp.forEach((x) => { tot[typeOf(x)] += x.gap; });
+    const TY = { exec: ["📈", "Focus-specialty growth", "A specialty we already promote to — room to grow our share here"],
+      target: ["🌱", "New-specialty potential", "A specialty we do not promote to yet — potential worth reviewing"],
+      none: ["⚪", "No Promo data", promo.reason || "No Promo Grid data for this brand"] };
+    let h = `<div class="imsrx-geo-card">
+      <div class="imsrx-geo-card-h"><h3>④ Opportunity — Region × Specialty ranked by Rx Gap</h3>
+      <span class="imsrx-geo-ctx">positive gaps only · benchmark = product share of the whole market</span></div>
+      ${geoGuideOpportunity(tot, opp[0], promo)}
+      <div class="imsrx-geo-opp-sum">
+        ${promo.known ? `<div class="imsrx-geo-opp-tile exec"><span>📈 Focus-specialty growth</span><strong>${gRx(tot.exec)} Rx</strong><em>specialties we already promote to</em></div>
+        <div class="imsrx-geo-opp-tile target"><span>🌱 New-specialty potential</span><strong>${gRx(tot.target)} Rx</strong><em>specialties not yet in our plan</em></div>`
+        : `<div class="imsrx-geo-opp-tile none"><span>⚪ No Promo data — potential not split</span><strong>${gRx(tot.none)} Rx</strong><em>${escAttr(promo.reason || "")}</em></div>`}
+      </div>`;
+    if (!cells.some((x) => x.prod > 0)) return h + '<div class="imsrx-empty">The selected product has no Rx in this market in the IMS panel, so there is no fair-share benchmark. See Competitors below.</div></div>';
+    if (!opp.length) return h + '<div class="imsrx-empty">No positive Rx gap in the current selection — the product is at or above its market-wide share in every measurable cell.</div></div>';
+    h += `<div class="imsrx-geo-tbl-wrap"><table class="imsrx-geo-tbl"><thead><tr><th>#</th><th>Region</th><th>Specialty</th>
+      <th class="num">Market Rx</th><th class="num">Product Rx</th><th class="num">Share %</th><th class="num">Index</th><th class="num">Rx Gap</th><th>Cell leader</th></tr></thead><tbody>`;
+    opp.slice(0, 15).forEach((x, i) => {
+      const t = TY[typeOf(x)];
+      const lead = geoLeaderIn(cube, (c) => c === x.c);
+      const leadNm = lead ? cache.lookups.products[lead.p] : "—";
+      h += `<tr class="imsrx-geo-row" data-geo-cell="${x.r},${x.s}" tabindex="0"><td>${i + 1}</td><td>${escAttr(cache.lookups.regions[x.r])}</td>
+        <td>${escAttr(cache.lookups.specialties[x.s])}</td>
+        <td class="num">${gRx(x.mkt)}</td><td class="num">${gRx(x.prod)}</td><td class="num">${gPct(x.share, 2)}</td>
+        <td class="num">${gIndexBadge(x.index)}</td><td class="num neg strong">${gSigned(x.gap)}</td>
+        <td>${escAttr(leadNm)}${lead ? ` <span class="imsrx-geo-muted">${gPct(lead.share, 0)}</span>` : ""}</td></tr>`;
+    });
+    h += `</tbody></table></div>${opp.length > 15 ? `<div class="imsrx-geo-muted" style="margin-top:6px">Showing top 15 of ${opp.length} cells with a positive gap.</div>` : ""}</div>`;
+    return h;
+  }
+
+  function geoCompetitorsHtml(cube, focus) {
+    const nS = cube.nS;
+    const inCtx = (c) => (!GEO.regions.size || GEO.regions.has(Math.floor(c / nS))) && (!GEO.specs.size || GEO.specs.has(c % nS));
+    const rows = [];
+    let tot = 0, totP = 0;
+    cube.brands.forEach((e, p) => {
+      let v = 0, vp = 0;
+      for (let c = 0; c < e.cur.length; c++) if (inCtx(c)) { v += e.cur[c]; vp += e.pri[c]; }
+      tot += v; totP += vp;
+      if (v > 0 || vp > 0) rows.push({ p, v, vp });
+    });
+    rows.sort((a, b) => b.v - a.v);
+    const zeta = geoZetaSet();
+    const isFocus = (p) => focus === "zeta" ? zeta.has(p) : p === focus;
+    const top = rows.slice(0, 5);
+    const fRank = rows.findIndex((r) => isFocus(r.p));
+    if (fRank >= 5 && focus !== "zeta") top.push(rows[fRank]);
+    const chips = [...GEO.regions].map((r) => cache.lookups.regions[r]).concat([...GEO.specs].map((s) => cache.lookups.specialties[s]));
+    let h = `<div class="imsrx-geo-card"><div class="imsrx-geo-card-h"><h3>⑤ Competitors in current selection</h3>
+      <span class="imsrx-geo-ctx">${chips.length ? escAttr(chips.join(" · ")) : "whole market"}</span></div>
+      ${geoGuideCompetitors(rows, tot, fRank)}
+      <table class="imsrx-geo-tbl"><thead><tr><th>#</th><th>Brand</th><th>Company</th><th class="num">Rx</th><th class="num">Share %</th><th class="num">Δ Share</th></tr></thead><tbody>`;
+    top.forEach((r) => {
+      const rank = rows.indexOf(r) + 1;
+      const share = tot > 0 ? r.v / tot : null, shareP = totP > 0 ? r.vp / totP : null;
+      const d = cube.hasPrior && share != null && shareP != null ? share - shareP : null;
+      const comp = companyOfProduct[r.p] >= 0 ? companyNames[companyOfProduct[r.p]] : "—";
+      h += `<tr class="${isFocus(r.p) ? "imsrx-geo-focus" : ""}"><td>${rank}</td><td>${escAttr(cache.lookups.products[r.p])}</td><td class="imsrx-geo-muted">${escAttr(comp)}</td>
+        <td class="num">${gRx(r.v)}</td><td class="num strong">${gPct(share, 1)}</td><td class="num ${d > 0 ? "pos" : d < 0 ? "neg" : ""}">${gPp(d)}</td></tr>`;
+    });
+    return h + "</tbody></table></div>";
+  }
+
+  function renderGeo() {
+    if (!GEO) resetGeo();
+    if (!hasMarketDefs()) return '<div class="imsrx-empty">Market definitions are not in the IMS Rx cache yet — run <code>python etl/build_ims_rx_cache.py --dm-only</code>.</div>';
+    geoEnsureSelection();
+    if (GEO.market == null) return '<div class="imsrx-empty">No IQVIA markets are assigned to your account, so there is nothing to show on this tab.</div>';
+    const kind = GEO.kind, mName = cache.lookups[kind + "s"][GEO.market];
+    const cube = geoCube(kind, GEO.market, GEO.period);
+    const fc = geoFocusCells(cube, GEO.focus);
+    const mktAll = cube.mktCur.reduce((a, b) => a + b, 0), prodAll = fc.cur.reduce((a, b) => a + b, 0);
+    const national = mktAll > 0 ? prodAll / mktAll : 0;
+    const promo = geoPromo(kind, GEO.market, GEO.focus);
+
+    // context KPIs (both chip sets)
+    const mC = geoSum(cube.mktCur, cube.nS, GEO.regions, GEO.specs), pC = geoSum(fc.cur, cube.nS, GEO.regions, GEO.specs);
+    const mCp = geoSum(cube.mktPri, cube.nS, GEO.regions, GEO.specs), pCp = geoSum(fc.pri, cube.nS, GEO.regions, GEO.specs);
+    const shC = mC > 0 ? pC / mC : null, shCp = mCp > 0 ? pCp / mCp : null;
+    const cells = geoCellStats(cube, fc, national, mktAll);
+    const inCtx = (x) => (!GEO.regions.size || GEO.regions.has(x.r)) && (!GEO.specs.size || GEO.specs.has(x.s));
+    const oppCells = cells.filter((x) => inCtx(x) && x.gap > 0);
+    const totGap = oppCells.reduce((a, x) => a + x.gap, 0);
+    const topOpp = oppCells.slice().sort((a, b) => b.gap - a.gap)[0];
+
+    const regionData = geoPanelRows("region", cube, fc, mktAll);
+    const specData = geoPanelRows("specialty", cube, fc, mktAll);
+    const specOrder = [];
+    const specTot = new Float64Array(cube.nS);
+    for (let c = 0; c < cube.mktCur.length; c++) specTot[c % cube.nS] += cube.mktCur[c];
+    for (let s = 0; s < cube.nS; s++) if (specTot[s] > 0) specOrder.push(s);
+    specOrder.sort((a, b) => specTot[b] - specTot[a]);
+
+    // focus options: Zeta total + every brand in the market (by Rx)
+    const brandOpts = [];
+    cube.brands.forEach((e, p) => brandOpts.push({ p, v: e.cur.reduce((a, b) => a + b, 0) }));
+    brandOpts.sort((a, b) => b.v - a.v);
+    const zeta = geoZetaSet();
+    const mOpts = geoMarketOptions();
+    const allowed = geoAllowedMarkets(kind);
+
+    const chips = [...GEO.regions].map((r) => `<span class="imsrx-geo-chip">Region: ${escAttr(cache.lookups.regions[r])}<button type="button" data-geo-unchip="region:${r}" aria-label="Remove">✕</button></span>`)
+      .concat([...GEO.specs].map((s) => `<span class="imsrx-geo-chip">Specialty: ${escAttr(cache.lookups.specialties[s])}<button type="button" data-geo-unchip="specialty:${s}" aria-label="Remove">✕</button></span>`));
+
+    return `
+      <div class="imsrx-geo">
+      <div class="imsrx-geo-bar">
+        <label>Period<select id="imsrx-geo-period">${cache.lookups.periods.map((p, i) => `<option value="${i}"${i === GEO.period ? " selected" : ""}>${escAttr(p)}</option>`).join("")}</select></label>
+        <label>Market<span class="imsrx-geo-seg sm">${["dm1", "dm2", "atc4"].map((k) => `<button type="button" data-geo-kind="${k}" class="${kind === k ? "on" : ""}">${k.toUpperCase()}</button>`).join("")}</span>
+          <select id="imsrx-geo-market">${mOpts.map((o) => `<option value="${o.idx}"${o.idx === GEO.market ? " selected" : ""}>${escAttr(o.name)}</option>`).join("")}</select></label>
+        <label>Product focus<select id="imsrx-geo-focus">
+          <option value="zeta"${GEO.focus === "zeta" ? " selected" : ""}>All Zeta brands in market</option>
+          ${brandOpts.map((b) => `<option value="${b.p}"${b.p === GEO.focus ? " selected" : ""}>${zeta.has(b.p) ? "★ " : ""}${escAttr(cache.lookups.products[b.p])}</option>`).join("")}
+        </select></label>
+        <button type="button" class="imsrx-geo-guidebtn${GEO.guides ? " on" : ""}" data-geo-guides="1" title="Show or hide the explanation boxes">💡 Guides ${GEO.guides ? "on" : "off"}</button>
+        ${allowed ? `<span class="imsrx-geo-scope" title="Markets limited to your assigned markets, same rule as Target Achievement">🔒 ${mOpts.length} assigned market${mOpts.length === 1 ? "" : "s"}</span>` : ""}
+      </div>
+      <div class="imsrx-geo-chips">${chips.length ? chips.join("") + '<button type="button" class="imsrx-geo-link" data-geo-clear="1">Clear all</button>' : '<span class="imsrx-geo-muted">No region / specialty selected — click a row, a column or a matrix cell to focus.</span>'}</div>
+
+      ${!(mktAll > 0) ? '<div class="imsrx-empty">No IMS Rx prescriptions map to this market in the selected period — its brands are not in the physician panel.</div>' : `
+      <div class="imsrx-stats-row imsrx-geo-kpis">
+        <div class="imsrx-stat-tile"><div class="imsrx-stat-label">Market Rx</div><div class="imsrx-stat-value">${gRx(mC)}</div></div>
+        <div class="imsrx-stat-tile"><div class="imsrx-stat-label">Product Rx</div><div class="imsrx-stat-value">${gRx(pC)}</div></div>
+        <div class="imsrx-stat-tile imsrx-stat-highlight"><div class="imsrx-stat-label">Product Share</div><div class="imsrx-stat-value">${gPct(shC, 2)}</div></div>
+        <div class="imsrx-stat-tile"><div class="imsrx-stat-label">Share Δ vs prior MAT</div><div class="imsrx-stat-value ${shC - shCp > 0 ? "pos" : shC - shCp < 0 ? "neg" : ""}">${cube.hasPrior && shC != null && shCp != null ? gPp(shC - shCp) : "—"}</div></div>
+        <div class="imsrx-stat-tile"><div class="imsrx-stat-label">Total Rx Gap</div><div class="imsrx-stat-value">${gRx(totGap)}</div></div>
+        <div class="imsrx-stat-tile"><div class="imsrx-stat-label">Top opportunity</div><div class="imsrx-stat-value imsrx-geo-kpi-sm">${topOpp ? escAttr(cache.lookups.regions[topOpp.r] + " × " + cache.lookups.specialties[topOpp.s]) : "—"}</div></div>
+      </div>
+
+      <div class="imsrx-geo-flow"><span>Market Rx</span>→<span>Market Mix %</span>→<span>Product Rx</span>→<span>Product Mix %</span>→<span>Product Share %</span>→<span>Fair-Share Index</span>→<span>Rx Gap</span></div>
+      ${geoGuide(
+        "Where the prescriptions of the selected market are written — by <b>region</b> and by <b>doctor specialty</b> — and where our product wins or misses its fair share.",
+        "Read the page top to bottom, following the chain above: first <b>where the market volume is</b>, then <b>where our prescriptions are</b>, then <b>how strong we are</b> (share), then <b>where the extra prescriptions are</b> (Rx Gap). Click any region, specialty or matrix cell and every section re-calculates for it; remove a filter with ✕ on its chip.",
+        pC > 0
+          ? `In this selection we write about <b>${shC != null ? (shC * 100).toFixed(1) : "—"} of every 100 prescriptions</b> (${gRx(pC)} of ${gRx(mC)})${cube.hasPrior && shC != null && shCp != null ? `, ${shC >= shCp ? "up" : "down"} <b>${Math.abs((shC - shCp) * 100).toFixed(1)} points</b> vs last year` : ""}. Lifting every below-average region × specialty cell to our whole-market share (${gPct(national, 2)}) would add about <b>${gRx(totGap)} Rx</b>.`
+          : "Our product has no prescriptions in this selection.")}
+
+      ${geoPanelHtml("region", regionData, promo)}
+      ${geoPanelHtml("specialty", specData, promo)}
+      ${geoMatrixHtml(cube, cells, specOrder, promo)}
+      ${geoOpportunityHtml(cube, cells, promo)}
+      ${geoCompetitorsHtml(cube, GEO.focus)}
+
+      <div class="imsrx-geo-notes">
+        <strong>Promo Grid:</strong> ${promo.known ? escAttr(promo.source) + (promo.unmeasurable.length ? ` · promoted but not measurable in IMS Rx: ${escAttr(promo.unmeasurable.join(", "))}` : "") : escAttr(promo.reason)}<br>
+        <strong>Market:</strong> ${kind === "atc4" ? "ATC4 class = every brand IMS Rx classifies in this ATC4 (broader than the IQVIA defined markets inside it)." : `IQVIA ${kind.toUpperCase()} definition joined on Product + ATC4; IMS Rx is brand-level, so a brand in several markets counts fully in each — don't add market totals together.`}<br>
+        <strong>Rules:</strong> Index &lt;90 Under · 90–110 In-line · &gt;110 Over. Region/Specialty rows benchmark against the share in the current context; matrix &amp; opportunity cells against the whole-market share (${gPct(national, 2)}). Cells under 0.5% of market Rx show "—". Rx = physician-panel prescription count, not sales.
+      </div>`}
+      </div>`;
+  }
+
+  function geoRerender() {
+    const box = document.getElementById("imsrx-tab-content");
+    if (!box) return;
+    box.innerHTML = renderGeo();
+    wireGeo(box);
+  }
+
+  function geoToggle(set, idx, multi) {
+    if (multi) { if (set.has(idx)) set.delete(idx); else set.add(idx); return; }
+    if (set.size === 1 && set.has(idx)) set.clear();
+    else { set.clear(); set.add(idx); }
+  }
+
+  function wireGeo(root) {
+    const q = (s) => root.querySelector(s);
+    const on = (el, ev, fn) => { if (el) el.addEventListener(ev, fn); };
+    on(q("#imsrx-geo-period"), "change", (e) => { GEO.period = +e.target.value; geoRerender(); });
+    on(q("#imsrx-geo-market"), "change", (e) => { GEO.market = +e.target.value; GEO.focus = null; GEO.regions.clear(); GEO.specs.clear(); geoRerender(); });
+    on(q("#imsrx-geo-focus"), "change", (e) => { GEO.focus = e.target.value === "zeta" ? "zeta" : +e.target.value; geoRerender(); });
+    on(q("#imsrx-geo-allspecs"), "click", () => { GEO.allSpecs = !GEO.allSpecs; geoRerender(); });
+    root.querySelectorAll("[data-geo-kind]").forEach((b) => on(b, "click", () => {
+      if (GEO.kind === b.dataset.geoKind) return;
+      GEO.kind = b.dataset.geoKind; GEO.market = null; GEO.focus = null; GEO.regions.clear(); GEO.specs.clear(); geoRerender();
+    }));
+    root.querySelectorAll("[data-geo-matrix]").forEach((b) => on(b, "click", () => { GEO.matrix = b.dataset.geoMatrix; geoRerender(); }));
+    root.querySelectorAll("tr[data-geo-dim]").forEach((tr) => {
+      const act = (e) => {
+        const set = tr.dataset.geoDim === "region" ? GEO.regions : GEO.specs;
+        geoToggle(set, +tr.dataset.geoIdx, e.ctrlKey || e.metaKey);
+        geoRerender();
+      };
+      on(tr, "click", act);
+      on(tr, "keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(e); } });
+    });
+    root.querySelectorAll("[data-geo-cell]").forEach((el) => on(el, "click", (e) => {
+      const [r, s] = el.dataset.geoCell.split(",").map(Number);
+      if (e.ctrlKey || e.metaKey) { GEO.regions.add(r); GEO.specs.add(s); }
+      else if (GEO.regions.size === 1 && GEO.specs.size === 1 && GEO.regions.has(r) && GEO.specs.has(s)) { GEO.regions.clear(); GEO.specs.clear(); }
+      else { GEO.regions = new Set([r]); GEO.specs = new Set([s]); }
+      geoRerender();
+    }));
+    root.querySelectorAll("[data-geo-unchip]").forEach((b) => on(b, "click", () => {
+      const [d, i] = b.dataset.geoUnchip.split(":");
+      (d === "region" ? GEO.regions : GEO.specs).delete(+i);
+      geoRerender();
+    }));
+    on(q("[data-geo-clear]"), "click", () => { GEO.regions.clear(); GEO.specs.clear(); geoRerender(); });
+    on(q("[data-geo-guides]"), "click", () => { GEO.guides = !GEO.guides; geoGuidesSave(GEO.guides); geoRerender(); });
   }
 
   // -------------------------------------------------------------------
@@ -1685,7 +2432,7 @@
     if (!canView()) return { ok: false, reason: "access" };
     decompressCache();
     if (!cache || isCacheStale()) return { ok: false, reason: "nocache" };
-    const KEYS = ["period", "product", "company", "molecule", "atc3", "atc4", "specialty", "region", "cat"];
+    const KEYS = ["period", "product", "company", "dm1", "dm2", "molecule", "atc3", "atc4", "specialty", "region", "cat"];
     function build(map) {
       const o = {};
       KEYS.forEach((k) => { o[k] = (map && map[k] && map[k].length) ? new Set(map[k]) : null; });

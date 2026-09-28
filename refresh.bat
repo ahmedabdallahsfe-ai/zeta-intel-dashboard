@@ -215,6 +215,19 @@ if errorlevel 1 (
     echo [WARNING] Sign-in roster rebuild failed -- the previous cache/auth.data.js is kept.
 )
 
+REM --- sync IMS Rx DM1/DM2 market filters with IQVIA (2026-09-28) ----------
+REM etl\build_ims_rx_cache.py --dm-only re-derives the Product+ATC4 -> DM1/DM2
+REM mapping from the cache/iqvia.json just rebuilt above and patches
+REM cache/ims_rx.data.js in place (~10s; does NOT re-read the IMS RX workbook).
+REM Keeps IMS Rx market filters in step with any remap in IQVIA_SOURCE.xlsx.
+REM NOT FATAL: on failure the previous IMS Rx cache is kept.
+echo.
+echo Syncing IMS Rx market definitions...
+%PYTHON_CMD% etl\build_ims_rx_cache.py --dm-only
+if errorlevel 1 (
+    echo [WARNING] IMS Rx market-definition sync failed -- previous cache/ims_rx.data.js kept.
+)
+
 REM --- run the Customer Analytics Aggregation ------------------------------
 REM Added 2026-08-03: this script's output (cache/customer_analytics.json /
 REM .data.js) was already being staged and committed below, but the script
@@ -549,6 +562,8 @@ if "%GIT_CMD%"=="" (
     REM (4.3MB, uncompressed) is deliberately NOT pushed -- the browser only
     REM ever reads the gzipped .data.js.
     "%GIT_CMD%" add -f cache/market_intel.data.js
+    REM IMS Rx: DM1/DM2 market sync step above rewrites this file (2026-09-28).
+    "%GIT_CMD%" add -f cache/ims_rx.data.js
     REM Market Intelligence Feed (external news): same -f reason as every
     REM cache above -- .gitignore line 2 is `cache/`. news_archive.data.js
     REM is the older/undated overflow the live feed doesn't display by

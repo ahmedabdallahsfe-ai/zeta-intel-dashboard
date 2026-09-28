@@ -131,11 +131,36 @@ if not errorlevel 1 (
     goto :dopush
 )
 
-set "MSG=%~1"
-if "%MSG%"=="" set "MSG=Dashboard update"
+REM --- preview + confirm (added 2026-09-29) --------------------------------
+REM `git add -A` stages EVERYTHING that changed, and this repo is published
+REM on GitHub Pages. Show exactly what is about to go out and ask first.
+set "NFILES=0"
+for /f %%c in ('"%GIT_CMD%" diff --cached --name-only ^| find /c /v ""') do set "NFILES=%%c"
+echo ============================================================
+echo   Files about to be committed: !NFILES!
+echo   (A = added, M = modified, D = deleted)
+echo ============================================================
+"%GIT_CMD%" -c core.quotepath=off diff --cached --name-status
+echo ============================================================
+echo.
+set "ANSWER="
+set /p "ANSWER=Commit and push these !NFILES! files? (Y/N): "
+if /I not "!ANSWER!"=="Y" (
+    echo.
+    echo Cancelled - nothing was committed. Unstaging so the next run starts clean.
+    "%GIT_CMD%" reset -q
+    echo.
+    pause
+    exit /b 0
+)
+echo.
 
-echo Committing: %MSG%
-"%GIT_CMD%" commit -m "%MSG%"
+REM --- commit message: argument, else ask, else default ----------------------
+set "MSG=%~1"
+if "!MSG!"=="" set /p "MSG=Commit message (press Enter for Dashboard update): "
+if "!MSG!"=="" set "MSG=Dashboard update"
+echo Committing: !MSG!
+"%GIT_CMD%" commit -m "!MSG!"
 if errorlevel 1 (
     echo.
     echo [ERROR] Commit failed - see the message above.
