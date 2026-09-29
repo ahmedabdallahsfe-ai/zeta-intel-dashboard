@@ -70,7 +70,7 @@
       file: "cache/coaching.data.js",
       globalVar: "COACHING_CACHE",
       label: "Coaching intelligence",
-      version: "20260920_rolechange",
+      version: "20260929_allcoachslots",
     },
     business_review: {
       file: "cache/business_review.data.js",

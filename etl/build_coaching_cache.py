@@ -17,7 +17,7 @@ Scope (confirmed 2026-08-31, period extended to YTD 2026-09-02):
     that July is included -- "S1" no longer accurately describes a
     Feb-Jul range). Both monthly and YTD-cumulative aggregates are
     produced for every manager.
-  - Fields used: Employee, Coach Employee 1, Title 1, Date, Team, Area,
+  - Fields used: Employee, Coach Employee 1-4 (+ Title 1-4; every listed coach credited, 2026-09-29), Date, Team, Area,
     Customer (customer name only, used solely inside the coached-employee
     drill-down popup -- never in the main KPI tables).
   - Fields deliberately NOT used for any KPI: Duration, GPS Deviation,
@@ -891,7 +891,40 @@ def main():
 
     print("\n[3/5] Matching names + aggregating (monthly + cumulative)...", flush=True)
     emp_names_all = set(r[idx["Employee"]] for r in vrows if r[idx["Employee"]])
-    coach_names_all = set(r[idx["Coach1"]].strip() for r in vrows if r[idx["Coach1"]])
+    # 2026-09-29 (Ahmed: NSM Mahmoud Mokhtar Elsayed Mohamed's August visits
+    # are 30, not 25 -- "you have to consider Coach Employee 2/3/4"): a joint
+    # visit can list up to 4 coaches. EVERY listed coach now gets credit for
+    # the visit (visits, coaching days, zones, coached reps, DV Coverage
+    # numerator, visit log). Previously only Coach Employee 1 was counted, so
+    # ~2.7k coach-visit credits (mostly senior managers joining a DM's visit
+    # as Coach 2/3) were silently dropped.
+    COACH_SLOTS = (("Coach1", "Title1"), ("Coach2", "Title2"), ("Coach3", "Title3"), ("Coach4", "Title4"))
+
+    # Data-quality guard: in a handful of rows the source shifted a TITLE
+    # ("Field Force Trainer", "National Sales Manager", "Area Manager") into a
+    # Coach Employee 3 cell. A value that is exactly one of the sheet's Title
+    # values is a title, not a person, and is never credited as a coach.
+    TITLE_VALUES = set(
+        str(r[idx[t]]).strip() for r in vrows for _c, t in COACH_SLOTS if r[idx[t]] and str(r[idx[t]]).strip()
+    )
+
+    def row_coaches(r):
+        """[(coach_raw, title)] for every filled coach slot, de-duplicated by
+        norm_name within the row (the same person listed twice on one visit
+        is credited once, keeping the first slot's title)."""
+        out, seen = [], set()
+        for c_col, t_col in COACH_SLOTS:
+            c = r[idx[c_col]]
+            if not c or not str(c).strip() or str(c).strip() in TITLE_VALUES:
+                continue
+            n = norm_name(c)
+            if n in seen:
+                continue
+            seen.add(n)
+            out.append((str(c).strip(), r[idx[t_col]]))
+        return out
+
+    coach_names_all = set(c for r in vrows for c, _t in row_coaches(r))
     unmatched_reps = sorted(e for e in emp_names_all if norm_name(e) not in hr_by_norm)
     unmatched_coaches = sorted(c for c in coach_names_all if norm_name(c) not in hr_by_norm)
     log(f"unmatched reps: {len(unmatched_reps)} | unmatched coaches: {len(unmatched_coaches)}")
@@ -912,9 +945,12 @@ def main():
     rows_skipped_no_coach = 0
     rows_out_of_period = 0
 
+    coach_credits_by_slot = Counter()   # position of coach in row (1-4) -> credits
+    rows_with_duplicate_coach = 0
+
     for r in vrows:
-        coach_raw = r[idx["Coach1"]]
-        if not coach_raw:
+        coaches = row_coaches(r)
+        if not coaches:
             rows_skipped_no_coach += 1
             continue
         d = r[idx["Date"]]
@@ -925,58 +961,65 @@ def main():
             rows_out_of_period += 1
             continue
 
-        coach_norm = norm_name(coach_raw)
-        title = r[idx["Title1"]]
-        manager_title_votes[coach_norm][title] += 1
-
         emp_raw = r[idx["Employee"]]
         emp_norm = norm_name(emp_raw) if emp_raw else None
         area = r[idx["Area"]]
         cust = r[idx["CustomerName"]]
         mkey = month_key(d)
 
-        month_team_norm = manager_month_teams_norm.get(coach_norm, {}).get(mkey, set())
-        on_roster = bool(emp_norm and emp_norm in month_team_norm)
+        n_filled = sum(1 for c_col, _t in COACH_SLOTS if r[idx[c_col]] and str(r[idx[c_col]]).strip() and str(r[idx[c_col]]).strip() not in TITLE_VALUES)
+        if n_filled > len(coaches):
+            rows_with_duplicate_coach += 1
 
-        for bkey in ("ALL", mkey):
-            b = manager_buckets[coach_norm][bkey]
-            b["visits"] += 1
-            b["days"].add(d)
-            if area:
-                b["areas"].add(area)
-            if emp_norm:
-                (b["onRoster"] if on_roster else b["offRoster"]).add(emp_norm)
+        for slot_pos, (coach_raw, title) in enumerate(coaches, start=1):
+          coach_credits_by_slot[slot_pos] += 1
+          coach_norm = norm_name(coach_raw)
+          manager_title_votes[coach_norm][title] += 1
 
-        if emp_norm:
-            meta = manager_emp_meta[coach_norm].setdefault(emp_norm, {
-                "name": emp_raw, "onRoster": on_roster, "first": d, "last": d,
-                "areas": set(), "customers": Counter(), "visitLog": [],
-            })
-            meta["onRoster"] = meta["onRoster"] or on_roster
-            meta["first"] = min(meta["first"], d)
-            meta["last"] = max(meta["last"], d)
-            if area:
-                meta["areas"].add(area)
-            if cust:
-                meta["customers"][cust] += 1
-            # Per-visit detail (date/customer/area) for the Coached
-            # Employees drill-down's "detailed visits" view -- 2026-08-31,
-            # user-requested, reversing the earlier "no HCP/customer
-            # names anywhere" rule for this ONE new view only (see the
-            # header comment's CUSTOMER / HCP DATA note in js/coaching.js
-            # for the full history of that rule and this exception to it).
-            meta["visitLog"].append({
-                "date": d.isoformat(), "customer": safe_str(cust), "area": safe_str(area),
-            })
-            for bkey in ("ALL", mkey):
-                eb = manager_emp_buckets[coach_norm][emp_norm][bkey]
-                eb["visits"] += 1
-                eb["days"].add(d)
+          month_team_norm = manager_month_teams_norm.get(coach_norm, {}).get(mkey, set())
+          on_roster = bool(emp_norm and emp_norm in month_team_norm)
+
+          for bkey in ("ALL", mkey):
+              b = manager_buckets[coach_norm][bkey]
+              b["visits"] += 1
+              b["days"].add(d)
+              if area:
+                  b["areas"].add(area)
+              if emp_norm:
+                  (b["onRoster"] if on_roster else b["offRoster"]).add(emp_norm)
+
+          if emp_norm:
+              meta = manager_emp_meta[coach_norm].setdefault(emp_norm, {
+                  "name": emp_raw, "onRoster": on_roster, "first": d, "last": d,
+                  "areas": set(), "customers": Counter(), "visitLog": [],
+              })
+              meta["onRoster"] = meta["onRoster"] or on_roster
+              meta["first"] = min(meta["first"], d)
+              meta["last"] = max(meta["last"], d)
+              if area:
+                  meta["areas"].add(area)
+              if cust:
+                  meta["customers"][cust] += 1
+              # Per-visit detail (date/customer/area) for the Coached
+              # Employees drill-down's "detailed visits" view -- 2026-08-31,
+              # user-requested, reversing the earlier "no HCP/customer
+              # names anywhere" rule for this ONE new view only (see the
+              # header comment's CUSTOMER / HCP DATA note in js/coaching.js
+              # for the full history of that rule and this exception to it).
+              meta["visitLog"].append({
+                  "date": d.isoformat(), "customer": safe_str(cust), "area": safe_str(area),
+              })
+              for bkey in ("ALL", mkey):
+                  eb = manager_emp_buckets[coach_norm][emp_norm][bkey]
+                  eb["visits"] += 1
+                  eb["days"].add(d)
 
         rows_processed += 1
 
     log(f"rows processed: {rows_processed} | skipped (no coach): {rows_skipped_no_coach} | "
         f"out of Feb1-Aug31 period: {rows_out_of_period}")
+    log(f"coach-visit credits by position in row: {dict(coach_credits_by_slot)} | "
+        f"rows listing the same coach twice (credited once): {rows_with_duplicate_coach}")
 
     print("\n[4/5] Building manager records...", flush=True)
     managers_out = []
@@ -1305,6 +1348,8 @@ def main():
         "rowsProcessed": rows_processed,
         "rowsSkippedNoCoach": rows_skipped_no_coach,
         "rowsOutOfPeriod": rows_out_of_period,
+        "coachCreditsByPosition": {str(k): v for k, v in sorted(coach_credits_by_slot.items())},
+        "rowsWithDuplicateCoach": rows_with_duplicate_coach,
         "totalCoachingManagers": len(managers_out),
         "cumulativeVisitsAcrossManagers": total_visits_check,
         "monthlyVisitsAcrossManagers": monthly_total_check,
