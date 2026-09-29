@@ -1781,28 +1781,61 @@
     const s = new Set();
     for (let p = 0; p < companyOfProduct.length; p++) {
       const c = companyOfProduct[p];
-      if (c >= 0 && /ZETA/i.test(companyNames[c] || "")) s.add(p);
+      if (c >= 0 && /^ZETA\b/i.test(companyNames[c] || "")) s.add(p); // ^ZETA: "ERBOZETA*" is a different company (fixed 2026-09-29)
     }
     return s;
   }
 
+  // ---- Market "All" + Corporation filter (added 2026-09-29, Ahmed) -------
+  // GEO.market === "all" -> union of every market the user may see under the
+  // current basis (unrestricted: every DM1/DM2-mapped row, or the whole
+  // panel for ATC4). Each fact row is counted ONCE even when its brand sits
+  // in several markets, so "All markets" never double counts.
+  // GEO.corp: null = all corporations, else a companyIdx (see
+  // buildCompanyIndex; only confidence-2 attributions). Focus values:
+  //   "zeta" -> every Zeta brand | "corp" -> every brand of GEO.corp |
+  //   number -> one brand.
+  function geoCorpSet(ci) {
+    const s = new Set();
+    for (let p = 0; p < companyOfProduct.length; p++) if (companyOfProduct[p] === ci) s.add(p);
+    return s;
+  }
+  function geoIsZetaCorp(ci) { return ci != null && /^ZETA\b/i.test(companyNames[ci] || ""); }
+  function geoFocusSet(focus) {
+    if (focus === "zeta") return geoZetaSet();
+    if (focus === "corp") return GEO.corp != null ? geoCorpSet(GEO.corp) : geoZetaSet();
+    return new Set([focus]);
+  }
+  function geoFocusIsGroup(focus) { return focus === "zeta" || focus === "corp"; }
+  function geoMarketName(kind, m) { return m === "all" ? "All markets" : cache.lookups[kind + "s"][m]; }
+
   /** One pass over the fact table for (kind, market, period, prior):
    * per-brand Region x Specialty cells (current + prior). Memoised. */
   function geoCube(kind, market, period) {
-    const key = kind + "|" + market + "|" + period;
+    const key = kind + "|" + market + "|" + period + (market === "all" ? "|" + (geoUser() ? geoUser().email || geoUser().name || "u" : "anon") : "");
     if (geoMemo.has(key)) return geoMemo.get(key);
     const f = cache.fact, st = f.stride;
     const fi = (k) => f.fields.indexOf(k);
     const PI = fi("period"), PR = fi("product"), RG = fi("region"), SP = fi("specialty"), AT = fi("atc4");
     const nR = cache.lookups.regions.length, nS = cache.lookups.specialties.length, nC = nR * nS;
     const prior = period - 1;
+    const isAll = market === "all";
+    const allowedAll = isAll ? geoAllowedMarkets(kind) : null;
     const brands = new Map(); // product -> {cur:Float64Array, pri:Float64Array}
     const mktCur = new Float64Array(nC), mktPri = new Float64Array(nC);
     for (let i = 0; i < f.rx.length; i++) {
       const b = i * st;
       const p = f.rows[b + PI];
       if (p !== period && p !== prior) continue;
-      if (kind === "atc4") { if (f.rows[b + AT] !== market) continue; }
+      if (isAll) {
+        if (kind === "atc4") { if (allowedAll && !allowedAll.has(f.rows[b + AT])) continue; }
+        else {
+          const ms = marketsOfRow(b, kind);
+          if (!ms.length) continue;
+          if (allowedAll) { let hit = false; for (let j = 0; j < ms.length; j++) if (allowedAll.has(ms[j])) { hit = true; break; } if (!hit) continue; }
+        }
+      }
+      else if (kind === "atc4") { if (f.rows[b + AT] !== market) continue; }
       else if (marketsOfRow(b, kind).indexOf(market) < 0) continue;
       const c = f.rows[b + RG] * nS + f.rows[b + SP];
       const prod = f.rows[b + PR];
@@ -1819,7 +1852,7 @@
   function geoFocusCells(cube, focus) {
     const nC = cube.nR * cube.nS;
     const cur = new Float64Array(nC), pri = new Float64Array(nC);
-    const set = focus === "zeta" ? geoZetaSet() : new Set([focus]);
+    const set = geoFocusSet(focus);
     cube.brands.forEach((e, p) => {
       if (!set.has(p)) return;
       for (let c = 0; c < nC; c++) { cur[c] += e.cur[c]; pri[c] += e.pri[c]; }
@@ -1843,6 +1876,13 @@
    * e.g. BILASTIGEC Pedia + Derma, contributes both lines' promoted specialties). */
   function geoTargetsFor(kind, mIdx) {
     const T = (cache.promo && cache.promo.targets) || [];
+    if (mIdx === "all") {
+      const allowed = geoAllowedMarkets(kind);
+      if (!allowed) return T;
+      const seen = new Set(), out = [];
+      allowed.forEach((m) => geoTargetsFor(kind, m).forEach((t) => { if (!seen.has(t)) { seen.add(t); out.push(t); } }));
+      return out;
+    }
     if (kind !== "atc4") {
       const mn = geoNorm(cache.lookups[kind + "s"][mIdx]);
       return T.filter((t) => geoNorm(kind === "dm1" ? t.dm1 : t.dm2) === mn);
@@ -1856,11 +1896,15 @@
   function geoPromo(kind, mIdx, focus) {
     const rows = geoTargetsFor(kind, mIdx);
     let pick = rows;
-    if (focus !== "zeta") {
+    if (focus === "corp") {
+      if (!geoIsZetaCorp(GEO.corp)) return { known: false, reason: "Promo Grids cover Zeta brands only — not applicable to " + (companyNames[GEO.corp] || "this corporation"), promoted: new Set(), unmeasurable: [] };
+      const cs = new Set([...geoCorpSet(GEO.corp)].map((p) => geoNorm(cache.lookups.products[p])));
+      pick = rows.filter((t) => cs.has(geoNorm(t.prod)));
+    } else if (focus !== "zeta") {
       const pn = geoNorm(cache.lookups.products[focus]);
       pick = rows.filter((t) => geoNorm(t.prod) === pn);
     }
-    if (!pick.length) return { known: false, reason: focus === "zeta" ? "No Zeta target brand in this market" : "Not a Zeta target brand in this market", promoted: new Set(), unmeasurable: [] };
+    if (!pick.length) return { known: false, reason: geoFocusIsGroup(focus) ? "No Zeta target brand in this market" : "Not a Zeta target brand in this market", promoted: new Set(), unmeasurable: [] };
     const ok = pick.filter((t) => t.status === "ok");
     if (!ok.length) {
       const why = { grid_has_no_specialty_sheet: "Promo Grid has no specialty sheet (" + (pick[0].gridFiles || []).join(", ") + ")",
@@ -1952,7 +1996,7 @@
   }
 
   function resetGeo() {
-    GEO = { period: 2, kind: "dm1", market: null, focus: null, regions: new Set(), specs: new Set(), matrix: "share", allSpecs: false, guides: geoGuidesPref() };
+    GEO = { period: 2, kind: "dm1", market: null, corp: null, focus: null, regions: new Set(), specs: new Set(), matrix: "share", allSpecs: false, guides: geoGuidesPref() };
   }
 
   function geoMarketOptions() {
@@ -1967,12 +2011,13 @@
   function geoEnsureSelection() {
     const opts = geoMarketOptions();
     if (!opts.length) { GEO.market = null; return; }
-    if (GEO.market == null || !opts.some((o) => o.idx === GEO.market)) {
+    if (GEO.market == null || (GEO.market !== "all" && !opts.some((o) => o.idx === GEO.market))) {
       // default: first allowed market that has Rx in the period
       const withRx = opts.find((o) => { const c = geoCube(GEO.kind, o.idx, GEO.period); return c.mktCur.some((v) => v > 0); });
       GEO.market = (withRx || opts[0]).idx;
       GEO.focus = null;
     }
+    if (GEO.focus == null && GEO.corp != null) GEO.focus = "corp";
     if (GEO.focus == null) {
       const cube = geoCube(GEO.kind, GEO.market, GEO.period);
       const tProds = new Set(geoTargetsFor(GEO.kind, GEO.market).map((t) => geoNorm(t.prod)));
@@ -2220,11 +2265,11 @@
       if (v > 0 || vp > 0) rows.push({ p, v, vp });
     });
     rows.sort((a, b) => b.v - a.v);
-    const zeta = geoZetaSet();
-    const isFocus = (p) => focus === "zeta" ? zeta.has(p) : p === focus;
+    const fset = geoFocusSet(focus);
+    const isFocus = (p) => fset.has(p);
     const top = rows.slice(0, 5);
     const fRank = rows.findIndex((r) => isFocus(r.p));
-    if (fRank >= 5 && focus !== "zeta") top.push(rows[fRank]);
+    if (fRank >= 5 && !geoFocusIsGroup(focus)) top.push(rows[fRank]);
     const chips = [...GEO.regions].map((r) => cache.lookups.regions[r]).concat([...GEO.specs].map((s) => cache.lookups.specialties[s]));
     let h = `<div class="imsrx-geo-card"><div class="imsrx-geo-card-h"><h3>⑤ Competitors in current selection</h3>
       <span class="imsrx-geo-ctx">${chips.length ? escAttr(chips.join(" · ")) : "whole market"}</span></div>
@@ -2246,7 +2291,7 @@
     if (!hasMarketDefs()) return '<div class="imsrx-empty">Market definitions are not in the IMS Rx cache yet — run <code>python etl/build_ims_rx_cache.py --dm-only</code>.</div>';
     geoEnsureSelection();
     if (GEO.market == null) return '<div class="imsrx-empty">No IQVIA markets are assigned to your account, so there is nothing to show on this tab.</div>';
-    const kind = GEO.kind, mName = cache.lookups[kind + "s"][GEO.market];
+    const kind = GEO.kind, mName = geoMarketName(kind, GEO.market);
     const cube = geoCube(kind, GEO.market, GEO.period);
     const fc = geoFocusCells(cube, GEO.focus);
     const mktAll = cube.mktCur.reduce((a, b) => a + b, 0), prodAll = fc.cur.reduce((a, b) => a + b, 0);
@@ -2273,9 +2318,22 @@
 
     // focus options: Zeta total + every brand in the market (by Rx)
     const brandOpts = [];
-    cube.brands.forEach((e, p) => brandOpts.push({ p, v: e.cur.reduce((a, b) => a + b, 0) }));
+    cube.brands.forEach((e, p) => {
+      if (GEO.corp != null && companyOfProduct[p] !== GEO.corp) return;
+      brandOpts.push({ p, v: e.cur.reduce((a, b) => a + b, 0) });
+    });
     brandOpts.sort((a, b) => b.v - a.v);
     const zeta = geoZetaSet();
+    // corporation options: every attributable company with Rx in this market (by Rx)
+    const corpRx = new Map();
+    cube.brands.forEach((e, p) => {
+      const ci = companyOfProduct[p];
+      if (ci < 0) return;
+      corpRx.set(ci, (corpRx.get(ci) || 0) + e.cur.reduce((a, b) => a + b, 0));
+    });
+    if (GEO.corp != null && !corpRx.has(GEO.corp)) corpRx.set(GEO.corp, 0);
+    const corpOpts = [...corpRx.entries()].map(([ci, v]) => ({ ci, v })).sort((a, b) => b.v - a.v);
+    const corpNm = GEO.corp != null ? companyNames[GEO.corp] : null;
     const mOpts = geoMarketOptions();
     const allowed = geoAllowedMarkets(kind);
 
@@ -2287,9 +2345,15 @@
       <div class="imsrx-geo-bar">
         <label>Period<select id="imsrx-geo-period">${cache.lookups.periods.map((p, i) => `<option value="${i}"${i === GEO.period ? " selected" : ""}>${escAttr(p)}</option>`).join("")}</select></label>
         <label>Market<span class="imsrx-geo-seg sm">${["dm1", "dm2", "atc4"].map((k) => `<button type="button" data-geo-kind="${k}" class="${kind === k ? "on" : ""}">${k.toUpperCase()}</button>`).join("")}</span>
-          <select id="imsrx-geo-market">${mOpts.map((o) => `<option value="${o.idx}"${o.idx === GEO.market ? " selected" : ""}>${escAttr(o.name)}</option>`).join("")}</select></label>
+          <select id="imsrx-geo-market"><option value="all"${GEO.market === "all" ? " selected" : ""}>★ All markets${allowed ? " (my " + mOpts.length + ")" : ""}</option>${mOpts.map((o) => `<option value="${o.idx}"${o.idx === GEO.market ? " selected" : ""}>${escAttr(o.name)}</option>`).join("")}</select></label>
+        <label>Corporation<select id="imsrx-geo-corp">
+          <option value=""${GEO.corp == null ? " selected" : ""}>All corporations</option>
+          ${corpOpts.map((c) => `<option value="${c.ci}"${c.ci === GEO.corp ? " selected" : ""}>${geoIsZetaCorp(c.ci) ? "★ " : ""}${escAttr(companyNames[c.ci])}</option>`).join("")}
+        </select></label>
         <label>Product focus<select id="imsrx-geo-focus">
-          <option value="zeta"${GEO.focus === "zeta" ? " selected" : ""}>All Zeta brands in market</option>
+          ${corpNm != null
+            ? `<option value="corp"${GEO.focus === "corp" ? " selected" : ""}>All ${escAttr(corpNm)} brands</option>`
+            : `<option value="zeta"${GEO.focus === "zeta" ? " selected" : ""}>All Zeta brands in market</option>`}
           ${brandOpts.map((b) => `<option value="${b.p}"${b.p === GEO.focus ? " selected" : ""}>${zeta.has(b.p) ? "★ " : ""}${escAttr(cache.lookups.products[b.p])}</option>`).join("")}
         </select></label>
         <button type="button" class="imsrx-geo-guidebtn${GEO.guides ? " on" : ""}" data-geo-guides="1" title="Show or hide the explanation boxes">💡 Guides ${GEO.guides ? "on" : "off"}</button>
@@ -2323,7 +2387,7 @@
 
       <div class="imsrx-geo-notes">
         <strong>Promo Grid:</strong> ${promo.known ? escAttr(promo.source) + (promo.unmeasurable.length ? ` · promoted but not measurable in IMS Rx: ${escAttr(promo.unmeasurable.join(", "))}` : "") : escAttr(promo.reason)}<br>
-        <strong>Market:</strong> ${kind === "atc4" ? "ATC4 class = every brand IMS Rx classifies in this ATC4 (broader than the IQVIA defined markets inside it)." : `IQVIA ${kind.toUpperCase()} definition joined on Product + ATC4; IMS Rx is brand-level, so a brand in several markets counts fully in each — don't add market totals together.`}<br>
+        <strong>Market:</strong> ${GEO.market === "all" ? `All ${allowed ? "your " + mOpts.length + " assigned" : ""} ${kind.toUpperCase()} markets combined — each prescription counted once, even when its brand belongs to several markets.` : kind === "atc4" ? "ATC4 class = every brand IMS Rx classifies in this ATC4 (broader than the IQVIA defined markets inside it)." : `IQVIA ${kind.toUpperCase()} definition joined on Product + ATC4; IMS Rx is brand-level, so a brand in several markets counts fully in each — don't add market totals together.`}<br>
         <strong>Rules:</strong> Index &lt;90 Under · 90–110 In-line · &gt;110 Over. Region/Specialty rows benchmark against the share in the current context; matrix &amp; opportunity cells against the whole-market share (${gPct(national, 2)}). Cells under 0.5% of market Rx show "—". Rx = physician-panel prescription count, not sales.
       </div>`}
       </div>`;
@@ -2346,12 +2410,13 @@
     const q = (s) => root.querySelector(s);
     const on = (el, ev, fn) => { if (el) el.addEventListener(ev, fn); };
     on(q("#imsrx-geo-period"), "change", (e) => { GEO.period = +e.target.value; geoRerender(); });
-    on(q("#imsrx-geo-market"), "change", (e) => { GEO.market = +e.target.value; GEO.focus = null; GEO.regions.clear(); GEO.specs.clear(); geoRerender(); });
-    on(q("#imsrx-geo-focus"), "change", (e) => { GEO.focus = e.target.value === "zeta" ? "zeta" : +e.target.value; geoRerender(); });
+    on(q("#imsrx-geo-market"), "change", (e) => { const v = e.target.value; GEO.market = v === "all" ? "all" : +v; GEO.focus = null; GEO.regions.clear(); GEO.specs.clear(); geoRerender(); });
+    on(q("#imsrx-geo-corp"), "change", (e) => { const v = e.target.value; GEO.corp = v === "" ? null : +v; GEO.focus = null; geoRerender(); });
+    on(q("#imsrx-geo-focus"), "change", (e) => { const v = e.target.value; GEO.focus = (v === "zeta" || v === "corp") ? v : +v; geoRerender(); });
     on(q("#imsrx-geo-allspecs"), "click", () => { GEO.allSpecs = !GEO.allSpecs; geoRerender(); });
     root.querySelectorAll("[data-geo-kind]").forEach((b) => on(b, "click", () => {
       if (GEO.kind === b.dataset.geoKind) return;
-      GEO.kind = b.dataset.geoKind; GEO.market = null; GEO.focus = null; GEO.regions.clear(); GEO.specs.clear(); geoRerender();
+      GEO.kind = b.dataset.geoKind; GEO.market = GEO.market === "all" ? "all" : null; GEO.focus = null; GEO.regions.clear(); GEO.specs.clear(); geoRerender();
     }));
     root.querySelectorAll("[data-geo-matrix]").forEach((b) => on(b, "click", () => { GEO.matrix = b.dataset.geoMatrix; geoRerender(); }));
     root.querySelectorAll("tr[data-geo-dim]").forEach((tr) => {
