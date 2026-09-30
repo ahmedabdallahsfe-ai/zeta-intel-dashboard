@@ -530,6 +530,20 @@ function startAppBody() {
     marketNewsMenuItem.style.display = allowed ? "" : "none";
   }
 
+  // FIELD INTEL TRAINER (2026-09-30, Ahmed): List-Intelligence-only roles
+  // (AUTH.isListIntelOnly) see ONE sidebar entry and land on it at boot;
+  // the click handler below ignores every other tab for them.
+  const listIntelOnly = !!(window.AUTH && typeof window.AUTH.isListIntelOnly === "function" && window.AUTH.isListIntelOnly());
+  if (listIntelOnly) {
+    document.querySelectorAll("#sidebar-nav .menu-item").forEach(mi => {
+      const keep = mi.dataset.tab === "listintel";
+      mi.style.display = keep ? "" : "none";
+      mi.classList.toggle("active", keep);
+    });
+    currentTab = "listintel";
+    updateTopbarTitle("listintel");
+  }
+
   // REMOVED 2026-08-09 (Ahmed): the Control Panel and Expense vs Sales tabs
   // were taken out of the shell. Their modules (js/control-panel.js,
   // js/expense.js, js/expense-interface.js) are still on disk and unmodified,
@@ -546,6 +560,9 @@ function startAppBody() {
   if (currentTab === "executive" && window.ExecutiveDashboard) {
     window.ExecutiveDashboard.init("app-root");
   }
+  if (currentTab === "listintel") {
+    renderListIntelTab(document.getElementById("app-root"));
+  }
   mountAskPanel(currentTab);
 
   // 2026-09-11 (loading-performance fix, restoring the 2026-08-08 design
@@ -554,7 +571,7 @@ function startAppBody() {
   // so it's already there by the time anyone opens the Customer Health
   // drill on the Sales tab, without costing first paint. CacheLoader
   // schedules this on requestIdleCallback; ensure() never rejects.
-  if (window.CacheLoader) {
+  if (window.CacheLoader && !listIntelOnly) {
     window.CacheLoader.preload("customer_analytics");
   }
 
@@ -575,6 +592,7 @@ function startAppBody() {
     item.addEventListener("click", (e) => {
       const clickedItem = e.target.closest(".menu-item");
       if (!clickedItem || clickedItem.classList.contains("active")) return;
+      if (listIntelOnly && clickedItem.dataset.tab !== "listintel") return;
 
       if (e.isTrusted || !window.__isProgrammaticTabSwitch) {
         if (window.AskEngine && window.AskEngine.AskContext) {
@@ -1048,7 +1066,7 @@ async function renderListIntelTab(container) {
       ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
           icon: "\u{1F512}",
           title: "Access restricted",
-          hint: "List Intelligence is available to CEO, VP / Commercial Lead, Commercial Manager, SFE Manager, BEx and Admin (all lines), BU Managers (own BU), Group Brand Managers and Line Managers (own lines).",
+          hint: "List Intelligence is available to CEO, VP / Commercial Lead, Commercial Manager, SFE Manager, BEx, Admin and Field Intel Trainers (all lines), BU Managers (own BU), Group Brand Managers and Line Managers (own lines).",
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;

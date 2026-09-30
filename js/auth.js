@@ -203,6 +203,7 @@
   function canViewMarketNews() {
     var u = getValidSessionUser();
     if (!u) return false;
+    if (isListIntelOnly()) return false;
     return true;
   }
 
@@ -215,24 +216,28 @@
   function canViewCoverage() {
     var u = getValidSessionUser();
     if (!u) return false;
+    if (isListIntelOnly()) return false;
     return u.role !== "Commercial Manager";
   }
 
   function canViewSfe() {
     var u = getValidSessionUser();
     if (!u) return false;
+    if (isListIntelOnly()) return false;
     return u.role !== "Commercial Manager";
   }
 
   function canViewCoverageAndRightFreq() {
     var u = getValidSessionUser();
     if (!u) return false;
+    if (isListIntelOnly()) return false;
     return u.role !== "Commercial Manager";
   }
 
   function canViewIqvia() {
     var u = getValidSessionUser();
     if (!u) return false;
+    if (isListIntelOnly()) return false;
     return u.role !== "Commercial Manager";
   }
 
@@ -347,7 +352,7 @@
   // a Line Manager with no line sees nothing. Matching is on each rep's
   // ORIGINAL CRM line, so CHC and CHC_Sales stay separate for access even
   // though CHC_Sales is merged into CHC for reporting.
-  var LIST_INTEL_ROLES = ["CEO", "VP", "Commercial Director", "Commercial Manager", "SFE Manager", "BEX", "Admin"];
+  var LIST_INTEL_ROLES = ["CEO", "VP", "Commercial Director", "Commercial Manager", "SFE Manager", "BEX", "Admin", "Field Intel Trainer"];
   var LIST_INTEL_SCOPED_ROLES = ["BU Manager", "Group Brand Manager", "Line Manager"];
   // Login line name (upper-cased) -> CRM list line(s) (upper-cased). Any name
   // not listed maps to itself. Approved by Ahmed 2026-09-25.
@@ -398,6 +403,21 @@
 
   function canViewListIntel() {
     return listIntelScope() !== null;
+  }
+
+  // -------------------------------------------------------------------
+  // LIST-INTELLIGENCE-ONLY ROLES (2026-09-30, Ahmed)
+  // -------------------------------------------------------------------
+  // "Field Intel Trainer" (abdelrahman.shawky, mostafa.rakha): access ONLY
+  // to List Intelligence (all lines, via LIST_INTEL_ROLES). js/app.js hides
+  // every other sidebar entry, lands them on List Intelligence and ignores
+  // clicks to any other tab; the canView* gates below also return false.
+  var LIST_INTEL_ONLY_ROLES = ["Field Intel Trainer"];
+
+  function isListIntelOnly() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return LIST_INTEL_ONLY_ROLES.indexOf(u.role) >= 0;
   }
 
   function canViewWorkingDays() {
@@ -686,6 +706,8 @@
     canViewBuReview: canViewBuReview,
     BU_REVIEW_ROLES: BU_REVIEW_ROLES,
     canViewListIntel: canViewListIntel,
+    isListIntelOnly: isListIntelOnly,
+    LIST_INTEL_ONLY_ROLES: LIST_INTEL_ONLY_ROLES,
     listIntelScope: listIntelScope,
     LIST_INTEL_ROLES: LIST_INTEL_ROLES,
     LIST_INTEL_SCOPED_ROLES: LIST_INTEL_SCOPED_ROLES,
