@@ -1809,6 +1809,26 @@
   function geoFocusIsGroup(focus) { return focus === "zeta" || focus === "corp"; }
   function geoMarketName(kind, m) { return m === "all" ? "All markets" : cache.lookups[kind + "s"][m]; }
 
+  /** Row predicate (fact-row base offset -> bool) for market `market` under basis
+   * `kind`, applying the user's market scope when market === "all". Shared by
+   * geoCube and the Excel export so both always see exactly the same rows. */
+  function geoRowInMarket(kind, market) {
+    const f = cache.fact, AT = f.fields.indexOf("atc4");
+    if (market === "all") {
+      const allowedAll = geoAllowedMarkets(kind);
+      if (kind === "atc4") return (b) => !allowedAll || allowedAll.has(f.rows[b + AT]);
+      return (b) => {
+        const ms = marketsOfRow(b, kind);
+        if (!ms.length) return false;
+        if (!allowedAll) return true;
+        for (let j = 0; j < ms.length; j++) if (allowedAll.has(ms[j])) return true;
+        return false;
+      };
+    }
+    if (kind === "atc4") return (b) => f.rows[b + AT] === market;
+    return (b) => marketsOfRow(b, kind).indexOf(market) >= 0;
+  }
+
   /** One pass over the fact table for (kind, market, period, prior):
    * per-brand Region x Specialty cells (current + prior). Memoised. */
   function geoCube(kind, market, period) {
@@ -1819,24 +1839,14 @@
     const PI = fi("period"), PR = fi("product"), RG = fi("region"), SP = fi("specialty"), AT = fi("atc4");
     const nR = cache.lookups.regions.length, nS = cache.lookups.specialties.length, nC = nR * nS;
     const prior = period - 1;
-    const isAll = market === "all";
-    const allowedAll = isAll ? geoAllowedMarkets(kind) : null;
+    const inMarket = geoRowInMarket(kind, market);
     const brands = new Map(); // product -> {cur:Float64Array, pri:Float64Array}
     const mktCur = new Float64Array(nC), mktPri = new Float64Array(nC);
     for (let i = 0; i < f.rx.length; i++) {
       const b = i * st;
       const p = f.rows[b + PI];
       if (p !== period && p !== prior) continue;
-      if (isAll) {
-        if (kind === "atc4") { if (allowedAll && !allowedAll.has(f.rows[b + AT])) continue; }
-        else {
-          const ms = marketsOfRow(b, kind);
-          if (!ms.length) continue;
-          if (allowedAll) { let hit = false; for (let j = 0; j < ms.length; j++) if (allowedAll.has(ms[j])) { hit = true; break; } if (!hit) continue; }
-        }
-      }
-      else if (kind === "atc4") { if (f.rows[b + AT] !== market) continue; }
-      else if (marketsOfRow(b, kind).indexOf(market) < 0) continue;
+      if (!inMarket(b)) continue;
       const c = f.rows[b + RG] * nS + f.rows[b + SP];
       const prod = f.rows[b + PR];
       let e = brands.get(prod);
@@ -1954,7 +1964,8 @@
       `How the market's prescriptions split by ${noun} (<b>Market Mix %</b>), how <b>our</b> prescriptions split (<b>Product Mix %</b>), and how strong we are in each ${noun}.`,
       `If our mix % is <b>lower</b> than the market's in a ${noun}, we are under-represented there. <b>Share %</b> = our Rx ÷ all Rx in that ${noun}. ` +
       `<b>Index</b> compares that share with our average: 100 = average, <b>below 90 = below average</b>, <b>above 110 = above average</b>. ` +
-      `<b>Rx Gap</b> = extra prescriptions we would get if this ${noun} reached our average share (orange/red = room to grow, green = ahead). Click a row to filter the rest of the page.${promoLine}`,
+      `<b>Rx Gap</b> = extra prescriptions we would get if this ${noun} reached our average share (orange/red = room to grow, green = ahead). Click a row to filter the rest of the page.${promoLine}` +
+      (dim === "region" ? ` <b>Top 5 brands</b> = the market's five biggest brands by Rx in the selected period: Rx written in each region, with their share of that region's prescriptions underneath (bold = biggest of the five in that region, ★ = Zeta, blue = the product in focus).` : ""),
       now);
   }
 
@@ -2089,7 +2100,30 @@
       <span class="imsrx-geo-twin-p" style="width:${Math.min(100, p).toFixed(1)}%"></span></div>`;
   }
 
-  function geoPanelHtml(dim, data, promo) {
+  // ---- Top-5 brands beside Market / We in Region distribution (2026-09-30, Ahmed) ----
+  // The market's GEO_TOP_BRANDS biggest brands by Rx in the SELECTED period
+  // (default MAT Dec 2025), inside the selected market + Specialty chips (the
+  // same context as the Region panel), ranked across ALL regions. Per region
+  // each brand shows its Rx and its share of that region's market Rx.
+  const GEO_TOP_BRANDS = 5;
+  function geoTopBrandsByRegion(cube) {
+    const nS = cube.nS, nR = cube.nR, sSel = GEO.specs;
+    const list = [];
+    cube.brands.forEach((e, p) => {
+      const byR = new Float64Array(nR);
+      let t = 0;
+      for (let c = 0; c < e.cur.length; c++) {
+        const v = e.cur[c];
+        if (!v || (sSel.size && !sSel.has(c % nS))) continue;
+        byR[Math.floor(c / nS)] += v; t += v;
+      }
+      if (t > 0) list.push({ p, t, byR });
+    });
+    list.sort((a, b) => b.t - a.t);
+    return list.slice(0, GEO_TOP_BRANDS);
+  }
+
+  function geoPanelHtml(dim, data, promo, top) {
     const sel = dim === "region" ? GEO.regions : GEO.specs;
     let rows = data.rows;
     let others = null;
@@ -2101,6 +2135,24 @@
         others.n = rest.length;
       }
     }
+    const tops = top || [];
+    const topN = tops.length;
+    const fset = topN ? geoFocusSet(GEO.focus) : null;
+    const topHead = tops.map((b, i) => {
+      const comp = companyOfProduct[b.p] >= 0 ? companyNames[companyOfProduct[b.p]] : "";
+      const isZ = comp && /^ZETA\b/i.test(comp);
+      return `<th class="num g-top${fset.has(b.p) ? " g-top-f" : ""}" title="#${i + 1} by Rx · ${escAttr(comp)} · ${gRx(b.t)} Rx">${isZ ? "★ " : ""}${escAttr(cache.lookups.products[b.p])}</th>`;
+    }).join("");
+    const topCells = (r) => {
+      if (!topN) return "";
+      let mx = 0;
+      tops.forEach((b) => { if (b.byR[r.idx] > mx) mx = b.byR[r.idx]; });
+      return tops.map((b) => {
+        const v = b.byR[r.idx];
+        const sh = r.small || !(r.mkt > 0) ? null : v / r.mkt;
+        return `<td class="num g-topc${fset.has(b.p) ? " g-top-f" : ""}${v > 0 && v === mx ? " lead" : ""}">${v > 0 ? gRx(v) : "—"}<span class="imsrx-geo-sub">${gPct(sh, 1)}</span></td>`;
+      }).join("");
+    };
     const title = dim === "region" ? "① Region distribution" : "② Specialty distribution";
     const ctx = dim === "region"
       ? (GEO.specs.size ? `for ${GEO.specs.size === 1 ? escAttr(cache.lookups.specialties[[...GEO.specs][0]]) : GEO.specs.size + " specialties"}` : "all specialties")
@@ -2113,12 +2165,14 @@
         <tr class="imsrx-geo-grp"><th></th>
           <th colspan="2" class="g-vol">Where is the volume?</th>
           <th colspan="2" class="g-we">Where are we?</th>
+          ${topN ? `<th colspan="${topN}" class="g-top">Top ${topN} brands · Rx &amp; share · ${escAttr(cache.lookups.periods[GEO.period])}</th>` : ""}
           <th colspan="2" class="g-str">How strong?</th>
           <th class="g-ix">Over / under?</th>
           <th class="g-gap">At stake</th></tr>
         <tr><th>${dim === "region" ? "Region" : "Specialty"}</th>
           <th class="num g-vol">Market Rx</th><th class="num g-vol">Market Mix %</th>
           <th class="num g-we">Product Rx</th><th class="num g-we">Product Mix %</th>
+          ${topHead}
           <th class="num g-str">Share %</th><th class="num g-str">Δ Share</th>
           <th class="num g-ix">Index</th><th class="num g-gap">Rx Gap</th></tr>
       </thead><tbody>`;
@@ -2132,6 +2186,7 @@
         <td class="num mix">${gPct(r.mktMix)}${geoMixBar(r.mktMix, r.prodMix)}</td>
         <td class="num">${gRx(r.prod)}</td>
         <td class="num">${gPct(r.prodMix)}</td>
+        ${topCells(r)}
         <td class="num strong">${r.small ? '<span class="imsrx-geo-muted" title="Market Rx below 0.5% of market total">—</span>' : gPct(r.share, 2)}</td>
         <td class="num ${r.dShare > 0 ? "pos" : r.dShare < 0 ? "neg" : ""}">${gPp(r.dShare)}</td>
         <td class="num">${gIndexBadge(r.index)}</td>
@@ -2140,10 +2195,10 @@
     if (others) {
       h += `<tr class="imsrx-geo-others"><td class="nm">Others (${others.n})</td><td class="num">${gRx(others.mkt)}</td>
         <td class="num">${gPct(data.mT ? others.mkt / data.mT : null)}</td><td class="num">${gRx(others.prod)}</td>
-        <td class="num">${gPct(data.pT ? others.prod / data.pT : null)}</td><td colspan="4"></td></tr>`;
+        <td class="num">${gPct(data.pT ? others.prod / data.pT : null)}</td>${topN ? `<td colspan="${topN}"></td>` : ""}<td colspan="4"></td></tr>`;
     }
     h += `<tr class="imsrx-geo-total"><td class="nm">Total in context</td><td class="num">${gRx(data.mT)}</td><td class="num">100%</td>
-      <td class="num">${gRx(data.pT)}</td><td class="num">100%</td><td class="num strong">${gPct(data.ctxShare, 2)}</td><td colspan="3"></td></tr>`;
+      <td class="num">${gRx(data.pT)}</td><td class="num">100%</td>${tops.map((b) => `<td class="num g-topc${fset.has(b.p) ? " g-top-f" : ""}">${gRx(b.t)}<span class="imsrx-geo-sub">${gPct(data.mT > 0 ? b.t / data.mT : null, 1)}</span></td>`).join("")}<td class="num strong">${gPct(data.ctxShare, 2)}</td><td colspan="3"></td></tr>`;
     h += "</tbody></table></div>";
     if (dim === "specialty" && data.rows.length > GEO_TOP_SPECS) {
       h += `<button type="button" class="imsrx-geo-link" id="imsrx-geo-allspecs">${GEO.allSpecs ? "Show top " + GEO_TOP_SPECS : "Show all " + data.rows.length + " specialties"}</button>`;
@@ -2356,6 +2411,7 @@
             : `<option value="zeta"${GEO.focus === "zeta" ? " selected" : ""}>All Zeta brands in market</option>`}
           ${brandOpts.map((b) => `<option value="${b.p}"${b.p === GEO.focus ? " selected" : ""}>${zeta.has(b.p) ? "★ " : ""}${escAttr(cache.lookups.products[b.p])}</option>`).join("")}
         </select></label>
+        <button type="button" class="imsrx-geo-xlbtn" id="imsrx-geo-excel" title="Download the full IMS Rx source rows for this market plus every table on this page">⬇ Download Excel</button>
         <button type="button" class="imsrx-geo-guidebtn${GEO.guides ? " on" : ""}" data-geo-guides="1" title="Show or hide the explanation boxes">💡 Guides ${GEO.guides ? "on" : "off"}</button>
         ${allowed ? `<span class="imsrx-geo-scope" title="Markets limited to your assigned markets, same rule as Target Achievement">🔒 ${mOpts.length} assigned market${mOpts.length === 1 ? "" : "s"}</span>` : ""}
       </div>
@@ -2379,7 +2435,7 @@
           ? `In this selection we write about <b>${shC != null ? (shC * 100).toFixed(1) : "—"} of every 100 prescriptions</b> (${gRx(pC)} of ${gRx(mC)})${cube.hasPrior && shC != null && shCp != null ? `, ${shC >= shCp ? "up" : "down"} <b>${Math.abs((shC - shCp) * 100).toFixed(1)} points</b> vs last year` : ""}. Lifting every below-average region × specialty cell to our whole-market share (${gPct(national, 2)}) would add about <b>${gRx(totGap)} Rx</b>.`
           : "Our product has no prescriptions in this selection.")}
 
-      ${geoPanelHtml("region", regionData, promo)}
+      ${geoPanelHtml("region", regionData, promo, geoTopBrandsByRegion(cube))}
       ${geoPanelHtml("specialty", specData, promo)}
       ${geoMatrixHtml(cube, cells, specOrder, promo)}
       ${geoOpportunityHtml(cube, cells, promo)}
@@ -2391,6 +2447,151 @@
         <strong>Rules:</strong> Index &lt;90 Under · 90–110 In-line · &gt;110 Over. Region/Specialty rows benchmark against the share in the current context; matrix &amp; opportunity cells against the whole-market share (${gPct(national, 2)}). Cells under 0.5% of market Rx show "—". Rx = physician-panel prescription count, not sales.
       </div>`}
       </div>`;
+  }
+
+  // ---- Excel download (added 2026-09-30, Ahmed) ------------------------
+  // One workbook for the current Geo & Specialty view, built client-side with
+  // the vendored SheetJS (assets/xlsx.core.min.js, same lib as js/exporter.js):
+  //   "Source rows"      -- EVERY IMS Rx source row of the selected market
+  //                         (all 3 MAT periods, all regions/specialties, NOT
+  //                         narrowed by chips), decoded to names. Same market
+  //                         rule + user market scope as the page (geoRowInMarket).
+  //   "Region distribution" / "Specialty distribution" (incl. Top-5 brands),
+  //   "Region x Specialty", "Opportunity", "Competitors" -- the on-screen
+  //   tables under the current chips, plus "Read me" with filters & formulas.
+  // Percentages are exported as numbers with 2 decimals (12.2 = 12.2%).
+  function geoExportExcel() {
+    if (typeof XLSX === "undefined") { alert("Excel library (assets/xlsx.core.min.js) is not loaded."); return; }
+    const L = cache.lookups, f = cache.fact, st = f.stride, fi = (k) => f.fields.indexOf(k);
+    const kind = GEO.kind, mName = geoMarketName(kind, GEO.market), perName = L.periods[GEO.period];
+    const cube = geoCube(kind, GEO.market, GEO.period);
+    const fc = geoFocusCells(cube, GEO.focus);
+    const mktAll = cube.mktCur.reduce((a, b) => a + b, 0), prodAll = fc.cur.reduce((a, b) => a + b, 0);
+    const national = mktAll > 0 ? prodAll / mktAll : 0;
+    const promo = geoPromo(kind, GEO.market, GEO.focus);
+    const pc = (v) => (v == null || !isFinite(v) ? "" : Math.round(v * 10000) / 100);
+    const num = (v) => (v == null || !isFinite(v) ? "" : Math.round(v * 100) / 100);
+    const corpOf = (p) => {
+      const c = L.corpConfidence[p], nm = L.corps[p] || [];
+      return c === 2 ? nm[0] : c === 1 ? "Ambiguous: " + nm.join(" / ") : "Unmatched";
+    };
+    const zeta = geoZetaSet();
+    const fset = geoFocusSet(GEO.focus);
+    const focusName = GEO.focus === "zeta" ? "All Zeta brands in market" : GEO.focus === "corp" ? "All " + companyNames[GEO.corp] + " brands" : L.products[GEO.focus];
+    const wb = XLSX.utils.book_new();
+    const add = (name, aoa, widths) => {
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      if (widths) ws["!cols"] = widths.map((w) => ({ wch: w }));
+      if (aoa.length > 1) ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: aoa[0].length - 1 } }) };
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    };
+
+    // -- Read me
+    const chipsR = [...GEO.regions].map((r) => L.regions[r]).join(", ") || "All";
+    const chipsS = [...GEO.specs].map((x) => L.specialties[x]).join(", ") || "All";
+    const readme = [["IMS Rx — Geo & Specialty export"], [],
+      ["Generated", new Date().toLocaleString()], ["Source file", cache.meta.source], ["Cache built", cache.meta.generatedAt],
+      ["Period (tables)", perName], ["Prior period", GEO.period > 0 ? L.periods[GEO.period - 1] : "—"],
+      ["Market basis", kind.toUpperCase()], ["Market", mName],
+      ["Corporation filter", GEO.corp != null ? companyNames[GEO.corp] : "All corporations"], ["Product focus", focusName],
+      ["Region filter", chipsR], ["Specialty filter", chipsS],
+      ["Product share of whole market", pc(national)], [],
+      ["Sheets"], ["Source rows", "Every IMS Rx source row in this market, all periods, all regions & specialties (chips NOT applied)."],
+      ["Region / Specialty distribution", "On-screen tables for the current period and chips (Region sheet includes the Top-5 brands)."],
+      ["Region x Specialty", "Every cell of the matrix; benchmark = product share of the whole market."],
+      ["Opportunity", "Cells with a positive Rx Gap in the current chips, ranked."], ["Competitors", "Every brand in the current selection."], [],
+      ["Formulas"], ["Market Mix %", "Market Rx(x) / Σ Market Rx"], ["Product Mix %", "Product Rx(x) / Σ Product Rx"],
+      ["Share %", "Product Rx(x) / Market Rx(x)"], ["Index", "Share(x) / average share × 100  (<90 Under · 90–110 In-line · >110 Over)"],
+      ["Rx Gap", "Market Rx(x) × average share − Product Rx(x)  (+ = room to grow)"],
+      ["Small cells", "Market Rx < 0.5% of market total → Share / Index / Gap left blank"],
+      ["Percent columns", "Exported as numbers: 12.34 = 12.34%"],
+      ["Caution", kind === "atc4" ? "ATC4 = every brand IMS Rx classifies in that ATC4." : "A brand in several IQVIA markets counts fully in each — do not add market totals together."],
+      ["Rx", "Physician-panel prescription count, not sales."]];
+    add("Read me", readme, [30, 110]);
+
+    // -- Region / Specialty distribution
+    const panelSheet = (dim, top) => {
+      const d = geoPanelRows(dim, cube, fc, mktAll);
+      const tops = top || [];
+      const head = [dim === "region" ? "Region" : "Specialty"];
+      if (dim === "specialty") head.push("Promoted (Promo Grid)");
+      head.push("Market Rx", "Market Mix %", "Product Rx", "Product Mix %");
+      tops.forEach((b) => head.push(L.products[b.p] + " Rx", L.products[b.p] + " Share %"));
+      head.push("Share %", "Δ Share (pp)", "Index", "Index band", "Rx Gap");
+      const aoa = [head];
+      d.rows.forEach((r) => {
+        const row = [r.name];
+        if (dim === "specialty") row.push(promo.known ? (promo.promoted.has(r.idx) ? "Yes" : "No") : "n/a");
+        row.push(num(r.mkt), pc(r.mktMix), num(r.prod), pc(r.prodMix));
+        tops.forEach((b) => { const v = b.byR[r.idx]; row.push(num(v), r.small || !(r.mkt > 0) ? "" : pc(v / r.mkt)); });
+        row.push(pc(r.share), pc(r.dShare), num(r.index), r.index == null ? "" : gBand(r.index), num(r.gap));
+        aoa.push(row);
+      });
+      const tot = ["Total in context"];
+      if (dim === "specialty") tot.push("");
+      tot.push(num(d.mT), 100, num(d.pT), 100);
+      tops.forEach((b) => tot.push(num(b.t), d.mT > 0 ? pc(b.t / d.mT) : ""));
+      tot.push(pc(d.ctxShare), "", "", "", "");
+      aoa.push(tot);
+      return aoa;
+    };
+    add("Region distribution", panelSheet("region", geoTopBrandsByRegion(cube)), [18, 12, 12, 12, 12, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 10, 12, 8, 10, 10]);
+    add("Specialty distribution", panelSheet("specialty"), [26, 12, 12, 12, 12, 12, 10, 12, 8, 10, 10]);
+
+    // -- Region x Specialty (long format)
+    const cells = geoCellStats(cube, fc, national, mktAll);
+    const leaderOf = (c) => geoLeaderIn(cube, (x) => x === c);
+    const mx = [["Region", "Specialty", "Promoted (Promo Grid)", "Market Rx", "Product Rx", "Share %", "Index", "Index band", "Rx Gap", "Cell leader", "Leader share %"]];
+    cells.filter((x) => x.mkt > 0).forEach((x) => {
+      const ld = leaderOf(x.c);
+      mx.push([L.regions[x.r], L.specialties[x.s], promo.known ? (promo.promoted.has(x.s) ? "Yes" : "No") : "n/a",
+        num(x.mkt), num(x.prod), pc(x.share), num(x.index), x.index == null ? "" : gBand(x.index), num(x.gap),
+        ld ? L.products[ld.p] : "", ld ? pc(ld.share) : ""]);
+    });
+    add("Region x Specialty", mx, [16, 26, 12, 12, 12, 10, 8, 10, 10, 22, 12]);
+
+    // -- Opportunity (current chips)
+    const inCtx = (x) => (!GEO.regions.size || GEO.regions.has(x.r)) && (!GEO.specs.size || GEO.specs.has(x.s));
+    const opp = cells.filter((x) => inCtx(x) && x.gap != null && x.gap > 0).sort((a, b) => b.gap - a.gap);
+    const typ = (x) => !promo.known ? "No Promo data" : promo.promoted.has(x.s) ? "Focus-specialty growth" : "New-specialty potential";
+    const oa = [["#", "Region", "Specialty", "Opportunity type", "Market Rx", "Product Rx", "Share %", "Index", "Rx Gap", "Cell leader", "Leader share %"]];
+    opp.forEach((x, i) => { const ld = leaderOf(x.c); oa.push([i + 1, L.regions[x.r], L.specialties[x.s], typ(x), num(x.mkt), num(x.prod), pc(x.share), num(x.index), num(x.gap), ld ? L.products[ld.p] : "", ld ? pc(ld.share) : ""]); });
+    add("Opportunity", oa, [5, 16, 26, 24, 12, 12, 10, 8, 10, 22, 12]);
+
+    // -- Competitors (current chips, every brand)
+    const nS = cube.nS, inC = (c) => (!GEO.regions.size || GEO.regions.has(Math.floor(c / nS))) && (!GEO.specs.size || GEO.specs.has(c % nS));
+    const comp = []; let tot = 0, totP = 0;
+    cube.brands.forEach((e, p) => { let v = 0, vp = 0; for (let c = 0; c < e.cur.length; c++) if (inC(c)) { v += e.cur[c]; vp += e.pri[c]; } tot += v; totP += vp; if (v > 0 || vp > 0) comp.push({ p, v, vp }); });
+    comp.sort((a, b) => b.v - a.v);
+    const ca = [["#", "Brand", "Corporation", "Zeta brand", "In focus", "Rx " + perName, "Share %", "Rx prior", "Share prior %", "Δ Share (pp)", "Rx growth %"]];
+    comp.forEach((r, i) => {
+      const sh = tot > 0 ? r.v / tot : null, shp = totP > 0 ? r.vp / totP : null;
+      ca.push([i + 1, L.products[r.p], corpOf(r.p), zeta.has(r.p) ? "Yes" : "No", fset.has(r.p) ? "Yes" : "No", num(r.v), pc(sh),
+        cube.hasPrior ? num(r.vp) : "", cube.hasPrior ? pc(shp) : "", cube.hasPrior && sh != null && shp != null ? pc(sh - shp) : "",
+        cube.hasPrior && r.vp > 0 ? pc(r.v / r.vp - 1) : ""]);
+    });
+    add("Competitors", ca, [5, 26, 30, 10, 9, 14, 10, 12, 12, 12, 12]);
+
+    // -- Source rows: the full IMS Rx source for this market (all periods, chips NOT applied)
+    const inMarket = geoRowInMarket(kind, GEO.market);
+    const PI = fi("period"), PR = fi("product"), MO = fi("molecule"), AT = fi("atc4"), SP = fi("specialty"), RG = fi("region"), DG = fi("diagnosis"), DF = fi("dosageFormCategory");
+    const nmList = (arr, lk) => (arr || []).map((i) => L[lk][i]).join(" | ");
+    const src = [["Period", "Product", "Corporation", "Zeta brand", "Molecule", "ATC3", "ATC4", "Specialty", "Region", "Diagnosis", "Dosage form category", "Rx", "IQVIA DM1 market(s)", "IQVIA DM2 market(s)"]];
+    for (let i = 0; i < f.rx.length; i++) {
+      const b = i * st;
+      if (!inMarket(b)) continue;
+      const p = f.rows[b + PR], a4 = f.rows[b + AT];
+      const a3 = L.atc4ParentAtc3 ? L.atc4ParentAtc3[a4] : null;
+      src.push([L.periods[f.rows[b + PI]], L.products[p], corpOf(p), zeta.has(p) ? "Yes" : "No", L.molecules[f.rows[b + MO]],
+        a3 != null && a3 >= 0 ? L.atc3s[a3] : "", L.atc4s[a4], L.specialties[f.rows[b + SP]], L.regions[f.rows[b + RG]],
+        L.diagnoses[f.rows[b + DG]], L.dosageFormCategories[f.rows[b + DF]], f.rx[i],
+        nmList(marketsOfRow(b, "dm1"), "dm1s"), nmList(marketsOfRow(b, "dm2"), "dm2s")]);
+    }
+    add("Source rows", src, [14, 24, 28, 9, 28, 30, 34, 24, 14, 34, 18, 9, 30, 30]);
+
+    const safe = (x) => String(x || "").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "_").slice(0, 60);
+    XLSX.writeFile(wb, `IMS_Rx_Geo_${kind.toUpperCase()}_${safe(mName)}_${safe(perName)}.xlsx`, { compression: true });
+    return src.length - 1;
   }
 
   function geoRerender() {
@@ -2441,6 +2642,14 @@
       geoRerender();
     }));
     on(q("[data-geo-clear]"), "click", () => { GEO.regions.clear(); GEO.specs.clear(); geoRerender(); });
+    on(q("#imsrx-geo-excel"), "click", (e) => {
+      const btn = e.currentTarget, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = "⏳ Preparing…";
+      setTimeout(() => {
+        try { geoExportExcel(); } catch (err) { console.error("[IMS Rx] Excel export failed", err); alert("Excel export failed: " + err.message); }
+        btn.disabled = false; btn.textContent = lbl;
+      }, 30);
+    });
     on(q("[data-geo-guides]"), "click", () => { GEO.guides = !GEO.guides; geoGuidesSave(GEO.guides); geoRerender(); });
   }
 

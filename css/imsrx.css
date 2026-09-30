@@ -659,3 +659,14 @@
 .imsrx-geo > .imsrx-geo-guide { margin: 0; }
 .imsrx-geo-guidebtn { align-self: flex-end; margin-bottom: 4px; border: 1px solid #FCD34D; background: #fff; color: #92400E; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
 .imsrx-geo-guidebtn.on { background: #FEF3C7; }
+
+/* ---- Geo & Specialty: Top-5 brands beside Market / We in Region distribution (2026-09-30) ---- */
+.imsrx-geo-tbl th.g-top { background: rgba(21,128,61,.08); max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+.imsrx-geo-tbl th.g-top-f, .imsrx-geo-tbl td.g-top-f { background: rgba(30,64,175,.07); color: var(--color-primary, #1E40AF); }
+.imsrx-geo-tbl td.g-topc { line-height: 1.2; }
+.imsrx-geo-tbl td.g-topc.lead { font-weight: 700; }
+.imsrx-geo-sub { display: block; font-size: 11px; font-weight: 400; color: var(--color-text-secondary, #64748B); }
+
+/* ---- Geo & Specialty: Excel download button (2026-09-30) ---- */
+.imsrx-geo-xlbtn { align-self: flex-end; margin-bottom: 4px; border: 1px solid #86EFAC; background: #F0FDF4; color: #166534; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.imsrx-geo-xlbtn:hover { background: #DCFCE7; } .imsrx-geo-xlbtn:disabled { opacity: .6; cursor: wait; }
