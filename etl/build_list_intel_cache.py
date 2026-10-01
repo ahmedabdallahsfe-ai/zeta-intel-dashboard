@@ -312,7 +312,7 @@ PLAN_COLS = {
     'current': ['Total Number Of Drs', 'Total Number AM Accounts', 'Total Number Of AM Accounts'],
     'freq': ['Total Number Of Frequency', 'Frequency'],
     'rate': ['Target Call Rate PM', 'Target Call Rate AM', 'Target Call Rate'],
-    'capacity': ['Capacity'], 'deviation': ['Deviation'], 'status': ['Status Of Deviation'],
+    'capacity': ['Capacity'], 'deviation': ['Deviation', 'Devition'], 'status': ['Status Of Deviation'],
 }
 for _c in CLASSES + ['Others']:
     PLAN_COLS['cls_' + _c] = ['Total Number Of Class ' + _c]

@@ -58,7 +58,7 @@
       file: "cache/customer_analytics.data.js",
       globalVar: "CUSTOMER_ANALYTICS_CACHE",
       label: "Customer analytics",
-      version: "20260925_chcnewtgt",
+      version: "20261001_q3upd",
     },
     market_intel: {
       file: "cache/market_intel.data.js",
@@ -82,7 +82,7 @@
       file: "cache/list_intel.data.js",
       globalVar: "LIST_INTEL_CACHE",
       label: "List intelligence",
-      version: "20260925_p2",
+      version: "20261001_listupd",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",
