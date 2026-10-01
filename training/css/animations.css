@@ -1,0 +1,98 @@
+/* =====================================================================
+   ZETA ENTERPRISE DESIGN SYSTEM — animations.css
+   =====================================================================
+   PLATFORM ASSET. All keyframes + animation utility classes live here —
+   the single "Animation System" referenced by the architecture brief.
+   Depends on design-system.css tokens (--transition-*). Load AFTER
+   design-system.css and BEFORE components.css (components reference
+   these classes/keyframes).
+   ===================================================================== */
+
+/* ── Keyframes ───────────────────────────────────────────────────────── */
+
+@keyframes ds-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes ds-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ds-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes ds-slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes ds-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ds-shimmer {
+  from { background-position: -400px 0; }
+  to   { background-position: 400px 0; }
+}
+
+@keyframes ds-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+@keyframes ds-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── Utility classes ─────────────────────────────────────────────────── */
+
+/* Usage: add to any element that should fade/slide in on first render
+   (cards, panels, modal bodies). Respects reduced-motion below. */
+.ds-animate-fade-in     { animation: ds-fade-in var(--transition-slow) both; }
+.ds-animate-slide-in    { animation: ds-slide-in-right var(--transition-slow) both; }
+.ds-animate-slide-up    { animation: ds-slide-up var(--transition-slow) both; }
+.ds-animate-scale-in    { animation: ds-scale-in var(--transition-base) both; }
+.ds-animate-spin        { animation: ds-spin 0.9s linear infinite; }
+.ds-animate-pulse       { animation: ds-pulse 1.6s ease-in-out infinite; }
+
+/* Stagger helper: apply alongside .ds-animate-* to cascade a grid of
+   cards in one-by-one instead of all at once (KPI row, insight cards). */
+.ds-stagger-1 { animation-delay: 0.03s; }
+.ds-stagger-2 { animation-delay: 0.06s; }
+.ds-stagger-3 { animation-delay: 0.09s; }
+.ds-stagger-4 { animation-delay: 0.12s; }
+.ds-stagger-5 { animation-delay: 0.15s; }
+.ds-stagger-6 { animation-delay: 0.18s; }
+
+/* Skeleton-loading shimmer background (paired with .ds-skeleton in
+   components.css, which sets width/height/radius per placeholder shape). */
+.ds-shimmer-bg {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-alt) 0%,
+    var(--color-border) 50%,
+    var(--color-surface-alt) 100%
+  );
+  background-size: 800px 100%;
+  animation: ds-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Respect user preference: kill all motion, keep the end state only. */
+@media (prefers-reduced-motion: reduce) {
+  .ds-animate-fade-in,
+  .ds-animate-slide-in,
+  .ds-animate-slide-up,
+  .ds-animate-scale-in,
+  .ds-animate-spin,
+  .ds-animate-pulse,
+  .ds-shimmer-bg {
+    animation: none !important;
+    transition: none !important;
+  }
+}

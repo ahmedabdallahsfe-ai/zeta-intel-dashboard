@@ -1,0 +1,1 @@
+window.AUTH_USERS = {"zeta.line@zeta-pharma.com":{"name":"Zeta Line Manager","role":"Line Manager","bu":["GIT"],"lines":["GIT-I"],"dm1s":null,"prods":null,"hash":"8e0c03c2a6700efd596adf9e57904624022881608090e9732c9edabb4df5ed7b"}};

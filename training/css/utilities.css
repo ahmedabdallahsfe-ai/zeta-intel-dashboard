@@ -1,0 +1,116 @@
+/* =====================================================================
+   ZETA ENTERPRISE DESIGN SYSTEM — utilities.css
+   =====================================================================
+   PLATFORM ASSET. A small, deliberately restrained set of single-purpose
+   helper classes — NOT a Tailwind-style utility framework. Every class
+   here earns its place because it recurs across workspaces (text
+   truncation for long product/customer names, visually-hidden labels
+   for accessibility, a handful of spacing overrides for one-off cases
+   that don't need a full grid).
+
+   Loads LAST in the design-system stack (after components.css) on
+   purpose: utility classes are meant to win the specificity/cascade
+   contest when applied directly in markup.
+   ===================================================================== */
+
+/* ── Text truncation ─────────────────────────────────────────────────
+   Usage: long product/brand/customer names in tables and KPI labels
+   that must not wrap or blow out a fixed-width cell. */
+
+.ds-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Visually hidden (accessible labels) ─────────────────────────────
+   Usage: form/icon-only buttons that need a screen-reader label without
+   a visible one, e.g. <span class="ds-visually-hidden">Close modal</span> */
+
+.ds-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Text color / weight one-offs ─────────────────────────────────────
+   Usage: inline emphasis inside otherwise plain text (a single figure
+   that should read as positive/negative without a full component). */
+
+.ds-text-success { color: var(--color-success); }
+.ds-text-warning { color: var(--color-warning); }
+.ds-text-danger  { color: var(--color-danger); }
+.ds-text-muted   { color: var(--color-text-secondary); }
+.ds-text-mono    { font-family: var(--font-family-mono); }
+
+.ds-font-medium   { font-weight: var(--fw-medium); }
+.ds-font-semibold { font-weight: var(--fw-semibold); }
+.ds-font-bold     { font-weight: var(--fw-bold); }
+
+.ds-text-right  { text-align: right; }
+.ds-text-center { text-align: center; }
+
+/* ── Spacing overrides ────────────────────────────────────────────────
+   Usage: rare one-off spacing adjustments where a full ds-gap-* on a
+   flex/grid parent isn't the right fit (e.g. one card needs extra
+   top margin inside an otherwise auto-spaced section). Deliberately
+   only exposes margin-top/bottom at the token scale — not a full
+   m{t,r,b,l}-{0..12} matrix, which is what makes this "restrained." */
+
+.ds-mt-0 { margin-top: 0; }
+.ds-mt-2 { margin-top: var(--space-2); }
+.ds-mt-4 { margin-top: var(--space-4); }
+.ds-mt-6 { margin-top: var(--space-6); }
+.ds-mb-0 { margin-bottom: 0; }
+.ds-mb-2 { margin-bottom: var(--space-2); }
+.ds-mb-4 { margin-bottom: var(--space-4); }
+
+/* ── Border / divider ─────────────────────────────────────────────────
+   Usage: a plain horizontal rule between sections that doesn't warrant
+   a full .ds-section wrapper. */
+
+.ds-divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: var(--space-4) 0;
+}
+
+/* ── Scrollbar (applied opt-in via class, not global override) ───────
+   Usage: apply to any .ds-table-wrap / .ds-filter-menu / long panel
+   that needs a slimmer, on-brand scrollbar instead of the OS default. */
+
+.ds-scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.ds-scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.ds-scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full);
+}
+.ds-scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--color-text-tertiary); }
+
+/* ── Cursor / interaction state ───────────────────────────────────────
+   Usage: mark an element as interactive when it isn't a <button>/<a>
+   (e.g. a clickable table row or card). */
+
+.ds-clickable { cursor: pointer; }
+.ds-disabled  { opacity: 0.5; pointer-events: none; }
+
+/* ── Width / display escape hatches ──────────────────────────────────
+   Usage: rare layout escapes that don't belong in layout.css because
+   they're single-property, not structural patterns. */
+
+.ds-full-width { width: 100%; }
+.ds-hidden     { display: none !important; }
+.ds-inline-block { display: inline-block; }

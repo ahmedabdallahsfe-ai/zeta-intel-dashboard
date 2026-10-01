@@ -1,0 +1,557 @@
+/* ===================================================================
+   COACHING INTELLIGENCE -- minimal styles (v2, insight-first redesign)
+   Deliberately small: rides on css/iqvia.css's existing
+   .iqvia-dashboard-wrap design tokens and components (.section,
+   .kpi-grid, .kpi-card, .kpi-label, .kpi-value, .kpi-sub, .tb-btn,
+   .badge/.badge-up/.badge-down/.badge-warn/.badge-neutral,
+   .section-title, .section-sub) -- see js/coaching.js's header comment.
+   This file only covers what iqvia.css doesn't already provide for a
+   full-page (non-fixed-height) embedded tab: the generic .data-table,
+   the insights list, the monthly-trend chart grid, the new BU/Line
+   filter row, the Manager Profile drawer, and (2026-08-31) the
+   detailed-visit-log modal and the DV Coverage coached/not-coached
+   popup, both of which open on top of that drawer. (The 2x2 Coverage x
+   Visits/Day Performance Matrix that used to live here was removed on
+   request 2026-08-31 -- see js/coaching.js's header comment.)
+   =================================================================== */
+
+body.coaching-mode #app-root {
+  overflow-y: auto;
+}
+
+/* 2026-09-01 (Ahmed: "Coaching Intelligence make box of how active
+   coached employee calculated and source of this calculation") -- plain-
+   language methodology box for the "Reps Coached" Executive KPI card,
+   rendered right under the kpi-grid by renderRepsCoachedMethodologyBox()
+   in js/coaching.js. Rides on .iqvia-dashboard-wrap's --bg2/--border/
+   --txt1/--txt2/--acc1 tokens, same as the rest of this file. */
+.ci-methodology-box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--acc1);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 10px 0 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--txt2);
+}
+.ci-methodology-title {
+  font-weight: 700;
+  color: var(--txt1);
+  margin-bottom: 4px;
+}
+.ci-methodology-body b { color: var(--txt1); }
+.ci-methodology-body + .ci-methodology-body { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.ci-methodology-source {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--txt3);
+  font-style: italic;
+}
+
+
+/* ---- New filter row (BU + Line) ---- */
+.iqvia-dashboard-wrap .coaching-filter-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 6px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.iqvia-dashboard-wrap .coaching-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.iqvia-dashboard-wrap .coaching-filter-field label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--txt2);
+}
+
+.iqvia-dashboard-wrap .coaching-filter-field select {
+  background: var(--bg3);
+  color: var(--txt1);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-btn);
+  padding: 7px 10px;
+  font-size: var(--fs-btn);
+  min-height: 34px;
+}
+
+.iqvia-dashboard-wrap .coaching-filter-count {
+  font-size: 12px;
+  color: var(--txt2);
+  margin-left: auto;
+  align-self: center;
+}
+
+@media (max-width: 720px) {
+  .iqvia-dashboard-wrap .coaching-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .iqvia-dashboard-wrap .coaching-filter-count {
+    margin-left: 0;
+  }
+}
+
+/* ---- Cross-module class-name collision fix ----
+   dashboard.css (the Coverage/Executive tab's OWN kpi-card system --
+   an entirely different module) defines UNSCOPED .kpi-value and
+   .kpi-label rules (no .iqvia-dashboard-wrap prefix), including
+   white-space:nowrap + text-overflow:ellipsis on .kpi-value and a
+   2-line -webkit-line-clamp on .kpi-label. iqvia.css's own .kpi-value/
+   .kpi-label rules never set those specific properties, so nothing
+   overrides dashboard.css's version -- CSS applies unset properties
+   from whichever rule sets them, regardless of the other rule's
+   higher specificity. Net effect: every KPI card in this tab (Exec
+   row AND the profile drawer) silently clipped "92.2% INTENSITY GAP"
+   down to "92.2% ..." even though the width looked like it should
+   fit. Restore normal wrapping, scoped to this tab only -- does not
+   touch dashboard.css or iqvia.css, so the Coverage tab's own cards
+   are unaffected. */
+.iqvia-dashboard-wrap .kpi-value {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.iqvia-dashboard-wrap .kpi-label {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+/* ---- generic data table (Attention Required / DM-FS table / Other
+   Levels / Manager Profile monthly + coached-employee tables) ---- */
+.iqvia-dashboard-wrap .coaching-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.iqvia-dashboard-wrap .data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-td, 13px);
+  margin-bottom: var(--gap-grid, 14px);
+}
+
+.iqvia-dashboard-wrap .data-table th,
+.iqvia-dashboard-wrap .data-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.iqvia-dashboard-wrap .data-table th {
+  color: var(--txt2);
+  font-weight: 600;
+  font-size: var(--fs-th, 13px);
+  position: sticky;
+  top: 0;
+  background: var(--bg2);
+}
+
+.iqvia-dashboard-wrap .data-table tbody tr:hover {
+  background: var(--bg3);
+}
+
+.iqvia-dashboard-wrap .data-table a {
+  color: var(--acc1);
+  text-decoration: none;
+}
+
+.iqvia-dashboard-wrap .coaching-sortable:hover {
+  color: var(--acc1);
+}
+
+/* ---- Key Insights ---- */
+.iqvia-dashboard-wrap .coaching-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+.iqvia-dashboard-wrap .coaching-insight {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.iqvia-dashboard-wrap .coaching-insight-good { border-left-color: var(--acc2); }
+.iqvia-dashboard-wrap .coaching-insight-bad { border-left-color: var(--acc3); }
+.iqvia-dashboard-wrap .coaching-insight-info { border-left-color: var(--acc1); }
+
+/* ---- Monthly Trend ---- */
+.iqvia-dashboard-wrap .coaching-trend-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap-grid);
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 720px) {
+  .iqvia-dashboard-wrap .coaching-trend-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- Manager Profile drawer: table first-column width ----
+   The shared .data-table class (dashboard.css) uses table-layout:fixed
+   with td { max-width:0 } so long text ellipsizes evenly across
+   columns -- correct for the app's usual compact lists. Inside the
+   720px-wide drawer that squeezes the Coached Employees table's Rep
+   (full transliterated name) column down to the same width as short
+   columns like Zones, over-truncating names that read fine at full
+   page width. Give the first column more of the row before it
+   ellipsizes; still truncates gracefully for the rare very-long name. */
+.iqvia-dashboard-wrap #coaching-profile-panel .data-table th:first-child,
+.iqvia-dashboard-wrap #coaching-profile-panel .data-table td:first-child {
+  width: 26%;
+  max-width: 26%;
+}
+
+/* ---- Manager Profile drawer: KPI card override ----
+   iqvia.css's .kpi-grid columns are sized off `vw` (viewport width),
+   which is correct for full-width sections but produces columns too
+   narrow for the panel's fixed 720px (or 100vw-on-mobile) width --
+   "100.0% ON TARGET" then gets clipped by .kpi-card's overflow:hidden.
+   Force a fixed 2-column layout scoped to the panel only. */
+.iqvia-dashboard-wrap #coaching-profile-panel .kpi-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 480px) {
+  .iqvia-dashboard-wrap #coaching-profile-panel .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Manager Profile drawer ----
+   Scoped under .iqvia-dashboard-wrap like every other rule in this
+   file, because the drawer must inherit that wrapper's CSS custom
+   properties (--bg1, --border2, --card-sh, ...) -- those tokens are
+   declared only on .iqvia-dashboard-wrap in iqvia.css, not on :root,
+   so the drawer must render as a DESCENDANT of it or it paints
+   transparent. See js/coaching.js render(): the drill-down panel is
+   appended into the .iqvia-dashboard-wrap element specifically (not
+   into the tab's outer mount element) so this scoping holds. */
+.iqvia-dashboard-wrap #coaching-profile-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  z-index: 9998;
+}
+
+.iqvia-dashboard-wrap #coaching-profile-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(720px, 100vw);
+  max-width: 100vw;
+  overflow-y: auto;
+  background: var(--bg1);
+  border-left: 1px solid var(--border2);
+  box-shadow: var(--card-sh);
+  padding: var(--pad-section);
+  z-index: 9999;
+}
+
+@media (max-width: 720px) {
+  .iqvia-dashboard-wrap #coaching-profile-panel {
+    width: 100vw;
+  }
+}
+
+/* ---- Detailed visit log (2026-08-31, user-requested) ----
+   A second overlay ON TOP of the profile drawer -- higher z-index than
+   #coaching-profile-panel/-backdrop above, and centered rather than a
+   side drawer, since it's a focused single-employee detail view opened
+   from within the drawer rather than a peer of it. Scoped under
+   .iqvia-dashboard-wrap for the same custom-property-inheritance reason
+   as the profile drawer (see that section's comment) -- js/coaching.js
+   appends it into the same wrapper element. */
+.iqvia-dashboard-wrap #coaching-visitlog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
+  z-index: 10001;
+}
+
+.iqvia-dashboard-wrap #coaching-visitlog-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(720px, 92vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--bg1);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-sh);
+  padding: var(--pad-section);
+  z-index: 10002;
+}
+
+@media (max-width: 600px) {
+  .iqvia-dashboard-wrap #coaching-visitlog-panel {
+    width: 94vw;
+    max-height: 88vh;
+  }
+}
+
+/* ---- DV Coverage coached/not-coached popup (2026-08-31, user-requested) ----
+   Same overlay tier as the visit-log modal above (mutually exclusive with
+   it -- see js/coaching.js's wireEvents -- so identical z-index/position
+   is fine); own ids so each overlay's backdrop/close only ever clears its
+   own state. The clickable DV Coverage cells that open this live in the
+   Monthly Performance table (js/coaching.js renderProfile). */
+.iqvia-dashboard-wrap .coaching-dvcov-cell {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.iqvia-dashboard-wrap .coaching-dvcov-cell:hover {
+  color: var(--acc1);
+}
+
+.iqvia-dashboard-wrap #coaching-rosterpopup-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
+  z-index: 10001;
+}
+
+.iqvia-dashboard-wrap #coaching-rosterpopup-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(720px, 92vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--bg1);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-sh);
+  padding: var(--pad-section);
+  z-index: 10002;
+}
+
+@media (max-width: 600px) {
+  .iqvia-dashboard-wrap #coaching-rosterpopup-panel {
+    width: 94vw;
+    max-height: 88vh;
+  }
+}
+
+/* ---- Table column widths -- names/positions were being clipped
+   (2026-09-01, user-requested) ----
+   Root cause: the shared .data-table class (css/dashboard.css) uses
+   table-layout:fixed with td { max-width:0 }, which forces EVERY
+   column of EVERY .data-table in the app to an equal share of the
+   table's width and ellipsizes whatever doesn't fit -- correct for
+   the Coverage tab's short, similar-width numeric columns, wrong for
+   this tab's Manager/Rep name columns, the Roster column's "reports
+   to X" note, and the Position column (screenshot: names cut to
+   "Ahmed Othman...", "Haggag Mohamed A..."; "Cross-te..."/
+   "reports to Va..."; "Diab..."; even the "Position" HEADER clipped
+   to "POSITIO"). Fixed per table below, scoped by a unique id added
+   to each table in js/coaching.js -- never touches the Coverage tab's
+   own tables or any other .data-table in the app. Long-text columns
+   get an explicit generous width plus white-space:normal (wraps onto
+   a second line for a rare very-long name instead of clipping it);
+   short numeric/badge columns are left unspecified so table-layout:
+   fixed auto-divides the remaining width evenly across them, exactly
+   as it did before this fix. */
+
+/* Coaching Attention Required -- 6 cols: Priority, Manager, Level,
+   Coverage, Visits/Day, (open-profile link). Manager is col 2. */
+.iqvia-dashboard-wrap #coaching-attention-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-attention-table-el td:nth-child(2) {
+  width: 30%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* District Manager & FFS Performance (ranked table) -- 11 cols: Rank,
+   Manager, Level, BU/Line, DV Coverage, Variance, Visits/Day,
+   Variance, Coaching Days, Coached Reps, Status. Rank stays a fixed
+   narrow pixel width (it's always 1-3 digits); Manager gets real
+   room + wrap (it can also carry the "Left company" badge inline). */
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(1),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(1) {
+  width: 48px;
+  max-width: 48px;
+}
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(2) {
+  width: 19%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+/* BU/Line (col 4, e.g. "Diabetes IV") came up 2px short at its
+   auto-shared width -- QA-verified. DV Coverage (col 5) can also show
+   a text badge instead of a percent ("Pending org match", "No active
+   team") -- .badge is nowrap internally (a wrapping pill looks wrong)
+   so white-space:normal on the cell alone doesn't help; give both a
+   fixed width instead. Status (col 11, last) shows a badge too
+   ("INTENSITY GAP" measured 132px vs. this column's ~92px auto share)
+   -- same fix, fixed width wide enough for the longest label. */
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(4),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(4) {
+  width: 96px;
+  max-width: none;
+  white-space: nowrap;
+}
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(5),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(5) {
+  width: 118px;
+  max-width: none;
+  white-space: nowrap;
+}
+.iqvia-dashboard-wrap #coaching-owntier-table-el th:nth-child(11),
+.iqvia-dashboard-wrap #coaching-owntier-table-el td:nth-child(11) {
+  width: 140px;
+  max-width: none;
+  white-space: nowrap;
+}
+
+/* Other Coaching Levels -- 7 cols: Manager, Level, Line, Visits,
+   Coaching Days, Avg/Day, Coached Reps. Manager is col 1; Level (col
+   2, e.g. "National Sales Manager", "Senior District Manager") also
+   QA-verified truncating at its auto-shared width -- give it explicit
+   room too. */
+.iqvia-dashboard-wrap #coaching-otherlevels-table-el th:nth-child(1),
+.iqvia-dashboard-wrap #coaching-otherlevels-table-el td:nth-child(1) {
+  width: 22%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.iqvia-dashboard-wrap #coaching-otherlevels-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-otherlevels-table-el td:nth-child(2) {
+  width: 18%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Manager Profile drawer -- Coached Employees table -- 8 cols: Rep,
+   Roster, Line, Position, Visits, Days, First, Last. Rep (col 1)
+   already gets width:26% from the drawer-wide first-column rule
+   above ("Manager Profile drawer: table first-column width") -- this
+   only adds wrapping to it instead of ellipsis, without touching that
+   width. Roster (badge + "reports to X" note) and Position (territory
+   name) get explicit room + wrap; Line/Visits/Days are short enough
+   to stay unspecified/auto; First/Last (dates) get just enough fixed
+   width to render in full on one line. */
+.iqvia-dashboard-wrap #coaching-ce-table-el th:first-child,
+.iqvia-dashboard-wrap #coaching-ce-table-el td:first-child {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+/* Roster (col 2): renders an "Own team"/"Cross-team" .badge -- like
+   every other badge in this tab (DV Coverage, Status), it's nowrap
+   internally so it can't itself wrap to avoid overflow; a percentage
+   width kept losing this tug-of-war against the other columns'
+   adjustments, so give it a fixed px width sized to the longer badge
+   ("Cross-team") instead. The optional "reports to X" note below the
+   badge is plain text and still wraps fine within that width. */
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(2) {
+  width: 100px;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(3),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(3) {
+  width: 10%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+}
+/* Position (col 4): as of 2026-09-01, can now also hold Database
+   Shortcut's raw HR job title ("Sales Representative") as a fallback
+   when a rep has no sales-derived territory label -- QA-verified that
+   single unbroken word alone (14 chars, ~90px) came up 13px short of
+   this column's previous 13% width, since white-space:normal can only
+   break BETWEEN words. overflow-wrap:break-word is the real fix (lets
+   an unusually long single word itself break rather than overflow,
+   whatever the column ends up sized to); the extra 1% width just
+   keeps that from being needed in the common case. */
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(4),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(4) {
+  width: 14%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+}
+/* Visits/Days (cols 5-6): QA-verified the auto-shared width (~27px)
+   was too tight even for a 3-digit count like "193" (needs ~42px) --
+   give them just enough fixed room. First/Last (cols 7-8, dates like
+   "2026-02-02" measured 88px) also came up short at 12%; bump with
+   margin. */
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(5),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(5),
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(6),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(6) {
+  width: 7%;
+  max-width: none;
+  white-space: nowrap;
+}
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(7),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(7),
+.iqvia-dashboard-wrap #coaching-ce-table-el th:nth-child(8),
+.iqvia-dashboard-wrap #coaching-ce-table-el td:nth-child(8) {
+  width: 14%;
+  max-width: none;
+  white-space: nowrap;
+}
+
+/* Detailed visit log modal -- 3 cols: Date, Customer / HCP, Area.
+   Customer/HCP (col 2) can carry a full HCP name -- give it room and
+   let it wrap; Date and Area are short enough to stay auto-sized. */
+.iqvia-dashboard-wrap #coaching-visitlog-table-el th:nth-child(2),
+.iqvia-dashboard-wrap #coaching-visitlog-table-el td:nth-child(2) {
+  width: 50%;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}

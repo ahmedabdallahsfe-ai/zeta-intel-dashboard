@@ -1,0 +1,1433 @@
+/* ===================================================================
+   IQVIA PHARMA INTELLIGENCE — RESPONSIVE DESIGN SYSTEM
+   Power BI-Grade • Laptop-First • Fully Responsive
+   =================================================================== */
+
+/* ── Reset ── */
+.iqvia-dashboard-wrap, .iqvia-dashboard-wrap *{box-sizing:border-box;margin:0;padding:0}
+
+/* ── Design Tokens ── */
+.iqvia-dashboard-wrap{
+  /* Colors */
+  --bg0:#0c0e18;--bg1:#131625;--bg2:#1a1d2e;--bg3:#232740;
+  --border:#2a2f4a;--border2:#3d4466;
+  --txt1:#e8eaf6;--txt2:#9da8c5;--txt3:#6b7a9e;
+  --acc1:#4c6ef5;--acc2:#36c994;--acc3:#ff5c6b;--acc4:#ff9f45;--acc5:#9775fa;--acc6:#20c4f4;
+  --card-sh:0 4px 24px rgba(0,0,0,.45);
+
+  /* Layout — responsive via media queries below */
+  --sidebar-w: 280px;
+  --header-h: 50px;
+
+  /* Responsive typography tokens */
+  --fs-base:      clamp(14px, 0.95vw, 16px);
+  --fs-sm:        clamp(12px, 0.82vw, 13px);
+  --fs-xs:        clamp(11px, 0.72vw, 12px);
+  --fs-nav:       clamp(13px, 0.95vw, 15px);
+  --fs-nav-group: clamp(10px, 0.68vw, 11px);
+  --fs-section:   clamp(20px, 1.55vw, 26px);
+  --fs-kpi-val:   clamp(26px, 2.3vw,  38px);
+  --fs-kpi-lbl:   clamp(13px, 0.95vw, 16px);
+  --fs-chart-ttl: clamp(14px, 1.1vw,  18px);
+  --fs-chart-sub: clamp(11px, 0.78vw, 13px);
+  --fs-th:        clamp(13px, 0.88vw, 15px);
+  --fs-td:        clamp(13px, 0.92vw, 15px);
+  --fs-badge:     clamp(11px, 0.75vw, 13px);
+  --fs-filter-lbl:clamp(13px, 0.88vw, 14px);
+  --fs-filter-sel:clamp(13px, 0.88vw, 14px);
+  --fs-btn:       clamp(12px, 0.88vw, 14px);
+  --fs-tbl-head:  clamp(14px, 0.95vw, 16px);
+
+  /* Spacing */
+  --pad-section:  clamp(14px, 1.2vw, 22px);
+  --pad-card:     clamp(14px, 1.1vw, 20px);
+  --gap-grid:     clamp(10px, 0.9vw, 16px);
+  --gap-kpi:      clamp(10px, 0.85vw, 14px);
+  --radius-card:  12px;
+  --radius-btn:   7px;
+}
+
+/* ── Breakpoint overrides ── */
+@media (max-width: 1440px) { .iqvia-dashboard-wrap{ --sidebar-w: 248px; } }
+@media (max-width: 1280px) { .iqvia-dashboard-wrap{ --sidebar-w: 232px; } }
+@media (max-width: 1024px) {
+  .iqvia-dashboard-wrap{
+    --sidebar-w: 220px;
+    --fs-kpi-val: clamp(22px, 2.6vw, 32px);
+    --fs-section: clamp(18px, 2.1vw, 22px);
+  }
+}
+
+.iqvia-dashboard-wrap[data-theme="light"]{
+  --bg0:#eef0f7;--bg1:#f7f8fc;--bg2:#ffffff;--bg3:#f0f2fa;
+  --border:#dce0f0;--border2:#b8c0de;
+  --txt1:#1a1e35;--txt2:#4a5568;--txt3:#718096;
+  --card-sh:0 2px 12px rgba(0,0,0,.08);
+}
+
+/* ── Base ── */
+.iqvia-dashboard-wrap{
+  height:100%;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:var(--fs-base);
+  line-height:1.5;
+  background:var(--bg0);
+  color:var(--txt1);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  -webkit-text-size-adjust:100%; /* prevent iOS font scaling */
+}
+.iqvia-dashboard-wrap #iqvia-app{display:flex;height:100vh;overflow:hidden}
+/* Smooth scrolling for content area on all devices */
+.iqvia-dashboard-wrap #iqvia-content{-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+
+/* ══════════════════════════════════════════════
+   SIDEBAR
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap #iqvia-sidebar{
+  width:var(--sidebar-w);
+  min-width:var(--sidebar-w);
+  background:var(--bg1);
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  transition:width .28s cubic-bezier(.4,0,.2,1),
+             min-width .28s cubic-bezier(.4,0,.2,1),
+             transform .28s cubic-bezier(.4,0,.2,1);
+  z-index:100;
+  flex-shrink:0;
+}
+.iqvia-dashboard-wrap #iqvia-sidebar.collapsed{width:52px;min-width:52px}
+
+/* Sidebar logo */
+.iqvia-dashboard-wrap #iqvia-sb-logo{
+  padding:clamp(12px,1vw,18px) clamp(10px,.9vw,16px);
+  display:flex;align-items:center;gap:10px;
+  border-bottom:1px solid var(--border);
+  min-height:var(--header-h);
+}
+.iqvia-dashboard-wrap #iqvia-sb-logo .logo-icon{
+  width:clamp(28px,2vw,34px);
+  height:clamp(28px,2vw,34px);
+  border-radius:9px;
+  background:linear-gradient(135deg,var(--acc1),var(--acc5));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;
+  font-size:clamp(12px,0.9vw,15px);
+  font-weight:700;
+  flex-shrink:0;
+}
+.iqvia-dashboard-wrap #iqvia-sb-logo .logo-txt{
+  font-size:clamp(12px,0.9vw,14px);
+  font-weight:700;
+  color:var(--txt1);
+  white-space:nowrap;
+  overflow:hidden;
+  line-height:1.3;
+}
+.iqvia-dashboard-wrap #iqvia-sb-logo .logo-sub{
+  font-size:clamp(9px,0.65vw,11px);
+  color:var(--txt2);
+  white-space:nowrap;
+}
+
+/* Sidebar nav */
+.iqvia-dashboard-wrap #iqvia-sb-nav{flex:1;overflow-y:auto;padding:6px 0}
+.iqvia-dashboard-wrap #iqvia-sb-nav::-webkit-scrollbar{width:3px}
+.iqvia-dashboard-wrap #iqvia-sb-nav::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+.iqvia-dashboard-wrap .nav-group{
+  padding:8px 10px 3px;
+  font-size:var(--fs-nav-group);
+  font-weight:700;
+  text-transform:uppercase;
+  color:var(--txt3);
+  letter-spacing:.9px;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.iqvia-dashboard-wrap .nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:clamp(7px,.6vw,10px) clamp(10px,.9vw,16px);
+  cursor:pointer;
+  border-radius:7px;
+  margin:1px 5px;
+  color:var(--txt2);
+  transition:all .15s;
+  white-space:nowrap;
+  position:relative;
+  min-height:38px;
+}
+.iqvia-dashboard-wrap .nav-item:hover{background:var(--bg3);color:var(--txt1)}
+.iqvia-dashboard-wrap .nav-item.active{
+  background:linear-gradient(90deg,rgba(76,110,245,.18),rgba(76,110,245,.06));
+  color:var(--acc1);
+  border-left:2px solid var(--acc1);
+}
+.iqvia-dashboard-wrap .nav-item .nav-icon{font-size:clamp(13px,1vw,16px);flex-shrink:0;width:20px;text-align:center}
+.iqvia-dashboard-wrap .nav-item .nav-label{font-size:var(--fs-nav);overflow:hidden;white-space:nowrap}
+
+/* Collapsed state */
+.iqvia-dashboard-wrap .collapsed .nav-label,.iqvia-dashboard-wrap .collapsed .nav-group,.iqvia-dashboard-wrap .collapsed .logo-txt,.iqvia-dashboard-wrap .collapsed .logo-sub{display:none}
+.iqvia-dashboard-wrap .collapsed .nav-item{padding:10px;justify-content:center;margin:1px 4px}
+.iqvia-dashboard-wrap .collapsed #iqvia-sb-logo{justify-content:center;padding:12px 8px}
+
+/* Sidebar footer */
+.iqvia-dashboard-wrap #iqvia-sb-footer{padding:8px 6px;border-top:1px solid var(--border)}
+
+/* Overlay (mobile) */
+.iqvia-dashboard-wrap #iqvia-sb-overlay{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.55);
+  z-index:99;
+  backdrop-filter:blur(2px);
+}
+.iqvia-dashboard-wrap #iqvia-sb-overlay.visible{display:block}
+
+/* ══════════════════════════════════════════════
+   TOPBAR
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap #main-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.iqvia-dashboard-wrap #topbar{
+  min-height:var(--header-h);
+  height:auto;
+  background:var(--bg1);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;
+  gap:clamp(4px,.4vw,8px);
+  padding:6px clamp(10px,.9vw,18px);
+  flex-shrink:0;
+  flex-wrap:wrap;
+  overflow:visible;
+  position:relative;
+  z-index:600;
+}
+.iqvia-dashboard-wrap #ham-btn{
+  display:none;
+  background:var(--bg3);border:1px solid var(--border);
+  color:var(--txt1);
+  padding:6px 10px;border-radius:var(--radius-btn);
+  cursor:pointer;font-size:18px;line-height:1;
+  min-width:40px;min-height:40px;
+  align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.iqvia-dashboard-wrap #topbar .tb-title{
+  font-size:clamp(13px,1vw,16px);
+  font-weight:700;
+  color:var(--txt1);
+  flex:0 1 160px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  min-width:0;
+}
+.iqvia-dashboard-wrap .tb-filter{
+  display:flex;align-items:center;
+  gap:clamp(4px,.35vw,7px);
+  flex-shrink:0;
+}
+.iqvia-dashboard-wrap .tb-filter-sep{
+  width:1px;height:22px;background:var(--border);
+  opacity:0.6;flex-shrink:0;align-self:center;
+}
+.iqvia-dashboard-wrap .tb-filter label{
+  font-size:var(--fs-filter-lbl);
+  color:var(--txt2);
+  white-space:nowrap;
+}
+.iqvia-dashboard-wrap .tb-filter select{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  color:var(--txt1);
+  padding:clamp(4px,.4vw,6px) clamp(6px,.6vw,10px);
+  border-radius:var(--radius-btn);
+  font-size:var(--fs-filter-sel);
+  cursor:pointer;
+  min-height:34px;
+}
+.iqvia-dashboard-wrap .tb-btn{
+  background:var(--bg3);
+  border:1px solid var(--border);
+  color:var(--txt2);
+  padding:clamp(4px,.4vw,6px) clamp(7px,.65vw,12px);
+  border-radius:var(--radius-btn);
+  cursor:pointer;
+  font-size:var(--fs-btn);
+  transition:all .15s;
+  white-space:nowrap;
+  flex-shrink:0;
+  min-height:34px;
+}
+.iqvia-dashboard-wrap .tb-btn:hover{background:var(--acc1);color:#fff;border-color:var(--acc1)}
+.iqvia-dashboard-wrap .tb-btn.active,.iqvia-dashboard-wrap .tb-btn.tb-btn-active{background:var(--acc1);color:#fff;border-color:var(--acc1)}
+
+/* ══════════════════════════════════════════════
+   CONTENT AREA
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap #iqvia-content{
+  flex:1;
+  overflow-y:auto;
+  padding:var(--pad-section);
+  background:var(--bg0);
+}
+.iqvia-dashboard-wrap #iqvia-content::-webkit-scrollbar{width:6px}
+.iqvia-dashboard-wrap #iqvia-content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ══════════════════════════════════════════════
+   SECTIONS
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap .section{display:none;animation:fadeIn .22s ease}
+.iqvia-dashboard-wrap .section.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.iqvia-dashboard-wrap .section-title{
+  font-size:var(--fs-section);
+  font-weight:700;
+  color:var(--txt1);
+  margin-bottom:5px;
+  line-height:1.25;
+}
+.iqvia-dashboard-wrap .section-sub{
+  font-size:clamp(11px,0.78vw,13px);
+  color:var(--txt2);
+  margin-bottom:clamp(12px,1.1vw,20px);
+  line-height:1.5;
+}
+
+/* ══════════════════════════════════════════════
+   KPI CARDS
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap .kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(clamp(160px,13vw,220px),1fr));
+  gap:var(--gap-kpi);
+  margin-bottom:var(--gap-grid);
+}
+.iqvia-dashboard-wrap .kpi-card{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  padding:var(--pad-card);
+  position:relative;
+  overflow:hidden;
+  transition:transform .15s,box-shadow .15s;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+.iqvia-dashboard-wrap .kpi-card:hover{transform:translateY(-2px);box-shadow:var(--card-sh)}
+.iqvia-dashboard-wrap .kpi-card::before{
+  content:"";position:absolute;top:0;left:0;right:0;
+  height:3px;border-radius:var(--radius-card) var(--radius-card) 0 0;
+}
+.iqvia-dashboard-wrap .kpi-card.blue::before{background:linear-gradient(90deg,var(--acc1),var(--acc5))}
+.iqvia-dashboard-wrap .kpi-card.green::before{background:linear-gradient(90deg,var(--acc2),#20e8a8)}
+.iqvia-dashboard-wrap .kpi-card.red::before{background:linear-gradient(90deg,var(--acc3),#ff8c69)}
+.iqvia-dashboard-wrap .kpi-card.orange::before{background:linear-gradient(90deg,var(--acc4),#ffcc00)}
+.iqvia-dashboard-wrap .kpi-card.purple::before{background:linear-gradient(90deg,var(--acc5),var(--acc1))}
+.iqvia-dashboard-wrap .kpi-card.cyan::before{background:linear-gradient(90deg,var(--acc6),var(--acc2))}
+
+.iqvia-dashboard-wrap .kpi-label{
+  font-size:var(--fs-kpi-lbl);
+  font-weight:500;
+  text-transform:uppercase;
+  letter-spacing:.6px;
+  color:var(--txt3);
+  margin-bottom:clamp(6px,.5vw,10px);
+  line-height:1.4;
+}
+.iqvia-dashboard-wrap .kpi-value{
+  font-size:var(--fs-kpi-val);
+  font-weight:700;
+  color:var(--txt1);
+  line-height:1.1;
+  margin-bottom:clamp(4px,.35vw,8px);
+}
+.iqvia-dashboard-wrap .kpi-sub{
+  font-size:clamp(11px,0.78vw,13px);
+  color:var(--txt2);
+  line-height:1.4;
+}
+.iqvia-dashboard-wrap .kpi-badge{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:3px 8px;border-radius:20px;
+  font-size:var(--fs-badge);
+  font-weight:600;margin-top:5px;
+}
+.iqvia-dashboard-wrap .kpi-badge.up{background:rgba(54,201,148,.15);color:var(--acc2)}
+.iqvia-dashboard-wrap .kpi-badge.down{background:rgba(255,92,107,.15);color:var(--acc3)}
+.iqvia-dashboard-wrap .kpi-badge.neutral{background:rgba(76,110,245,.15);color:var(--acc1)}
+
+/* ══════════════════════════════════════════════
+   CHARTS
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap .chart-row{display:grid;gap:var(--gap-grid);margin-bottom:var(--gap-grid)}
+.iqvia-dashboard-wrap .chart-row.cols2{grid-template-columns:1fr 1fr}
+.iqvia-dashboard-wrap .chart-row.cols3{grid-template-columns:1fr 1fr 1fr}
+.iqvia-dashboard-wrap .chart-row.cols-7-3{grid-template-columns:7fr 3fr}
+.iqvia-dashboard-wrap .chart-row.cols-6-4{grid-template-columns:6fr 4fr}
+
+.iqvia-dashboard-wrap .chart-box{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  padding:clamp(12px,1vw,18px);
+  overflow:hidden;
+}
+.iqvia-dashboard-wrap .chart-box-title{
+  font-size:var(--fs-chart-ttl);
+  font-weight:700;
+  color:var(--txt1);
+  margin-bottom:clamp(8px,.7vw,14px);
+  display:flex;align-items:flex-start;
+  justify-content:space-between;
+  gap:8px;
+  flex-wrap:wrap;
+  line-height:1.35;
+}
+.iqvia-dashboard-wrap .chart-box-sub{
+  font-size:var(--fs-chart-sub);
+  color:var(--txt2);
+  font-weight:400;
+  white-space:nowrap;
+}
+.iqvia-dashboard-wrap .chart-wrap{
+  position:relative;
+  width:100%;
+  min-height:clamp(180px,18vh,260px);
+}
+.iqvia-dashboard-wrap .chart-wrap canvas{width:100%!important}
+
+/* ══════════════════════════════════════════════
+   TABLES
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap .tbl-wrap{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  overflow:hidden;
+  margin-bottom:var(--gap-grid);
+}
+.iqvia-dashboard-wrap .tbl-head{
+  padding:clamp(10px,.85vw,14px) clamp(12px,1vw,18px);
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);
+  flex-wrap:wrap;gap:8px;
+}
+.iqvia-dashboard-wrap .tbl-head-title{
+  font-size:var(--fs-tbl-head);
+  font-weight:700;color:var(--txt1);
+}
+.iqvia-dashboard-wrap .tbl-search{
+  background:var(--bg3);
+  border:1px solid var(--border);
+  color:var(--txt1);
+  padding:clamp(5px,.45vw,7px) clamp(8px,.7vw,12px);
+  border-radius:var(--radius-btn);
+  font-size:var(--fs-filter-sel);
+  width:clamp(140px,12vw,200px);
+  min-height:34px;
+}
+.iqvia-dashboard-wrap .tbl-scroll{overflow-x:auto;overflow-y:auto;max-height:clamp(340px,40vh,520px)}
+.iqvia-dashboard-wrap .tbl-scroll::-webkit-scrollbar{height:5px;width:5px}
+.iqvia-dashboard-wrap .tbl-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+.iqvia-dashboard-wrap table{width:100%;border-collapse:collapse;font-size:var(--fs-td)}
+.iqvia-dashboard-wrap table th{
+  background:var(--bg3);
+  color:var(--txt2);
+  padding:clamp(9px,.75vw,13px) clamp(10px,.85vw,14px);
+  text-align:right;
+  font-size:var(--fs-th);
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  white-space:nowrap;
+  cursor:pointer;
+  user-select:none;
+  position:sticky;top:0;z-index:2;
+  border-bottom:2px solid var(--border2);
+}
+.iqvia-dashboard-wrap table th:first-child{text-align:left}
+.iqvia-dashboard-wrap table th:hover{color:var(--acc1)}
+.iqvia-dashboard-wrap table th.sorted-asc::after{content:" ▲";font-size:9px}
+.iqvia-dashboard-wrap table th.sorted-desc::after{content:" ▼";font-size:9px}
+.iqvia-dashboard-wrap table td{
+  padding:clamp(10px,.82vw,14px) clamp(10px,.85vw,14px);
+  border-bottom:1px solid var(--border);
+  text-align:right;
+  color:var(--txt2);
+  white-space:nowrap;
+  font-size:var(--fs-td);
+  min-height:44px;
+  line-height:1.4;
+}
+.iqvia-dashboard-wrap table td:first-child{text-align:left;color:var(--txt1)}
+.iqvia-dashboard-wrap table tr:hover td{background:rgba(76,110,245,.04);color:var(--txt1)}
+.iqvia-dashboard-wrap table tr:last-child td{border-bottom:none}
+
+/* ── Badges ── */
+.iqvia-dashboard-wrap .badge{
+  display:inline-block;
+  padding:clamp(2px,.2vw,3px) clamp(6px,.5vw,9px);
+  border-radius:20px;
+  font-size:var(--fs-badge);
+  font-weight:600;
+  white-space:nowrap;
+}
+.iqvia-dashboard-wrap .badge-up{background:rgba(54,201,148,.15);color:var(--acc2)}
+.iqvia-dashboard-wrap .badge-down{background:rgba(255,92,107,.15);color:var(--acc3)}
+.iqvia-dashboard-wrap .badge-neutral{background:rgba(76,110,245,.15);color:var(--acc1)}
+.iqvia-dashboard-wrap .badge-warn{background:rgba(255,159,69,.15);color:var(--acc4)}
+
+/* ── Executive Summary Strip (2026-09-04) — compact headline tiles + narrative,
+   reused across every analytical page in place of/alongside the generic AI
+   Insights box. Uses the same --bg2 / --border / --txt(n) / --acc(n) tokens as the rest
+   of the dashboard so it auto-adapts to the light theme. ── */
+.iqvia-dashboard-wrap .exec-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.iqvia-dashboard-wrap .exec-stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-card);padding:14px 14px 12px;position:relative;overflow:hidden}
+.iqvia-dashboard-wrap .exec-stat::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--acc1),var(--acc5))}
+.iqvia-dashboard-wrap .exec-stat.g::before{background:linear-gradient(90deg,var(--acc2),#20e8a8)}
+.iqvia-dashboard-wrap .exec-stat.r::before{background:linear-gradient(90deg,var(--acc3),#ff8c69)}
+.iqvia-dashboard-wrap .exec-stat.o::before{background:linear-gradient(90deg,var(--acc4),#ffcc00)}
+.iqvia-dashboard-wrap .exec-stat.p::before{background:linear-gradient(90deg,var(--acc5),var(--acc1))}
+.iqvia-dashboard-wrap .exec-stat-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);margin-bottom:7px;line-height:1.3}
+.iqvia-dashboard-wrap .exec-stat-val{font-size:clamp(16px,1.35vw,21px);font-weight:800;color:var(--txt1);line-height:1.15}
+.iqvia-dashboard-wrap .exec-stat-sub{margin-top:6px;font-size:11px;color:var(--txt2);line-height:1.4}
+.iqvia-dashboard-wrap .exec-narrative{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px 16px;font-size:12.5px;color:var(--txt2);line-height:1.6;margin-bottom:16px}
+.iqvia-dashboard-wrap .exec-narrative b{color:var(--txt1)}
+@media (max-width:820px){.iqvia-dashboard-wrap .exec-strip{grid-template-columns:repeat(2,1fr)}}
+
+.iqvia-dashboard-wrap .rank-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:clamp(22px,1.6vw,28px);height:clamp(22px,1.6vw,28px);
+  border-radius:50%;
+  font-size:clamp(10px,0.7vw,12px);
+  font-weight:700;
+  background:var(--bg3);color:var(--txt2);
+  flex-shrink:0;
+}
+.iqvia-dashboard-wrap .rank-badge.top3{background:linear-gradient(135deg,#ffd700,#ff9f45);color:#000}
+
+/* ══════════════════════════════════════════════
+   COMMENTARY / INSIGHTS
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap .commentary{
+  background:linear-gradient(135deg,rgba(76,110,245,.08),rgba(151,117,250,.06));
+  border:1px solid rgba(76,110,245,.2);
+  border-radius:var(--radius-card);
+  padding:clamp(12px,1vw,18px) clamp(14px,1.2vw,22px);
+  margin-bottom:var(--gap-grid);
+}
+.iqvia-dashboard-wrap .commentary h4{
+  font-size:clamp(10px,.75vw,12px);
+  text-transform:uppercase;letter-spacing:.8px;
+  color:var(--acc1);margin-bottom:8px;
+}
+.iqvia-dashboard-wrap .commentary p{
+  font-size:clamp(12px,.85vw,14px);
+  color:var(--txt2);line-height:1.75;margin-bottom:6px;
+}
+.iqvia-dashboard-wrap .commentary p:last-child{margin-bottom:0}
+
+/* ══════════════════════════════════════════════
+   ALERTS
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap .alert-card{
+  display:flex;gap:14px;
+  padding:clamp(10px,.85vw,14px) clamp(12px,1vw,18px);
+  border-radius:9px;margin-bottom:10px;border:1px solid;
+}
+.iqvia-dashboard-wrap .alert-card.critical{background:rgba(255,92,107,.06);border-color:rgba(255,92,107,.25);color:var(--acc3)}
+.iqvia-dashboard-wrap .alert-card.warning{background:rgba(255,159,69,.06);border-color:rgba(255,159,69,.25);color:var(--acc4)}
+.iqvia-dashboard-wrap .alert-card.info{background:rgba(76,110,245,.06);border-color:rgba(76,110,245,.2);color:var(--acc1)}
+.iqvia-dashboard-wrap .alert-card.positive{background:rgba(54,201,148,.06);border-color:rgba(54,201,148,.2);color:var(--acc2)}
+.iqvia-dashboard-wrap .alert-icon{font-size:clamp(16px,1.2vw,20px);flex-shrink:0}
+.iqvia-dashboard-wrap .alert-body h5{font-size:clamp(12px,.88vw,14px);font-weight:700;margin-bottom:3px}
+.iqvia-dashboard-wrap .alert-body p{font-size:clamp(11px,.8vw,13px);opacity:.85;margin:0}
+
+/* ══════════════════════════════════════════════
+   INSIGHT CARDS
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap .insight-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(clamp(240px,22vw,320px),1fr));
+  gap:var(--gap-kpi);
+  margin-bottom:var(--gap-grid);
+}
+.iqvia-dashboard-wrap .insight-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  padding:clamp(12px,1vw,18px);
+  transition:transform .15s;
+}
+.iqvia-dashboard-wrap .insight-card:hover{transform:translateY(-2px);box-shadow:var(--card-sh)}
+.iqvia-dashboard-wrap .insight-tag{
+  display:inline-block;padding:3px 9px;border-radius:20px;
+  font-size:clamp(9px,.65vw,11px);font-weight:700;text-transform:uppercase;
+  margin-bottom:9px;
+}
+.iqvia-dashboard-wrap .insight-tag.growth{background:rgba(54,201,148,.2);color:var(--acc2)}
+.iqvia-dashboard-wrap .insight-tag.share{background:rgba(76,110,245,.2);color:var(--acc1)}
+.iqvia-dashboard-wrap .insight-tag.competitive{background:rgba(255,92,107,.2);color:var(--acc3)}
+.iqvia-dashboard-wrap .insight-tag.market{background:rgba(255,159,69,.2);color:var(--acc4)}
+.iqvia-dashboard-wrap .insight-tag.opportunity{background:rgba(151,117,250,.2);color:var(--acc5)}
+.iqvia-dashboard-wrap .insight-card p{font-size:clamp(12px,.82vw,14px);color:var(--txt2);line-height:1.7}
+.iqvia-dashboard-wrap .insight-card strong{color:var(--txt1)}
+
+/* ══════════════════════════════════════════════
+   BCG
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap .bcg-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+.iqvia-dashboard-wrap .bcg-item{display:flex;align-items:center;gap:7px;font-size:clamp(11px,.78vw,13px);color:var(--txt2)}
+.iqvia-dashboard-wrap .bcg-dot{width:11px;height:11px;border-radius:50%}
+
+/* ══════════════════════════════════════════════
+   MISC COMPONENTS
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap .loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--txt3);font-size:var(--fs-base)}
+.iqvia-dashboard-wrap .loading::before{content:"⏳ ";margin-right:6px}
+
+.iqvia-dashboard-wrap .progress{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:7px}
+.iqvia-dashboard-wrap .progress-bar{height:100%;border-radius:3px;transition:width .3s}
+
+.iqvia-dashboard-wrap .score-bar{display:flex;align-items:center;gap:9px}
+.iqvia-dashboard-wrap .score-bar .bar{flex:1;height:7px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.iqvia-dashboard-wrap .score-bar .fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--acc1),var(--acc2))}
+.iqvia-dashboard-wrap .score-val{font-size:clamp(11px,.78vw,13px);font-weight:700;color:var(--txt1);width:30px;text-align:right}
+
+.iqvia-dashboard-wrap .tag{display:inline-block;padding:3px 8px;border-radius:5px;font-size:clamp(10px,.68vw,11px);font-weight:600}
+.iqvia-dashboard-wrap .tag-star{background:rgba(255,215,0,.2);color:#ffd700}
+.iqvia-dashboard-wrap .tag-cow{background:rgba(54,201,148,.2);color:var(--acc2)}
+.iqvia-dashboard-wrap .tag-qm{background:rgba(255,159,69,.2);color:var(--acc4)}
+.iqvia-dashboard-wrap .tag-dog{background:rgba(255,92,107,.2);color:var(--acc3)}
+.iqvia-dashboard-wrap .tag-em{background:rgba(151,117,250,.2);color:var(--acc5)}
+
+.iqvia-dashboard-wrap .forecast-table{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap-kpi);margin-bottom:var(--gap-grid)}
+.iqvia-dashboard-wrap .forecast-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-card);padding:clamp(12px,1vw,16px)}
+.iqvia-dashboard-wrap .forecast-card h4{font-size:clamp(11px,.8vw,13px);font-weight:700;color:var(--txt2);margin-bottom:10px}
+.iqvia-dashboard-wrap .forecast-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:clamp(5px,.45vw,7px) 0;
+  border-bottom:1px solid var(--border);
+  font-size:clamp(11px,.78vw,13px);
+}
+.iqvia-dashboard-wrap .forecast-row:last-child{border-bottom:none}
+
+.iqvia-dashboard-wrap .two-col{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap-grid);margin-bottom:var(--gap-grid)}
+.iqvia-dashboard-wrap .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--gap-grid);margin-bottom:var(--gap-grid)}
+.iqvia-dashboard-wrap .full-w{width:100%}
+
+.iqvia-dashboard-wrap .filter-active{border-bottom:2px solid var(--acc1);padding-bottom:2px;color:var(--acc1)!important}
+
+/* ══════════════════════════════════════════════
+   TABLET BREAKPOINT  ≤ 1024px
+══════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .iqvia-dashboard-wrap #iqvia-sidebar{
+    position:fixed;height:100%;
+    transform:translateX(0);
+    box-shadow:4px 0 20px rgba(0,0,0,.4);
+  }
+  .iqvia-dashboard-wrap #iqvia-sidebar.collapsed{transform:translateX(-100%);width:var(--sidebar-w);min-width:var(--sidebar-w)}
+  .iqvia-dashboard-wrap #ham-btn{display:flex!important}
+  .iqvia-dashboard-wrap .chart-row.cols3{grid-template-columns:1fr 1fr}
+  .iqvia-dashboard-wrap .three-col{grid-template-columns:1fr 1fr}
+  .iqvia-dashboard-wrap .forecast-table{grid-template-columns:1fr 1fr}
+}
+
+/* ══════════════════════════════════════════════
+   TABLET  ≤ 768px
+══════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .iqvia-dashboard-wrap{
+    --sidebar-w:82vw;
+    --fs-kpi-val:clamp(20px,5.5vw,26px);
+    --fs-section:clamp(15px,4.2vw,19px);
+    --pad-section:12px;
+    --gap-grid:10px;
+    --gap-kpi:8px;
+  }
+
+  /* Sidebar — hidden off-screen, slides in on toggle */
+  .iqvia-dashboard-wrap #iqvia-sidebar{
+    transform:translateX(-100%);
+    width:var(--sidebar-w)!important;
+    min-width:var(--sidebar-w)!important;
+    transition:transform .25s ease;
+  }
+  .iqvia-dashboard-wrap #iqvia-sidebar.mobile-open{transform:translateX(0)}
+  /* collapsed class has no effect on mobile — mobile-open controls visibility */
+
+  /* Topbar — wrap into 2 rows */
+  .iqvia-dashboard-wrap #topbar{
+    flex-wrap:wrap;
+    gap:6px;
+    padding:8px 10px;
+    row-gap:6px;
+  }
+  /* Row 1: hamburger + title + metric toggle flush right */
+  .iqvia-dashboard-wrap #ham-btn{order:0;flex-shrink:0}
+  .iqvia-dashboard-wrap #topbar .tb-title{order:1;flex:1 1 auto;min-width:0}
+  /* Metric + theme buttons stay on row 1 */
+  .iqvia-dashboard-wrap #topbar .tb-btn[onclick*="toggleMetric"],.iqvia-dashboard-wrap #topbar .tb-btn[onclick*="toggleTheme"],.iqvia-dashboard-wrap #topbar .tb-btn[title*="metric"],.iqvia-dashboard-wrap #topbar .tb-btn[title*="theme"]{order:2}
+  /* Filter row wraps below */
+  .iqvia-dashboard-wrap #topbar .tb-filter{order:3;flex-shrink:1}
+  .iqvia-dashboard-wrap #topbar .tb-filter-sep{display:none}
+
+  /* Selects and dropdowns compact */
+  .iqvia-dashboard-wrap .tb-filter label{display:none}
+  .iqvia-dashboard-wrap .tb-filter select{min-width:90px;max-width:140px;font-size:11px}
+  .iqvia-dashboard-wrap .ms-wrap{min-width:90px!important;max-width:130px!important;font-size:11px}
+  .iqvia-dashboard-wrap .tb-btn{padding:5px 9px;font-size:11px;min-height:34px}
+
+  /* Charts → single column */
+  .iqvia-dashboard-wrap .chart-row.cols2,.iqvia-dashboard-wrap .chart-row.cols3,.iqvia-dashboard-wrap .chart-row.cols-7-3,.iqvia-dashboard-wrap .chart-row.cols-6-4,.iqvia-dashboard-wrap .two-col,.iqvia-dashboard-wrap .three-col,.iqvia-dashboard-wrap .forecast-table{grid-template-columns:1fr}
+
+  /* Chart canvas — reduce height on mobile */
+  .iqvia-dashboard-wrap .chart-wrap canvas,.iqvia-dashboard-wrap .chart-wrap{height:220px!important;max-height:220px}
+
+  /* KPI → 2 cols (override all inline grid styles) */
+  .iqvia-dashboard-wrap .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+
+  /* Tables */
+  .iqvia-dashboard-wrap table th,.iqvia-dashboard-wrap table td{padding:8px 7px;font-size:11.5px}
+  .iqvia-dashboard-wrap .tbl-search{width:110px}
+  .iqvia-dashboard-wrap .tbl-scroll{max-height:55vh}
+
+  /* Section titles */
+  .iqvia-dashboard-wrap .section-title{font-size:clamp(14px,4vw,18px);margin-bottom:4px}
+  .iqvia-dashboard-wrap .section-sub{font-size:11px;margin-bottom:12px}
+
+  /* Tab bars (Target Achievement 5-tab row) — horizontal scroll */
+  .iqvia-dashboard-wrap .ta-tab-bar,.iqvia-dashboard-wrap [id^="ta-btn"],.iqvia-dashboard-wrap [id*="ta-btn"]{font-size:11px!important;padding:6px 10px!important}
+  .iqvia-dashboard-wrap #s-target-achievement [style*="overflow-x:auto"],.iqvia-dashboard-wrap div[style*="display:flex"][style*="border-bottom"]{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    flex-wrap:nowrap!important;
+  }
+
+  /* Multiselect dropdown — full width on mobile */
+  .iqvia-dashboard-wrap .ms-dd{
+    position:fixed!important;
+    left:8px!important;
+    right:8px!important;
+    top:auto!important;
+    width:auto!important;
+    min-width:unset!important;
+    max-width:unset!important;
+    max-height:60vh;
+    overflow-y:auto;
+  }
+
+  /* Commentary / insight strips */
+  .iqvia-dashboard-wrap .commentary{font-size:11.5px;padding:10px 12px}
+  .iqvia-dashboard-wrap .commentary p{font-size:11.5px;line-height:1.5}
+
+  /* Login card */
+  .iqvia-dashboard-wrap .login-card{padding:32px 22px;border-radius:14px}
+}
+
+/* ══════════════════════════════════════════════
+   SMALL MOBILE  ≤ 480px
+══════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .iqvia-dashboard-wrap{
+    --pad-section:10px;
+    --gap-grid:8px;
+    --gap-kpi:7px;
+  }
+
+  /* KPI → 1 col on very small screens */
+  .iqvia-dashboard-wrap .kpi-grid{grid-template-columns:1fr!important}
+
+  /* Chart canvas shorter */
+  .iqvia-dashboard-wrap .chart-wrap canvas,.iqvia-dashboard-wrap .chart-wrap{height:190px!important;max-height:190px}
+
+  /* Topbar: compact all filters into scrollable single row */
+  .iqvia-dashboard-wrap #topbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:5px;padding:6px 8px}
+  .iqvia-dashboard-wrap #topbar .tb-title{min-width:70px;max-width:100px;font-size:12px}
+  .iqvia-dashboard-wrap .tb-filter select,.iqvia-dashboard-wrap .ms-wrap{font-size:10px!important}
+  .iqvia-dashboard-wrap .tb-btn{font-size:10px;padding:4px 7px;min-height:32px}
+
+  /* Reduce table font further */
+  .iqvia-dashboard-wrap table th,.iqvia-dashboard-wrap table td{padding:6px 5px;font-size:10.5px}
+
+  /* Section header */
+  .iqvia-dashboard-wrap .section-title{font-size:clamp(13px,3.8vw,16px)}
+  .iqvia-dashboard-wrap .section-sub{font-size:10px}
+
+  /* Rank badges smaller */
+  .iqvia-dashboard-wrap .rank-badge{width:20px;height:20px;font-size:10px}
+
+  /* Score bars */
+  .iqvia-dashboard-wrap .score-bar{min-width:60px}
+  .iqvia-dashboard-wrap .score-val{font-size:10px}
+
+  /* Dropdown full screen style */
+  .iqvia-dashboard-wrap .ms-dd{
+    left:4px!important;right:4px!important;
+    max-height:55vh;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   LARGE DESKTOP  ≥ 1920px
+══════════════════════════════════════════════ */
+@media (min-width: 1920px) {
+  .iqvia-dashboard-wrap{
+    --sidebar-w:290px;
+    --fs-kpi-val:clamp(32px,2.1vw,40px);
+    --fs-section:clamp(22px,1.5vw,26px);
+    --pad-section:26px;
+    --gap-grid:18px;
+    --gap-kpi:16px;
+    --pad-card:22px;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   4K / UHD  ≥ 2560px
+══════════════════════════════════════════════ */
+@media (min-width: 2560px) {
+  .iqvia-dashboard-wrap{
+    --fs-base:16px;
+    --fs-kpi-val:40px;
+    --fs-section:26px;
+    --sidebar-w:320px;
+    --header-h:70px;
+    --pad-section:32px;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   PRINT
+══════════════════════════════════════════════ */
+@media print{
+  .iqvia-dashboard-wrap #iqvia-sidebar,.iqvia-dashboard-wrap #topbar,.iqvia-dashboard-wrap #ham-btn,.iqvia-dashboard-wrap #iqvia-sb-overlay{display:none!important}
+  .iqvia-dashboard-wrap #iqvia-content{overflow:visible;padding:0}
+  /* removed bad override */
+  .iqvia-dashboard-wrap .chart-wrap{min-height:200px}
+}
+
+/* ── DM1 multi-select dropdown ─────────────────────────────────────── */
+.iqvia-dashboard-wrap .ms-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;min-width:130px;cursor:pointer;user-select:none;font-size:12px;color:var(--txt1);position:relative;display:inline-flex;align-items:center;gap:4px}
+.iqvia-dashboard-wrap .ms-wrap:hover,.iqvia-dashboard-wrap .ms-wrap:focus{border-color:var(--acc5);outline:none}
+.iqvia-dashboard-wrap .ms-dd{position:fixed;min-width:260px;max-width:360px;background:var(--bg2);border:1px solid var(--acc5);border-radius:10px;z-index:99999;box-shadow:0 10px 30px rgba(0,0,0,.6);overflow:hidden}
+.iqvia-dashboard-wrap #f-dm1-list,.iqvia-dashboard-wrap #f-corp-list,.iqvia-dashboard-wrap #f-atc4-list,.iqvia-dashboard-wrap #f-dm2-list,.iqvia-dashboard-wrap #f-bu-list,.iqvia-dashboard-wrap #f-line-list{display:flex;flex-direction:column}
+.iqvia-dashboard-wrap .ms-dd label{display:flex;align-items:center;gap:7px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap;color:var(--txt1);transition:background .15s;width:100%}
+.iqvia-dashboard-wrap .ms-dd label:hover{background:var(--bg3)}
+.iqvia-dashboard-wrap .ms-dd input[type=checkbox]{accent-color:var(--acc5);flex-shrink:0;cursor:pointer}
+
+/* ═══════════════ AUTH LOGIN OVERLAY ═══════════════ */
+.iqvia-dashboard-wrap #zeta-login{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0a1628 0%,#0d1b2a 50%,#0a1628 100%);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.iqvia-dashboard-wrap #zeta-login.hidden{display:none}
+.iqvia-dashboard-wrap .login-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:48px 44px;width:420px;max-width:90vw;box-shadow:0 32px 80px rgba(0,0,0,.5)}
+.iqvia-dashboard-wrap .login-logo{display:flex;align-items:center;gap:14px;margin-bottom:36px}
+.iqvia-dashboard-wrap .login-logo svg{width:48px;height:48px}
+.iqvia-dashboard-wrap .login-logo-text h1{font-size:20px;font-weight:700;color:#fff;margin:0;letter-spacing:-.3px}
+.iqvia-dashboard-wrap .login-logo-text p{font-size:12px;color:#5a6a8a;margin:2px 0 0;letter-spacing:.5px;text-transform:uppercase}
+.iqvia-dashboard-wrap .login-field{margin-bottom:18px}
+.iqvia-dashboard-wrap .login-field label{display:block;font-size:12px;font-weight:600;color:#9da8c5;letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px}
+.iqvia-dashboard-wrap .login-field input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:13px 16px;color:#fff;font-size:14px;outline:none;transition:border-color .2s}
+.iqvia-dashboard-wrap .login-field input:focus{border-color:#00a8e8}
+.iqvia-dashboard-wrap .login-btn{width:100%;padding:14px;background:linear-gradient(135deg,#0077b6,#00a8e8);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.3px;margin-top:8px;transition:opacity .2s}
+.iqvia-dashboard-wrap .login-btn:hover{opacity:.9}
+.iqvia-dashboard-wrap .login-btn:disabled{opacity:.5;cursor:not-allowed}
+.iqvia-dashboard-wrap .login-error{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:8px;color:#f87171;font-size:13px;padding:10px 14px;margin-top:14px;display:none}
+.iqvia-dashboard-wrap .login-error.show{display:block}
+.iqvia-dashboard-wrap .login-user-badge{border-bottom:1px solid var(--border);background:rgba(0,168,232,.06);padding:10px 14px;align-items:center;gap:10px;}
+.iqvia-dashboard-wrap .login-user-badge .badge-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0077b6,#00a8e8);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.iqvia-dashboard-wrap .login-user-badge .badge-info{display:flex;flex-direction:column;line-height:1.3;flex:1;min-width:0;overflow:hidden}
+.iqvia-dashboard-wrap .login-user-badge .badge-name{font-size:12px;font-weight:700;color:var(--txt1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iqvia-dashboard-wrap .login-user-badge .badge-role{font-size:10px;color:#00a8e8;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.iqvia-dashboard-wrap .login-user-badge .badge-signout{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:12px;padding:3px 10px;font-size:10px;color:#f87171;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .2s;flex-shrink:0}
+.iqvia-dashboard-wrap .login-user-badge .badge-signout:hover{background:rgba(239,68,68,.28)}
+.iqvia-dashboard-wrap .collapsed .login-user-badge .badge-info{display:none}
+.iqvia-dashboard-wrap .collapsed .login-user-badge .badge-signout{display:none}
+
+/* ── AI Insight Strip ─────────────────────────────────────────────────────── */
+.iqvia-dashboard-wrap .ai-insight-strip{
+  background: linear-gradient(135deg, rgba(76,110,245,.08), rgba(55,201,148,.05));
+  border: 1px solid rgba(76,110,245,.2);
+  border-left: 3px solid var(--acc1);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 12px;
+}
+.iqvia-dashboard-wrap .ais-header{
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+}
+.iqvia-dashboard-wrap .ais-icon{ font-size: 14px; }
+.iqvia-dashboard-wrap .ais-title{
+  font-weight: 700;
+  color: var(--acc1);
+  font-size: 12px;
+  letter-spacing: .3px;
+}
+.iqvia-dashboard-wrap .ais-ctx{
+  font-size: 10px;
+  color: var(--txt3);
+  margin-left: auto;
+  background: var(--bg3);
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+.iqvia-dashboard-wrap .ais-list{
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.iqvia-dashboard-wrap .ais-list li{
+  color: var(--txt2);
+  line-height: 1.5;
+  font-size: 12px;
+}
+.iqvia-dashboard-wrap .ais-pill{
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.iqvia-dashboard-wrap .ais-pill-finding{ background: rgba(76,110,245,.15); color: #4c6ef5; border: 1px solid rgba(76,110,245,.3); }
+.iqvia-dashboard-wrap .ais-pill-trend{ background: rgba(55,201,148,.15); color: #36c994; border: 1px solid rgba(55,201,148,.3); }
+.iqvia-dashboard-wrap .ais-pill-alert{ background: rgba(255,92,107,.15);  color: #ff5c6b; border: 1px solid rgba(255,92,107,.3); }
+.iqvia-dashboard-wrap .ais-pill-action{ background: rgba(255,159,69,.15);  color: #ff9f45; border: 1px solid rgba(255,159,69,.3); }
+
+/* ══════════════════════════════════════════════
+   NOTIFICATION BELL
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap #notif-btn{
+  position: relative;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--txt1);
+  border-radius: var(--radius-btn);
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+  min-height: 36px;
+  display: flex; align-items: center;
+  flex-shrink: 0;
+  transition: border-color .15s;
+}
+.iqvia-dashboard-wrap #notif-btn:hover{ border-color: var(--acc1); }
+.iqvia-dashboard-wrap #notif-badge{
+  position: absolute;
+  top: -5px; right: -5px;
+  background: #e05c5c;
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  display: none;
+  min-width: 16px;
+  text-align: center;
+}
+/* badge visibility controlled by JS via inline style */
+
+.iqvia-dashboard-wrap #notif-panel{
+  display: none;
+  position: fixed;
+  top: 56px; right: 12px;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  max-height: 72vh;
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.55);
+  z-index: 700;
+  overflow: hidden;
+  display: none;
+  flex-direction: column;
+}
+.iqvia-dashboard-wrap #notif-panel.open{ display: flex; }
+.iqvia-dashboard-wrap #notif-panel-header{
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.iqvia-dashboard-wrap #notif-panel-header span{ font-size: 14px; font-weight: 700; color: var(--txt1); }
+.iqvia-dashboard-wrap #notif-mark-read{
+  font-size: 11px; color: var(--acc1); cursor: pointer; background: none; border: none;
+  padding: 2px 6px; border-radius: 4px;
+}
+.iqvia-dashboard-wrap #notif-mark-read:hover{ background: rgba(76,110,245,.1); }
+.iqvia-dashboard-wrap #notif-list{
+  overflow-y: auto;
+  flex: 1;
+  padding: 6px 0;
+}
+.iqvia-dashboard-wrap .notif-item{
+  padding: 11px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  cursor: default;
+  transition: background .1s;
+}
+.iqvia-dashboard-wrap .notif-item.unread{ background: rgba(76,110,245,.06); }
+.iqvia-dashboard-wrap .notif-item.unread:hover{ background: rgba(76,110,245,.1); }
+.iqvia-dashboard-wrap .notif-item.read{ opacity: .55; }
+.iqvia-dashboard-wrap .notif-item-title{
+  font-size: 12px; font-weight: 700; color: var(--txt1);
+  margin-bottom: 3px;
+  display: flex; align-items: center; gap: 6px;
+}
+.iqvia-dashboard-wrap .notif-dot{
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--acc1); flex-shrink: 0;
+}
+.iqvia-dashboard-wrap .notif-item.read .notif-dot{ display: none; }
+.iqvia-dashboard-wrap .notif-item-body{ font-size: 11px; color: var(--txt2); line-height: 1.45; }
+.iqvia-dashboard-wrap .notif-item-time{ font-size: 10px; color: var(--txt3); margin-top: 4px; }
+.iqvia-dashboard-wrap .notif-type-refresh .notif-dot{ background: #2fc97e; }
+.iqvia-dashboard-wrap .notif-type-alert   .notif-dot{ background: #e05c5c; }
+.iqvia-dashboard-wrap .notif-type-bu_alert .notif-dot{ background: #ff9f45; }
+.iqvia-dashboard-wrap #notif-empty{
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--txt3);
+  font-size: 13px;
+}
+.iqvia-dashboard-wrap #notif-overlay{
+  display: none;
+  position: fixed; inset: 0;
+  z-index: 699;
+}
+.iqvia-dashboard-wrap #notif-overlay.visible{ display: block; }
+
+/* ══════════════════════════════════════════════
+   MOBILE FILTER DRAWER + SIDEBAR CLOSE BTN
+   (global base — desktop hides these)
+══════════════════════════════════════════════ */
+.iqvia-dashboard-wrap #filter-group{ display: contents; } /* transparent on desktop — children are topbar items */
+.iqvia-dashboard-wrap #mfd-header{ display: none; }     /* header only shown inside mobile drawer */
+.iqvia-dashboard-wrap #mfd-overlay{ display: none; position:fixed; inset:0; background:rgba(0,0,0,.55);
+                 z-index:250; backdrop-filter:blur(2px); }
+.iqvia-dashboard-wrap #mfd-overlay.visible{ display:block; }
+.iqvia-dashboard-wrap #mobile-filter-btn{ display:none; }
+.iqvia-dashboard-wrap #sb-close-btn{ display:none; }
+
+/* ── Mobile filter button pill ── */
+.iqvia-dashboard-wrap #mobile-filter-btn{
+  position:relative;
+  background:var(--bg3); border:1px solid var(--border);
+  color:var(--txt1); border-radius:var(--radius-btn);
+  padding:5px 11px; font-size:13px; cursor:pointer;
+  display:none; align-items:center; gap:5px;
+  min-height:36px; flex-shrink:0;
+  transition:border-color .15s;
+}
+.iqvia-dashboard-wrap #mobile-filter-btn:active{ background:var(--bg2); }
+.iqvia-dashboard-wrap #mobile-filter-btn.has-filters{
+  border-color:var(--acc1); color:var(--acc1);
+}
+.iqvia-dashboard-wrap #filter-active-badge{
+  background:var(--acc1); color:#fff;
+  border-radius:10px; padding:1px 6px;
+  font-size:10px; font-weight:700; line-height:1.4;
+  display:none;
+}
+.iqvia-dashboard-wrap #filter-active-badge.visible{ display:inline-block; }
+
+/* ── Filter drawer (mobile bottom sheet) ── */
+@media (max-width:768px) {
+  .iqvia-dashboard-wrap #mobile-filter-btn{ display:flex; }
+
+  .iqvia-dashboard-wrap #filter-group{
+    display:flex;
+    flex-direction:column;
+    position:fixed;
+    bottom:0; left:0; right:0;
+    background:var(--bg1);
+    border-top:1px solid var(--border);
+    border-radius:18px 18px 0 0;
+    padding:0 0 env(safe-area-inset-bottom,0);
+    z-index:499;
+    transform:translateY(105%);
+    transition:transform .3s cubic-bezier(.4,0,.2,1);
+    box-shadow:0 -8px 40px rgba(0,0,0,.5);
+    max-height:82vh;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .iqvia-dashboard-wrap #filter-group.mfd-open{ transform:translateY(0); }
+
+  /* Drag handle */
+  .iqvia-dashboard-wrap #filter-group::before{
+    content:"";
+    display:block;
+    width:36px; height:4px;
+    background:var(--border2);
+    border-radius:2px;
+    margin:10px auto 0;
+    flex-shrink:0;
+  }
+
+  /* Drawer header */
+  .iqvia-dashboard-wrap #mfd-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 18px 10px;
+    border-bottom:1px solid var(--border);
+    flex-shrink:0;
+  }
+  .iqvia-dashboard-wrap #mfd-header .mfd-title{
+    font-size:15px; font-weight:700; color:var(--txt1);
+  }
+  .iqvia-dashboard-wrap #mfd-header .mfd-close{
+    background:var(--bg3); border:1px solid var(--border);
+    color:var(--txt2); border-radius:50%; width:30px; height:30px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px; cursor:pointer; flex-shrink:0;
+  }
+  .iqvia-dashboard-wrap #mfd-header .mfd-active-count{
+    font-size:11px; color:var(--acc1); font-weight:600;
+  }
+
+  /* Each filter row inside drawer */
+  .iqvia-dashboard-wrap #filter-group .tb-filter{
+    display:flex; align-items:center;
+    padding:11px 18px;
+    border-bottom:1px solid rgba(255,255,255,.05);
+    gap:12px;
+    min-height:52px;
+  }
+  .iqvia-dashboard-wrap #filter-group .tb-filter label{
+    display:block !important; /* override topbar label-hidden */
+    width:56px; flex-shrink:0;
+    font-size:12px; font-weight:600; color:var(--txt3);
+  }
+  .iqvia-dashboard-wrap #filter-group .tb-filter select{
+    flex:1; min-width:0 !important; max-width:unset !important;
+    font-size:13px; min-height:40px;
+  }
+  .iqvia-dashboard-wrap #filter-group .ms-wrap{
+    flex:1; min-width:0 !important; max-width:unset !important;
+    min-height:40px; font-size:13px;
+  }
+  .iqvia-dashboard-wrap #filter-group .tb-filter-sep{ display:none; }
+
+  /* Clear All button inside drawer */
+  .iqvia-dashboard-wrap #filter-group .tb-btn{
+    margin:12px 18px;
+    width:calc(100% - 36px);
+    justify-content:center;
+    min-height:44px;
+    font-size:13px;
+    border-radius:10px;
+  }
+}
+
+/* ── Sidebar — mobile enhancements ── */
+@media (max-width:768px) {
+  /* Sidebar close button */
+  .iqvia-dashboard-wrap #sb-close-btn{
+    display:flex; align-items:center; justify-content:center;
+    margin-left:auto; flex-shrink:0;
+    width:32px; height:32px; border-radius:50%;
+    background:var(--bg3); border:1px solid var(--border);
+    color:var(--txt2); font-size:16px; cursor:pointer;
+    transition:background .15s;
+  }
+  .iqvia-dashboard-wrap #sb-close-btn:active{ background:var(--border); }
+
+  /* Sidebar logo area: show close button on mobile */
+  .iqvia-dashboard-wrap #iqvia-sb-logo{ padding:12px 14px; }
+
+  /* Larger touch targets for nav items */
+  .iqvia-dashboard-wrap .nav-item{
+    min-height:50px;
+    padding:12px 16px !important;
+    font-size:14px;
+    border-radius:8px;
+    margin:2px 8px;
+  }
+  .iqvia-dashboard-wrap .nav-item .nav-icon{ font-size:18px; width:26px; }
+  .iqvia-dashboard-wrap .nav-item .nav-label{ font-size:13px; }
+
+  /* Active item — stronger highlight */
+  .iqvia-dashboard-wrap .nav-item.active{
+    background:rgba(76,110,245,.18) !important;
+    border-left:3px solid var(--acc1);
+    padding-left:13px !important;
+    color:var(--acc1) !important;
+  }
+
+  /* Nav groups — larger text */
+  .iqvia-dashboard-wrap .nav-group{
+    padding:12px 16px 4px;
+    font-size:11px;
+    letter-spacing:1px;
+  }
+
+  /* User badge — always visible */
+  .iqvia-dashboard-wrap #user-badge{
+    padding:12px 14px;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .iqvia-dashboard-wrap .badge-name{ font-size:13px !important; }
+  .iqvia-dashboard-wrap .badge-role{ font-size:11px !important; }
+
+  /* Sidebar footer close button */
+  .iqvia-dashboard-wrap #iqvia-sb-footer .nav-item{ min-height:44px; }
+}
+
+/* ══ Concentration table — tooltips + action chips ══════════════════════ */
+.iqvia-dashboard-wrap .th-tip{ position:relative; cursor:help; display:inline-flex; align-items:center; gap:4px; }
+.iqvia-dashboard-wrap .th-tip-icon{
+  width:14px; height:14px; border-radius:50%;
+  background:rgba(93,103,140,.18); color:var(--txt3);
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:9px; font-weight:700; flex-shrink:0; line-height:1;
+}
+.iqvia-dashboard-wrap .th-tip .tip-box{
+  display:none; position:absolute; top:calc(100% + 6px); left:0;
+  width:230px; background:var(--bg2); border:1px solid var(--bdr);
+  border-radius:8px; padding:10px 12px; font-size:11px;
+  color:var(--txt2); line-height:1.55; z-index:9999; font-weight:400;
+  box-shadow:0 4px 16px rgba(0,0,0,.18);
+}
+.iqvia-dashboard-wrap .th-tip:hover .tip-box{ display:block; }
+.iqvia-dashboard-wrap .tip-box b{ color:var(--txt1); font-weight:600; display:block; margin-bottom:4px; }
+.iqvia-dashboard-wrap .tip-row{ display:flex; gap:6px; margin-top:4px; font-size:10.5px; align-items:flex-start; }
+.iqvia-dashboard-wrap .tip-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:3px; }
+.iqvia-dashboard-wrap .tip-green{ background:#2fc97e; }
+.iqvia-dashboard-wrap .tip-amber{ background:#ffb800; }
+.iqvia-dashboard-wrap .tip-red{ background:#e05c5c; }
+
+/* action chips */
+.iqvia-dashboard-wrap .ac-chip{ display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:8px; font-size:11px; font-weight:600; white-space:nowrap; }
+.iqvia-dashboard-wrap .ac-accel{ background:rgba(47,201,126,.14); color:#2fc97e; }
+.iqvia-dashboard-wrap .ac-grow{ background:rgba(76,110,245,.14);  color:var(--acc1); }
+.iqvia-dashboard-wrap .ac-defend{ background:rgba(255,159,69,.14);  color:#ffb800; }
+.iqvia-dashboard-wrap .ac-deprio{ background:rgba(255,92,107,.14);  color:#e05c5c; }
+
+/* row expansion */
+.iqvia-dashboard-wrap .conc-expand-row{ display:none; }
+.iqvia-dashboard-wrap .conc-expand-row td{ padding:0; }
+.iqvia-dashboard-wrap .conc-expand-inner{ padding:10px 14px 10px 46px; font-size:12px; line-height:1.6; border-top:none; }
+.iqvia-dashboard-wrap .conc-row-clickable{ cursor:pointer; }
+.iqvia-dashboard-wrap .conc-row-clickable:hover td{ background:rgba(93,103,140,.06) !important; }
+/* ══════════════════════════════════════════════════════════════════════
+   FILTER BAR — grouped layout + stacked labels (2026-09-22)
+   Visual only: no filter IDs, handlers or state changed. Groups are
+   wrappers (.tb-fgroup) around the original .tb-filter blocks.
+   Row 1: title · Period · As Of ········· LCV/SU · theme · CSV · alerts
+   Row 2: [Organization] [Market] [Company] [Product] · Clear All
+══════════════════════════════════════════════════════════════════════ */
+/* dashboard.css sets a global .ms-wrap{flex-direction:column}, which pushed the
+   ▼ caret under the text — keep the trigger on one line inside this tab */
+.iqvia-dashboard-wrap .ms-wrap{flex-direction:row;align-items:center;min-height:32px}
+
+.iqvia-dashboard-wrap .tb-fgroup{--grp:var(--acc1)}
+.iqvia-dashboard-wrap .tb-fgroup[data-grp="org"]    {--grp:var(--acc2)}
+.iqvia-dashboard-wrap .tb-fgroup[data-grp="market"] {--grp:var(--acc1)}
+.iqvia-dashboard-wrap .tb-fgroup[data-grp="company"]{--grp:var(--acc4)}
+.iqvia-dashboard-wrap .tb-fgroup[data-grp="product"]{--grp:var(--acc5)}
+
+@media (min-width:769px){
+  .iqvia-dashboard-wrap #topbar{row-gap:10px;padding-top:8px;padding-bottom:10px}
+  /* Row 1 */
+  .iqvia-dashboard-wrap #topbar .tb-title{order:1;flex:0 1 auto;max-width:420px}
+  .iqvia-dashboard-wrap #topbar .tb-period{order:2}
+  .iqvia-dashboard-wrap #topbar .tb-asof{order:3}
+  .iqvia-dashboard-wrap #topbar .tb-metric{order:4;margin-left:auto!important}
+  .iqvia-dashboard-wrap #topbar > .tb-btn,
+  .iqvia-dashboard-wrap #topbar > #notif-btn{order:5}
+  /* forced line break between row 1 and the filter row */
+  .iqvia-dashboard-wrap #topbar::after{content:"";order:9;flex-basis:100%;height:0}
+  /* Row 2 */
+  .iqvia-dashboard-wrap #topbar .tb-fgroup{order:10}
+  .iqvia-dashboard-wrap #topbar .tb-clear{order:11;align-self:flex-end;margin-bottom:1px}
+
+  .iqvia-dashboard-wrap .tb-period label,
+  .iqvia-dashboard-wrap .tb-asof label{font-weight:600;color:var(--txt2)}
+
+  .iqvia-dashboard-wrap .tb-fgroup{
+    position:relative;
+    display:flex;align-items:flex-end;flex-wrap:wrap;
+    gap:8px;
+    padding:14px 10px 8px;
+    border:1px solid var(--border);
+    border-top:2px solid var(--grp);
+    border-radius:10px;
+    background:color-mix(in srgb, var(--grp) 5%, var(--bg1));
+  }
+  .iqvia-dashboard-wrap .tb-fgroup-lbl{
+    position:absolute;top:-9px;left:10px;
+    padding:1px 7px;
+    font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+    line-height:14px;
+    color:var(--grp);
+    background:var(--bg1);
+    border-radius:4px;
+  }
+  /* stacked label above each control */
+  .iqvia-dashboard-wrap .tb-fgroup .tb-filter{
+    flex-direction:column;align-items:stretch;gap:3px;
+  }
+  .iqvia-dashboard-wrap .tb-fgroup .tb-filter label{
+    font-size:11px;font-weight:700;letter-spacing:.02em;
+    color:var(--txt1);
+    padding-left:2px;
+  }
+  .iqvia-dashboard-wrap .tb-fgroup .ms-wrap{min-width:128px;max-width:190px}
+}
+
+/* Mobile drawer: groups become titled sections */
+@media (max-width:768px){
+  .iqvia-dashboard-wrap #filter-group .tb-fgroup{display:block}
+  .iqvia-dashboard-wrap #filter-group .tb-fgroup-lbl{
+    padding:12px 18px 4px;
+    font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--grp);
+  }
+  .iqvia-dashboard-wrap #filter-group .tb-filter label{width:96px}
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   COMPACT STICKY FILTER BAR — hybrid collapse (2026-09-24)
+   Pairs with js/iqvia-filterbar.js. Visual only; desktop only (>768px).
+   Collapsed: 1 row = title · Period · As Of · Filters (n) · chips · LCV/SU · tools
+   Open:      + grouped panel + [note · Clear All · Close · Apply]
+══════════════════════════════════════════════════════════════════════ */
+@media (min-width:769px){
+  .iqvia-dashboard-wrap #topbar #mi-fp-toggle{order:4}
+  .iqvia-dashboard-wrap #topbar #mi-fp-chips{order:5}
+  .iqvia-dashboard-wrap #topbar .tb-metric{order:6;margin-left:0!important}
+  .iqvia-dashboard-wrap #topbar > .tb-btn:not(#mi-fp-toggle),
+  .iqvia-dashboard-wrap #topbar > #notif-btn{order:7}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions{order:12}
+
+  .iqvia-dashboard-wrap #topbar.mi-fp-collapsed{row-gap:0;padding-top:6px;padding-bottom:6px}
+  .iqvia-dashboard-wrap #topbar.mi-fp-collapsed .tb-fgroup,
+  .iqvia-dashboard-wrap #topbar.mi-fp-collapsed #mi-fp-actions{display:none!important}
+  .iqvia-dashboard-wrap #topbar.mi-fp-collapsed::after{display:none}
+  .iqvia-dashboard-wrap #topbar.mi-fp-open{box-shadow:0 10px 28px rgba(0,0,0,.28)}
+
+  .iqvia-dashboard-wrap .mi-fp-toggle{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--txt1)}
+  .iqvia-dashboard-wrap .mi-fp-count{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--bg1);
+    color:var(--txt3);font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+  .iqvia-dashboard-wrap .mi-fp-count.mi-fp-count-on{background:var(--acc1);color:#fff}
+  .iqvia-dashboard-wrap .mi-fp-caret{font-size:9px;opacity:.7;transition:transform .15s}
+  .iqvia-dashboard-wrap #topbar.mi-fp-open .mi-fp-toggle,
+  .iqvia-dashboard-wrap #topbar.mi-fp-open .mi-fp-toggle:hover,
+  .iqvia-dashboard-wrap #topbar.mi-fp-open .mi-fp-toggle:focus{border-color:var(--acc1)!important;color:var(--acc1)!important;
+    background:color-mix(in srgb, var(--acc1) 12%, var(--bg2))!important}
+  .iqvia-dashboard-wrap #topbar.mi-fp-open .mi-fp-caret{transform:rotate(180deg)}
+
+  .iqvia-dashboard-wrap .mi-fp-chips{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:6px;
+    overflow-x:auto;white-space:nowrap;scrollbar-width:thin;cursor:pointer;padding:2px 0}
+  .iqvia-dashboard-wrap .mi-fp-chip{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;max-width:280px;
+    padding:3px 4px 3px 10px;border-radius:14px;font-size:11.5px;color:var(--txt1);
+    background:color-mix(in srgb, var(--acc1) 14%, var(--bg2));border:1px solid color-mix(in srgb, var(--acc1) 40%, var(--border))}
+  .iqvia-dashboard-wrap .mi-fp-chip b{font-weight:700;color:var(--acc1);flex-shrink:0}
+  .iqvia-dashboard-wrap .mi-fp-chip-v{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .iqvia-dashboard-wrap .mi-fp-chip-x{border:0;background:transparent;color:var(--txt2);cursor:pointer;
+    font-size:13px;line-height:1;width:18px;height:18px;border-radius:50%;flex-shrink:0}
+  .iqvia-dashboard-wrap .mi-fp-chip-x:hover{background:var(--bg3);color:var(--acc3)}
+  .iqvia-dashboard-wrap .mi-fp-none{font-size:11.5px;color:var(--txt3);font-style:italic}
+  .iqvia-dashboard-wrap .mi-fp-clear-link{border:0;background:transparent;color:var(--txt2);font-size:11.5px;
+    text-decoration:underline;cursor:pointer;flex-shrink:0;padding:0 4px}
+  .iqvia-dashboard-wrap .mi-fp-clear-link:hover{color:var(--acc3)}
+
+  .iqvia-dashboard-wrap .mi-fp-actions{flex-basis:100%;display:flex;align-items:center;justify-content:flex-end;gap:8px;
+    padding-top:8px;border-top:1px solid var(--border)}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions .tb-clear{order:1;align-self:auto;margin:0}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions .mi-fp-note{order:0}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions .mi-fp-close{order:2}
+  .iqvia-dashboard-wrap #topbar #mi-fp-actions .mi-fp-apply{order:3}
+  .iqvia-dashboard-wrap .mi-fp-note{margin-right:auto;font-size:11.5px;color:var(--acc4);font-weight:600}
+  .iqvia-dashboard-wrap .mi-fp-apply{background:var(--acc1);border-color:var(--acc1);color:#fff;font-weight:700;min-width:96px}
+  .iqvia-dashboard-wrap .mi-fp-apply:hover{filter:brightness(1.08);color:#fff}
+  .iqvia-dashboard-wrap .mi-fp-apply.mi-fp-pending{box-shadow:0 0 0 3px color-mix(in srgb, var(--acc1) 35%, transparent)}
+}
+@media (max-width:768px){
+  .iqvia-dashboard-wrap #mi-fp-toggle,
+  .iqvia-dashboard-wrap #mi-fp-chips,
+  .iqvia-dashboard-wrap #mi-fp-actions{display:none!important}
+}
+
+/* ══════════════════════════════════════════════
+   SIDEBAR ICON RAIL — hover peek (2026-09-24)
+   Pairs with js/iqvia-sidebar-rail.js. Desktop only.
+   Peek expands to full width OVER the content: the negative
+   margin keeps the flex footprint at 52px, so charts do not reflow.
+══════════════════════════════════════════════ */
+@media (min-width: 1025px) {
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail{position:relative}
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek{
+    width:var(--sidebar-w);min-width:var(--sidebar-w);
+    margin-right:calc(52px - var(--sidebar-w));
+    z-index:650; /* above sticky #topbar (600), below drawers/modals (699+) */
+    box-shadow:6px 0 24px rgba(0,0,0,.28);
+  }
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .nav-label,
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .nav-group,
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .logo-txt,
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .logo-sub{display:revert}
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek .nav-item{padding:clamp(7px,.6vw,10px) clamp(10px,.9vw,16px);justify-content:flex-start;margin:1px 5px}
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed.mi-rail-peek #iqvia-sb-logo{justify-content:flex-start;padding:clamp(12px,1vw,18px) clamp(10px,.9vw,16px)}
+  /* rail: logo image must fit 52px */
+  .iqvia-dashboard-wrap #iqvia-sidebar.mi-rail.collapsed:not(.mi-rail-peek) #iqvia-sb-logo img{max-width:36px;height:auto}
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SINGLE, VISIBLE SCROLLBAR (2026-09-25)
+   js/iqvia-fit.js sizes the tab to the screen so the page no longer scrolls;
+   #iqvia-content is the only scrollbar left, so make it easy to see and grab.
+   (Was 6px, var(--border2) thumb, no track.)
+══════════════════════════════════════════════════════════════════════ */
+.iqvia-dashboard-wrap #iqvia-content::-webkit-scrollbar{width:11px}
+.iqvia-dashboard-wrap #iqvia-content::-webkit-scrollbar-track{background:rgba(148,163,184,.10)}
+.iqvia-dashboard-wrap #iqvia-content::-webkit-scrollbar-thumb{background:rgba(148,163,184,.55);border-radius:8px;border:2px solid transparent;background-clip:padding-box;min-height:48px}
+.iqvia-dashboard-wrap #iqvia-content::-webkit-scrollbar-thumb:hover{background-color:rgba(56,189,248,.85)}
+.iqvia-dashboard-wrap #iqvia-content::-webkit-scrollbar-thumb:active{background-color:rgba(14,165,233,1)}
+.iqvia-dashboard-wrap[data-theme="light"] #iqvia-content::-webkit-scrollbar-track{background:rgba(15,23,42,.05)}
+.iqvia-dashboard-wrap[data-theme="light"] #iqvia-content::-webkit-scrollbar-thumb{background-color:rgba(71,85,105,.45)}
+.iqvia-dashboard-wrap[data-theme="light"] #iqvia-content::-webkit-scrollbar-thumb:hover{background-color:rgba(37,99,235,.75)}
+.iqvia-dashboard-wrap[data-theme="light"] #iqvia-content::-webkit-scrollbar-thumb:active{background-color:rgba(37,99,235,.95)}
+/* Firefox (no ::-webkit-scrollbar); kept out of Chromium/Edge, where
+   scrollbar-color would override the styling above */
+@supports not selector(::-webkit-scrollbar){
+  .iqvia-dashboard-wrap #iqvia-content{scrollbar-width:auto;scrollbar-color:rgba(148,163,184,.7) rgba(148,163,184,.10)}
+  .iqvia-dashboard-wrap[data-theme="light"] #iqvia-content{scrollbar-color:rgba(71,85,105,.55) rgba(15,23,42,.05)}
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SLIM APP CHROME (Market Intelligence tab, desktop only) — 2026-09-25
+   body.mi-iqvia-mode is set by js/iqvia-fit.js only while this tab is open
+   (>768px) and removed when it is left, so no other page is affected.
+   - app header 83px -> ~52px (smaller logo, tighter padding; every button kept)
+   - the empty .filter-bar-wrap (its filter bar is already hidden on this tab)
+     and #app-root's 32px top/bottom margins are dropped
+   iqvia-fit.js then gives the freed height to the Market Intelligence content.
+══════════════════════════════════════════════════════════════════════ */
+body.mi-iqvia-mode .main-content-area > .topbar { padding: 6px 24px; min-height: 0; }
+body.mi-iqvia-mode .main-content-area > .topbar .topbar-brand { gap: 12px; }
+body.mi-iqvia-mode .main-content-area > .topbar .topbar-logo { height: 30px; padding: 2px 8px; }
+body.mi-iqvia-mode .main-content-area > .topbar .topbar-divider { height: 24px; }
+body.mi-iqvia-mode .main-content-area > .topbar h1 { font-size: 15px; }
+body.mi-iqvia-mode .main-content-area > .topbar .topbar-export-btn { padding-top: 5px; padding-bottom: 5px; }
+body.mi-iqvia-mode .main-content-area > .filter-bar-wrap { display: none; }
+body.mi-iqvia-mode #app-root { margin-top: 0; margin-bottom: 0; }

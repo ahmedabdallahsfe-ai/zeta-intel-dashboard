@@ -1,0 +1,551 @@
+/* =====================================================================
+   css/sprint.css  --  Zeta Sprint 2026 workspace
+   ---------------------------------------------------------------------
+   Scoped entirely under .sp-page. Reuses .sc-nav-tabs / .sc-tab (already
+   global, see dashboard.css) for the sub-page switcher, exactly like the
+   Sales Performance page -- this file only styles what's unique to
+   Sprint: KPI bars, stat tiles, band pills, probation badges.
+   ===================================================================== */
+
+.sp-page { font-family: var(--font-family-base); color: var(--color-text-primary); display: flex; flex-direction: column; min-height: 100%; }
+
+.sp-header {
+  background: linear-gradient(135deg, var(--color-primary), #1E3A8A);
+  color: #fff;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.sp-header-logo {
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.sp-header-logo img { display: block; height: 42px; width: auto; }
+.sp-header-text { flex: 1; }
+.sp-header-text h1 { margin: 0 0 4px; font-size: 26px; font-weight: 800; letter-spacing: 0.4px; }
+.sp-header-text p { margin: 0; font-size: 13px; opacity: 0.92; }
+
+.sp-header-period { flex-shrink: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #fff; }
+.sp-header-period label { font-weight: 700; opacity: 0.9; }
+.sp-header-period select { padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.12); color: #fff; font-size: 12.5px; }
+.sp-header-period select option { color: #0F172A; }
+
+.sp-header-actions { flex-shrink: 0; }
+.sp-download-btn { padding: 7px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.14); color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.sp-download-btn:hover { background: rgba(255,255,255,0.26); }
+
+.sp-stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 18px; }
+.sp-stat-tile { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 14px 16px; }
+.sp-stat-tile.sp-stat-highlight { border-color: var(--color-success); background: var(--color-success-light); }
+.sp-stat-tile.sp-stat-warn { border-color: var(--color-warning); background: var(--color-warning-light); }
+.sp-stat-label { font-size: 11px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; }
+.sp-stat-tile.sp-stat-highlight .sp-stat-label { color: var(--color-success); }
+.sp-stat-tile.sp-stat-warn .sp-stat-label { color: var(--color-warning); }
+.sp-stat-value { font-size: 24px; font-weight: 800; margin-top: 3px; }
+.sp-stat-tile.sp-stat-highlight .sp-stat-value { color: var(--color-success); }
+.sp-stat-tile.sp-stat-warn .sp-stat-value { color: var(--color-warning); }
+
+.sp-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+.sp-section h2 { margin: 0 0 4px; font-size: 18px; font-weight: 800; }
+.sp-section-sub { font-size: 12.5px; color: var(--color-text-tertiary); margin-bottom: 14px; line-height: 1.5; }
+
+.sp-notes { font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; }
+.sp-notes ul { margin: 6px 0 0; padding-left: 18px; }
+.sp-notes li { margin-bottom: 6px; }
+
+.sp-tag-live { background: var(--color-success-light); color: var(--color-success); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px; letter-spacing: 0.3px; }
+.sp-tag-partial { background: var(--color-warning-light); color: var(--color-warning); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px; letter-spacing: 0.3px; }
+.sp-tag-pending { background: var(--color-surface-alt); color: var(--color-text-tertiary); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px; letter-spacing: 0.3px; }
+
+.sp-page table { width: 100%; border-collapse: collapse; }
+.sp-page th { text-align: left; font-size: 11px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px; border-bottom: 2px solid var(--color-border); }
+.sp-page td { padding: 8px 10px; border-bottom: 1px solid var(--color-border); vertical-align: middle; font-size: 13px; }
+.sp-page details { margin-top: 10px; }
+.sp-page summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--color-primary); padding: 6px 0; }
+
+.sp-filter-row { margin-bottom: 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-text-secondary); flex-wrap: wrap; }
+.sp-filter-row select { padding: 6px 10px; border-radius: 6px; border: 1px solid var(--color-border); font-size: 13px; }
+.sp-search-wrap { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.sp-search-input { padding: 6px 10px 6px 28px; border-radius: 6px; border: 1px solid var(--color-border); font-size: 13px; width: 220px; max-width: 100%; background: var(--color-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 8px center; }
+.sp-search-input:focus { outline: none; border-color: var(--color-primary); }
+.sp-search-clear { border: none; background: none; cursor: pointer; color: var(--color-text-tertiary); font-size: 13px; padding: 4px 6px; border-radius: 4px; }
+.sp-search-clear:hover { color: var(--color-text-secondary); background: var(--color-surface-alt); }
+
+.sp-row:hover { background: var(--color-surface-alt); }
+.sp-rank { font-weight: 800; font-size: 14px; color: var(--color-text-tertiary); width: 32px; }
+.sp-name { min-width: 220px; font-weight: 600; font-size: 13px; }
+.sp-sub { font-weight: 400; font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+
+.sp-probation-badge { color: var(--color-success); font-weight: 600; cursor: help; }
+
+.sp-kpi-wrap { min-width: 110px; }
+.sp-kpi-label { font-size: 10px; color: var(--color-text-tertiary); display: flex; justify-content: space-between; margin-bottom: 2px; }
+.sp-kpi-track { background: var(--color-border); border-radius: 4px; height: 6px; overflow: hidden; }
+.sp-kpi-fill { background: var(--color-primary); height: 100%; border-radius: 4px; }
+.sp-kpi-fill-pending { background: repeating-linear-gradient(45deg, var(--color-border), var(--color-border) 4px, var(--color-surface-alt) 4px, var(--color-surface-alt) 8px); }
+.sp-kpi-pts { font-size: 10px; color: var(--color-text-tertiary); margin-top: 2px; }
+/* A computed, real 0.0 pts (below this KPI's scoring curve floor -- see
+   kpiBar()'s isZeroFloor in sprint.js) needs its own color, not the same
+   blue as an earned score and not the diagonal-striped "pending" gray --
+   otherwise the fill bar is 0%-wide and looks like nothing rendered at
+   all (Ahmed 2026-08-16, "MAKE THE FONT AND COLOR APPEAR"). */
+.sp-kpi-fill-zero { background: #DC2626; }
+.sp-kpi-zero-note { color: #B91C1C; font-weight: 700; cursor: help; }
+
+.sp-total { text-align: right; width: 110px; }
+.sp-total-pts { font-size: 16px; font-weight: 800; }
+.sp-partial-note { font-size: 10px; color: var(--color-text-tertiary); margin-top: 2px; }
+.sp-band-pill { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+
+.sp-winner-badge { display: inline-block; background: #FEF3C7; color: #B45309; font-size: 10px; font-weight: 800; padding: 1px 8px; border-radius: 8px; margin-left: 6px; letter-spacing: 0.3px; }
+.sp-runnerup-badge { display: inline-block; background: #F1F5F9; color: #475569; font-size: 10px; font-weight: 800; padding: 1px 8px; border-radius: 8px; margin-left: 6px; letter-spacing: 0.3px; border: 1px solid #CBD5E1; }
+tr.sp-row.sp-is-winner { background: linear-gradient(90deg, rgba(180,83,9,0.07), transparent 65%); }
+tr.sp-row.sp-is-winner:hover { background: linear-gradient(90deg, rgba(180,83,9,0.12), var(--color-surface-alt) 65%); }
+
+.sp-departing-badge { display: inline-block; background: #FEE2E2; color: #B91C1C; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 8px; margin-left: 6px; cursor: help; }
+
+/* Recognition eligibility floor note (Medical Rep / CHC Sales Rep / Brand
+   Manager, per Ahmed 2026-08-16) -- explains why a row that may otherwise
+   look top-ranked doesn't carry a WINNER badge this month. Neutral/slate
+   tone (not red/error) since it's an eligibility fact, not a data problem. */
+.sp-floor-note { color: var(--color-text-tertiary); font-weight: 600; cursor: help; }
+
+/* DM/DSM, ASM, NSM Team Sales Achievement note (per Ahmed 2026-08-16, "FOR
+   ALL DSM ASM NSM MENTION SALES ACHIEVEMENT") -- unlike reps and Brand
+   Manager, DM/DSM/ASM/NSM have no personal Sales Achievement KPI column,
+   so this is the only place their team's number is visible at all. Shown
+   on every scored row (not just below-floor ones, unlike .sp-floor-note),
+   color-coded so eligibility is legible without opening the tooltip. */
+.sp-team-ach-note { font-weight: 600; cursor: help; }
+.sp-team-ach-ok { color: var(--color-success); }
+.sp-team-ach-below { color: #B91C1C; }
+
+/* Performance Bands legend (per Ahmed 2026-08-16 "MAKE EXPLAINATION WHY
+   CHAMPION PERFROMER ON TRACK BUILDING GUIDENCE") -- persistent strip
+   below the sub-tab bar (see renderLayout in sprint.js), shown on every
+   sub-tab since the same thresholds apply to all six tiers. Light
+   surface-alt background keeps it visually part of the page chrome
+   rather than competing with the .sp-winners-panel cards below it. */
+.sp-band-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--color-surface-alt); border-bottom: 1px solid var(--color-border); padding: 9px 24px; font-size: 11.5px; }
+.sp-band-legend-label { font-weight: 700; color: var(--color-text-secondary); white-space: nowrap; }
+.sp-band-legend-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-band-chip { display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 9px; border-radius: 8px; font-weight: 700; letter-spacing: 0.2px; cursor: help; }
+.sp-band-chip b { font-weight: 800; }
+.sp-band-chip-pending { opacity: 0.85; }
+.sp-band-legend-note { color: var(--color-text-tertiary); line-height: 1.4; flex-basis: 100%; }
+@media (min-width: 1100px) { .sp-band-legend-note { flex-basis: auto; max-width: 480px; } }
+
+/* KPI methodology explainer (Field Working Days / DV Coverage / Calls per
+   DV -- DM/DSM, ASM, NSM; per Ahmed 2026-08-16 "MAKE BEST PRACTICE
+   EXPLAINING THE KPI") -- collapsed-by-default detail, matching the
+   existing "Excluded" / "no scoreable team" <details> pattern in this
+   section rather than another persistent panel, since this content is
+   longer/more technical. Light-primary tint (not gold like Winners, not
+   neutral like Excluded) signals "informational", distinct from both. */
+.sp-kpi-methodology { background: var(--color-primary-light); border: 1px solid var(--color-border); border-radius: 8px; padding: 4px 12px; margin: 0 0 14px; }
+.sp-kpi-methodology summary { color: var(--color-primary); font-size: 12px; }
+.sp-kpi-methodology ul { margin: 4px 0 10px; padding-left: 18px; font-size: 12px; color: var(--color-text-secondary); line-height: 1.6; }
+.sp-kpi-methodology li { margin-bottom: 6px; }
+.sp-kpi-methodology li b { color: var(--color-text-primary); }
+
+/* Recognition Winners panel (Medical Rep / CHC Sales Rep / Brand Manager,
+   per Ahmed 2026-08-16 "make something explanation to avoid debates and
+   confusion about ranking and also make winners at top") -- a podium-style
+   callout above the ranked table that surfaces exactly who the real
+   winner(s) are and why, so nobody has to scroll a long table to find a
+   badge that may sit several rows down. Deliberately does not reorder the
+   ranked table itself -- see msrWinnersPanelHtml's comment in sprint.js. */
+.sp-winners-panel { margin: 14px 0 18px; padding: 14px 16px; background: linear-gradient(135deg, rgba(254,243,199,0.55), rgba(241,245,249,0.55)); border: 1px solid #FDE68A; border-radius: 12px; }
+.sp-winners-panel-title { font-size: 13px; font-weight: 800; color: #92400E; margin-bottom: 10px; letter-spacing: 0.2px; }
+.sp-winners-panel-cards { display: flex; flex-wrap: wrap; gap: 10px; }
+.sp-winner-card { display: flex; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #FDE68A; border-radius: 10px; padding: 8px 14px; min-width: 220px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+.sp-winner-card-medal { font-size: 22px; line-height: 1; }
+.sp-winner-card-tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: #92400E; }
+.sp-winner-card-name { font-size: 13px; font-weight: 700; color: var(--color-text-primary); margin-top: 1px; }
+.sp-winner-card-meta { font-size: 11px; color: var(--color-text-tertiary); margin-top: 1px; }
+.sp-winner-card-empty { border-style: dashed; background: var(--color-surface-alt); box-shadow: none; }
+.sp-winner-card-empty .sp-winner-card-meta { max-width: 280px; }
+.sp-winners-panel-note { font-size: 11px; color: var(--color-text-tertiary); margin-top: 10px; line-height: 1.5; }
+.sp-winners-panel-note b { color: var(--color-text-secondary); }
+
+.sp-leader-badge { display: inline-block; background: #EDE9FE; color: #6D28D9; font-size: 10px; font-weight: 800; padding: 1px 8px; border-radius: 8px; margin-left: 6px; letter-spacing: 0.3px; cursor: help; }
+
+.sp-team-drilldown { margin-top: 6px; }
+.sp-team-drilldown summary { font-size: 11px; font-weight: 600; color: var(--color-primary); padding: 2px 0; cursor: pointer; }
+.sp-team-drilldown table { margin-top: 4px; }
+.sp-team-drilldown th, .sp-team-drilldown td { padding: 4px 8px; font-size: 11px; }
+
+.sp-manager-line-badge { font-weight: 600; color: var(--color-text-secondary); }
+
+.sp-member-link { background: none; border: none; padding: 0; margin: 0; font: inherit; font-weight: 600; color: var(--color-text-primary); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.sp-member-link:hover { color: var(--color-primary); }
+
+.sp-member-modal-sub { font-size: 12.5px; color: var(--color-text-tertiary); margin-bottom: 14px; }
+.sp-member-modal-kpis { display: flex; flex-direction: column; gap: 14px; }
+.sp-member-modal-kpis .sp-kpi-wrap { min-width: 0; }
+.sp-member-modal-total { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-border); }
+.sp-member-modal-total .sp-total-pts { font-size: 20px; font-weight: 800; }
+
+/* Coaching Intelligence detail popup for DV Coverage / Calls per DV --
+   2026-09-01, Ahmed: "DV Coverage Calls per DV pop up like in coaching
+   intel". Clickable variant of .sp-kpi-wrap (see kpiBar()'s
+   coachingAttrs param in js/sprint.js) plus the popup body itself
+   (coachingDetailModalBody()). */
+.sp-kpi-coaching-clickable { cursor: pointer; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; transition: background 0.15s; }
+.sp-kpi-coaching-clickable:hover, .sp-kpi-coaching-clickable:focus-visible { background: var(--color-surface-alt); outline: none; }
+.sp-kpi-coaching-hint { font-size: 10px; color: var(--color-primary); margin-top: 3px; font-weight: 600; }
+.sp-coaching-detail-summary { font-size: 12.5px; color: var(--color-text-tertiary); margin-bottom: 12px; }
+.sp-coaching-detail-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.sp-coaching-col-title { font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+.sp-coaching-col-coached { color: var(--color-success); }
+.sp-coaching-col-notcoached { color: var(--color-warning); }
+.sp-coaching-namelist { margin: 0; padding-left: 16px; font-size: 12px; }
+.sp-coaching-namelist li { margin-bottom: 6px; }
+.sp-coaching-namemeta { font-size: 10.5px; color: var(--color-text-tertiary); margin-top: 1px; }
+.sp-coaching-note { color: var(--color-primary); }
+/* Sick Leave Impact Rule (2026-09-16): reps out of the DV Coverage
+   denominator because they were on Excluded-band leave that month. Styled
+   as a warning, not a neutral note -- it explains a shrunken denominator. */
+.sp-coaching-leave { color: var(--color-warning, #B45309); font-weight: 600; }
+.sp-coaching-empty { font-size: 12px; color: var(--color-text-tertiary); padding: 6px 0; }
+.sp-coaching-detail-note { font-size: 11.5px; color: var(--color-text-tertiary); margin-top: 12px; padding: 8px 10px; background: var(--color-surface-alt); border-radius: 6px; }
+.sp-coaching-detail-source { font-size: 10.5px; color: var(--color-text-tertiary); margin-top: 10px; font-style: italic; }
+.sp-coaching-back-link { display: block; width: 100%; text-align: left; margin-top: 16px; padding-top: 14px; border: none; border-top: 1px solid var(--color-border); background: none; color: var(--color-primary); font-size: 12px; font-weight: 700; cursor: pointer; }
+.sp-coaching-back-link:hover { text-decoration: underline; }
+
+/* 2026-09-01 (Ahmed: "show coched rep how many days visits per each day
+   make the best practice and show position if this rep") -- rank line +
+   per-coached-rep visit-cadence table + Best Practice badge, added to the
+   same Coaching Intelligence popup. Reuses --color-primary/-success/
+   -border/-surface-alt tokens already used by the rest of this popup. */
+.sp-coaching-rank-line { font-size: 12px; font-weight: 600; color: var(--color-primary); background: var(--color-surface-alt); border-radius: 6px; padding: 8px 10px; margin: 10px 0; }
+.sp-coaching-rep-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+.sp-coaching-rep-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--color-text-tertiary); padding: 4px 8px; border-bottom: 1px solid var(--color-border); }
+.sp-coaching-rep-table td { padding: 5px 8px; border-bottom: 1px solid var(--color-border); }
+.sp-coaching-rep-table tr:last-child td { border-bottom: none; }
+.sp-coaching-best-row td { background: var(--color-surface-alt); }
+.sp-coaching-best-badge { display: inline-block; font-size: 10px; font-weight: 700; color: var(--color-success); margin-left: 4px; white-space: nowrap; }
+
+/* Field Working Days detail popup (2026-09-11) -- reuses .sp-coaching-detail/
+   -detail-summary/-detail-source/-back-link above (same modal shell, same
+   "Source: ..." footer convention); these are just the breakdown table +
+   left-company banner specific to this popup. See
+   workingDaysDetailModalBody() in js/sprint.js. */
+.sp-wd-detail-table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 12.5px; }
+.sp-wd-detail-table td { padding: 5px 8px; border-bottom: 1px solid var(--color-border); }
+.sp-wd-detail-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sp-wd-detail-table tr:last-child td { border-bottom: none; }
+.sp-wd-detail-subhead td { padding-top: 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--color-text-tertiary); border-bottom: 1px solid var(--color-border); }
+.sp-wd-detail-total td { font-weight: 600; }
+.sp-wd-detail-target td { font-weight: 700; background: var(--color-surface-alt); }
+.sp-wd-detail-pct td { font-weight: 700; color: var(--color-primary); }
+.sp-wd-left-banner { font-size: 11.5px; color: var(--color-warning); margin-bottom: 10px; padding: 8px 10px; background: var(--color-surface-alt); border-radius: 6px; border-left: 3px solid var(--color-warning); }
+
+
+/* =====================================================================
+   Access scoping + personal performance card
+   ===================================================================== */
+
+.sp-scope-banner {
+  background: var(--color-warning-light);
+  color: #92400E;
+  border: 1px solid rgba(146,64,14,0.18);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.sp-my-card {
+  background: linear-gradient(135deg, #0F172A, #1E3A8A);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(15,23,42,0.18);
+}
+.sp-my-card-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.75;
+  margin-bottom: 8px;
+}
+.sp-my-card-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sp-my-card-name {
+  font-size: 17px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sp-my-card-tier {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.16);
+  padding: 2px 9px;
+  border-radius: 8px;
+  letter-spacing: 0.3px;
+}
+.sp-my-card-total {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sp-my-card-total .sp-total-pts { font-size: 22px; font-weight: 800; color: #fff; }
+.sp-my-card-btn {
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sp-my-card-btn:hover { background: rgba(255,255,255,0.26); }
+
+/* =====================================================================
+   Floor Rule banner -- "VERY HIGHLIGHTED" per Ahmed 2026-08-16 ("DM DSM
+   HAS REWARD ALSO ... I NEED VERY HIGHLIGHTED GAT FLOOR RULE"). Deliberately
+   loud/high-contrast (dark charcoal + red accent, not the soft gold of
+   .sp-winners-panel or the neutral slate of .sp-floor-note) because this is
+   a money rule, not an informational aside -- it must be impossible to miss
+   on Medical Rep, CHC Sales Rep, Brand Manager, DM/DSM, ASM and NSM alike.
+   ===================================================================== */
+.sp-floor-rule-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: linear-gradient(135deg, #1F2937, #111827);
+  border: 1px solid #DC2626;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  box-shadow: 0 2px 8px rgba(220,38,38,0.18);
+}
+.sp-floor-rule-icon { font-size: 20px; line-height: 1.3; flex-shrink: 0; }
+.sp-floor-rule-body { flex: 1; min-width: 0; }
+.sp-floor-rule-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: #FCA5A5;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.sp-floor-rule-text { font-size: 12px; color: #E5E7EB; line-height: 1.55; }
+.sp-floor-rule-text b { color: #fff; }
+
+/* =====================================================================
+   Winner Page rule banner -- LINE MEDIAN RULE (Medical Rep + CHC Sales
+   Rep), per Ahmed 2026-08-18. Reuses .sp-floor-rule-banner's layout/shape but with
+   its own gold/trophy accent (not the red "money floor" accent still
+   used by floorRuleBannerHtml() on the other tabs) so the two rules read
+   as visibly different, never confused with one another. Stacks multiple
+   .sp-floor-rule-text lines (EN, AR, EN points clarification, AR points
+   clarification) inside the same body.
+   ===================================================================== */
+.sp-median-rule-banner {
+  background: linear-gradient(135deg, #1F2937, #111827);
+  border-color: #D4A72C;
+  box-shadow: 0 2px 8px rgba(212,167,44,0.22);
+}
+.sp-median-rule-banner .sp-floor-rule-title { color: #FCD34D; }
+.sp-median-rule-banner .sp-floor-rule-text + .sp-floor-rule-text { margin-top: 6px; }
+.sp-median-rule-ar { font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
+.sp-median-rule-points { opacity: 0.9; font-style: italic; }
+.sp-median-rule-points b { font-style: normal; }
+
+/* Line Median readout, under the Recognition Winners cards -- recomputed
+   live on every Line filter change alongside msrWinnersPanelHtml. */
+.sp-line-median-panel { margin: 10px 0 18px; padding: 10px 14px; background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: 10px; }
+.sp-line-median-title { font-size: 11px; font-weight: 800; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px; }
+.sp-line-median-values { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12.5px; color: var(--color-text-secondary); }
+.sp-line-median-values b { color: var(--color-text-primary); }
+.sp-line-median-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sp-line-median-table th { text-align: left; padding: 4px 8px; color: var(--color-text-tertiary); font-weight: 700; border-bottom: 1px solid var(--color-border); }
+.sp-line-median-table td { padding: 4px 8px; border-bottom: 1px solid var(--color-border); color: var(--color-text-secondary); }
+.sp-line-median-table tr:last-child td { border-bottom: none; }
+
+/* =====================================================================
+   FULL WINNER PAGE / PERFORMANCE SCALING MODEL -- per Ahmed 2026-08-18
+   17-section spec. Replaces the old single eligibility pill/KPI-chip
+   readout above with: a 6-tier recognition badge, a visible Total Points
+   header, an expandable "How were points calculated?" panel, and a
+   Sales/RF/Coverage-vs-Line-Median block per KPI with its own bar +
+   fixed median marker. Deliberately reuses this file's existing color
+   language (green=cleared, red=below, gold=winner-tier, slate=neutral)
+   rather than inventing a new palette, per the "keep existing colors"
+   constraint.
+   ===================================================================== */
+
+/* ---- Recognition tier badge (sections 3/8) -------------------------- */
+.sp-tier-row { margin-top: 3px; }
+.sp-tier-badge { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.2px; padding: 2px 9px; border-radius: 999px; text-transform: uppercase; white-space: nowrap; }
+.sp-tier-winner { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
+.sp-tier-runnerup { background: #E0E7FF; color: #3730A3; border: 1px solid #A5B4FC; }
+.sp-tier-nearwinner { background: #DBEAFE; color: #1E40AF; border: 1px solid #93C5FD; }
+.sp-tier-strong { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+.sp-tier-developing { background: #E0F2FE; color: #075985; border: 1px solid #7DD3FC; }
+.sp-tier-building { background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; }
+.sp-tier-dataissue { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+.sp-tie-flag { font-size: 10.5px; font-weight: 800; color: #B45309; margin-left: 4px; }
+.sp-pool-rank-note { font-size: 10.5px; font-weight: 700; color: var(--color-text-tertiary); margin-left: 4px; }
+.sp-no-winner { color: var(--color-text-tertiary); font-style: italic; }
+.sp-dataissue-note { font-size: 10.5px; font-weight: 600; color: #991B1B; margin-left: 4px; }
+
+/* ---- Total Points header (sections 3/4/8) --------------------------- */
+.sp-total-points-header { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.sp-total-points-label { font-size: 9px; font-weight: 700; letter-spacing: 0.4px; color: var(--color-text-tertiary); text-transform: uppercase; }
+.sp-total-points-val { font-size: 16px; font-weight: 800; color: var(--color-text-primary); }
+
+/* ---- Expandable "How were points calculated?" (section 5) ----------- */
+.sp-calc-details { margin-top: 6px; font-size: 11px; }
+.sp-calc-details > summary { cursor: pointer; color: var(--color-text-tertiary); font-weight: 600; list-style: none; }
+.sp-calc-details > summary::-webkit-details-marker { display: none; }
+.sp-calc-details > summary:hover { color: var(--color-text-secondary); }
+.sp-calc-body { margin-top: 6px; padding: 8px 10px; background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: 8px; }
+.sp-calc-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.sp-calc-table th { text-align: left; padding: 3px 6px; color: var(--color-text-tertiary); font-weight: 700; border-bottom: 1px solid var(--color-border); }
+.sp-calc-table td { padding: 3px 6px; border-bottom: 1px solid var(--color-border); color: var(--color-text-secondary); }
+.sp-calc-table tr:last-child td { border-bottom: none; }
+.sp-calc-total { margin-top: 6px; font-size: 12px; text-align: right; color: var(--color-text-primary); }
+
+/* ---- Sales/RF/Coverage-vs-Line-Median KPI block (sections 8/9) ------ */
+.sp-kpi-median-block { min-width: 150px; }
+.sp-kpi-median-label { font-size: 10px; font-weight: 700; letter-spacing: 0.3px; color: var(--color-text-tertiary); text-transform: uppercase; }
+.sp-kpi-median-val { font-size: 15px; font-weight: 800; color: var(--color-text-primary); margin-top: 1px; }
+.sp-kpi-median-vsmed { font-size: 10.5px; color: var(--color-text-tertiary); margin-top: 1px; }
+.sp-median-bar-track { position: relative; height: 8px; border-radius: 5px; background: var(--color-surface-alt); border: 1px solid var(--color-border); margin-top: 4px; overflow: visible; }
+.sp-median-bar-fill { position: absolute; top: 0; left: 0; bottom: 0; border-radius: 5px; }
+.sp-median-bar-above { background: #22C55E; }
+.sp-median-bar-below { background: #EF4444; }
+.sp-median-bar-marker { position: absolute; top: -3px; left: 50%; width: 2px; height: 14px; background: #1F2937; transform: translateX(-1px); }
+.sp-median-bar-na { display: flex; align-items: center; font-size: 10px; color: var(--color-text-tertiary); font-style: italic; height: auto; border-style: dashed; }
+.sp-kpi-median-pctofmed { font-size: 11px; font-weight: 700; color: var(--color-text-secondary); margin-top: 4px; }
+.sp-kpi-median-pts { font-size: 10.5px; color: var(--color-text-tertiary); margin-top: 2px; }
+.sp-kpi-median-nopts { font-style: italic; }
+.sp-median-floor-status { font-size: 10px; font-weight: 600; margin-top: 3px; }
+.sp-floor-above { color: #166534; }
+.sp-floor-below { color: #991B1B; }
+
+/* ---- Manager Audit View (section 13) --------------------------------- */
+.sp-manager-audit { margin: 10px 0 18px; padding: 10px 14px; background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: 10px; font-size: 12px; }
+.sp-manager-audit > summary { cursor: pointer; font-weight: 700; color: var(--color-text-secondary); list-style: none; }
+.sp-manager-audit > summary::-webkit-details-marker { display: none; }
+.sp-manager-audit-body { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; color: var(--color-text-secondary); line-height: 1.5; }
+.sp-manager-audit-body b { color: var(--color-text-primary); }
+
+/* ---- "RECOGNITION -- every Line" table (All Lines scope) -- collapsed
+   by default per Ahmed 2026-08-18 ("make it autohide"). Same collapsible
+   shape/spacing as .sp-manager-audit above, its own summary row so it
+   reads as a distinct control from the Manager Audit View. The inner
+   .sp-line-median-panel keeps its own look unchanged, just nested. */
+.sp-alllines-summary { margin: 10px 0 18px; }
+.sp-alllines-summary > summary { cursor: pointer; font-size: 13px; font-weight: 800; color: var(--color-text-secondary); list-style: none; padding: 8px 2px; }
+.sp-alllines-summary > summary:hover { color: var(--color-text-primary); }
+.sp-alllines-summary > summary::-webkit-details-marker { display: none; }
+.sp-alllines-summary .sp-line-median-panel { margin-top: 4px; }
+
+/* ADDED 2026-08-19 ("i need to see median and average to cmpare 2 scenario",
+   confirmed "Median-gate vs Average-gate") -- mirrors .sp-alllines-summary's
+   autohide <details> pattern so this reads as part of the same visual family. */
+.sp-scenario-compare { margin: 10px 0 18px; }
+.sp-scenario-compare > summary { cursor: pointer; font-size: 13px; font-weight: 800; color: var(--color-text-secondary); list-style: none; padding: 8px 2px; }
+.sp-scenario-compare > summary:hover { color: var(--color-text-primary); }
+.sp-scenario-compare > summary::-webkit-details-marker { display: none; }
+.sp-scenario-compare .sp-line-median-panel { margin-top: 4px; }
+
+/* =====================================================================
+   SICK LEAVE IMPACT RULE -- badges, audit table, detail popup
+   Added 2026-09-16 (Ahmed: "in zeta sprint any case is prorated flag it
+   as prorated and if zero in kpi coverage and right frequency due to
+   leave flag leave type and popup duration").
+
+   Three badge states, deliberately distinct at a glance:
+     .sp-leave-badge-prorated  amber  -- rule adjusted the target in the
+                                         rep's favour; still a real score.
+     .sp-leave-badge-excluded  slate  -- rep was out of territory; the
+                                         number below is not a judgement.
+     .sp-leave-badge-zero      red    -- a scored KPI reads 0 and this
+                                         leave is why. The one state that
+                                         should stop a manager's eye.
+   Built on the same pill geometry as .sp-departing-badge above so the
+   row's sub-line stays one visual family rather than a badge zoo.
+   ===================================================================== */
+.sp-leave-badge { display: inline-block; background: #E2E8F0; color: #334155; font-size: 10px; font-weight: 700;
+  padding: 1px 7px; border-radius: 8px; margin-left: 6px; cursor: pointer; border: 1px solid transparent; }
+.sp-leave-badge:hover { border-color: currentColor; }
+.sp-leave-badge-prorated { background: #FEF3C7; color: #92400E; }
+.sp-leave-badge-excluded { background: #E0E7FF; color: #3730A3; }
+.sp-leave-badge-zero { background: #FEE2E2; color: #B91C1C; }
+
+/* Inline note inside "How were points calculated?" */
+.sp-calc-leave-note { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #FFFBEB;
+  border-left: 3px solid #D97706; font-size: 11.5px; line-height: 1.6; color: var(--color-text-secondary); }
+.sp-calc-leave-note b { color: var(--color-text-primary); }
+.sp-calc-leave-link { display: inline-block; margin-left: 4px; font-weight: 700; color: #0D9488; cursor: pointer; }
+.sp-calc-leave-link:hover { text-decoration: underline; }
+
+/* Leave Impact audit table (Eligibility Audit section) */
+.sp-leave-audit-table th, .sp-leave-audit-table td { font-size: 11.5px; white-space: nowrap; }
+.sp-leave-zero-cell { color: #B91C1C; font-weight: 700; }
+.sp-leave-audit-foot { padding: 8px 2px 2px; font-size: 11px; color: var(--color-text-secondary); line-height: 1.5; }
+
+/* ---- Detail popup ---- */
+.sp-leave-detail .sp-leave-banner { padding: 10px 12px; border-radius: 8px; background: var(--color-surface-alt);
+  border-left: 4px solid #64748B; font-size: 12.5px; line-height: 1.6; margin-bottom: 10px; }
+.sp-leave-banner-prorated { background: #FFFBEB; border-left-color: #D97706; }
+.sp-leave-banner-excluded { background: #EEF2FF; border-left-color: #4338CA; }
+.sp-leave-caveat { padding: 8px 10px; margin-bottom: 10px; border-radius: 8px; background: var(--color-surface-alt);
+  font-size: 11.5px; line-height: 1.6; color: var(--color-text-secondary); }
+.sp-leave-zero-note { padding: 9px 11px; margin-bottom: 10px; border-radius: 8px; background: #FEE2E2;
+  border-left: 4px solid #B91C1C; font-size: 12px; line-height: 1.6; color: #7F1D1D; }
+.sp-leave-section-head, .sp-leave-proration-head { font-size: 11px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--color-text-secondary); margin: 14px 0 6px; }
+.sp-leave-detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sp-leave-detail-table th { text-align: left; font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--color-text-secondary); border-bottom: 1px solid var(--color-border); padding: 5px 8px; }
+.sp-leave-detail-table td { padding: 5px 8px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+.sp-leave-row-noncounting td { color: var(--color-text-secondary); }
+.sp-leave-nocount-tag, .sp-leave-split-tag, .sp-leave-override { font-size: 10.5px; color: var(--color-text-secondary); font-style: italic; }
+.sp-leave-proration { margin-top: 12px; }
+.sp-leave-proration-after td { background: #FFFBEB; }
+.sp-leave-uplift { color: #047857; font-weight: 700; }
+.sp-leave-proration-foot, .sp-leave-empty { margin-top: 6px; font-size: 11px; color: var(--color-text-secondary); line-height: 1.5; }
+.sp-leave-tiera { margin-top: 12px; padding: 9px 11px; border-radius: 8px; background: #EEF2FF;
+  border-left: 4px solid #4338CA; font-size: 11.5px; line-height: 1.6; }
+
+/* The rule itself, restated in the popup with the rep's own band lit up --
+   so a manager can confirm the classification without a second tab. */
+.sp-leave-rule-box { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--color-border);
+  border-radius: 10px; background: var(--color-surface-alt); }
+.sp-leave-rule-head { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--color-text-secondary); margin-bottom: 6px; }
+.sp-leave-rule-list { margin: 0; padding-left: 18px; font-size: 11.5px; line-height: 1.7; color: var(--color-text-secondary); }
+.sp-leave-rule-list li.sp-leave-rule-on { color: var(--color-text-primary); font-weight: 600;
+  background: #FEF3C7; border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
+.sp-leave-rule-foot { margin-top: 8px; font-size: 11px; line-height: 1.6; color: var(--color-text-secondary); }
+.sp-leave-scope-tag { font-size: 10px; color: var(--color-text-secondary); font-style: italic; white-space: nowrap; }
+.sp-leave-scored-table { margin-top: 10px; }
+.sp-leave-scored-head { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--color-text-secondary); background: var(--color-surface-alt); }
+.sp-leave-audit-scroll { width: 100%; overflow-x: auto; }
+.sp-leave-audit-scroll > table { min-width: 1100px; }

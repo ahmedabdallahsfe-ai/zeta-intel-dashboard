@@ -1,0 +1,672 @@
+/* =========================================================================
+   css/imsrx.css  --  IMS Rx workspace
+   -------------------------------------------------------------------------
+   Scoped entirely under .imsrx-page. Reuses .sc-nav-tabs / .sc-tab (already
+   global, see dashboard.css) for the sub-page switcher, and the platform
+   design tokens from design-system.css (--color-*, --space-*, --radius-*,
+   --shadow-*) rather than hardcoded values, so this page ages consistently
+   with the rest of the dashboard.
+   ========================================================================= */
+
+.imsrx-page {
+  padding: var(--space-6, 24px);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.imsrx-header {
+  margin-bottom: var(--space-5, 20px);
+}
+
+.imsrx-header h1 {
+  font-size: var(--fs-2xl, 24px);
+  font-weight: var(--fw-bold, 700);
+  color: var(--color-text-primary, #0F172A);
+  margin: 0 0 4px 0;
+}
+
+.imsrx-subhead {
+  font-size: var(--fs-sm, 13px);
+  color: var(--color-text-secondary, #64748B);
+  margin: 0;
+}
+
+/* ---- Known-limitations banner (dismissible) --------------------------- */
+
+.imsrx-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--color-info-light, #CFFAFE);
+  border: 1px solid var(--color-info, #0891B2);
+  border-radius: var(--radius-lg, 8px);
+  padding: 14px 16px;
+  margin-bottom: var(--space-5, 20px);
+}
+
+.imsrx-banner-icon {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.imsrx-banner-body {
+  flex: 1;
+}
+
+.imsrx-banner-title {
+  font-size: var(--fs-sm, 13px);
+  font-weight: var(--fw-semibold, 600);
+  color: var(--color-text-primary, #0F172A);
+  margin-bottom: 2px;
+}
+
+.imsrx-banner-text {
+  font-size: var(--fs-sm, 13px);
+  color: var(--color-text-secondary, #64748B);
+  line-height: var(--line-height-base, 1.5);
+}
+
+.imsrx-banner-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-text-tertiary, #94A3B8);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.imsrx-banner-close:hover {
+  color: var(--color-text-primary, #0F172A);
+}
+
+/* ---- Stat tiles --------------------------------------------------------
+   Same tile pattern as .sp-stat-tile in sprint.css -- kept visually
+   identical on purpose so the two workspaces read as one platform. */
+
+.imsrx-stats-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: var(--space-5, 20px);
+}
+
+.imsrx-stat-tile {
+  background: var(--color-surface, #FFFFFF);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-lg, 8px);
+  padding: 14px 16px;
+}
+
+.imsrx-stat-tile.imsrx-stat-highlight {
+  border-color: var(--color-primary, #0F4C81);
+  background: var(--color-primary-light, #E8F0F7);
+}
+
+.imsrx-stat-tile.imsrx-stat-positive {
+  border-color: var(--color-success, #15803D);
+  background: var(--color-success-light, #DCFCE7);
+}
+
+.imsrx-stat-tile.imsrx-stat-negative {
+  border-color: var(--color-danger, #DC2626);
+  background: var(--color-danger-light, #FEE2E2);
+}
+
+.imsrx-stat-label {
+  font-size: 11px;
+  color: var(--color-text-tertiary, #94A3B8);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.imsrx-stat-sub {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-tertiary, #94A3B8);
+}
+
+.imsrx-stat-value {
+  font-size: var(--fs-kpi-value, 28px);
+  font-weight: var(--fw-black, 800);
+  color: var(--color-text-primary, #0F172A);
+  margin-top: 3px;
+}
+
+/* ---- Hero chart card ---------------------------------------------------- */
+
+.imsrx-chart-card {
+  background: var(--color-surface, #FFFFFF);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-lg, 8px);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(15, 23, 42, 0.06));
+  padding: 18px 20px;
+}
+
+.imsrx-chart-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 12px;
+}
+
+.imsrx-chart-card-header h3 {
+  font-size: var(--fs-md, 15px);
+  font-weight: var(--fw-semibold, 600);
+  color: var(--color-text-primary, #0F172A);
+  margin: 0;
+}
+
+.imsrx-chart-caption {
+  font-size: 11px;
+  color: var(--color-text-tertiary, #94A3B8);
+  font-style: italic;
+}
+
+.imsrx-chart-wrap {
+  position: relative;
+  height: 340px;
+}
+
+@media (max-width: 1100px) {
+  .imsrx-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.imsrx-stats-row-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* =========================================================================
+   Market Dynamics -- filter bar (popover multi-select + search), styled
+   after Total Market Intelligence's .mi-filterbar/.mi-f pattern but with
+   its own class names -- no cross-file CSS dependency on market-intel.css.
+   ========================================================================= */
+
+.imsrx-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  background: var(--color-surface, #FFFFFF);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-xl, 12px);
+  padding: 14px 16px;
+  margin-bottom: var(--space-4, 16px);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(15, 23, 42, 0.06));
+}
+
+.imsrx-f {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.imsrx-f-label {
+  font-size: 10.5px;
+  font-weight: var(--fw-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary, #64748B);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.imsrx-f-count {
+  background: var(--color-primary, #0F4C81);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.imsrx-f-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--color-surface-alt, #F8FAFC);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-md, 6px);
+  padding: 7px 10px;
+  font-size: var(--fs-sm, 13px);
+  color: var(--color-text-primary, #0F172A);
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.imsrx-f-btn:hover {
+  border-color: var(--color-border-strong, #CBD5E1);
+}
+
+.imsrx-f-sum {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.imsrx-f-caret {
+  color: var(--color-text-tertiary, #94A3B8);
+  font-size: 10px;
+}
+
+.imsrx-f-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: var(--z-dropdown, 100);
+  width: 260px;
+  background: var(--color-surface, #FFFFFF);
+  border: 1px solid var(--color-border-strong, #CBD5E1);
+  border-radius: var(--radius-lg, 8px);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(15, 23, 42, 0.10));
+  padding: 10px;
+}
+
+.imsrx-f-search {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-md, 6px);
+  padding: 6px 8px;
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+
+.imsrx-f-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.imsrx-f-actions button {
+  background: none;
+  border: none;
+  color: var(--color-primary, #0F4C81);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.imsrx-f-actions button:hover {
+  text-decoration: underline;
+}
+
+.imsrx-f-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.imsrx-f-opt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 4px;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.imsrx-f-opt:hover {
+  background: var(--color-surface-alt, #F8FAFC);
+}
+
+.imsrx-f-opt.on {
+  background: var(--color-primary-light, #E8F0F7);
+}
+
+.imsrx-f-opt input {
+  flex: none;
+}
+
+.imsrx-f-opt-lbl {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary, #0F172A);
+}
+
+.imsrx-f-opt-val {
+  font-size: 10.5px;
+  color: var(--color-text-tertiary, #94A3B8);
+  flex: none;
+}
+
+.imsrx-reset {
+  background: var(--color-surface-alt, #F8FAFC);
+  border: 1px solid var(--color-border, #E2E8F0);
+  border-radius: var(--radius-md, 6px);
+  padding: 7px 14px;
+  font-size: var(--fs-sm, 13px);
+  font-weight: 600;
+  color: var(--color-text-secondary, #64748B);
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+.imsrx-reset:hover {
+  color: var(--color-danger, #DC2626);
+  border-color: var(--color-danger, #DC2626);
+}
+
+/* ---- Ranked table (bar-behind-name pattern) ----------------------------- */
+
+.imsrx-rank-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.imsrx-rank-table th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary, #94A3B8);
+  border-bottom: 1px solid var(--color-border, #E2E8F0);
+  padding: 6px 8px;
+}
+
+.imsrx-rank-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-surface-alt, #F8FAFC);
+}
+
+.imsrx-th-rank {
+  width: 28px;
+  color: var(--color-text-tertiary, #94A3B8);
+}
+
+.imsrx-num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.imsrx-strong {
+  font-weight: 700;
+  color: var(--color-text-primary, #0F172A);
+}
+
+.imsrx-cell-name {
+  position: relative;
+}
+
+.imsrx-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--color-primary-light, #E8F0F7);
+  border-radius: 3px;
+  z-index: 0;
+}
+
+.imsrx-name-txt {
+  position: relative;
+  z-index: 1;
+  padding-left: 4px;
+}
+
+.imsrx-empty {
+  text-align: center;
+  color: var(--color-text-tertiary, #94A3B8);
+  font-size: 13px;
+  padding: 24px;
+}
+
+/* ---- Product spotlight (Rx vs Units) ------------------------------------ */
+
+.imsrx-spotlight {
+  background: linear-gradient(135deg, var(--color-primary-light, #E8F0F7) 0%, #FFFFFF 55%);
+  border: 1px solid var(--color-primary, #0F4C81);
+  border-radius: var(--radius-lg, 8px);
+  padding: 18px 20px;
+  margin-bottom: var(--space-4, 16px);
+}
+
+.imsrx-spotlight-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.imsrx-spotlight-head h3 {
+  font-size: var(--fs-md, 15px);
+  font-weight: 700;
+  color: var(--color-text-primary, #0F172A);
+  margin: 0;
+}
+
+.imsrx-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.imsrx-badge-ok {
+  background: var(--color-success-light, #DCFCE7);
+  color: var(--color-success, #15803D);
+}
+
+.imsrx-badge-warn {
+  background: var(--color-warning-light, #FEF3C7);
+  color: var(--color-warning, #B45309);
+}
+
+.imsrx-badge-muted {
+  background: var(--color-surface-alt, #F8FAFC);
+  color: var(--color-text-tertiary, #94A3B8);
+}
+
+.imsrx-spotlight-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.imsrx-spotlight-row-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.imsrx-spotlight-stat-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary, #64748B);
+}
+
+.imsrx-spotlight-stat-label span {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10.5px;
+  color: var(--color-text-tertiary, #94A3B8);
+  margin-top: 1px;
+}
+
+.imsrx-spotlight-stat-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--color-text-primary, #0F172A);
+  margin-top: 2px;
+}
+
+.imsrx-spotlight-ratio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 76, 129, 0.06);
+  border-left: 3px solid var(--color-primary, #0F4C81);
+  padding: 8px 12px;
+  border-radius: 0 var(--radius-sm, 4px) var(--radius-sm, 4px) 0;
+  font-size: 12px;
+  color: var(--color-text-secondary, #334155);
+  margin-bottom: 14px;
+  line-height: 1.45;
+}
+
+.imsrx-ratio-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.imsrx-spotlight-sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #64748B);
+  margin: 10px 0 6px;
+}
+
+/* ---- Market Dynamics chart grid ----------------------------------------- */
+
+.imsrx-chart-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.imsrx-chart-card-wide {
+  grid-column: 1 / -1;
+}
+
+.imsrx-chart-wrap-sm {
+  position: relative;
+  height: 240px;
+}
+
+@media (max-width: 1100px) {
+  .imsrx-stats-row-4,
+  .imsrx-spotlight-row-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .imsrx-chart-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .imsrx-stats-row-4,
+  .imsrx-spotlight-row-4,
+  .imsrx-spotlight-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Text-color-only growth indicators ---------------------------------
+   Distinct from .imsrx-stat-tile.imsrx-stat-positive/negative (which carry
+   a tile background) -- these apply to table cells and inline spotlight
+   values, where only the text should change color. Used by Company
+   Performance's leaderboard YoY column and spotlight growth stat. */
+
+.imsrx-positive {
+  color: var(--color-success, #15803D);
+}
+
+.imsrx-negative {
+  color: var(--color-danger, #DC2626);
+}
+
+/* ---- Geo & Specialty tab (2026-09-28) -------------------------------- */
+.imsrx-geo { display: flex; flex-direction: column; gap: 16px; }
+.imsrx-geo-bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; background: var(--color-surface, #fff); border: 1px solid var(--color-border, #E2E8F0); border-radius: var(--radius-lg, 8px); padding: 12px 16px; }
+.imsrx-geo-bar label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--color-text-secondary, #64748B); }
+.imsrx-geo-bar select { min-width: 180px; max-width: 360px; padding: 6px 8px; border: 1px solid var(--color-border, #CBD5E1); border-radius: 6px; font-size: 13px; color: var(--color-text-primary, #0F172A); background: var(--color-surface, #fff); text-transform: none; font-weight: 500; }
+.imsrx-geo-bar label > .imsrx-geo-seg { margin-bottom: 4px; }
+.imsrx-geo-scope { font-size: 12px; color: var(--color-text-secondary, #64748B); padding-bottom: 8px; }
+.imsrx-geo-seg { display: inline-flex; border: 1px solid var(--color-border, #CBD5E1); border-radius: 6px; overflow: hidden; }
+.imsrx-geo-seg button { border: 0; background: transparent; padding: 5px 12px; font-size: 12px; cursor: pointer; color: var(--color-text-secondary, #475569); }
+.imsrx-geo-seg button.on { background: var(--color-primary, #1E40AF); color: #fff; }
+.imsrx-geo-seg.sm button { padding: 3px 9px; font-size: 11px; }
+.imsrx-geo-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 28px; }
+.imsrx-geo-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--color-primary-light, #DBEAFE); color: var(--color-primary, #1E40AF); border-radius: 999px; padding: 3px 6px 3px 12px; font-size: 12px; font-weight: 600; }
+.imsrx-geo-chip button { border: 0; background: rgba(30,64,175,.12); color: inherit; border-radius: 999px; width: 20px; height: 20px; cursor: pointer; font-size: 11px; line-height: 1; }
+.imsrx-geo-link { border: 0; background: none; color: var(--color-primary, #1E40AF); cursor: pointer; font-size: 12px; font-weight: 600; padding: 4px 0; }
+.imsrx-geo-muted { color: var(--color-text-secondary, #94A3B8); font-size: 12px; }
+.imsrx-geo-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.imsrx-geo-kpi-sm { font-size: 15px !important; line-height: 1.3; }
+.imsrx-geo .pos { color: #15803D; } .imsrx-geo .neg { color: #B91C1C; }
+.imsrx-geo-flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--color-text-secondary, #64748B); }
+.imsrx-geo-flow span { background: var(--color-surface-alt, #F1F5F9); border-radius: 4px; padding: 3px 8px; font-weight: 600; color: var(--color-text-primary, #334155); }
+.imsrx-geo-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #E2E8F0); border-radius: var(--radius-lg, 8px); padding: 14px 16px; }
+.imsrx-geo-card-h { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px; }
+.imsrx-geo-card-h h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--color-text-primary, #0F172A); }
+.imsrx-geo-ctx { font-size: 12px; color: var(--color-text-secondary, #64748B); }
+.imsrx-geo-tbl-wrap { overflow-x: auto; }
+.imsrx-geo-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.imsrx-geo-tbl th, .imsrx-geo-tbl td { padding: 7px 10px; border-bottom: 1px solid var(--color-border, #EEF2F7); text-align: left; white-space: nowrap; }
+.imsrx-geo-tbl th { font-size: 11px; font-weight: 600; color: var(--color-text-secondary, #64748B); }
+.imsrx-geo-tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+.imsrx-geo-tbl .strong { font-weight: 700; }
+.imsrx-geo-grp th { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; text-align: center; border-bottom: 0; padding-bottom: 2px; }
+.imsrx-geo-tbl th.g-vol { background: rgba(100,116,139,.08); } .imsrx-geo-tbl th.g-we { background: rgba(30,64,175,.07); }
+.imsrx-geo-tbl th.g-str { background: rgba(8,145,178,.08); } .imsrx-geo-tbl th.g-ix { background: rgba(124,58,237,.08); }
+.imsrx-geo-tbl th.g-gap { background: rgba(234,88,12,.09); }
+.imsrx-geo-row { cursor: pointer; transition: background .12s, opacity .12s; }
+.imsrx-geo-row:hover { background: var(--color-surface-alt, #F8FAFC); }
+.imsrx-geo-row:focus { outline: 2px solid var(--color-primary, #1E40AF); outline-offset: -2px; }
+.imsrx-geo-tbl.has-sel .imsrx-geo-row:not(.on) { opacity: .55; }
+.imsrx-geo-row.on { background: var(--color-primary-light, #DBEAFE); box-shadow: inset 3px 0 0 var(--color-primary, #1E40AF); opacity: 1; }
+.imsrx-geo-row .nm { font-weight: 600; }
+.imsrx-geo-others td { color: var(--color-text-secondary, #64748B); font-style: italic; }
+.imsrx-geo-total td { font-weight: 700; border-top: 2px solid var(--color-border, #CBD5E1); }
+.imsrx-geo-twin { position: relative; height: 8px; width: 90px; margin: 3px 0 0 auto; background: var(--color-surface-alt, #F1F5F9); border-radius: 3px; }
+.imsrx-geo-twin span { position: absolute; left: 0; height: 4px; border-radius: 2px; }
+.imsrx-geo-twin-m { top: 0; background: #94A3B8; } .imsrx-geo-twin-p { top: 4px; background: var(--color-primary, #1E40AF); }
+.imsrx-geo-ix { display: inline-block; min-width: 34px; text-align: center; padding: 1px 6px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+.imsrx-geo-ix-under { background: #FEE2E2; color: #B91C1C; } .imsrx-geo-ix-inline { background: #F1F5F9; color: #475569; } .imsrx-geo-ix-over { background: #DCFCE7; color: #15803D; }
+.imsrx-geo-pm { color: #15803D; margin-right: 5px; font-size: 11px; } .imsrx-geo-npm { color: #CBD5E1; margin-right: 5px; font-size: 11px; }
+.imsrx-geo-mx { border-collapse: separate; border-spacing: 3px; font-size: 12px; }
+.imsrx-geo-mx th { font-size: 11px; font-weight: 600; color: var(--color-text-secondary, #64748B); padding: 4px 6px; white-space: nowrap; }
+.imsrx-geo-mx thead th { writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; height: 92px; }
+.imsrx-geo-mx tbody th { text-align: right; }
+.imsrx-geo-mx th.on { color: var(--color-primary, #1E40AF); }
+.imsrx-geo-cell { min-width: 54px; text-align: center; padding: 8px 4px; border-radius: 4px; cursor: pointer; font-variant-numeric: tabular-nums; font-weight: 600; background: #F8FAFC; }
+.imsrx-geo-cell.b-under { background: #FEE2E2; color: #991B1B; } .imsrx-geo-cell.b-inline { background: #F1F5F9; color: #334155; } .imsrx-geo-cell.b-over { background: #DCFCE7; color: #166534; }
+.imsrx-geo-cell.small, .imsrx-geo-cell.neutral { color: #94A3B8; font-weight: 400; } .imsrx-geo-cell.empty { background: transparent; cursor: default; }
+.imsrx-geo-cell.on { outline: 2px solid var(--color-primary, #1E40AF); }
+.imsrx-geo-opp-sum { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.imsrx-geo-opp-tile { flex: 1 1 200px; border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; }
+.imsrx-geo-opp-tile span { font-size: 12px; font-weight: 700; } .imsrx-geo-opp-tile strong { font-size: 20px; } .imsrx-geo-opp-tile em { font-size: 11px; font-style: normal; opacity: .8; }
+.imsrx-geo-opp-tile.exec { background: #FFEDD5; color: #9A3412; } .imsrx-geo-opp-tile.target { background: #EDE9FE; color: #5B21B6; } .imsrx-geo-opp-tile.none { background: #F1F5F9; color: #475569; }
+.imsrx-geo-type { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+.imsrx-geo-type.exec { background: #FFEDD5; color: #9A3412; } .imsrx-geo-type.target { background: #EDE9FE; color: #5B21B6; } .imsrx-geo-type.none { background: #F1F5F9; color: #475569; }
+.imsrx-geo-focus td { background: var(--color-primary-light, #EFF6FF); font-weight: 700; }
+.imsrx-geo-notes { font-size: 12px; line-height: 1.6; color: var(--color-text-secondary, #64748B); background: var(--color-surface-alt, #F8FAFC); border-radius: 8px; padding: 10px 14px; }
+@media (max-width: 720px) { .imsrx-geo-bar select { min-width: 0; width: 100%; } .imsrx-geo-bar label { flex: 1 1 100%; } }
+
+/* ---- Geo & Specialty: "How to read this" guide boxes (2026-09-28) ---- */
+.imsrx-geo-guide { background: #FFFBEB; border: 1px solid #FDE68A; border-left: 5px solid #F59E0B; border-radius: 8px; padding: 10px 14px 8px; margin: 0 0 12px; font-size: 13px; line-height: 1.55; color: #451A03; }
+.imsrx-geo-guide .gd-h { font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #B45309; margin-bottom: 4px; }
+.imsrx-geo-guide p { margin: 0 0 6px; }
+.imsrx-geo-guide b { color: #78350F; }
+.imsrx-geo-guide .gd-now { background: #FEF3C7; border-radius: 6px; padding: 6px 10px; margin-top: 4px; }
+.imsrx-geo > .imsrx-geo-guide { margin: 0; }
+.imsrx-geo-guidebtn { align-self: flex-end; margin-bottom: 4px; border: 1px solid #FCD34D; background: #fff; color: #92400E; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.imsrx-geo-guidebtn.on { background: #FEF3C7; }
+
+/* ---- Geo & Specialty: Top-5 brands beside Market / We in Region distribution (2026-09-30) ---- */
+.imsrx-geo-tbl th.g-top { background: rgba(21,128,61,.08); max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+.imsrx-geo-tbl th.g-top-f, .imsrx-geo-tbl td.g-top-f { background: rgba(30,64,175,.07); color: var(--color-primary, #1E40AF); }
+.imsrx-geo-tbl td.g-topc { line-height: 1.2; }
+.imsrx-geo-tbl td.g-topc.lead { font-weight: 700; }
+.imsrx-geo-sub { display: block; font-size: 11px; font-weight: 400; color: var(--color-text-secondary, #64748B); }
+
+/* ---- Geo & Specialty: Excel download button (2026-09-30) ---- */
+.imsrx-geo-xlbtn { align-self: flex-end; margin-bottom: 4px; border: 1px solid #86EFAC; background: #F0FDF4; color: #166534; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.imsrx-geo-xlbtn:hover { background: #DCFCE7; } .imsrx-geo-xlbtn:disabled { opacity: .6; cursor: wait; }

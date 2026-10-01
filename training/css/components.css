@@ -1,0 +1,1648 @@
+/* =====================================================================
+   ZETA ENTERPRISE DESIGN SYSTEM — components.css
+   =====================================================================
+   PLATFORM ASSET. Exactly one implementation per conceptual component.
+   Every workspace consumes these; no workspace owns or forks them.
+
+   Namespace: every selector here is prefixed `.ds-` to guarantee it can
+   never collide with the existing per-workspace classes discovered
+   during the design-system audit (.card/.kpi-card, .sc-*, .sfe-*,
+   .iqvia-* under .iqvia-dashboard-wrap). Migrating a workspace onto
+   this library means swapping its markup to use `.ds-*` classes, not
+   merging namespaces.
+
+   Depends on: design-system.css (tokens), animations.css (keyframes/
+   animation classes), layout.css (structural grids/flex). Load this
+   file after all three.
+
+   Paired JS builders for the interactive components (dropdowns, modal,
+   toast, tooltip) live in js/components.js as window.DS.* functions —
+   this file only owns their visual styling.
+   ===================================================================== */
+
+
+/* =====================================================================
+   1. KPI CARD
+   Usage: the headline number tile (e.g. "Actual Sales EGP 237.6M").
+   Structure:
+     <div class="ds-kpi-card">
+       <div class="ds-kpi-label">ACTUAL SALES</div>
+       <div class="ds-kpi-value">EGP 237.6M</div>
+       <div class="ds-kpi-delta ds-kpi-delta--up">+4.2% vs prior period</div>
+     </div>
+   Modifiers: .ds-kpi-delta--up / --down / --flat control the delta color.
+   Built by: DS.kpiCard({label, value, delta, direction}) in components.js.
+   ===================================================================== */
+
+.ds-kpi-card {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
+}
+
+.ds-kpi-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+.ds-kpi-label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ds-kpi-value {
+  font-size: var(--fs-kpi-value);
+  font-weight: var(--fw-black);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.ds-kpi-delta {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ds-kpi-delta--up   { color: var(--color-success); }
+.ds-kpi-delta--down { color: var(--color-danger); }
+.ds-kpi-delta--flat  { color: var(--color-text-tertiary); }
+
+
+/* =====================================================================
+   1b. EXECUTIVE KPI CARD (Executive Command Center, 2026-07-27)
+   Richer sibling of .ds-kpi-card above -- same surface/border/radius/
+   shadow tokens, more sections: header, main value, performance row,
+   optional comparison row, ranking + status badge + trend footer.
+   Built by: DS.executiveKpiCard({...}) in components.js.
+   ===================================================================== */
+
+.ds-exec-kpi-card {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0; /* 2026-07-28 fix: without this, a grid item's implicit
+                   min-width:auto lets long unbreakable values (e.g. "-90.1M")
+                   force the card wider than its grid track, spilling text
+                   past the card border into the next column. */
+  overflow: hidden;
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
+}
+
+.ds-exec-kpi-card.ds-clickable {
+  cursor: pointer;
+}
+
+.ds-exec-kpi-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1.5px);
+}
+
+.ds-exec-kpi-card:hover .ds-exec-kpi-drill-icon {
+  opacity: 1 !important;
+  color: var(--color-primary, #4F46E5);
+  transform: translate(1px, -1px);
+}
+
+.ds-exec-kpi-header {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ds-exec-kpi-main {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap; /* 2026-07-28: let mainValueSub drop to its own line
+                       instead of forcing the card wider when the value
+                       + sub-label combination doesn't fit one line. */
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ds-exec-kpi-main-value {
+  font-size: var(--fs-kpi-value);
+  font-weight: var(--fw-black);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+  overflow-wrap: break-word;
+}
+
+.ds-exec-kpi-main-sub {
+  font-size: var(--fs-xs);
+  color: var(--color-text-tertiary);
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+.ds-exec-kpi-row {
+  display: flex;
+  flex-wrap: wrap; /* 2026-07-28: 3 metrics can drop to 2 lines on a
+                       narrow card rather than overflowing horizontally. */
+  gap: var(--space-2) var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.ds-exec-kpi-row--compare {
+  border-top-style: dashed;
+}
+
+.ds-exec-kpi-metric {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 70px; /* 2026-07-28: share the row's width equally and shrink
+                      -- was unconstrained flex-basis, so 3 long values
+                      forced the row (and card) wider than its column. */
+  min-width: 0;
+  gap: 2px;
+}
+
+.ds-exec-kpi-metric-label {
+  font-size: var(--fs-xs);
+  color: var(--color-text-tertiary);
+  overflow-wrap: break-word;
+}
+
+.ds-exec-kpi-metric-value {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-primary);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.ds-exec-kpi-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.ds-exec-kpi-rank {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-secondary);
+}
+
+.ds-exec-kpi-rank--na {
+  color: var(--color-text-tertiary);
+  font-weight: var(--fw-regular, 400);
+}
+
+.ds-exec-kpi-footer-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ds-exec-status-badge {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.ds-exec-status--excellent {
+  color: var(--color-success);
+  background: var(--color-success-light);
+}
+
+.ds-exec-status--on-track {
+  color: var(--color-info);
+  background: var(--color-info-light);
+}
+
+.ds-exec-status--at-risk {
+  color: var(--color-warning);
+  background: var(--color-warning-light);
+}
+
+.ds-exec-status--critical {
+  color: var(--color-danger);
+  background: var(--color-danger-light);
+}
+
+.ds-exec-status--no-baseline {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border-strong);
+}
+
+/* Colorification Best Practices for Executive KPI Cards (2026-08-01) */
+.ds-exec-kpi-card.ds-exec-status-card--excellent {
+  border-left: 4px solid var(--color-success) !important;
+  background: linear-gradient(to right, rgba(21, 128, 61, 0.05), var(--color-surface-alt) 20%);
+}
+.ds-exec-kpi-card.ds-exec-status-card--excellent:hover {
+  background: linear-gradient(to right, rgba(21, 128, 61, 0.1), var(--color-surface-alt) 30%);
+}
+
+.ds-exec-kpi-card.ds-exec-status-card--on-track {
+  border-left: 4px solid var(--color-info) !important;
+  background: linear-gradient(to right, rgba(8, 145, 178, 0.05), var(--color-surface-alt) 20%);
+}
+.ds-exec-kpi-card.ds-exec-status-card--on-track:hover {
+  background: linear-gradient(to right, rgba(8, 145, 178, 0.1), var(--color-surface-alt) 30%);
+}
+
+.ds-exec-kpi-card.ds-exec-status-card--at-risk {
+  border-left: 4px solid var(--color-warning) !important;
+  background: linear-gradient(to right, rgba(245, 158, 11, 0.05), var(--color-surface-alt) 20%);
+}
+.ds-exec-kpi-card.ds-exec-status-card--at-risk:hover {
+  background: linear-gradient(to right, rgba(245, 158, 11, 0.1), var(--color-surface-alt) 30%);
+}
+
+.ds-exec-kpi-card.ds-exec-status-card--critical {
+  border-left: 4px solid var(--color-danger) !important;
+  background: linear-gradient(to right, rgba(239, 68, 68, 0.05), var(--color-surface-alt) 20%);
+}
+.ds-exec-kpi-card.ds-exec-status-card--critical:hover {
+  background: linear-gradient(to right, rgba(239, 68, 68, 0.1), var(--color-surface-alt) 30%);
+}
+
+.ds-exec-kpi-card.ds-exec-status-card--no-baseline {
+  border-left: 4px solid var(--color-border-strong) !important;
+  background: linear-gradient(to right, rgba(148, 163, 184, 0.05), var(--color-surface-alt) 20%);
+}
+.ds-exec-kpi-card.ds-exec-status-card--no-baseline:hover {
+  background: linear-gradient(to right, rgba(148, 163, 184, 0.1), var(--color-surface-alt) 30%);
+}
+
+/* Executive Command Center global filter bar + single-select control
+   (DS.select() above). Sits above the 9 KPI cards; changing any control
+   re-renders every card instantly (see js/executive.js renderFilterBar). */
+.ds-exec-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
+}
+
+.ds-select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.ds-select-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ds-select {
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 6px var(--space-2);
+  cursor: pointer;
+}
+
+.ds-select:disabled {
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+  background: var(--color-surface-alt);
+}
+
+.ds-select:focus {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+
+/* =====================================================================
+   2. EXECUTIVE INSIGHT CARD
+   Usage: narrative/AI-generated insight blocks (opportunities, risks,
+   priority actions, cross-module analyst output). One visual container
+   for all of them, differentiated only by an accent-color modifier.
+   Structure:
+     <div class="ds-insight-card ds-insight-card--risk">
+       <div class="ds-insight-card-header">RISK SIGNALS</div>
+       <div class="ds-insight-card-body">...</div>
+     </div>
+   Modifiers: --opportunity (success), --risk (danger), --action (info),
+              --neutral (default, no accent).
+   Built by: DS.insightCard({title, variant, items}) in components.js.
+   ===================================================================== */
+
+.ds-insight-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  border-top: 3px solid var(--color-border-strong);
+}
+
+.ds-insight-card--opportunity { border-top-color: var(--color-success); }
+.ds-insight-card--risk        { border-top-color: var(--color-danger); }
+.ds-insight-card--action      { border-top-color: var(--color-info); }
+
+.ds-insight-card-header {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ds-insight-card-body {
+  font-size: var(--fs-base);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-base);
+}
+
+.ds-insight-card-empty {
+  color: var(--color-text-tertiary);
+  font-size: var(--fs-sm);
+  font-style: italic;
+}
+
+.ds-insight-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.ds-insight-item:last-child { border-bottom: none; }
+
+.ds-insight-item-index {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* =====================================================================
+   3. TABLE
+   Usage: every data table platform-wide. One structure, one look.
+   Structure:
+     <div class="ds-table-wrap"><table class="ds-table"><thead>...
+   Modifiers: add .ds-table--compact for denser rows (rankings/leaderboards).
+   Built by: DS.table({columns, rows, options}) in components.js.
+   ===================================================================== */
+
+.ds-table-wrap {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: auto;
+  background: var(--color-surface);
+}
+
+.ds-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-base);
+}
+
+.ds-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface-alt);
+  color: var(--color-text-secondary);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.ds-table tbody td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.ds-table tbody tr:last-child td { border-bottom: none; }
+.ds-table tbody tr:hover { background: var(--color-surface-alt); }
+.ds-table tbody tr:nth-child(even) { background: rgba(15, 23, 42, 0.012); }
+
+.ds-table--compact thead th,
+.ds-table--compact tbody td { padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); }
+
+.ds-table th[data-sortable] { cursor: pointer; user-select: none; }
+.ds-table th[data-sortable]:hover { color: var(--color-text-primary); }
+
+
+/* =====================================================================
+   4. CHART CONTAINER
+   Usage: the card wrapping every Chart.js canvas, so titles/subtitles/
+   legends/actions look identical regardless of which workspace renders
+   the chart underneath.
+   Structure:
+     <div class="ds-chart-container">
+       <div class="ds-chart-header">
+         <div><div class="ds-chart-title">...</div><div class="ds-chart-subtitle">...</div></div>
+         <div class="ds-chart-actions">...</div>
+       </div>
+       <div class="ds-chart-body"><canvas></canvas></div>
+     </div>
+   Built by: DS.chartContainer({title, subtitle, canvasId, actions}) in components.js.
+   ===================================================================== */
+
+.ds-chart-container {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ds-chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ds-chart-title    { font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--color-text-primary); }
+.ds-chart-subtitle { font-size: var(--fs-sm); color: var(--color-text-secondary); margin-top: 2px; }
+.ds-chart-actions  { display: flex; gap: var(--space-2); flex-shrink: 0; }
+
+.ds-chart-body {
+  position: relative;
+  min-height: 200px;
+  flex: 1;
+}
+
+
+/* =====================================================================
+   5. FILTER CONTROLS
+   Usage: replaces the three separate dropdown/multiselect implementations
+   found in Coverage, Sales, and IQVIA with one searchable multi-select.
+   Structure (built by JS, not meant to be hand-authored):
+     <div class="ds-filter">
+       <label class="ds-filter-label">REGION</label>
+       <button class="ds-filter-trigger">All <svg .../></button>
+       <div class="ds-filter-menu"> ... checkboxes ... </div>
+     </div>
+   Built by: DS.filterDropdown({label, options, selected, onChange}) in components.js.
+   ===================================================================== */
+
+.ds-filter { position: relative; display: flex; flex-direction: column; gap: 4px; }
+
+.ds-filter-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ds-filter-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.ds-filter-trigger:hover,
+.ds-filter-trigger:focus-visible { border-color: var(--color-primary); outline: none; box-shadow: var(--shadow-focus); }
+.ds-filter-trigger[data-active="true"] { border-color: var(--color-primary); background: var(--color-primary-light); }
+
+.ds-filter-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-dropdown);
+  padding: var(--space-2);
+  display: none;
+}
+.ds-filter-menu[data-open="true"] { display: block; animation: ds-fade-in var(--transition-fast) both; }
+
+.ds-filter-menu-actions {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-1);
+}
+.ds-filter-menu-actions button {
+  font-size: var(--fs-xs);
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: var(--fw-semibold);
+}
+
+.ds-filter-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.ds-filter-option:hover { background: var(--color-surface-alt); }
+.ds-filter-option input[type="checkbox"] { accent-color: var(--color-primary); cursor: pointer; }
+
+
+/* =====================================================================
+   6. BUTTONS
+   Usage: every clickable action platform-wide.
+   Structure: <button class="ds-btn ds-btn--primary">Export</button>
+   Variants: --primary, --secondary, --ghost, --danger. Size modifier: --sm.
+   ===================================================================== */
+
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: var(--font-family-base);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+}
+.ds-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ds-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.ds-btn--primary   { background: var(--color-primary); color: var(--color-text-inverse); }
+.ds-btn--primary:hover:not(:disabled) { background: var(--color-primary-hover); }
+
+.ds-btn--secondary { background: var(--color-surface); color: var(--color-text-primary); border-color: var(--color-border); }
+.ds-btn--secondary:hover:not(:disabled) { border-color: var(--color-border-strong); background: var(--color-surface-alt); }
+
+.ds-btn--ghost { background: transparent; color: var(--color-text-secondary); }
+.ds-btn--ghost:hover:not(:disabled) { background: var(--color-surface-alt); color: var(--color-text-primary); }
+
+.ds-btn--danger { background: var(--color-danger); color: var(--color-text-inverse); }
+.ds-btn--danger:hover:not(:disabled) { background: #B91C1C; }
+
+.ds-btn--sm { padding: 4px var(--space-3); font-size: var(--fs-xs); }
+.ds-btn--icon { padding: var(--space-2); border-radius: var(--radius-md); }
+
+
+/* =====================================================================
+   7. NAVIGATION (sub-tab / in-workspace navigation)
+   Usage: the pattern already independently invented as .sc-nav-tabs
+   (Sales) and the sidebar's .menu-item (shell) — this is the reusable
+   in-workspace version (sub-tab bars inside a workspace, e.g. Sales'
+   Executive/Performance/Line P&L switcher).
+   Structure:
+     <div class="ds-tabs">
+       <button class="ds-tab ds-tab--active" data-tab="executive">Executive</button>
+       ...
+     </div>
+   ===================================================================== */
+
+.ds-tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+}
+
+.ds-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.ds-tab:hover { color: var(--color-text-primary); }
+.ds-tab--active { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: var(--fw-semibold); }
+
+
+/* =====================================================================
+   8. EMPTY STATES
+   Usage: the "no data for current filters" pattern — today implemented
+   three different, unstyled ways (Sales' canvas fillText, SFE's bare
+   <td>, Coverage's UI.emptyState() with no CSS at all). One styled
+   version from now on.
+   Structure:
+     <div class="ds-empty-state">
+       <div class="ds-empty-state-icon">...</div>
+       <div class="ds-empty-state-title">No data for current filters</div>
+       <div class="ds-empty-state-hint">Try widening your date range or clearing a filter.</div>
+     </div>
+   Built by: DS.emptyState({title, hint, icon}) in components.js.
+   ===================================================================== */
+
+.ds-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-6);
+  color: var(--color-text-secondary);
+}
+
+.ds-empty-state-icon {
+  font-size: 32px;
+  opacity: 0.5;
+  margin-bottom: var(--space-2);
+}
+
+.ds-empty-state-title { font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--color-text-primary); }
+.ds-empty-state-hint  { font-size: var(--fs-sm); color: var(--color-text-tertiary); max-width: 320px; }
+
+
+/* =====================================================================
+   9. LOADING STATES
+   Usage: replaces Coverage's page-load-only spinner, IQVIA's ad-hoc
+   emoji block, and Sales/SFE having nothing at all, with two reusable
+   patterns: a spinner (short waits) and a skeleton (content-shaped
+   placeholder for longer/first-paint waits).
+   Structure:
+     <div class="ds-spinner"></div>
+     <div class="ds-loading-block"><div class="ds-spinner"></div><div class="ds-loading-text">Loading...</div></div>
+     <div class="ds-skeleton" style="width:100%;height:80px;"></div>
+   Built by: DS.loadingSpinner({message}) / DS.skeleton({width,height}) in components.js.
+   ===================================================================== */
+
+.ds-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+}
+.ds-spinner { animation: ds-spin 0.8s linear infinite; }
+
+.ds-loading-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-10);
+  color: var(--color-text-secondary);
+}
+
+.ds-loading-text { font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+
+.ds-skeleton {
+  border-radius: var(--radius-md);
+  /* .ds-shimmer-bg (animations.css) supplies the moving gradient */
+}
+
+
+/* =====================================================================
+   10. EXPORT CONTROLS
+   Usage: the button that opens Excel/PNG/PDF export options. Visual
+   layer only — the actual export mechanics stay in js/exporter.js
+   (already shared platform-wide); this just gives every workspace the
+   same trigger + menu instead of Sales' hand-rolled CSV/Blob button.
+   Structure:
+     <div class="ds-export">
+       <button class="ds-btn ds-btn--secondary ds-export-trigger">⬇ Export</button>
+       <div class="ds-export-menu">
+         <button class="ds-export-option" data-format="xlsx">Excel</button>
+         <button class="ds-export-option" data-format="png">PNG</button>
+         <button class="ds-export-option" data-format="pdf">PDF</button>
+       </div>
+     </div>
+   ===================================================================== */
+
+.ds-export { position: relative; display: inline-block; }
+
+.ds-export-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 140px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-dropdown);
+  padding: var(--space-1);
+  display: none;
+}
+.ds-export-menu[data-open="true"] { display: block; animation: ds-fade-in var(--transition-fast) both; }
+
+.ds-export-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.ds-export-option:hover { background: var(--color-surface-alt); }
+
+
+/* =====================================================================
+   11. MODALS
+   Usage: any dialog requiring focus/confirmation (today: the Not-Seen
+   Customers modal in Coverage, hand-built per-instance). One overlay +
+   panel pattern from now on.
+   Structure:
+     <div class="ds-modal-overlay" data-open="true">
+       <div class="ds-modal" role="dialog" aria-modal="true">
+         <div class="ds-modal-header"><div class="ds-modal-title">...</div><button class="ds-modal-close">✕</button></div>
+         <div class="ds-modal-body">...</div>
+         <div class="ds-modal-footer">...</div>
+       </div>
+     </div>
+   Built by: DS.modal({title, bodyHtml, footerHtml}) + DS.openModal/closeModal in components.js.
+   ===================================================================== */
+
+.ds-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: var(--space-6);
+}
+.ds-modal-overlay[data-open="true"] { display: flex; animation: ds-fade-in var(--transition-base) both; }
+
+.ds-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ds-modal-overlay[data-open="true"] .ds-modal { animation: ds-scale-in var(--transition-base) both; }
+
+.ds-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+.ds-modal-title { font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--color-text-primary); }
+.ds-modal-close { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: var(--fs-lg); line-height: 1; }
+.ds-modal-close:hover { color: var(--color-text-primary); }
+
+.ds-modal-body   { padding: var(--space-5); overflow-y: auto; flex: 1; color: var(--color-text-primary); font-size: var(--fs-base); }
+.ds-modal-footer { display: flex; justify-content: flex-end; gap: var(--space-2); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--color-border); }
+
+
+/* =====================================================================
+   12. NOTIFICATIONS (toasts + badges)
+   Usage: transient confirmations ("Export complete", "Preset saved")
+   and the notification-bell unread badge (IQVIA already has a bell —
+   this is the reusable version for platform-wide use).
+   Structure:
+     <div class="ds-toast-stack">
+       <div class="ds-toast ds-toast--success"><span>Export complete</span></div>
+     </div>
+     <span class="ds-notif-badge">3</span>
+   Built by: DS.toast({message, variant, duration}) in components.js.
+   ===================================================================== */
+
+.ds-toast-stack {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  z-index: var(--z-toast);
+}
+
+.ds-toast {
+  background: var(--color-surface-inverse);
+  color: var(--color-text-inverse);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 220px;
+  animation: ds-slide-in-right var(--transition-base) both;
+  border-left: 3px solid var(--color-border-strong);
+}
+
+.ds-toast--success { border-left-color: var(--color-success); }
+.ds-toast--warning  { border-left-color: var(--color-warning); }
+.ds-toast--danger   { border-left-color: var(--color-danger); }
+.ds-toast--info     { border-left-color: var(--color-info); }
+
+.ds-notif-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-danger);
+  color: var(--color-text-inverse);
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+
+
+/* =====================================================================
+   13. TOOLTIPS
+   Usage: hover explanations for KPI cards, chart legends, truncated
+   text, and abbreviation glossary terms (RM/NSM/DM etc.).
+   Structure:
+     <span class="ds-tooltip-wrap" data-tooltip="Regional Manager">RM</span>
+   The `[data-tooltip]` attribute selector below means NO extra markup is
+   ever needed beyond that attribute — attach it to anything.
+   ===================================================================== */
+
+[data-tooltip] { position: relative; cursor: help; }
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-surface-inverse);
+  color: var(--color-text-inverse);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  z-index: var(--z-tooltip);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
+/* =========================================================================
+   14. CUSTOMER BRIDGE
+   Prior-period total -> New/Retained/Reactivated/Lost segments -> current
+   total, with a net-change summary line. Used by the Customer Channel Mix
+   cluster drill (executive.js / sales.js getClusterCustomerHealth()).
+   ========================================================================= */
+
+.ds-bridge {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+}
+
+.ds-bridge-endpoint { text-align: center; min-width: 84px; }
+
+.ds-bridge-endpoint-value {
+  font-size: var(--fs-lg, 1.125rem);
+  font-weight: var(--fw-semibold, 600);
+  color: var(--color-text-primary);
+}
+
+.ds-bridge-endpoint-label {
+  font-size: var(--fs-xs);
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+.ds-bridge-seg { text-align: center; min-width: 76px; }
+
+.ds-bridge-seg-value { font-size: var(--fs-sm); font-weight: var(--fw-semibold, 600); }
+.ds-bridge-seg-value--success { color: var(--color-success); }
+.ds-bridge-seg-value--danger  { color: var(--color-danger); }
+.ds-bridge-seg-value--info    { color: var(--color-info); }
+.ds-bridge-seg-value--neutral { color: var(--color-text-secondary); }
+
+.ds-bridge-seg-label {
+  font-size: var(--fs-xs);
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+.ds-bridge-arrow { color: var(--color-text-tertiary); font-size: var(--fs-sm); }
+
+.ds-bridge-net {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.ds-bridge-net--success { color: var(--color-success); }
+.ds-bridge-net--danger  { color: var(--color-danger); }
+.ds-bridge-net--neutral { color: var(--color-text-secondary); }
+
+/* =========================================================================
+   15. SEGMENT BAR
+   100%-stacked horizontal bar for Frequency / SKU-basket breakdowns.
+   ========================================================================= */
+
+.ds-segbar-wrap { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.ds-segbar {
+  display: flex;
+  width: 100%;
+  height: 14px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--color-surface-alt);
+}
+
+.ds-segbar-slice { height: 100%; min-width: 2px; transition: opacity var(--transition-fast); }
+.ds-segbar-slice:hover { opacity: 0.85; }
+
+.ds-segbar-slice--success { background: var(--color-success); }
+.ds-segbar-slice--warning { background: var(--color-warning); }
+.ds-segbar-slice--danger  { background: var(--color-danger); }
+.ds-segbar-slice--info    { background: var(--color-info); }
+.ds-segbar-slice--neutral { background: var(--color-text-tertiary); }
+
+.ds-segbar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.ds-segbar-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--color-text-secondary);
+}
+
+.ds-segbar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.ds-segbar-dot--success { background: var(--color-success); }
+.ds-segbar-dot--warning { background: var(--color-warning); }
+.ds-segbar-dot--danger  { background: var(--color-danger); }
+.ds-segbar-dot--info    { background: var(--color-info); }
+.ds-segbar-dot--neutral { background: var(--color-text-tertiary); }
+
+.ds-segbar-legend-value { color: var(--color-text-primary); font-weight: var(--fw-medium); }
+
+/* =========================================================================
+   16. RANKED BAR LIST
+   Pareto-style ranked horizontal bars, e.g. SKU penetration.
+   ========================================================================= */
+
+.ds-rankedbar-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ds-rankedbar-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 180px) 1fr 56px;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ds-rankedbar-label {
+  font-size: var(--fs-xs);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-rankedbar-track {
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-alt);
+  overflow: hidden;
+}
+
+.ds-rankedbar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-info);
+}
+
+.ds-rankedbar-value {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--color-text-primary);
+  text-align: right;
+}
+
+/* =========================================================================
+   17. DATA GRID
+   Searchable / sortable / paginated table for large customer lists
+   (e.g. 45,000+ Retail cluster customers). Renders only its own body/pager
+   on interaction -- does not re-render the parent modal.
+   ========================================================================= */
+
+.ds-datagrid { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.ds-datagrid-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ds-datagrid-search {
+  flex: 1;
+  max-width: 320px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  font-size: var(--fs-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.ds-datagrid-search:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+.ds-datagrid-export {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.ds-datagrid-export:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text-primary);
+}
+
+.ds-datagrid-th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.ds-datagrid-th:hover { color: var(--color-text-primary); }
+
+.ds-datagrid-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--fs-xs);
+  color: var(--color-text-tertiary);
+}
+
+.ds-datagrid-pager-controls { display: flex; gap: var(--space-2); }
+
+.ds-datagrid-pg-prev,
+.ds-datagrid-pg-next {
+  padding: 4px var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.ds-datagrid-pg-prev:hover:not(:disabled),
+.ds-datagrid-pg-next:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+  color: var(--color-text-primary);
+}
+
+.ds-datagrid-pg-prev:disabled,
+.ds-datagrid-pg-next:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ds-scrollbar-thin { max-height: 420px; overflow-y: auto; }
+.ds-scrollbar-thin::-webkit-scrollbar { width: 6px; }
+.ds-scrollbar-thin::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+
+/* =====================================================================
+   PERFORMANCE TABLES — serial, name+position, banded results
+   =====================================================================
+   Used by the Executive Line / DSM Performance table and its
+   representative drill-down. Added 2026-08-07.
+
+   The restraint here is deliberate. The instinct with a performance
+   table is to colour every metric; the result is a rainbow nobody can
+   read, because if everything is highlighted nothing is. Colour lands
+   on the decision column (achievement) and on the two row extremes
+   only. Coverage and Right-Frequency stay plain — they are diagnostics
+   that explain the achievement figure, not numbers acted on directly. */
+
+/* ---- serial column ---- */
+.ds-table th:first-child,
+.ds-table td:first-child { white-space: nowrap; }
+.ds-table td:first-child { color: var(--color-text-tertiary, #94A3B8); font-variant-numeric: tabular-nums; }
+
+/* ---- name + position stack ---- */
+.lp-name { display: block; font-weight: 600; line-height: 1.3; }
+.lp-subline {
+  display: block; margin-top: 2px;
+  font-size: 11px; line-height: 1.35; font-weight: 500;
+  color: var(--color-text-tertiary, #94A3B8);
+  letter-spacing: .01em;
+}
+
+/* ---- banded achievement pill ----
+   Colour is never the only carrier of meaning: each pill also has a
+   title attribute spelling the band out, and the number itself is
+   always present. That matters for the ~8% of men with colour vision
+   deficiency, and for anyone printing this to greyscale. */
+.lp-pill {
+  display: inline-block; min-width: 62px; text-align: right;
+  padding: 2px 8px; border-radius: 999px;
+  font-weight: 700; font-variant-numeric: tabular-nums;
+  font-size: 12px; line-height: 1.5;
+}
+.lp-band-good  { background: #dcfce7; color: #166534; }
+.lp-band-near  { background: #fef9c3; color: #854d0e; }
+.lp-band-below { background: #ffedd5; color: #9a3412; }
+.lp-band-risk  { background: #fee2e2; color: #991b1b; }
+.lp-band-none  { background: transparent; color: var(--color-text-tertiary, #94A3B8); font-weight: 500; }
+
+/* ---- Target Basis Filter Shortage badge (2026-08-17) ----
+   Passive flag only -- never filters or alters the table it sits in.
+   Shown next to a rep's Target Value when they have real sales on a
+   SKU/month for which no Target was recorded at all (a data-basis gap,
+   not a performance signal), so it deliberately uses a neutral amber
+   rather than the red/green achievement-band vocabulary above -- this
+   is not a "doing badly" flag, it is a "the target itself is missing"
+   flag. Visible only to roles cleared by AUTH.canViewTargetShortage(). */
+.lp-shortage-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 4px; padding: 2px 7px; border-radius: 999px;
+  background: #fef3c7; color: #92400e;
+  font-size: 10.5px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap; cursor: help;
+}
+
+/* ---- row extremes ----
+   A left rail rather than a full-row wash: it survives the zebra
+   striping underneath, reads at a glance down the left edge, and does
+   not fight the pill for attention. */
+.ds-table tbody tr.lp-row-top td { background: rgba(22, 163, 74, .045); }
+.ds-table tbody tr.lp-row-top td:first-child { box-shadow: inset 3px 0 0 #16a34a; }
+.ds-table tbody tr.lp-row-risk td { background: rgba(220, 38, 38, .05); }
+.ds-table tbody tr.lp-row-risk td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
+.ds-table tbody tr.lp-row-top:hover td,
+.ds-table tbody tr.lp-row-risk:hover td { background: var(--color-surface-alt); }
+
+/* =====================================================================
+   CONTROL PANEL — data health console
+   ===================================================================== */
+.cp-root { max-width: 1400px; }
+.cp-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.cp-title { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: -.02em; color: var(--color-text-primary, #0F172A); }
+.cp-sub { font-size: 13px; color: var(--color-text-tertiary, #94A3B8); margin: 6px 0 0; line-height: 1.55; max-width: 74ch; }
+.cp-head-meta { text-align: right; }
+.cp-meta-k { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #94A3B8; }
+.cp-meta-v { font-size: 15px; font-weight: 700; color: var(--color-text-primary, #0F172A); margin-top: 3px; }
+.cp-meta-s { font-size: 11.5px; color: #94A3B8; margin-top: 2px; }
+
+.cp-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.cp-stat { background: #fff; border: 1px solid var(--color-border, #E2E8F0); border-radius: 12px; padding: 14px 16px; }
+.cp-stat-v { font-size: 26px; font-weight: 800; letter-spacing: -.02em; color: var(--color-text-primary, #0F172A); }
+.cp-stat-k { font-size: 11px; font-weight: 600; color: #94A3B8; margin-top: 2px; text-transform: uppercase; letter-spacing: .06em; }
+.cp-stat-ok  .cp-stat-v { color: #16a34a; }
+.cp-stat-warn .cp-stat-v { color: #b45309; }
+.cp-stat-bad .cp-stat-v { color: #dc2626; }
+
+.cp-section { margin-bottom: 30px; }
+.cp-h2 { font-size: 16px; font-weight: 700; margin: 0 0 6px; color: var(--color-text-primary, #0F172A); }
+.cp-note { font-size: 12px; color: var(--color-text-tertiary, #94A3B8); line-height: 1.6; margin: 0 0 12px; max-width: 92ch; }
+
+.cp-alert { border-radius: 10px; padding: 12px 15px; font-size: 12.5px; line-height: 1.6; margin-bottom: 14px; }
+.cp-alert-ok   { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+.cp-alert-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+.cp-alert-bad  { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+.cp-tablewrap { overflow-x: auto; border: 1px solid var(--color-border, #E2E8F0); border-radius: 12px; background: #fff; }
+.cp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cp-table thead th {
+  text-align: left; padding: 10px 14px; font-size: 10px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .07em; color: #64748B;
+  background: #F8FAFC; border-bottom: 1px solid var(--color-border, #E2E8F0); white-space: nowrap;
+}
+.cp-table td { padding: 11px 14px; border-bottom: 1px solid #F1F5F9; vertical-align: top; }
+.cp-table tbody tr:last-child td { border-bottom: none; }
+.cp-row-stale td { background: rgba(220, 38, 38, .04); }
+.cp-row-warn td  { background: rgba(245, 158, 11, .05); }
+
+.cp-ds-name { font-weight: 700; color: var(--color-text-primary, #0F172A); }
+.cp-ds-sub { font-size: 11px; color: #94A3B8; margin-top: 2px; line-height: 1.45; }
+.cp-built { font-variant-numeric: tabular-nums; }
+.cp-verdict { font-size: 11.5px; color: #64748B; margin-top: 5px; line-height: 1.45; max-width: 34ch; }
+.cp-facts { font-size: 11.5px; color: #475569; }
+
+.cp-src { margin-bottom: 6px; }
+.cp-src:last-child { margin-bottom: 0; }
+.cp-src-name { display: block; font-weight: 600; font-size: 11.5px; color: #334155; }
+.cp-src-meta { display: block; font-size: 10.5px; color: #94A3B8; font-variant-numeric: tabular-nums; }
+.cp-src-newer .cp-src-name { color: #b91c1c; }
+.cp-src-newer .cp-src-meta { color: #dc2626; font-weight: 600; }
+.cp-src-missing .cp-src-name { color: #b45309; text-decoration: line-through; }
+
+.cp-badge {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: .03em; white-space: nowrap;
+}
+.cp-badge-ok      { background: #dcfce7; color: #166534; }
+.cp-badge-warn    { background: #fef9c3; color: #854d0e; }
+.cp-badge-stale   { background: #fee2e2; color: #991b1b; }
+.cp-badge-unknown { background: #F1F5F9; color: #64748B; }
+
+.cp-dq { margin-bottom: 14px; }
+.cp-dq-h { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.cp-dq-list { margin: 0; padding-left: 18px; font-size: 11.5px; line-height: 1.65; }
+.cp-dq-err { color: #991b1b; }
+.cp-dq-warn { color: #92400e; }
+
+.cp-foot { font-size: 11.5px; color: #94A3B8; padding-top: 14px; border-top: 1px solid #F1F5F9; }
+.cp-denied { text-align: center; padding: 60px 20px; }
+.cp-denied h2 { font-size: 18px; margin: 0 0 8px; }
+.cp-denied p { font-size: 13px; color: #94A3B8; margin: 0; }
+
+/* -------------------------------------------------------------------
+   BUSINESS REVIEW DOWNLOAD CENTER (.brd-*)
+   ------------------------------------------------------------------- */
+.brd-root {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1E293B;
+}
+
+.brd-head {
+  margin-bottom: 32px;
+}
+
+.brd-head-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0F4C81;
+  background: #E8F1F8;
+  padding: 3px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.brd-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0 0 8px;
+  line-height: 1.25;
+}
+
+.brd-sub {
+  font-size: 14px;
+  color: #64748B;
+  margin: 0 0 16px;
+  line-height: 1.55;
+  max-width: 850px;
+}
+
+.brd-user-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  background: #F8FAFC;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+}
+
+.brd-section {
+  margin-bottom: 36px;
+}
+
+.brd-section-header {
+  margin-bottom: 16px;
+}
+
+.brd-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0 0 4px;
+}
+
+.brd-section-desc {
+  font-size: 13px;
+  color: #64748B;
+  margin: 0;
+}
+
+.brd-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.brd-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.brd-card-featured {
+  background: linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%);
+  border: 1.5px solid #0F4C81;
+  box-shadow: 0 4px 14px rgba(15, 76, 129, 0.08);
+}
+
+.brd-card-template {
+  background: #FAFAF9;
+  border: 1px dashed #CBD5E1;
+}
+
+.brd-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1;
+}
+
+.brd-file-icon {
+  font-size: 32px;
+  line-height: 1;
+  padding: 10px;
+  background: #F1F5F9;
+  border-radius: 10px;
+}
+
+.brd-icon-corp {
+  background: #E8F1F8;
+}
+
+.brd-icon-template {
+  background: #F5F5F4;
+}
+
+.brd-file-info {
+  flex: 1;
+}
+
+.brd-card-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.brd-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.brd-badge-corporate {
+  background: #0F4C81;
+  color: #FFFFFF;
+}
+
+.brd-badge-bu {
+  background: #E0E7FF;
+  color: #3730A3;
+}
+
+.brd-badge-template {
+  background: #E2E8F0;
+  color: #475569;
+}
+
+.brd-period-tag {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748B;
+  background: #F1F5F9;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.brd-file-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 4px;
+}
+
+.brd-file-meta {
+  font-size: 13px;
+  color: #64748B;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.brd-specs-row {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.brd-card-actions {
+  flex-shrink: 0;
+}
+
+.brd-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0F4C81;
+  background: #FFFFFF;
+  border: 1.5px solid #0F4C81;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.brd-download-btn:hover {
+  background: #0F4C81;
+  color: #FFFFFF;
+}
+
+.brd-download-btn:active {
+  transform: scale(0.98);
+}
+
+.brd-btn-primary {
+  background: #0F4C81;
+  color: #FFFFFF;
+}
+
+.brd-btn-primary:hover {
+  background: #093359;
+  border-color: #093359;
+}
+
+.brd-btn-secondary {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+  color: #334155;
+}
+
+.brd-btn-secondary:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.brd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.brd-grid .brd-card {
+  margin-bottom: 0;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.brd-grid .brd-card-actions {
+  margin-top: 12px;
+}
+
+.brd-grid .brd-download-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .brd-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .brd-download-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .brd-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

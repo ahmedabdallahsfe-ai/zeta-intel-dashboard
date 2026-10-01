@@ -1,0 +1,3482 @@
+/**
+ * app.js
+ * ======
+ * Application entry point and orchestrator. Boot sequence:
+ *   Auth gate (js/auth.js) -> Loader.show -> CacheStore.init ->
+ *   Analytics.init -> self-check -> build static section shells (once) ->
+ *   Filters.init (drives the first render) -> Loader.hide.
+ *
+ * Every subsequent filter change re-runs Analytics.run() and calls
+ * renderAll() again -- charts update in place (charts.js), tables
+ * re-render against their own remembered sort/search/page state
+ * (tables.js), everything else is cheap innerHTML replacement.
+ *
+ * AUTHENTICATION (2026-07-29): the entire app -- every workspace, not
+ * just Market Intelligence/IQVIA -- now sits behind a single sign-in
+ * gate (#app-login-gate, styled in css/dashboard.css, logic in
+ * js/auth.js). DOMContentLoaded no longer boots the app directly; it
+ * wires the gate first, then either boots immediately (valid session
+ * already in localStorage) or waits for a successful sign-in. The old
+ * boot body is unchanged in substance -- just moved into the named
+ * startApp() function so it can be invoked from either path.
+ */
+
+let sections = {}; // id -> section-body element, populated once by buildLayout()
+let filenameSuffix = "AllData"; // active-filter suffix, refreshed every render, read by every export button's exportFileName
+let _lastFilterState = null; // stored so the Not-Seen modal can call getNotSeenCustomers with current filters
+let _lastResult = null; // stored so the At-Risk tiers modal can find tier lists
+let currentTab = window.__currentTab || "executive"; // Executive Command Center is the platform's default landing page
+
+document.addEventListener("DOMContentLoaded", () => {
+  wireLoginGate();
+  const signedInUser = window.AUTH ? window.AUTH.getValidSessionUser() : null;
+  if (signedInUser) {
+    hideLoginGate();
+    renderTopbarUserBadge();
+    startApp();
+  }
+  // Else: the gate is visible by default (no "hidden" class in the HTML) --
+  // wireLoginGate()'s Sign In handler calls startApp() itself on success.
+});
+
+/**
+ * Wires the app-wide login gate's form once at boot. Safe to call even
+ * though the gate may never be shown (valid session already present) --
+ * it only attaches listeners, it doesn't check auth state itself.
+ */
+function wireLoginGate() {
+  const btn = document.getElementById("app-login-btn");
+  const emailEl = document.getElementById("app-login-email");
+  const pwdEl = document.getElementById("app-login-pwd");
+  const errEl = document.getElementById("app-login-error");
+  if (!btn || !emailEl || !pwdEl || !errEl || !window.AUTH) return;
+
+  // Initialize Canvas background particle animation
+  initLoginParticles();
+
+  async function attemptLogin() {
+    errEl.classList.remove("show");
+    btn.disabled = true;
+    btn.textContent = "Logging In...";
+    const result = await window.AUTH.login(emailEl.value, pwdEl.value);
+    if (result.ok) {
+      hideLoginGate();
+      renderTopbarUserBadge();
+      startApp();
+    } else {
+      errEl.textContent = result.error;
+      errEl.classList.add("show");
+      btn.disabled = false;
+      btn.textContent = "Log In";
+    }
+  }
+
+  btn.addEventListener("click", attemptLogin);
+  [emailEl, pwdEl].forEach((el) => {
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") attemptLogin();
+    });
+  });
+}
+
+function initLoginParticles() {
+  const container = document.getElementById("app-login-particles");
+  if (!container) return;
+
+  const canvas = document.createElement("canvas");
+  canvas.style.position = "absolute";
+  canvas.style.top = "0";
+  canvas.style.left = "0";
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
+  canvas.style.pointerEvents = "none";
+  container.appendChild(canvas);
+
+  const ctx = canvas.getContext("2d");
+  let width = canvas.width = container.offsetWidth;
+  let height = canvas.height = container.offsetHeight;
+
+  const handleResize = () => {
+    width = canvas.width = container.offsetWidth;
+    height = canvas.height = container.offsetHeight;
+  };
+  window.addEventListener("resize", handleResize);
+
+  const numPoints = 40;
+  const points = [];
+  for (let i = 0; i < numPoints; i++) {
+    points.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      r: Math.random() * 4 + 2
+    });
+  }
+
+  let animationFrameId;
+  function animate() {
+    const gate = document.getElementById("app-login-gate");
+    if (gate && gate.classList.contains("hidden")) {
+      window.removeEventListener("resize", handleResize);
+      cancelAnimationFrame(animationFrameId);
+      return;
+    }
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Deep space dark gradient
+    const grad = ctx.createRadialGradient(width * 0.2, height * 0.2, 0, width * 0.5, height * 0.5, Math.max(width, height));
+    grad.addColorStop(0, '#0c1a30');
+    grad.addColorStop(0.5, '#050c18');
+    grad.addColorStop(1, '#02050a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw connections
+    ctx.lineWidth = 1;
+    for (let i = 0; i < numPoints; i++) {
+      for (let j = i + 1; j < numPoints; j++) {
+        const dx = points[i].x - points[j].x;
+        const dy = points[i].y - points[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 180) {
+          ctx.strokeStyle = `rgba(0, 168, 232, ${0.15 * (1 - dist / 180)})`;
+          ctx.beginPath();
+          ctx.moveTo(points[i].x, points[i].y);
+          ctx.lineTo(points[j].x, points[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Draw points
+    for (let i = 0; i < numPoints; i++) {
+      const p = points[i];
+      p.x += p.vx;
+      p.y += p.vy;
+
+      if (p.x < 0 || p.x > width) p.vx *= -1;
+      if (p.y < 0 || p.y > height) p.vy *= -1;
+
+      ctx.fillStyle = 'rgba(0, 168, 232, 0.4)';
+      ctx.shadowColor = '#00a8e8';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    animationFrameId = requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+function hideLoginGate() {
+  const gate = document.getElementById("app-login-gate");
+  if (gate) gate.classList.add("hidden");
+}
+
+/**
+ * Renders the signed-in user's name/role + a Sign Out control in the
+ * global topbar (visible on every tab, unlike the old IQVIA-only
+ * badge). Called once at boot and again right after a fresh sign-in.
+ */
+function renderTopbarUserBadge() {
+  const slot = document.getElementById("topbar-user-badge-slot");
+  if (!slot || !window.AUTH) return;
+  const user = window.AUTH.getValidSessionUser();
+  if (!user) { slot.innerHTML = ""; return; }
+  slot.innerHTML = `
+    <div class="topbar-user-badge">
+      <div class="badge-avatar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      </div>
+      <div class="badge-info">
+        <span class="badge-name">${user.name}</span>
+        <span class="badge-role">${user.role}</span>
+      </div>
+      <div class="badge-signout" id="topbar-signout-btn">Sign out</div>
+    </div>
+  `;
+  const signoutBtn = document.getElementById("topbar-signout-btn");
+  if (signoutBtn) signoutBtn.addEventListener("click", () => window.AUTH.logout());
+}
+
+window.openNotifCenterModal = function() {
+  const modal = document.getElementById("notif-center-modal-overlay");
+  if (modal) {
+    modal.classList.add("open");
+  }
+};
+
+window.closeNotifCenterModal = function() {
+  const modal = document.getElementById("notif-center-modal-overlay");
+  if (modal) {
+    modal.classList.remove("open");
+  }
+};
+
+// Close modal on Escape key
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") {
+    window.closeNotifCenterModal();
+  }
+});
+
+function startApp() {
+  Loader.init();
+  Loader.show("Loading dashboard...");
+
+  // Perf fix (2026-08-01, "dashboard is loading very slow"): calling
+  // Loader.show() and then immediately running several seconds of
+  // synchronous cache decompression + first render in the SAME tick means
+  // the browser never actually paints the loading overlay -- style/layout/
+  // paint are deferred until the current script yields, so the page just
+  // looks frozen for the whole boot instead of showing the "Loading
+  // dashboard..." spinner. A double requestAnimationFrame forces one real
+  // paint to happen first (the first rAF fires just before the next paint;
+  // by the time its callback's own rAF fires, that paint has completed),
+  // so the overlay is genuinely on screen before the heavy work blocks the
+  // main thread. No logic below this point changed -- startAppBody() is
+  // the exact same code that used to run directly inside startApp().
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      startAppBody();
+    });
+  });
+}
+
+function startAppBody() {
+  const cacheOk = CacheStore.init();
+  if (!cacheOk) {
+    renderMissingCacheNotice();
+    Loader.hide();
+    return;
+  }
+
+  const dashboard = CacheStore.getDashboard();
+  const metadata = CacheStore.getMetadata();
+
+  renderTopBar(metadata, dashboard);
+  wireDashboardExport();
+
+  const records = CacheStore.getRecords();
+  const hasRecords = !!records;
+
+  Loader.setMessage("Building aggregations...");
+  if (hasRecords) {
+    Analytics.init(records, dashboard.dimensions);
+    const selfCheck = Analytics.selfCheck(dashboard.kpis);
+    window.__selfCheck = selfCheck; // surfaced in the Data Quality panel
+  } else {
+    window.__selfCheck = { ok: true, mismatches: [] };
+  }
+
+  // Coverage's own section-tree (KPI cards, tables, charts) is only needed
+  // when Coverage is the active tab. Building it unconditionally at boot
+  // would inject the full layout into #app-root just to have the Executive
+  // Command Center (the platform's default landing page) overwrite it
+  // immediately. buildLayout() still runs, on demand, the first time the
+  // user clicks into the Coverage tab -- see the sidebar click handler below.
+  if (currentTab === "coverage") {
+    Loader.setMessage("Creating dashboard layout...");
+    buildLayout();
+  }
+  wireChartExportDelegation();
+
+  if (hasRecords) {
+    const filterBarEl = document.getElementById("filter-bar");
+    const chipsEl = document.getElementById("filter-chips");
+    // Filters.init() wires the persistent global filter bar (it lives outside
+    // #app-root and is never torn down) and fires its callback once
+    // immediately -- this must still run at boot regardless of which tab is
+    // active, so filtering works the moment the user switches to Coverage.
+    Filters.init(filterBarEl, chipsEl, dashboard.dimensions, (filterState) => {
+      // Per-section busy indicator: cheap at today's row counts (recompute
+      // is well under 100ms) but keeps every section honest if the dataset
+      // grows large enough for the recompute to become perceptible.
+      markAllSectionsRecomputing(true);
+
+      const t0 = CONFIG.debug ? performance.now() : 0;
+      const result = Analytics.run(filterState);
+      if (CONFIG.debug) console.log(`[Perf] Analytics.run(): ${(performance.now() - t0).toFixed(1)}ms for ${records.rows.length.toLocaleString()} records`);
+
+      _lastFilterState = filterState;
+      filenameSuffix = Exporter.filenameSuffixFromFilters(filterState);
+      renderAll(result, dashboard.dimensions, filterState);
+      // Cascading filters: disable options in every OTHER dropdown that
+      // can't produce any rows given the filters just applied. Computed by
+      // Analytics.run() in the same single pass as the aggregation itself.
+      Filters.applyAvailability(result.availableOptions);
+      markAllSectionsRecomputing(false);
+    });
+  } else {
+    // View-only mode (no records.data.js): filters apply client-side to the
+    // pre-computed arrays (teamComparison, leaderboards, managerRanking,
+    // quarterlyCustomerCoverage). KPI summary and trends stay as the full
+    // June snapshot — they require raw records to recompute.
+    const filterBarEl = document.getElementById("filter-bar");
+    const chipsEl = document.getElementById("filter-chips");
+    Filters.init(filterBarEl, chipsEl, dashboard.dimensions, (filterState) => {
+      const hasFilters = Object.values(filterState).some(v => Array.isArray(v) && v.length > 0);
+      const filtered = hasFilters
+        ? applyViewOnlyFilters(dashboard, dashboard.dimensions, filterState)
+        : dashboard;
+      renderAll(filtered, dashboard.dimensions, filterState);
+    });
+    // Render the pre-computed June snapshot directly -- only when Coverage
+    // is actually the active tab (see buildLayout() guard above).
+    if (currentTab === "coverage") {
+      renderAll(dashboard, dashboard.dimensions, {});
+    }
+  }
+
+  // Sidebar toggle collapse
+  const sidebarNav = document.getElementById("sidebar-nav");
+  const toggleBtn = document.getElementById("sidebar-toggle");
+  if (toggleBtn && sidebarNav) {
+    toggleBtn.addEventListener("click", () => {
+      sidebarNav.classList.toggle("collapsed");
+    });
+  }
+
+  // Helper to dynamically update the topbar title
+  function updateTopbarTitle(tab) {
+    const titleEl = document.getElementById("topbar-title");
+    if (!titleEl) return;
+    if (tab === "coverage") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Operational and Execution";
+    } else if (tab === "sfe") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Organogram";
+    } else if (tab === "sales") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Sales Performance";
+    } else if (tab === "iqvia") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Market Intelligence";
+    } else if (tab === "executive") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Executive Command Center";
+    } else if (tab === "marketintel") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Total Market Intelligence";
+    } else if (tab === "tomarket") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - To-Market vs In-Market";
+    } else if (tab === "imsrx") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - IMS Rx Market Intelligence";
+    } else if (tab === "sprint") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Sprint 2026";
+    } else if (tab === "listintel") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - List Intelligence";
+    } else if (tab === "bureview") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - BU Business Review";
+    } else if (tab === "workingdays") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Field Working Days Intelligence";
+    } else if (tab === "marketnews") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Market Intelligence & News Feed";
+    } else if (tab === "regulatory") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Global & Egypt New Drug Registration Intelligence";
+    } else {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard";
+    }
+  }
+
+  // Initialize title
+  updateTopbarTitle(currentTab);
+
+  // To-Market vs In-Market sidebar entry.
+  //
+  // 2026-07-31 (original): hidden from anyone whose scope wasn't fully
+  // unrestricted, because the embedded workspace shows brand/SKU trade
+  // data across every BU at once and there was no way to narrow it.
+  //
+  // 2026-08-04 (Ahmed: "show this page for bu"): BU-scoped users now get
+  // it too, pre-filtered AND LOCKED to their own Business Unit -- the
+  // embedded page reads a `bu` query parameter and freezes its Business
+  // Unit control when one is supplied (see TO MARKET_IN MARKET/index.html).
+  // That makes the page genuinely scoped rather than merely defaulted, so
+  // a BU Manager can never widen it back out to the whole portfolio.
+  //
+  // LINE-restricted users are still excluded: this data has no line
+  // dimension to narrow by, so there is no honest way to scope it for
+  // them -- better a hidden entry than one showing more than their scope.
+  const coverageMenuItem = document.getElementById("menu-item-coverage");
+  if (coverageMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewCoverage === "function"
+      ? window.AUTH.canViewCoverage() : true;
+    coverageMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  const sfeMenuItem = document.getElementById("menu-item-sfe");
+  if (sfeMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewSfe === "function"
+      ? window.AUTH.canViewSfe() : true;
+    sfeMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  const iqviaMenuItem = document.getElementById("menu-item-iqvia");
+  if (iqviaMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewIqvia === "function"
+      ? window.AUTH.canViewIqvia() : true;
+    iqviaMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  const tomarketMenuItem = document.getElementById("menu-item-tomarket");
+  if (tomarketMenuItem) {
+    tomarketMenuItem.style.display = tomarketAllowedBU() === false ? "none" : "";
+  }
+
+  // Total Market Intelligence: CEO / VP / BEX / Admin / SFE Manager only
+  // (2026-08-06). Hidden in the markup by default and revealed here, so a
+  // user without the entitlement never even sees the entry -- and
+  // renderMarketIntelTab() below refuses to render it regardless, so
+  // hand-editing the DOM or deep-linking the tab gains nothing.
+  const marketIntelMenuItem = document.getElementById("menu-item-marketintel");
+  if (marketIntelMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewMarketIntel === "function"
+      ? window.AUTH.canViewMarketIntel() : false;
+    marketIntelMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // IMS Rx Market Intelligence: CEO / VP / BEX / Admin / SFE Manager only
+  // (2026-08-16, Ahmed: "show IMS Rx for only sfe vp ceo admin and bex").
+  // Hidden in the markup by default and revealed here, so a user without
+  // the entitlement never even sees the entry -- and renderImsRxTab() below
+  // refuses to render it regardless, matching the Market Intel pattern above.
+  const imsRxMenuItem = document.getElementById("menu-item-imsrx");
+  if (imsRxMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewImsRx === "function"
+      ? window.AUTH.canViewImsRx() : false;
+    imsRxMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // Zeta Sprint 2026: re-linked into the shell 2026-08-16 (Ahmed: "add zeta
+  // sprint to dashboard") after its wiring (this block, the <li>, the
+  // title-bar case, the teardown/init dispatch below) was dropped from
+  // app.js during the same pass that added IMS Rx role-gating -- the
+  // sprint.css/sprint.js/cache/sprint.data.js files themselves were never
+  // touched. Originally gated 2026-08-15 to block Line Manager accounts
+  // entirely (Ahmed: "dont show zeta sprint for line managers only bu see
+  // rheir own"); reopened 2026-08-16 (Ahmed, testing on a Line Manager
+  // account: wanted it scoped to their own BU/Line instead of hidden, same
+  // treatment BU Manager already gets) -- see sprint.js's canViewSprintPage()
+  // and its own updated ACCESS MODEL doc comment. The check still lives in
+  // sprint.js (SprintDashboard.canView), not auth.js -- same reasoning as
+  // WINNERS_CSV_ROLES in sprint.js: a Sprint-specific rule, not a
+  // platform-wide role list other pages should inherit. init() itself
+  // refuses to render past this gate too (see renderSprintAccessRestricted
+  // in sprint.js), so hand-editing the DOM or deep-linking the tab gains
+  // nothing, matching the Market Intel / IMS Rx pattern above.
+  // Zeta Sprint 2026: CEO / VP / BEX / Admin / SFE Manager only (2026-08-16, Ahmed).
+  const sprintMenuItem = document.getElementById("menu-item-sprint");
+  if (sprintMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewSprint === "function"
+      ? window.AUTH.canViewSprint() : false;
+    sprintMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // Field Working Days Intelligence (2026-09-05/11): visible to management-tier roles, Line Managers, and NSMs.
+  const workingDaysMenuItem = document.getElementById("menu-item-workingdays");
+  if (workingDaysMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewWorkingDays === "function"
+      ? window.AUTH.canViewWorkingDays() : false;
+    workingDaysMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // List Intelligence (2026-09-25): CEO / VP / Commercial Director / SFE Manager /
+  // BEX / Admin / BU Manager (all lines) + Line Managers (own lines only, see
+  // AUTH.listIntelScope and js/list-intel.js applyScope).
+  // BU Business Review (2026-09-26): SFE Manager only (AUTH.canViewBuReview).
+  const buReviewMenuItem = document.getElementById("menu-item-bureview");
+  if (buReviewMenuItem) {
+    const allowedBr = window.AUTH && typeof window.AUTH.canViewBuReview === "function"
+      ? window.AUTH.canViewBuReview() : false;
+    buReviewMenuItem.style.display = allowedBr ? "" : "none";
+  }
+
+  const listIntelMenuItem = document.getElementById("menu-item-listintel");
+  if (listIntelMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewListIntel === "function"
+      ? window.AUTH.canViewListIntel() : false;
+    listIntelMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // Coaching Intelligence (2026-08-31): visible to every management-tier
+  // role plus Line Manager (see auth.js's canViewCoaching for why -- this
+  // tab is meant to be opened by the field managers being coached-on, not
+  // just BU-and-above roles). The finer DM/FFS-own-record-only vs
+  // Sr.DM/NSM/AM/BUM/BM/FFT-BU/Line-scope split happens inside
+  // js/coaching.js at render time, same pattern as Sprint's
+  // SprintDashboard.canView -- this block only controls whether the menu
+  // entry itself is shown.
+  const coachingMenuItem = document.getElementById("menu-item-coaching");
+  if (coachingMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewCoaching === "function"
+      ? window.AUTH.canViewCoaching() : false;
+    coachingMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // Regulatory & Egypt Registration: CEO / VP / BEX / Admin / SFE Manager / Commercial Director / Marketing Consultant only (2026-09-11).
+  // Excluded for BU Manager and NSM (Line Manager) users per explicit user directive.
+  const regulatoryMenuItem = document.getElementById("menu-item-regulatory");
+  if (regulatoryMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewRegulatory === "function"
+      ? window.AUTH.canViewRegulatory() : false;
+    regulatoryMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  const marketNewsMenuItem = document.getElementById("menu-item-marketnews");
+  if (marketNewsMenuItem) {
+    const allowed = window.AUTH && typeof window.AUTH.canViewMarketNews === "function"
+      ? window.AUTH.canViewMarketNews() : true;
+    marketNewsMenuItem.style.display = allowed ? "" : "none";
+  }
+
+  // FIELD INTEL TRAINER (2026-09-30, Ahmed): List-Intelligence-only roles
+  // (AUTH.isListIntelOnly) see ONE sidebar entry and land on it at boot;
+  // the click handler below ignores every other tab for them.
+  const listIntelOnly = !!(window.AUTH && typeof window.AUTH.isListIntelOnly === "function" && window.AUTH.isListIntelOnly());
+  if (listIntelOnly) {
+    document.querySelectorAll("#sidebar-nav .menu-item").forEach(mi => {
+      const keep = mi.dataset.tab === "listintel";
+      mi.style.display = keep ? "" : "none";
+      mi.classList.toggle("active", keep);
+    });
+    currentTab = "listintel";
+    updateTopbarTitle("listintel");
+  }
+
+  // REMOVED 2026-08-09 (Ahmed): the Control Panel and Expense vs Sales tabs
+  // were taken out of the shell. Their modules (js/control-panel.js,
+  // js/expense.js, js/expense-interface.js) are still on disk and unmodified,
+  // so restoring either is a matter of re-adding its <li>, its <script> tags
+  // and the three routing blocks that used to live here, in the teardown
+  // chain and in the tab-switch chain below.
+
+
+
+  // Render the default landing workspace (Executive Command Center) at boot.
+  // Mirrors the same on-demand init() pattern used for Sales/SFE/IQVIA in the
+  // tab-switch handler below -- just invoked once here since Executive is
+  // the tab that's already active on page load.
+  if (currentTab === "executive" && window.ExecutiveDashboard) {
+    window.ExecutiveDashboard.init("app-root");
+  }
+  if (currentTab === "listintel") {
+    renderListIntelTab(document.getElementById("app-root"));
+  }
+  mountAskPanel(currentTab);
+
+  // 2026-09-11 (loading-performance fix, restoring the 2026-08-08 design
+  // documented in PERFORMANCE_FIX.md): kick off the Customer Analytics
+  // cache (14.6 MB) in the background once the landing page has painted,
+  // so it's already there by the time anyone opens the Customer Health
+  // drill on the Sales tab, without costing first paint. CacheLoader
+  // schedules this on requestIdleCallback; ensure() never rejects.
+  if (window.CacheLoader && !listIntelOnly) {
+    window.CacheLoader.preload("customer_analytics");
+  }
+
+  // Expose global switchTab helper for Executive widget, ticker, and modal click-throughs
+  window.switchTab = function(targetTab) {
+    const tabBtn = document.querySelector(`#sidebar-nav .menu-item[data-tab="${targetTab}"]`);
+    if (tabBtn) {
+      tabBtn.click();
+      return true;
+    }
+    return false;
+  };
+
+  // Sidebar tab switching
+  const menuItems = document.querySelectorAll("#sidebar-nav .menu-item");
+  // (mountAskPanel is defined at module scope below — see ASK THE DATA.)
+  menuItems.forEach(item => {
+    item.addEventListener("click", (e) => {
+      const clickedItem = e.target.closest(".menu-item");
+      if (!clickedItem || clickedItem.classList.contains("active")) return;
+      if (listIntelOnly && clickedItem.dataset.tab !== "listintel") return;
+
+      if (e.isTrusted || !window.__isProgrammaticTabSwitch) {
+        if (window.AskEngine && window.AskEngine.AskContext) {
+          window.AskEngine.AskContext.clear();
+        }
+      }
+      
+      menuItems.forEach(mi => mi.classList.remove("active"));
+      clickedItem.classList.add("active");
+      
+      const tab = clickedItem.dataset.tab;
+      if (currentTab === "sales" && window.SalesDashboard) {
+        window.SalesDashboard.destroy();
+      }
+      if (currentTab === "iqvia" && window.IQVIADashboard) {
+        window.IQVIADashboard.destroy();
+      }
+      if (currentTab === "executive" && window.ExecutiveDashboard) {
+        window.ExecutiveDashboard.destroy();
+      }
+      if (currentTab === "tomarket") {
+        restoreGlobalFilterBar();
+      }
+      if (currentTab === "marketintel") {
+        // Same teardown as tomarket -- it borrows the same full-bleed body
+        // class -- plus the workspace's own chart/listener cleanup.
+        restoreGlobalFilterBar();
+        if (window.MarketIntelligence) window.MarketIntelligence.destroy();
+      }
+      if (currentTab === "imsrx" && window.ImsRxDashboard) {
+        window.ImsRxDashboard.destroy();
+      }
+      if (currentTab === "sprint" && window.SprintDashboard) {
+        window.SprintDashboard.destroy();
+      }
+      if (currentTab === "workingdays" && window.WorkingDaysDashboard) {
+        window.WorkingDaysDashboard.destroy();
+      }
+      if (currentTab === "listintel" && window.ListIntelDashboard) {
+        window.ListIntelDashboard.destroy();
+      }
+      if (currentTab === "bureview" && window.BuReviewDashboard) {
+        window.BuReviewDashboard.destroy();
+      }
+      if (currentTab === "marketnews" && window.MarketNewsDashboard) {
+        window.MarketNewsDashboard.destroy();
+      }
+      if (currentTab === "regulatory" && window.RegulatoryPipelineDashboard) {
+        window.RegulatoryPipelineDashboard.destroy();
+      }
+      // 2026-09-09 fix: Coaching Intelligence was the one tab with an
+      // init()/destroy() pair (see js/coaching.js) that this leaving-tab
+      // teardown block never called on the way OUT -- every other tab
+      // above (sales/iqvia/executive/tomarket/marketintel/imsrx/sprint/
+      // workingdays/marketnews) tears itself down here, but coaching was
+      // missing. destroy() removes body's "coaching-mode" class, which
+      // css/dashboard.css uses to hide the shared #filter-bar-container/
+      // .filter-bar-wrap for tabs that own their own filtering (see that
+      // rule's comment). Without this call, leaving Coaching Intelligence
+      // for ANY other tab left "coaching-mode" stuck on body forever,
+      // silently hiding the global filter bar on every tab visited
+      // afterward -- including Coverage ("Operational and Execution"),
+      // which is the one tab that actually reads it. Reported by Ahmed as
+      // "there was filters here return the filters again" on a screenshot
+      // of the Coverage tab with the filter bar gone.
+      if (currentTab === "coaching" && window.CoachingDashboard) {
+        window.CoachingDashboard.destroy();
+      }
+      currentTab = tab;
+      updateTopbarTitle(tab);
+
+      // Perf fix (2026-08-01, "navigation between pages are slow"): tab
+      // switching used to run straight into the target workspace's
+      // .init()/renderAll() -- which can take a perceptible moment on
+      // first visit to a tab (decompressing that workspace's cache,
+      // rebuilding a large KPI/table/chart tree) -- with ZERO loading
+      // feedback, so a click looked like it did nothing until the new tab
+      // suddenly appeared. Same double-requestAnimationFrame pattern as
+      // startApp()'s boot sequence (see that function's comment for why a
+      // plain Loader.show() right before heavy synchronous work never
+      // actually gets painted): show the loader, let the browser paint it,
+      // THEN do the render work. No logic below changed, only wrapped.
+      Loader.show("Loading...");
+      requestAnimationFrame(() => {
+        // 2026-09-11: async so the marketintel/imsrx/coaching branches below
+        // can `await CacheLoader.ensure(...)` before their tab renders --
+        // Loader.hide() at the bottom still only fires once that resolves,
+        // same as it always waited for the synchronous render before.
+        requestAnimationFrame(async () => {
+          if (tab === "coverage") {
+            if (window.AUTH && typeof window.AUTH.canViewCoverage === "function" && !window.AUTH.canViewCoverage()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            // Fix rendering bug: destroy old Chart.js instances and clear registry
+            Charts.destroyAll();
+            buildLayout();
+            if (hasRecords) {
+              const result = Analytics.run(_lastFilterState || {});
+              renderAll(result, dashboard.dimensions, _lastFilterState || {});
+            } else {
+              renderAll(dashboard, dashboard.dimensions, {});
+            }
+          } else if (tab === "sfe") {
+            if (window.AUTH && typeof window.AUTH.canViewSfe === "function" && !window.AUTH.canViewSfe()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            if (window.SFEDashboard) {
+              window.SFEDashboard.init("app-root");
+            }
+          } else if (tab === "sales") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            if (window.SalesDashboard) {
+              window.SalesDashboard.init("app-root");
+            }
+          } else if (tab === "iqvia") {
+            if (window.AUTH && typeof window.AUTH.canViewIqvia === "function" && !window.AUTH.canViewIqvia()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            if (window.IQVIADashboard) {
+              window.IQVIADashboard.init("app-root");
+            }
+          } else if (tab === "executive") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            if (window.ExecutiveDashboard) {
+              window.ExecutiveDashboard.init("app-root");
+            }
+          } else if (tab === "tomarket") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderTomarketTab(document.getElementById("app-root"));
+          } else if (tab === "marketintel") {
+            if (window.AUTH && typeof window.AUTH.canViewMarketIntel === "function" && !window.AUTH.canViewMarketIntel()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderMarketIntelTab(document.getElementById("app-root"));
+          } else if (tab === "imsrx") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderImsRxTab(document.getElementById("app-root"));
+          } else if (tab === "sprint") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderSprintTab(document.getElementById("app-root"));
+          } else if (tab === "workingdays") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderWorkingDaysTab(document.getElementById("app-root"));
+          } else if (tab === "listintel") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderListIntelTab(document.getElementById("app-root"));
+          } else if (tab === "bureview") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderBuReviewTab(document.getElementById("app-root"));
+          } else if (tab === "coaching") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderCoachingTab(document.getElementById("app-root"));
+          } else if (tab === "marketnews") {
+            if (window.AUTH && typeof window.AUTH.canViewMarketNews === "function" && !window.AUTH.canViewMarketNews()) {
+              switchToTab("executive");
+              Loader.hide();
+              return;
+            }
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderMarketNewsTab(document.getElementById("app-root"));
+          } else if (tab === "regulatory") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            renderRegulatoryTab(document.getElementById("app-root"));
+          }
+          mountAskPanel(tab);
+          Loader.hide();
+        });
+      });
+    });
+  });
+
+  Loader.hide();
+  wireNotSeenModal();
+}
+
+/**
+ * To-Market vs In-Market (2026-07-31, revised): renders the ORIGINAL,
+ * already-tuned React dashboard from "TO MARKET_IN MARKET/index.html" in
+ * an iframe rather than a vanilla-JS reimplementation -- Ahmed's own
+ * prototype there is the version he wants shown, not a rebuild of it.
+ * That file is fully self-contained (React/ReactDOM/Recharts/Babel-
+ * standalone + Tailwind, all CDN, own embedded dataset refreshed by
+ * "TO MARKET_IN MARKET/refresh_dashboard.py") -- an iframe is the
+ * correct integration here: zero risk of its Babel/Tailwind/React
+ * globals colliding with this app's own script stack, and no
+ * duplication of its logic to keep in sync. Access is still gated the
+ * same way as the sidebar entry (unrestricted users only) so a scoped
+ * user can't reach it by manipulating the tab click directly.
+ */
+/**
+ * Who may open To-Market vs In-Market, and scoped to what?
+ *   true          -- unrestricted: full cross-BU view
+ *   "<BU name>"   -- BU-scoped: locked to that single BU
+ *   false         -- not permitted (Line-restricted, or no session)
+ *
+ * The embedded workspace's own BU labels differ from the platform's
+ * (it calls DIAB "Diabetes"), so the name is translated here -- the one
+ * place that already knows it is bridging to a separate app.
+ */
+function tomarketAllowedBU() {
+  const scope = window.AUTH ? window.AUTH.getScope() : null;
+  if (!scope) return false;
+  if (scope.unrestricted) return true;
+
+  const bus = scope.bus;
+  if (!Array.isArray(bus) || bus.length !== 1) return false; // multi-BU scoping unsupported
+  const bu = bus[0];
+
+  // A BU Manager's account typically lists BOTH the BU and every line
+  // inside it (Kamal Allam: bus=["DIAB"], lines=["DIAB-I".."DIAB-IV"]).
+  // That is still BU-level scope, not a line restriction -- an earlier
+  // version rejected any account with a line list at all and wrongly hid
+  // this workspace from every BU Manager (2026-08-04).
+  //
+  // The real test is whether the account's lines cover the WHOLE BU. If
+  // they do, showing BU-level trade data reveals nothing beyond their
+  // scope. If they cover only part of it, it would -- and this dataset
+  // has no line dimension to narrow by, so those accounts stay excluded.
+  if (scope.lines !== null && scope.lines !== undefined) {
+    if (!Array.isArray(scope.lines) || scope.lines.length === 0) return false;
+    const SEM = window.SEMANTIC;
+    if (!SEM || !SEM.CANONICAL_LINE_TO_BU) return false; // can't verify -> don't risk it
+    const buLines = Object.keys(SEM.CANONICAL_LINE_TO_BU)
+      .filter(l => SEM.CANONICAL_LINE_TO_BU[l] === bu);
+    const held = new Set(scope.lines.map(l => SEM.normalizeLine(l)));
+    // Every line of the BU must be held. CHC is the one BU where a
+    // manager may legitimately hold only "CHC" and not "CHC_SALES" --
+    // that IS a partial scope, so it correctly fails this test.
+    const coversBU = buLines.length > 0 && buLines.every(l => held.has(l));
+    if (!coversBU) return false;
+  }
+
+  const EMBEDDED_BU_NAME = { DIAB: "Diabetes", CHC: "CHC", GIT: "GIT", Cluster: "Cluster" };
+  return EMBEDDED_BU_NAME[bu] || bu;
+}
+
+/**
+ * Total Market Intelligence. Gated independently of the sidebar entry:
+ * hiding a menu item is presentation, not access control, so the render
+ * path checks entitlement itself. This page exposes every competitor's
+ * sales in the Egyptian market -- purchased IMS panel data -- so it is
+ * restricted to CEO / VP / BEX / Admin / SFE Manager.
+ */
+// ===========================================================================
+// ASK THE DATA — panel mounting
+// ===========================================================================
+/**
+ * Which adapter serves which tab.
+ *
+ * Executive and Sales share one adapter because they share one cube and one
+ * semantic layer — the questions worth asking are the same, and two adapters
+ * over the same data would eventually disagree with each other.
+ *
+ * Market Intelligence renders its own panel inside its page (it predates the
+ * shared engine and needs no scoping, being purchased panel data with no BU
+ * dimension), so it is deliberately absent here — mounting a second panel
+ * above it would show the user two question boxes.
+ *
+ * Coverage, SFE and IQVIA are not yet listed: their adapters are still to be
+ * written. An unlisted tab simply gets no panel, which is the correct
+ * behaviour — better a missing feature than one answering from the wrong cube.
+ */
+function askAdapterForTab(tab) {
+  if (tab === "executive") {
+    return window.AskExecutive ? window.AskExecutive.adapter : null;
+  }
+  if (tab === "sales") {
+    return window.AskSales ? window.AskSales.adapter : null;
+  }
+  if (tab === "coverage") {
+    return window.AskCoverage ? window.AskCoverage.adapter : null;
+  }
+  if (tab === "sfe") {
+    return window.AskSFE ? window.AskSFE.adapter : null;
+  }
+  // Pages without a legacy adapter are answered by the AskQuery layer alone (js/ask-pages.js).
+  if (window.AskPages) {
+    return window.AskPages.adapter(tab);
+  }
+  return null;
+}
+
+/**
+ * Render and wire the Ask panel for a tab.
+ *
+ * Mounts into #ask-panel-slot, which lives outside #app-root precisely so a
+ * workspace re-render (any filter change) cannot destroy the panel or discard
+ * a question the user has typed.
+ */
+function mountAskPanel(tab) {
+  const slot = document.getElementById("ask-panel-slot");
+  if (!slot) return;
+  const adapter = askAdapterForTab(tab);
+  if (!adapter || !window.AskEngine) { slot.innerHTML = ""; return; }
+
+  // A question asked on one page should not follow the user to another —
+  // the entities and measures differ, and a stale answer sitting above a
+  // different page's charts invites exactly the mismatch this feature is
+  // meant to prevent.
+  window.AskEngine.setQuestion(adapter.id, "");
+
+  // Named, so the panel can re-render itself (to add or drop the Clear
+  // button) and re-wire the fresh DOM. `arguments.callee` would break here
+  // under strict mode.
+  function paint() {
+    slot.innerHTML = window.AskEngine.render(adapter);
+    window.AskEngine.wire(slot, adapter, paint);
+  }
+
+  try {
+    paint();
+  } catch (e) {
+    // A broken Ask panel must never take the page down with it.
+    console.error("[Ask] mount failed for tab " + tab, e);
+    slot.innerHTML = "";
+  }
+}
+
+async function renderMarketIntelTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewMarketIntel === "function"
+    ? window.AUTH.canViewMarketIntel() : false;
+  if (!allowed) {
+    document.body.classList.add("tomarket-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "Total Market Intelligence contains competitor-level market data and is available to CEO, VP, BEx, Admin and SFE Manager roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  // Borrows the full-bleed body class -- this workspace ships its own,
+  // far richer filter surface and does not want Coverage's filter bar.
+  document.body.classList.add("tomarket-mode");
+  // 2026-09-11: market_intel.data.js (1.4 MB) is lazy again -- loaded here,
+  // on tab open, via CacheLoader (js/cache-loader.js), not as an eager
+  // <script defer> tag on every page load. Loader.show() is already up
+  // from the caller (see switchTab's rAF wrapper); ensure() never rejects.
+  if (window.CacheLoader) {
+    await window.CacheLoader.ensure("market_intel");
+  }
+  if (window.MarketIntelligence) {
+    window.MarketIntelligence.init("app-root");
+  }
+}
+
+async function renderImsRxTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewImsRx === "function"
+    ? window.AUTH.canViewImsRx() : false;
+  if (!allowed) {
+    document.body.classList.add("imsrx-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "IMS Rx contains physician-panel market intelligence and is available to CEO, VP, BEx, Admin and SFE Manager roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  // 2026-09-11: ims_rx.data.js (2.0 MB) is lazy -- loaded here, on tab
+  // open, via CacheLoader. js/ims-rx.js's own decompressCache() already
+  // guards for window.IMS_RX_CACHE being absent, so this is safe even if
+  // ensure() resolves false.
+  if (window.CacheLoader) {
+    await window.CacheLoader.ensure("ims_rx");
+  }
+  if (window.ImsRxDashboard) {
+    window.ImsRxDashboard.init("app-root");
+  }
+}
+
+function renderSprintTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewSprint === "function"
+    ? window.AUTH.canViewSprint() : false;
+  if (!allowed) {
+    document.body.classList.add("sprint-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "Zeta Sprint 2026 is available to BU Manager, BEx, VP, SFE Manager, Admin and CEO roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.SprintDashboard) {
+    window.SprintDashboard.init("app-root");
+  }
+}
+
+function renderWorkingDaysTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewWorkingDays === "function"
+    ? window.AUTH.canViewWorkingDays() : false;
+  if (!allowed) {
+    document.body.classList.add("working-days-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "Field Working Days Intelligence is available to management roles, Line Managers, and NSMs.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.WorkingDaysDashboard) {
+    window.WorkingDaysDashboard.init("app-root");
+  }
+}
+
+/**
+ * List Intelligence (2026-09-25): CRM customer lists vs Promo Grid targets.
+ * Same defence-in-depth gate as the other restricted tabs (js/list-intel.js
+ * re-checks inside init()). cache/list_intel.data.js is lazy -- fetched here
+ * via CacheLoader only when the tab is opened, never on page load.
+ */
+async function renderListIntelTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewListIntel === "function"
+    ? window.AUTH.canViewListIntel() : false;
+  if (!allowed) {
+    document.body.classList.add("list-intel-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "List Intelligence is available to CEO, VP / Commercial Lead, Commercial Manager, SFE Manager, BEx, Admin and Field Intel Trainers (all lines), BU Managers (own BU), Group Brand Managers and Line Managers (own lines).",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.CacheLoader) {
+    await window.CacheLoader.ensure("list_intel");
+  }
+  if (window.ListIntelDashboard) {
+    window.ListIntelDashboard.init("app-root");
+  }
+}
+
+/**
+ * BU Business Review (2026-09-26): YTD BU/line review with comments, IQVIA
+ * brand/competitor analysis and challenge questions. SFE Manager only;
+ * js/bu-review.js re-checks inside init(). cache/business_review.data.js is
+ * lazy -- fetched via CacheLoader only when the tab is opened.
+ */
+async function renderBuReviewTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewBuReview === "function"
+    ? window.AUTH.canViewBuReview() : false;
+  if (!allowed) {
+    document.body.classList.add("bu-review-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "The BU Business Review is available to the SFE Manager only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  if (window.CacheLoader) {
+    try { await window.CacheLoader.ensure("business_review"); } catch (e) { console.error("[BuReview] cache load failed", e); }
+  }
+  if (window.BuReviewDashboard) {
+    window.BuReviewDashboard.init("app-root");
+  }
+}
+
+async function renderCoachingTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewCoaching === "function"
+    ? window.AUTH.canViewCoaching() : false;
+  if (!allowed) {
+    document.body.classList.add("coaching-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "Coaching Intelligence is available to management and field-manager roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  // 2026-09-11: coaching.data.js (1.05 MB) is lazy -- loaded here, on tab
+  // open, via CacheLoader. js/coaching.js's loadCache() already guards for
+  // window.COACHING_CACHE being absent.
+  if (window.CacheLoader) {
+    await window.CacheLoader.ensure("coaching");
+  }
+  if (window.CoachingDashboard) {
+    window.CoachingDashboard.init("app-root");
+  }
+}
+
+function renderMarketNewsTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewMarketNews === "function"
+    ? window.AUTH.canViewMarketNews() : true;
+  if (!allowed) {
+    document.body.classList.add("marketnews-mode");
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "🔒",
+          title: "Access restricted",
+          hint: "Market Intelligence Feed is restricted for this account role.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  document.body.classList.add("marketnews-mode");
+  if (window.MarketNewsDashboard) {
+    window.MarketNewsDashboard.init("app-root");
+  }
+}
+
+// Regulatory & Egypt Registration Intelligence (2026-09-10): same
+// full-bleed / owns-its-own-filtering pattern as marketnews above --
+// see .regulatory-mode in css/dashboard.css, which hides the shared
+// #filter-bar-container/.filter-bar-wrap/#topbar-export-pdf exactly the
+// way .marketnews-mode does, since this tab has its own search/stage/
+// Egypt-status/TA filter controls (js/regulatory-pipeline.js).
+function renderRegulatoryTab(container) {
+  if (!container) return;
+
+  if (window.AUTH && typeof window.AUTH.canViewRegulatory === "function" && !window.AUTH.canViewRegulatory()) {
+    container.innerHTML = `
+      <div style="padding: 60px 20px; text-align: center; color: #64748B;">
+        <div style="font-size: 36px; margin-bottom: 12px;">🔒</div>
+        <div style="font-size: 18px; font-weight: 700; color: #0F172A; margin-bottom: 6px;">Access Restricted</div>
+        <div style="font-size: 13px; max-width: 460px; margin: 0 auto; line-height: 1.5;">
+          Global & Egypt Regulatory Intelligence is available to CEO, VP, BEx, Admin, SFE Manager, Commercial Director, and Marketing Consultant roles only. Excluded for BU Manager and NSM accounts.
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  document.body.classList.add("regulatory-mode");
+  if (window.RegulatoryPipelineDashboard) {
+    window.RegulatoryPipelineDashboard.init("app-root");
+  }
+}
+
+function renderTomarketTab(container) {
+  if (!container) return;
+
+  // Hide Coverage's global filter bar (PERIOD/TEAM/BU/.../TITLE) AND the
+  // "Export PDF" button -- same body-class convention sfe.js/sales.js/
+  // executive.js already use (see .sfe-mode/.sales-mode/.executive-mode
+  // in css/dashboard.css). FIXED 2026-07-31: this was missing on the
+  // first pass, which left that whole filter grid stacked above the
+  // iframe, squeezing its usable height and making the embedded page
+  // look broken/cramped. Removed on tab-away (see restoreGlobalFilterBar()
+  // below, called from the "leaving tomarket" block in the sidebar click
+  // handler).
+  document.body.classList.add("tomarket-mode");
+
+  const allowedBU = tomarketAllowedBU();
+  if (allowedBU === false) {
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "🔒",
+          title: "Access restricted",
+          hint: "The To-Market vs In-Market workspace has no Line dimension, so it can't be scoped to a Line-restricted account.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+
+  // FIXED 2026-07-31 (2nd pass): the iframe was rendering the embedded
+  // page's mobile/narrow layout even though its CSS box looked full-width
+  // on screen. Root cause was actually the accompanying nested-scroll
+  // setup -- #app-root.container carries 32px left/right padding and a
+  // fixed calc(100vh - 74px) iframe height (a guess at the topbar's real
+  // height); when that guess ran even a little short, .main-content-area
+  // grew taller than the viewport and the OUTER page started scrolling
+  // too, stacking a second scrollbar on top of the iframe's own and
+  // effectively re-triggering Tailwind's responsive breakpoints against a
+  // shrunk effective box in some zoom/DPI combinations. Fixed with a
+  // dedicated .tomarket-mode CSS block (css/dashboard.css) that zeroes
+  // #app-root's padding/max-width and stops .main-content-area from
+  // scrolling itself, plus a JS-measured (not guessed) iframe height kept
+  // in sync on resize -- see sizeTomarketIframe() below. index.html
+  // itself is untouched; only the platform's own chrome around it changed.
+  // Pass the user's BU through so the embedded page opens locked to it.
+  // Unrestricted users pass nothing and see the full cross-BU view.
+  //
+  // CACHE-BUSTER (2026-08-04): the embedded page is a separate HTML file
+  // the browser caches independently of dashboard.html, so edits to it
+  // (the Sales Type lock, the BU lock) kept serving stale from disk cache
+  // with no way for the user to tell. Every other asset on the platform
+  // already carries a ?v= for exactly this reason -- this one was the
+  // only file loading without one. Bump TOMARKET_VERSION whenever
+  // "TO MARKET_IN MARKET/index.html" changes.
+  const TOMARKET_VERSION = "20260804_bulock";
+  const params = ["v=" + TOMARKET_VERSION];
+  if (allowedBU && allowedBU !== true) params.push("bu=" + encodeURIComponent(allowedBU));
+  const src = "TO%20MARKET_IN%20MARKET/index.html?" + params.join("&");
+  container.innerHTML = `<iframe id="tomarket-iframe" src="${src}" title="To-Market vs In-Market" style="display:block;border:0;width:100%;height:100%;background:#fff;"></iframe>`;
+  sizeTomarketIframe();
+  window.addEventListener("resize", sizeTomarketIframe);
+}
+
+/** Sets the tomarket iframe's height to EXACTLY the viewport space left
+ * below the topbar (measured live via getBoundingClientRect, not a
+ * hardcoded guess) so the iframe is the platform's only scrolling
+ * region here -- matching how the browser tab itself scrolls when
+ * index.html is opened directly. Re-run on window resize; removed on
+ * tab-away by restoreGlobalFilterBar() below. */
+function sizeTomarketIframe() {
+  const iframe = document.getElementById("tomarket-iframe");
+  const topbar = document.querySelector(".topbar");
+  if (!iframe || !topbar) return;
+  const h = window.innerHeight - topbar.getBoundingClientRect().height;
+  iframe.style.height = Math.max(200, h) + "px";
+}
+
+/** Restores the global filter bar + Export PDF button hidden by
+ * renderTomarketTab() above, and stops resizing the (now-removed) tomarket
+ * iframe -- called when navigating AWAY from the tomarket tab, mirroring
+ * sfe.js's destroy(). Coverage is the only tab that actually uses this
+ * bar; every other tab (sfe/sales/iqvia/executive/tomarket) hides it via
+ * its own body-mode class. */
+function restoreGlobalFilterBar() {
+  document.body.classList.remove("tomarket-mode");
+  window.removeEventListener("resize", sizeTomarketIframe);
+}
+
+/** Wire the topbar "Export Dashboard as PDF" button once at boot. */
+function wireDashboardExport() {
+  const btn = document.getElementById("topbar-export-pdf");
+  if (btn) btn.addEventListener("click", () => Exporter.dashboardToPdf());
+}
+
+/** Wire every chart card's "PNG" button once, via a single delegated
+ * listener on #app-root -- simpler than attaching a listener per card
+ * and still correct since buildLayout() only runs once (chart cards
+ * are never torn down/recreated on filter changes, only their data is). */
+function wireChartExportDelegation() {
+  const root = document.getElementById("app-root");
+  root.addEventListener("click", (e) => {
+    const btn = e.target.closest(".chart-export-btn");
+    if (!btn) return;
+    const canvasId = btn.dataset.canvas;
+    const label = btn.dataset.label || canvasId;
+    Exporter.chartToPng(canvasId, `${Exporter.sanitize(label)}_${filenameSuffix}`);
+  });
+}
+
+/** Toggle the "recomputing" busy state on every built section at once. */
+function markAllSectionsRecomputing(isRecomputing) {
+  document.querySelectorAll(".dashboard-section").forEach((el) => UI.markRecomputing(el, isRecomputing));
+}
+
+function renderMissingCacheNotice() {
+  const root = document.getElementById("app-root");
+  root.innerHTML = `
+    <div class="container">
+      <div class="card">
+        <h2>No cached data found</h2>
+        <p class="notice">
+          This dashboard reads only from the <code>cache/</code> folder and never
+          opens the workbook itself. Run <code>refresh.bat</code> next to this
+          file to generate the cache, then reopen the dashboard.
+        </p>
+      </div>
+    </div>`;
+}
+
+function renderTopBar(metadata, dashboard) {
+  // Title is static in HTML; nothing dynamic needed in the topbar now.
+  // (Workbook, Last Refresh, Latest Period, and health pill have been
+  //  removed per design update — 2026-07-20.)
+}
+
+/** Standard chart-card markup: title + a small "PNG" export button, both
+ * sharing one row so the export affordance never displaces the chart
+ * itself. `extraClass` covers modifiers like "chart-card-small". */
+function chartCardHtml(canvasId, title, extraClass = "", wrapClass = "chart-wrap") {
+  return `
+    <div class="chart-card ${extraClass}">
+      <div class="chart-card-header">
+        <h3>${title}</h3>
+        <button type="button" class="chart-export-btn" data-canvas="${canvasId}" data-label="${title.replace(/<[^>]+>/g, "").replace(/&amp;/g, "and")}" title="Export chart as PNG">PNG</button>
+      </div>
+      <div class="${wrapClass}"><canvas id="${canvasId}"></canvas></div>
+    </div>`;
+}
+
+/** Build every section container ONCE. Filter changes only touch each
+ * section's inner content (kpi cards, chart data, table rows) -- the
+ * page layout itself never gets torn down and rebuilt. */
+function buildLayout() {
+  const root = document.getElementById("app-root");
+  root.innerHTML = "";
+  sections = {};
+
+  const execSection = document.createElement("section");
+  execSection.className = "dashboard-section exec-summary-section";
+  execSection.id = "sec-executive-summary";
+  execSection.innerHTML = `
+    <div class="section-header"><h2>Executive Co-Pilot &amp; Strategic Advisory</h2></div>
+    <div class="section-body" id="executive-summary-body"></div>`;
+  root.appendChild(execSection);
+  sections.execSummary = execSection.querySelector("#executive-summary-body");
+
+  sections.kpis = UI.buildSection(root, "sec-kpis", "Key Performance Indicators");
+
+  const callEffSection = document.createElement("section");
+  callEffSection.className = "dashboard-section";
+  callEffSection.id = "sec-call-efficiency";
+  callEffSection.innerHTML = `
+    <div class="section-header"><h2>Call Execution &amp; Resource Efficiency</h2></div>
+    <div class="section-body" id="call-efficiency-body"></div>`;
+  root.appendChild(callEffSection);
+  sections.callEfficiency = callEffSection.querySelector("#call-efficiency-body");
+
+  const trendsSection = document.createElement("section");
+  trendsSection.className = "dashboard-section";
+  trendsSection.id = "sec-trends";
+  trendsSection.innerHTML = `
+    <div class="section-header"><h2>Trends &amp; Distributions</h2></div>
+    <div class="section-body">
+      <div style="margin-bottom: 24px;">
+        ${chartCardHtml("chart-coverage-trend", "Coverage % &amp; Right Frequency % Trend", "", "chart-wrap chart-wrap-wide")}
+      </div>
+      <div class="distribution-grid">
+        ${chartCardHtml("chart-type-distribution", "Customer Type Distribution", "chart-card-small")}
+        ${chartCardHtml("chart-class-distribution", "Customer Class Distribution <span class=\"chart-drill-hint\">click a slice ›</span>", "chart-card-small")}
+        ${chartCardHtml("chart-specialty-distribution", "Customer Specialty Distribution <span class=\"chart-drill-hint\">click a slice ›</span>", "chart-card-small")}
+      </div>
+      <div class="visits-contribution-grid" style="margin-top: 24px; border-top: 1px solid #E2E8F0; padding-top: 24px;">
+        ${chartCardHtml("chart-class-visits-distribution", "Class Visits Contribution", "chart-card-small")}
+        ${chartCardHtml("chart-specialty-visits-distribution", "Specialty Visits Contribution", "chart-card-small")}
+      </div>
+      <div style="margin-top: 24px;">
+        ${chartCardHtml("chart-class-visit-achievement", "Class Visit Achievement &mdash; Target vs Actual", "", "chart-wrap chart-wrap-wide")}
+      </div>
+    </div>`;
+  root.appendChild(trendsSection);
+
+  const teamSection = document.createElement("section");
+  teamSection.className = "dashboard-section";
+  teamSection.id = "sec-team-comparison";
+  teamSection.innerHTML = `
+    <div class="section-header"><h2>Team Comparison (Latest Period)</h2></div>
+    <div class="section-body">
+      <div style="margin-bottom:16px;">${chartCardHtml("chart-team-coverage", "Coverage % by Team", "", "chart-wrap chart-wrap-wide")}</div>
+      <div id="table-team-comparison"></div>
+    </div>`;
+  root.appendChild(teamSection);
+  sections.teamTable = teamSection.querySelector("#table-team-comparison");
+
+  const rfNarrSection = document.createElement("section");
+  rfNarrSection.className = "dashboard-section";
+  rfNarrSection.id = "sec-rf-intelligence";
+  rfNarrSection.innerHTML = `
+    <div class="section-header">
+      <h2>Right Frequency Intelligence</h2>
+      <span class="section-subtitle">Dynamic RF insights — all panels respond to active filters</span>
+    </div>
+    <div id="rf-narrative-body"></div>`;
+  root.appendChild(rfNarrSection);
+  sections.rfNarrative = rfNarrSection.querySelector("#rf-narrative-body");
+
+  const rankingSection = document.createElement("section");
+  rankingSection.className = "dashboard-section";
+  rankingSection.id = "sec-rankings";
+  rankingSection.innerHTML = `
+    <div class="section-header"><h2>Manager &amp; Area Manager Ranking</h2></div>
+    <div class="section-body two-col">
+      <div><h3>Manager Ranking</h3><div id="table-manager-ranking"></div></div>
+      <div><h3>Area Manager Ranking</h3><div id="table-area-manager-ranking"></div></div>
+    </div>`;
+  root.appendChild(rankingSection);
+  sections.managerTable = rankingSection.querySelector("#table-manager-ranking");
+  sections.areaManagerTable = rankingSection.querySelector("#table-area-manager-ranking");
+
+  const kolSection = document.createElement("section");
+  kolSection.className = "dashboard-section";
+  kolSection.id = "sec-kol-coverage";
+  kolSection.innerHTML = `
+    <div class="section-header"><h2>Quarterly Customer Coverage by Employee</h2></div>
+    <div class="kol-legend">
+      <span class="kol-rag kol-green">100%</span>
+      <span class="kol-rag kol-amber">&ge;80%</span>
+      <span class="kol-rag kol-red">&lt;80%</span>
+      <span class="kol-legend-note">Coverage = visited at least once within the quarter &nbsp;|&nbsp; Q1: Feb–Mar &nbsp;|&nbsp; Q2: Apr–Jun &nbsp;|&nbsp; Period filter ignored &nbsp;|&nbsp; Hierarchy filter shows self + full team</span>
+    </div>
+    <div id="table-kol-coverage"></div>`;
+  root.appendChild(kolSection);
+  sections.kolTable = kolSection.querySelector("#table-kol-coverage");
+
+  const specClassSection = document.createElement("section");
+  specClassSection.className = "dashboard-section";
+  specClassSection.id = "sec-specialty-class";
+  specClassSection.innerHTML = `
+    <div class="section-header"><h2>Coverage by Specialty &amp; Class</h2></div>
+    <div class="section-body chart-grid">
+      ${chartCardHtml("chart-specialty", "Coverage % by Specialty (Top 15)")}
+      ${chartCardHtml("chart-class", "Coverage % by Class (Top 15)")}
+    </div>`;
+  root.appendChild(specClassSection);
+
+  const leaderboardSection = document.createElement("section");
+  leaderboardSection.className = "dashboard-section";
+  leaderboardSection.id = "sec-leaderboards";
+  leaderboardSection.innerHTML = `
+    <div class="section-header"><h2>Leaderboards (Latest Period, &ge; 5 customers)</h2></div>
+    <div class="section-body two-col">
+      <div><h3>Top Employees</h3><div id="table-leaderboard-top"></div></div>
+      <div><h3>Bottom Employees</h3><div id="table-leaderboard-bottom"></div></div>
+    </div>`;
+  root.appendChild(leaderboardSection);
+  sections.leaderboardTop = leaderboardSection.querySelector("#table-leaderboard-top");
+  sections.leaderboardBottom = leaderboardSection.querySelector("#table-leaderboard-bottom");
+
+  // Sick Leave Impact Rule (2026-09-15, panel built 2026-09-16). Two
+  // sections, both fed from dashboard.json's server-built leaveImpact block
+  // (latest period only, same "period filter ignored" convention as
+  // Quarterly Customer Coverage above) rather than the live filtered result:
+  //   1. sec-leave-rule   -- the rule itself, so nobody has to ask why a
+  //      rep's Right Frequency moved. Mirrors the Coaching Intelligence
+  //      "Reps Coached" methodology-box idiom Ahmed asked for there.
+  //   2. sec-leave-impact -- the management panel. Supersedes the earlier
+  //      "Sick Leave Territory Flags" table (which listed only the excluded
+  //      reps); this one covers all three bands, because a manager needs to
+  //      see whose target was softened as well as who left the ranking.
+  const leaveRuleSection = document.createElement("section");
+  leaveRuleSection.className = "dashboard-section";
+  leaveRuleSection.id = "sec-leave-rule";
+  leaveRuleSection.innerHTML = `
+    <div class="section-header">
+      <h2>How Leave Affects Coverage &amp; Right Frequency</h2>
+      <span class="lv-period" id="lv-rule-period"></span>
+    </div>
+    <div id="lv-rule-body"></div>`;
+  root.appendChild(leaveRuleSection);
+  sections.leaveRuleBody = leaveRuleSection.querySelector("#lv-rule-body");
+  sections.leaveRulePeriod = leaveRuleSection.querySelector("#lv-rule-period");
+
+  const leaveImpactSection = document.createElement("section");
+  leaveImpactSection.className = "dashboard-section";
+  leaveImpactSection.id = "sec-leave-impact";
+  leaveImpactSection.innerHTML = `
+    <div class="section-header">
+      <h2>Leave Impact &amp; Excluded Reps &mdash; Management</h2>
+      <span class="lv-period" id="lv-impact-period"></span>
+    </div>
+    <div id="lv-impact-body"></div>`;
+  root.appendChild(leaveImpactSection);
+  sections.leaveImpactBody = leaveImpactSection.querySelector("#lv-impact-body");
+  sections.leaveImpactPeriod = leaveImpactSection.querySelector("#lv-impact-period");
+
+  renderLeaveRule();
+  renderLeaveImpact();
+
+  // The "Attrition & Vacancy" section (Attrition by Team table + Vacancy
+  // Panel) was removed at Ahmed's request 2026-09-16. Its underlying data is
+  // still computed and still in use -- attritionRate and vacancyCount are
+  // both headline KPI cards, and the Team Comparison table keeps its own
+  // Attrition % column -- so nothing was stripped from the ETL or from
+  // analytics.js, only this one UI block.
+  // Backups: js/app.js.bak_20260916_pre_attrition_removal,
+  //          css/dashboard.css.bak_20260916_pre_attrition_removal
+}
+
+/**
+ * View-only mode: filter pre-computed cache arrays by the active filter state.
+ * Sections that need raw records (KPIs, trends, rfInsights, specialty/class)
+ * stay as the full-period snapshot. Tables with hierarchy fields are filtered.
+ */
+function applyViewOnlyFilters(dashboard, dims, filterState) {
+  const result = Object.assign({}, dashboard);
+
+  // filterState values are name strings (not indices) — use them directly
+  const act = {};
+  const filterKeys = ["team", "businessUnit", "nsm", "areaManager", "manager", "employee"];
+  for (const key of filterKeys) {
+    const vals = filterState[key];
+    if (vals && vals.length) act[key] = new Set(vals);
+  }
+
+  // ── Resolve active teams from hierarchy filters ───────────────────────────
+  // BU / NSM / AM selections expand to the set of teams they contain.
+  // Hierarchy maps come from window.DASHBOARD_TEAM_KPIS (the small sidecar
+  // file loaded in view-only mode) or from dashboard itself if pre-embedded.
+  const tkData = window.DASHBOARD_TEAM_KPIS || dashboard;
+  let activeTeams = null; // null = no team-level restriction
+  if (act.team || act.businessUnit || act.nsm || act.areaManager) {
+    activeTeams = new Set();
+    if (act.team) act.team.forEach(t => activeTeams.add(t));
+    if (act.businessUnit && tkData.buToTeams) {
+      act.businessUnit.forEach(bu => (tkData.buToTeams[bu] || []).forEach(t => activeTeams.add(t)));
+    }
+    if (act.nsm && tkData.nsmToTeams) {
+      act.nsm.forEach(nsm => (tkData.nsmToTeams[nsm] || []).forEach(t => activeTeams.add(t)));
+    }
+    if (act.areaManager && tkData.amToTeams) {
+      act.areaManager.forEach(am => (tkData.amToTeams[am] || []).forEach(t => activeTeams.add(t)));
+    }
+  }
+
+  // ── KPI cards — aggregate teamKpis for the resolved team set ─────────────
+  if (activeTeams && tkData.teamKpis) {
+    const agg = { totalRows:0, covCount:0, rfCount:0, notSeen:0,
+                  tgtVis:0, actVis:0, reps:0, resigned:0, custs:0 };
+    for (const team of activeTeams) {
+      const tk = tkData.teamKpis[team];
+      if (!tk) continue;
+      agg.totalRows += tk._totalRows         || 0;
+      agg.covCount  += tk._covCount          || 0;
+      agg.rfCount   += tk._rfCount           || 0;
+      agg.notSeen   += tk._notSeenCount      || 0;
+      agg.tgtVis    += tk.totalTargetVisits  || 0;
+      agg.actVis    += tk.totalActualVisits  || 0;
+      agg.reps      += tk.activeEmployees    || 0;
+      agg.resigned  += tk.resignedEmployees  || 0;
+      agg.custs     += tk.totalUniqueCustomers || 0;
+    }
+    const tot = agg.totalRows || 1;
+    result.kpis = Object.assign({}, dashboard.kpis, {
+      coveragePct:          agg.covCount / tot,
+      rightFreqPct:         agg.rfCount  / tot,
+      activeReps:           agg.reps,
+      resignedReps:         agg.resigned,
+      totalUniqueCustomers: agg.custs,
+      totalSharedCustomers: agg.totalRows,
+      customersPerRep:      agg.reps > 0 ? agg.custs / agg.reps : 0,
+      totalTargetVisits:    agg.tgtVis,
+      totalActualVisits:    agg.actVis,
+      visitAchievementPct:  agg.tgtVis ? agg.actVis / agg.tgtVis : null,
+      notSeenCount:         agg.notSeen,
+      notSeenPct:           agg.notSeen / tot,
+    });
+    // Suppress deltas — filtered KPIs have no meaningful prior-period comparison
+    result.kpiDeltas = {};
+  }
+
+  // ── teamComparison — keyed on .team ──────────────────────────────────────
+  if (activeTeams) {
+    result.teamComparison = dashboard.teamComparison.filter(r => activeTeams.has(r.team));
+  }
+
+  // ── managerRanking — filter by direct manager selection OR by team ────────
+  if (act.manager) {
+    result.managerRanking = dashboard.managerRanking.filter(r => act.manager.has(r.name));
+  } else if (activeTeams && tkData.managerToTeam) {
+    result.managerRanking = dashboard.managerRanking.filter(r =>
+      activeTeams.has(tkData.managerToTeam[r.name])
+    );
+  }
+
+  // ── areaManagerRanking — filter by direct AM selection OR by team ─────────
+  if (act.areaManager) {
+    result.areaManagerRanking = dashboard.areaManagerRanking.filter(r => act.areaManager.has(r.name));
+  } else if (activeTeams && tkData.amToTeams) {
+    result.areaManagerRanking = dashboard.areaManagerRanking.filter(r => {
+      const amTeams = tkData.amToTeams[r.name] || [];
+      return amTeams.some(t => activeTeams.has(t));
+    });
+  }
+
+  // ── leaderboards — have .team, .manager, .employee ───────────────────────
+  if (activeTeams || act.manager || act.employee) {
+    const lbOk = r => (!activeTeams || activeTeams.has(r.team))
+                   && (!act.manager  || act.manager.has(r.manager))
+                   && (!act.employee || act.employee.has(r.employee));
+    result.leaderboards = {
+      top:    dashboard.leaderboards.top.filter(lbOk),
+      bottom: dashboard.leaderboards.bottom.filter(lbOk),
+    };
+  }
+
+  // ── quarterlyCustomerCoverage — has .team and .name (employee name) ───────
+  if (activeTeams || act.employee) {
+    result.quarterlyCustomerCoverage = dashboard.quarterlyCustomerCoverage.filter(r =>
+      (!activeTeams  || activeTeams.has(r.team)) &&
+      (!act.employee || act.employee.has(r.name))
+    );
+  }
+
+  return result;
+}
+
+/** Re-render every section from a fresh Analytics.run() result. Called on
+ * initial load and on every filter change. */
+function renderAll(result, dims, filterState) {
+
+  if (currentTab !== "coverage") return;
+  _lastResult = result;
+  renderExecutiveSummary(result, filterState);
+  UI.renderKpiCards(sections.kpis, result.kpis, result.kpiDeltas, result.trend.series);
+  renderCallEfficiency(result);
+
+  renderTrendCharts(result);
+  renderTeamComparison(result);
+  renderRFNarrative(result);
+  renderRankingTables(result);
+  renderKolCoverage(filterState, result.quarterlyCustomerCoverage);
+  renderSpecialtyClassCharts(result);
+  renderLeaderboards(result);
+  // Period-aware (2026-09-16): the leave panel re-renders on every filter
+  // change, so the Period dropdown moves it between months and the BU/Team/
+  // Manager/Employee filters narrow it the same way they narrow every other
+  // section. It still reads the pre-built per-period leaveImpact cache rather
+  // than `result` -- the leave bands are ETL-computed, not recomputed here.
+  renderLeaveImpact(filterState);
+}
+
+function renderExecutiveSummary(result, filterState) {
+  const el = sections.execSummary;
+  if (!el) return;
+
+  const kpis = result.kpis;
+  const deltas = result.kpiDeltas;
+  const rf = result.rfInsights;
+  if (!kpis || !rf) { el.innerHTML = ""; return; }
+
+  // --- 1. Resolve Active Scope Name ---
+  let scopeName = "overall CHC organization";
+  if (filterState.employee && filterState.employee.length > 0) {
+    scopeName = `representative <strong>${filterState.employee.join(", ")}</strong>`;
+  } else if (filterState.manager && filterState.manager.length > 0) {
+    scopeName = `team under Manager <strong>${filterState.manager.join(", ")}</strong>`;
+  } else if (filterState.team && filterState.team.length > 0) {
+    scopeName = `<strong>${filterState.team.join(", ")}</strong> Team`;
+  } else if (filterState.businessUnit && filterState.businessUnit.length > 0) {
+    scopeName = `<strong>${filterState.businessUnit.join(", ")}</strong> Business Unit`;
+  }
+
+  // --- 2. KPI Metrics & Formatting ---
+  const fmtPct = v => v == null ? "–" : (v * 100).toFixed(1) + "%";
+  const fmtDelta = v => {
+    if (v == null) return "flat";
+    const val = v * 100;
+    return val > 0 ? `+${val.toFixed(1)}%` : `${val.toFixed(1)}%`;
+  };
+  const fmtN = v => v == null ? "–" : v.toLocaleString();
+
+  const rfPct = kpis.rightFreqPct;
+  const covPct = kpis.coveragePct;
+  const achPct = kpis.visitAchievementPct;
+  const atRiskPct = rf.totalCustomers > 0 ? (rf.atRiskCount / rf.totalCustomers) : 0;
+  
+  const rfDeltaStr = deltas ? fmtDelta(deltas.rightFreqPctDelta) : "flat";
+  const rfDirection = deltas ? ((deltas.rightFreqPctDelta || 0) > 0.005 ? "improving" : (deltas.rightFreqPctDelta || 0) < -0.005 ? "declining" : "stable") : "stable";
+
+  // --- 3. Identify Strengths & Opportunities (Drivers) ---
+  let topSegmentDesc = "";
+  if (rf.rfByClass && rf.rfByClass.length > 0) {
+    const topClass = rf.rfByClass[0];
+    topSegmentDesc = `Class ${topClass.name} (tracking at ${fmtPct(topClass.rightFreqPct)} RF)`;
+  }
+  if (rf.rfBySpecialty && rf.rfBySpecialty.length > 0) {
+    const topSpec = rf.rfBySpecialty[0];
+    if (topSegmentDesc) topSegmentDesc += ` and `;
+    topSegmentDesc += `Specialty ${topSpec.name} (${fmtPct(topSpec.rightFreqPct)} RF)`;
+  }
+  if (!topSegmentDesc) topSegmentDesc = "general call coverage";
+
+  // --- 4. Identify Risks & Leakage ---
+  let riskDesc = "";
+  if (rf.atRiskCount > 0) {
+    riskDesc = `<strong>${fmtN(rf.atRiskCount)} at-risk doctors</strong> (${fmtPct(atRiskPct)} of scope) receiving zero right-frequency visits`;
+  }
+  let bottomSegmentDesc = "";
+  if (rf.rfByClass && rf.rfByClass.length > 0) {
+    const bottomClass = rf.rfByClass[rf.rfByClass.length - 1];
+    bottomSegmentDesc = `Class ${bottomClass.name} (lagging at ${fmtPct(bottomClass.rightFreqPct)} RF)`;
+  }
+  if (rf.rfBySpecialty && rf.rfBySpecialty.length > 0) {
+    const bottomSpec = rf.rfBySpecialty[rf.rfBySpecialty.length - 1];
+    if (bottomSegmentDesc) bottomSegmentDesc += ` and `;
+    bottomSegmentDesc += `Specialty ${bottomSpec.name} (${fmtPct(bottomSpec.rightFreqPct)} RF)`;
+  }
+  if (!bottomSegmentDesc) bottomSegmentDesc = "minor segments";
+
+  // Call Efficiency numbers
+  const onTarget = kpis.onTargetCalls || 0;
+  const wasted   = kpis.wastedCalls || 0;
+  const missed   = kpis.missedCalls || 0;
+  const totalCalls = onTarget + wasted + missed;
+  const wastedPctStr = totalCalls > 0 ? ((wasted / totalCalls) * 100).toFixed(1) + "%" : "0%";
+  const missedPctStr = totalCalls > 0 ? ((missed / totalCalls) * 100).toFixed(1) + "%" : "0%";
+
+  // --- 5. Action Items ---
+  const bottomReps = rf.rfBottom10 ? rf.rfBottom10.slice(0, 3).map(r => r.name).join(", ") : "";
+
+  // --- 6. Formulate Executive Paragraph ---
+  let summaryText = "";
+  const periodName = kpis.latestMonth || "June";
+
+  if (rfPct >= 0.80) {
+    summaryText = `For the period ending **${periodName}**, ${scopeName} delivered **exceptional commercial performance** with a Right Frequency (RF) score of **${fmtPct(rfPct)}** (an ${rfDirection} trend of **${rfDeltaStr}**). This success is backed by highly optimized execution in **${topSegmentDesc}**. While overall health is excellent, management should monitor minor leakage in **${bottomSegmentDesc}** and re-allocate the **${fmtN(wasted)} wasted visits** (${wastedPctStr} of call capacity) to cover the remaining **${fmtN(rf.atRiskCount)} zero-visit doctors** to lock in 100% compliance.`;
+  } else if (rfPct >= 0.60) {
+    // 2026-08-30 fix: this branch used to always blame "call dilution"
+    // (over-servicing / wastedCalls) as "the primary bottleneck", even when
+    // missedCalls (under-servicing) was the larger of the two -- which
+    // reads as contradictory next to the Class Visit Achievement bar chart
+    // right above it, whose Target bar is taller than its Actual bar
+    // (totalActualVisits < totalTargetVisits) precisely BECAUSE missed
+    // visits outweigh wasted ones. Pick whichever is actually dominant so
+    // the narrative ties out with that bar instead of contradicting it,
+    // and always surface both figures so the achievement gap (target vs.
+    // actual) is fully accounted for.
+    const missedIsDominant = missed >= wasted;
+    const bottleneckSentence = missedIsDominant
+      ? `The primary bottleneck is under-coverage: **${missedPctStr}** of planned visits (**${fmtN(missed)} visits**) were missed against target -- only partly offset by **${fmtN(wasted)} visits** (${wastedPctStr}) spent over-servicing other accounts -- netting **${fmtN(kpis.totalActualVisits)}** of **${fmtN(kpis.totalTargetVisits)}** planned visits achieved (**${fmtPct(achPct)}**)`
+      : `The primary bottleneck is call dilution: **${wastedPctStr}** of actual calls (**${fmtN(wasted)} visits**) were wasted on over-servicing -- only partly offset by **${fmtN(missed)} visits** (${missedPctStr}) missed against target -- netting **${fmtN(kpis.totalActualVisits)}** of **${fmtN(kpis.totalTargetVisits)}** planned visits achieved (**${fmtPct(achPct)}**)`;
+    summaryText = `For the period ending **${periodName}**, ${scopeName} is tracking in the **watch zone** with a Right Frequency (RF) score of **${fmtPct(rfPct)}** (${rfDirection} at **${rfDeltaStr}**). Strong performance in **${topSegmentDesc}** is currently offsetting execution gaps in **${bottomSegmentDesc}**. ${bottleneckSentence}, while **${fmtN(rf.atRiskCount)} critical doctors** received zero frequency achievement. Immediate reallocation of this capacity is recommended to rescue these at-risk accounts.`;
+  } else {
+    summaryText = `For the period ending **${periodName}**, ${scopeName} displays a **critical frequency deficit**, tracking at a Right Frequency (RF) score of **${fmtPct(rfPct)}** (a ${rfDirection} trend of **${rfDeltaStr}**). Although visit coverage stands at ${fmtPct(covPct)}, poor call plan compliance has resulted in **${fmtN(missed)} missed visits** (${missedPctStr} of total planned effort) and **${fmtN(rf.atRiskCount)} doctors** receiving zero visits. Management must intervene to enforce call-cadence compliance, particularly in **${bottomSegmentDesc}**, and redirect the **${fmtN(wasted)} wasted over-target visits** to high-priority accounts.`;
+  }
+
+  // --- 7. Assemble HTML ---
+  el.innerHTML = `
+    <div class="exec-summary-card">
+      <div class="exec-summary-paragraph">
+        ${summaryText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
+      </div>
+      <div class="exec-grid-cards">
+        <div class="exec-kpi-card diagnostic">
+          <div class="exec-card-title">🔍 Performance Diagnosis</div>
+          <div class="exec-card-body">
+            <ul>
+              <li>Right Frequency is at <strong>${fmtPct(rfPct)}</strong> (trend: <strong>${rfDeltaStr}</strong>).</li>
+              <li>Overall Call Coverage is <strong>${fmtPct(covPct)}</strong> against <strong>${fmtN(rf.totalCustomers)}</strong> shared customer accounts.</li>
+              <li>Visit Achievement reached <strong>${fmtPct(achPct)}</strong>, executing <strong>${fmtN(kpis.totalActualVisits)}</strong> out of <strong>${fmtN(kpis.totalTargetVisits)}</strong> planned visits.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="exec-kpi-card driver">
+          <div class="exec-card-title">📈 Productivity Drivers</div>
+          <div class="exec-card-body">
+            <ul>
+              <li>Top performing segment is <strong>${topSegmentDesc}</strong>.</li>
+              <li>On-Target efficiency: <strong>${((onTarget / (totalCalls || 1)) * 100).toFixed(1)}%</strong> of executed calls directly contributed to meeting planned frequency targets.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="exec-kpi-card leakage">
+          <div class="exec-card-title">⚠️ Leakage &amp; Risks</div>
+          <div class="exec-card-body">
+            <ul>
+              <li><strong>${riskDesc || "No significant customer leakage"}</strong>.</li>
+              <li>Bottom performing segment is <strong>${bottomSegmentDesc}</strong>.</li>
+              <li>Call Dilution: <strong>${wastedPctStr}</strong> of field efforts (${fmtN(wasted)} visits) were wasted on over-servicing.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="exec-kpi-card action">
+          <div class="exec-card-title">💡 Strategic Executive Actions</div>
+          <div class="exec-card-body">
+            <ul>
+              <li><strong>Redirect</strong> ${fmtN(wasted)} wasted over-target calls to cover the ${fmtN(rf.atRiskCount)} zero-visit doctors.</li>
+              ${bottomReps ? `<li><strong>Audit</strong> call planning and target compliance for bottom reps: <em>${bottomReps}</em>.</li>` : ""}
+              <li><strong>Enforce</strong> strict call planning in weekly line-manager reviews to curb call dilution.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderCallEfficiency(result) {
+  const el = sections.callEfficiency;
+  if (!el) return;
+
+  const onTarget = result.kpis.onTargetCalls || 0;
+  const wasted   = result.kpis.wastedCalls || 0;
+  const missed   = result.kpis.missedCalls || 0;
+  const totalPool = onTarget + wasted + missed;
+  const onTargetPct = totalPool > 0 ? Math.round((onTarget / totalPool) * 100) : 0;
+  const wastedPct   = totalPool > 0 ? Math.round((wasted / totalPool) * 100) : 0;
+  const missedPct   = totalPool > 0 ? (100 - onTargetPct - wastedPct) : 0;
+
+  const fmtN = v => v == null ? "–" : v.toLocaleString();
+
+  el.innerHTML = `
+    <div class="call-eff-bar-wrap">
+      <div class="call-eff-bar-fill on-target" style="width: ${onTargetPct}%;" title="On-Target: ${onTargetPct}%"></div>
+      <div class="call-eff-bar-fill wasted" style="width: ${wastedPct}%;" title="Wasted: ${wastedPct}%"></div>
+      <div class="call-eff-bar-fill missed" style="width: ${missedPct}%;" title="Missed: ${missedPct}%"></div>
+    </div>
+    <div class="call-eff-legend-row">
+      <div class="call-eff-legend-item on-target">
+        <div class="legend-color-dot on-target"></div>
+        <div class="legend-text">
+          <span class="legend-title">On-Target Visits</span>
+          <span class="legend-desc"><strong>${fmtN(onTarget)}</strong> (${onTargetPct}%) visits within target</span>
+        </div>
+      </div>
+      <div class="call-eff-legend-item wasted">
+        <div class="legend-color-dot wasted"></div>
+        <div class="legend-text">
+          <span class="legend-title">Wasted Visits (Over-target)</span>
+          <span class="legend-desc"><strong>${fmtN(wasted)}</strong> (${wastedPct}%) visits above target</span>
+        </div>
+      </div>
+      <div class="call-eff-legend-item missed">
+        <div class="legend-color-dot missed"></div>
+        <div class="legend-text">
+          <span class="legend-title">Missed Visits (Planned)</span>
+          <span class="legend-desc"><strong>${fmtN(missed)}</strong> (${missedPct}%) planned visits missed</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderTrendCharts(result) {
+  const labels = result.trend.periods;
+  Charts.lineChart("chart-coverage-trend", labels, [
+    Charts.percentSeries("Coverage %", result.trend.series.map((s) => s.coveragePct * 100), CONFIG.theme.colors.primary),
+    Charts.percentSeries("Right Frequency %", result.trend.series.map((s) => s.rightFreqPct * 100), CONFIG.theme.colors.success),
+  ]);
+
+  // Customer Type Distribution doughnut
+  const typeData = result.typeDistribution || [];
+  if (typeData.length) {
+    const typeTotal = typeData.reduce((s, r) => s + r.count, 0);
+    const typeLabels = typeData.map((r) => {
+      const pct = typeTotal > 0 ? ((r.count / typeTotal) * 100).toFixed(1) : "0.0";
+      return `${r.name || "(Blank)"} (${pct}%)`;
+    });
+    const typeValues = typeData.map((r) => (typeTotal > 0 ? Math.round((r.count / typeTotal) * 1000) / 10 : 0));
+    Charts.doughnutChart("chart-type-distribution", typeLabels, typeValues, {
+      plugins: { tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.toFixed(1)}%` } } },
+    });
+  } else {
+    const canvas = document.getElementById("chart-type-distribution");
+    if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No type data for the current filters.");
+  }
+
+  // Customer Class Distribution doughnut
+  const classData = result.classDistribution || [];
+  if (classData.length) {
+    const classTotal = classData.reduce((s, r) => s + r.count, 0);
+    const classLabels = classData.map((r) => {
+      const pct = classTotal > 0 ? ((r.count / classTotal) * 100).toFixed(1) : "0.0";
+      return `${r.name || "(Blank)"} (${pct}%)`;
+    });
+    const classValues = classData.map((r) => (classTotal > 0 ? Math.round((r.count / classTotal) * 1000) / 10 : 0));
+    Charts.doughnutChart("chart-class-distribution", classLabels, classValues, {
+      plugins: { tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.toFixed(1)}%` } } },
+      onClick: (evt, elements) => {
+        if (!elements.length || !result.allCoverage) return;
+        const clicked = classData[elements[0].index];
+        if (!clicked) return;
+        const name = clicked.name || "(Blank)";
+        const rows = result.allCoverage.list.filter((r) => (r.klass || "(Blank)") === name);
+        openFreqModal("class", rows, `Customers — Class: ${name}`, DRILLDOWN_COLS_COVERAGE);
+      },
+    });
+  } else {
+    const canvas = document.getElementById("chart-class-distribution");
+    if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No class data.");
+  }
+
+  // Customer Specialty Distribution doughnut
+  const specialtyData = result.specialtyDistribution || [];
+  if (specialtyData.length) {
+    let displayData = specialtyData;
+    if (specialtyData.length > 6) {
+      const top6 = specialtyData.slice(0, 6);
+      const otherCount = specialtyData.slice(6).reduce((s, r) => s + r.count, 0);
+      displayData = [...top6, { name: "Other", count: otherCount }];
+    }
+    const specTotal = displayData.reduce((s, r) => s + r.count, 0);
+    const specLabels = displayData.map((r) => {
+      const pct = specTotal > 0 ? ((r.count / specTotal) * 100).toFixed(1) : "0.0";
+      return `${r.name || "(Blank)"} (${pct}%)`;
+    });
+    const specValues = displayData.map((r) => (specTotal > 0 ? Math.round((r.count / specTotal) * 1000) / 10 : 0));
+    Charts.doughnutChart("chart-specialty-distribution", specLabels, specValues, {
+      plugins: { tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.toFixed(1)}%` } } },
+      onClick: (evt, elements) => {
+        if (!elements.length || !result.allCoverage) return;
+        const clicked = displayData[elements[0].index];
+        if (!clicked) return;
+        const name = clicked.name || "(Blank)";
+        let rows;
+        if (name === "Other" && specialtyData.length > 6) {
+          const topNames = new Set(specialtyData.slice(0, 6).map((r) => r.name || "(Blank)"));
+          rows = result.allCoverage.list.filter((r) => !topNames.has(r.specialty || "(Blank)"));
+        } else {
+          rows = result.allCoverage.list.filter((r) => (r.specialty || "(Blank)") === name);
+        }
+        openFreqModal("specialty", rows, `Customers — Specialty: ${name}`, DRILLDOWN_COLS_COVERAGE);
+      },
+    });
+  } else {
+    const canvas = document.getElementById("chart-specialty-distribution");
+    if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No specialty data.");
+  }
+
+  // Class Visits Contribution horizontal bar chart
+  const classVisitsData = result.classVisitsDistribution || [];
+  if (classVisitsData.length) {
+    const classVisitsTotal = classVisitsData.reduce((s, r) => s + r.count, 0);
+    const labels = classVisitsData.map(r => r.name || "(Blank)");
+    const values = classVisitsData.map(r => classVisitsTotal > 0 ? Math.round((r.count / classVisitsTotal) * 1000) / 10 : 0);
+    
+    Charts.horizontalBarChart(
+      "chart-class-visits-distribution",
+      labels,
+      [Charts.coloredBarDataset("Visits %", labels, values)],
+      {
+        plugins: { legend: { display: false } }
+      }
+    );
+  } else {
+    const canvas = document.getElementById("chart-class-visits-distribution");
+    if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No class visits data.");
+  }
+
+  // Class Visit Achievement: Target vs Actual, grouped horizontal bar
+  // (2026-07-28). Raw visit counts, not %, so this overrides the shared
+  // horizontalBarChart()'s default percent-axis/tooltip formatting. Actual
+  // bars are colored by achievement status (>=100% green, 70-99% amber,
+  // <70% red) against a neutral gray Target reference bar -- Target itself
+  // has no "good/bad," only Actual-vs-Target does. Sorted worst-first by
+  // analytics.js so the classes most behind target are immediately visible.
+  const classAchData = result.classVisitAchievement || [];
+  if (classAchData.length) {
+    // This dataset commonly has 25-35+ class codes (ABC/tier segmentation
+    // is fine-grained) -- a fixed 320px wrap would cram every row into an
+    // unreadable sliver. Grow the wrap to fit every row instead of capping
+    // the list, since this is a "what needs attention" execution view and
+    // silently dropping the worst-performing classes would defeat the point.
+    const achWrap = document.getElementById("chart-class-visit-achievement")?.parentElement;
+    if (achWrap) achWrap.style.height = Math.max(320, classAchData.length * 26 + 40) + "px";
+
+    const achLabels = classAchData.map(r => r.name || "(Blank)");
+    const targetValues = classAchData.map(r => r.targetVisits);
+    const actualValues = classAchData.map(r => r.actualVisits);
+    const actualColors = classAchData.map(r => {
+      if (r.achievementPct === null) return "#94A3B8"; // no target -- neutral
+      if (r.achievementPct >= 1) return "#10B981";      // on/over target
+      if (r.achievementPct >= 0.7) return "#F59E0B";    // at-risk
+      return "#EF4444";                                  // critical
+    });
+
+    Charts.horizontalBarChart(
+      "chart-class-visit-achievement",
+      achLabels,
+      [
+        { label: "Target Visits", data: targetValues, backgroundColor: "#CBD5E1", borderRadius: 3, barPercentage: 0.7 },
+        { label: "Actual Visits", data: actualValues, backgroundColor: actualColors, borderRadius: 3, barPercentage: 0.7 },
+      ],
+      {
+        scales: { x: { beginAtZero: true, ticks: { callback: (v) => v.toLocaleString() } } },
+        plugins: {
+          legend: { display: true, position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const row = classAchData[ctx.dataIndex];
+                if (ctx.dataset.label === "Actual Visits") {
+                  const pct = row.achievementPct === null ? "—" : (row.achievementPct * 100).toFixed(1) + "%";
+                  return ` Actual: ${row.actualVisits.toLocaleString()} (${pct} of target)`;
+                }
+                return ` Target: ${row.targetVisits.toLocaleString()}`;
+              },
+            },
+          },
+        },
+      }
+    );
+  } else {
+    const canvas = document.getElementById("chart-class-visit-achievement");
+    if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No class visit achievement data.");
+  }
+
+  // Specialty Visits Contribution horizontal bar chart
+  const specialtyVisitsData = result.specialtyVisitsDistribution || [];
+  if (specialtyVisitsData.length) {
+    let displayVisitsData = specialtyVisitsData;
+    if (specialtyVisitsData.length > 8) {
+      const top8 = specialtyVisitsData.slice(0, 8);
+      const otherVisitsCount = specialtyVisitsData.slice(8).reduce((s, r) => s + r.count, 0);
+      displayVisitsData = [...top8, { name: "Other", count: otherVisitsCount }];
+    }
+    const specVisitsTotal = displayVisitsData.reduce((s, r) => s + r.count, 0);
+    const labels = displayVisitsData.map(r => r.name || "(Blank)");
+    const values = displayVisitsData.map(r => specVisitsTotal > 0 ? Math.round((r.count / specVisitsTotal) * 1000) / 10 : 0);
+
+    Charts.horizontalBarChart(
+      "chart-specialty-visits-distribution",
+      labels,
+      [Charts.coloredBarDataset("Visits %", labels, values)],
+      {
+        plugins: { legend: { display: false } }
+      }
+    );
+  } else {
+    const canvas = document.getElementById("chart-specialty-visits-distribution");
+    if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = UI.emptyState("No specialty visits data.");
+  }
+}
+
+// ── RF Narrative Intelligence ────────────────────────────────────────────────
+function renderRFNarrative(result) {
+  const el = sections.rfNarrative;
+  if (!el) return;
+  const rf = result.rfInsights;
+  if (!rf) { el.innerHTML = ""; return; }
+
+  // ── helpers ──
+  const fmt  = v => v == null ? "–" : (v * 100).toFixed(1) + "%";
+  const fmtN = v => v == null ? "–" : v.toLocaleString();
+
+  function severity(v) {
+    if (v == null) return "watch";
+    if (v >= 0.80) return "win";
+    if (v >= 0.60) return "watch";
+    return "alert";
+  }
+
+  function sevLabel(v) {
+    const s = severity(v);
+    return s === "win" ? "WIN" : s === "watch" ? "WATCH" : "ALERT";
+  }
+
+  // ── 1. Headline strip ──
+  const overallSev = severity(rf.overallRfPct);
+  const atRiskPct  = rf.totalCustomers > 0 ? rf.atRiskCount / rf.totalCustomers : 0;
+
+  let headlineLine = "";
+  if (overallSev === "win") {
+    headlineLine = `Right Frequency is tracking well at <strong>${fmt(rf.overallRfPct)}</strong>. Sustain the cadence and focus on the bottom performers to push coverage higher.`;
+  } else if (overallSev === "watch") {
+    headlineLine = `Right Frequency is at <strong>${fmt(rf.overallRfPct)}</strong> — in the WATCH zone. Targeted coaching on class mix and visit planning could unlock a step change.`;
+  } else {
+    headlineLine = `Right Frequency is <strong>${fmt(rf.overallRfPct)}</strong> — a critical gap. Immediate action is needed on visit planning, doctor prioritisation, and manager accountability.`;
+  }
+
+  // ── 2. By-class bars ──
+  const maxClassRf = rf.rfByClass.length ? (rf.rfByClass[0].rightFreqPct || 0) : 1;
+  const classBars = rf.rfByClass.map(c => {
+    const pctVal = c.rightFreqPct || 0;
+    const barW   = maxClassRf > 0 ? Math.round((pctVal / maxClassRf) * 100) : 0;
+    const sev    = severity(c.rightFreqPct);
+    return `<div class="rf-bar-row">
+      <span class="rf-bar-label">${c.name || "—"}</span>
+      <div class="rf-bar-track">
+        <div class="rf-bar-fill rf-sev-${sev}" style="width:${barW}%"></div>
+      </div>
+      <span class="rf-bar-value rf-sev-${sev}-text">${fmt(c.rightFreqPct)}</span>
+      <span class="rf-bar-count">(${fmtN(c.customerCount)} drs)</span>
+    </div>`;
+  }).join("");
+
+  // ── 3. By-specialty pills ──
+  const specPills = rf.rfBySpecialty.map(s => {
+    const sev = severity(s.rightFreqPct);
+    return `<span class="rf-pill rf-sev-${sev}" title="${fmtN(s.customerCount)} doctors">
+      ${s.name || "—"} <strong>${fmt(s.rightFreqPct)}</strong>
+    </span>`;
+  }).join("");
+
+  // ── 4. Top / bottom 5 employees ──
+  function empRow(e, rank) {
+    const sev = severity(e.rfPct);
+    return `<tr>
+      <td class="rf-rank">${rank}</td>
+      <td>${e.name}</td>
+      <td>${e.team}</td>
+      <td class="rf-sev-${sev}-text fw-bold">${fmt(e.rfPct)}</td>
+      <td class="rf-muted">${fmtN(e.customerCount)} drs</td>
+    </tr>`;
+  }
+  const topRows    = rf.rfTop10 ? rf.rfTop10.map((e, i) => empRow(e, i + 1)).join("") : "";
+  const bottomRows = rf.rfBottom10 ? rf.rfBottom10.map((e, i) => empRow(e, rf.rfBottom10.length - i)).join("") : "";
+
+  const empTableHtml = (title, rows) => `
+    <div class="rf-emp-block">
+      <div class="rf-block-title">${title}</div>
+      <table class="rf-emp-table">
+        <thead><tr><th>#</th><th>Employee</th><th>Team</th><th>RF%</th><th>Scope</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5" class="rf-muted">No data</td></tr>'}</tbody>
+      </table>
+    </div>`;
+
+  // ── 5. Probation vs Non-Probation split ──
+  const expBlocks = rf.rfByExperience.map(e => {
+    const sev = severity(e.rfPct);
+    let advice = "";
+    if (e.experience === "Probation") {
+      advice = e.rfPct < 0.60
+        ? "Probationers are struggling with visit cadence. Consider intensive onboarding coaching."
+        : e.rfPct < 0.80
+        ? "Probationers are developing well. Pair lowest performers with top-quartile reps."
+        : "Probationers are performing above expectations. Retain and recognize.";
+    } else {
+      advice = e.rfPct < 0.60
+        ? "Seasoned reps falling short signals a systemic issue — check territory load and doctor frequency targets."
+        : e.rfPct < 0.80
+        ? "Experienced reps have room to improve. Review call plan compliance and territory management."
+        : "Non-probationers are setting the standard. Leverage them as internal coaches.";
+    }
+    return `<div class="rf-exp-card rf-sev-${sev}-border">
+      <div class="rf-exp-label">${e.experience}</div>
+      <div class="rf-exp-pct rf-sev-${sev}-text">${fmt(e.rfPct)}</div>
+      <div class="rf-exp-meta">${fmtN(e.empCount)} reps &nbsp;·&nbsp; ${fmtN(e.rowCount)} rows</div>
+      <div class="rf-exp-advice">${advice}</div>
+    </div>`;
+  }).join("");
+
+  // ── 6. At-risk customers ──
+  const atRiskSev = atRiskPct >= 0.20 ? "alert" : atRiskPct >= 0.10 ? "watch" : "win";
+  const atRiskMsg = atRiskPct >= 0.20
+    ? `<strong>${fmtN(rf.atRiskCount)}</strong> doctors (<strong>${fmt(atRiskPct)}</strong> of your active base) received <em>zero</em> right-frequency visits — a critical leakage point.`
+    : atRiskPct >= 0.10
+    ? `<strong>${fmtN(rf.atRiskCount)}</strong> doctors (${fmt(atRiskPct)}) have not received a right-frequency visit yet. Address these before end of cycle.`
+    : `Only <strong>${fmtN(rf.atRiskCount)}</strong> doctors (${fmt(atRiskPct)}) are without a right-frequency visit. Strong position — maintain it.`;
+
+  // ── 7. Dynamic action plan ──
+  const actions = [];
+
+  // Low RF class actions
+  const lowClasses = rf.rfByClass.filter(c => (c.rightFreqPct || 0) < 0.60);
+  if (lowClasses.length) {
+    actions.push(`🔴 <strong>Priority Class Rescue:</strong> Classes <em>${lowClasses.map(c => c.name).join(", ")}</em> are below 60% RF. Run targeted call-plan reviews for all reps covering these segments.`);
+  }
+
+  // Low RF specialty actions
+  const lowSpec = rf.rfBySpecialty.filter(s => (s.rightFreqPct || 0) < 0.60);
+  if (lowSpec.length) {
+    actions.push(`🔴 <strong>Specialty Focus:</strong> <em>${lowSpec.map(s => s.name).join(", ")}</em> are below 60% RF. Ensure frequency targets are set correctly for these specialties.`);
+  }
+
+  // Bottom performers
+  if (rf.rfBottom10 && rf.rfBottom10.length) {
+    const names = rf.rfBottom10.slice(0, 5).map(e => e.name).join(", ");
+    actions.push(`🟠 <strong>Coaching Targets:</strong> <em>${names}</em> (and others) are in the bottom 10 by RF%. Schedule 1-on-1 call-plan reviews with their managers.`);
+  }
+
+  // At-risk customers
+  if (rf.atRiskCount > 0) {
+    actions.push(`🟠 <strong>At-Risk Doctors:</strong> ${fmtN(rf.atRiskCount)} doctors have zero right-frequency visits. Identify them in the details sheet and assign recovery calls this cycle.`);
+  }
+
+  // Probation gap
+  const prob = rf.rfByExperience.find(e => e.experience === "Probation");
+  const nonProb = rf.rfByExperience.find(e => e.experience === "Non-Probation");
+  if (prob && nonProb && nonProb.rfPct != null && prob.rfPct != null) {
+    const gap = nonProb.rfPct - prob.rfPct;
+    if (gap > 0.15) {
+      actions.push(`🟡 <strong>Probationer Gap:</strong> Non-probationers exceed probationers by ${fmt(gap)} in RF%. Pair new reps with high performers and review onboarding call-plan guidance.`);
+    }
+  }
+
+  // High performers — sustain
+  if (rf.rfTop10 && rf.rfTop10.length && (rf.rfTop10[0].rfPct || 0) >= 0.80) {
+    actions.push(`🟢 <strong>Sustain Excellence:</strong> <em>${rf.rfTop10[0].name}</em> (${fmt(rf.rfTop10[0].rfPct)}) leads the field. Capture and share their territory strategy as a best-practice model.`);
+  }
+
+  if (!actions.length) {
+    actions.push("✅ <strong>All metrics within acceptable range.</strong> Continue monitoring at next period refresh.");
+  }
+
+  const actionHtml = actions.map(a => `<li class="rf-action-item">${a}</li>`).join("");
+
+  // ── Assemble HTML ──
+  el.innerHTML = `
+    <div class="rf-headline rf-sev-${overallSev}-bg">
+      <span class="rf-headline-badge rf-sev-${overallSev}-badge">${sevLabel(rf.overallRfPct)}</span>
+      <span class="rf-headline-text">${headlineLine}</span>
+    </div>
+
+    <div class="rf-insight-grid">
+
+      <div class="rf-panel rf-panel-full">
+        <div class="rf-panel-title">RF% by Class</div>
+        <div class="rf-bar-list">${classBars || '<span class="rf-muted">No class data in current filter</span>'}</div>
+      </div>
+
+      <div class="rf-panel rf-panel-full">
+        <div class="rf-panel-title">RF% by Specialty</div>
+        <div class="rf-pill-wrap">${specPills || '<span class="rf-muted">No specialty data in current filter</span>'}</div>
+      </div>
+
+      <div class="rf-panel rf-panel-half rf-panel-top-employees">
+        ${empTableHtml("🏆 Top 10 Employees by RF%", topRows)}
+      </div>
+
+      <div class="rf-panel rf-panel-half rf-panel-bottom-employees">
+        ${empTableHtml("⚠️ Bottom 10 Employees by RF%", bottomRows)}
+      </div>
+
+      <div class="rf-panel rf-panel-half rf-at-risk rf-sev-${atRiskSev}-border">
+        <div class="rf-panel-title">At-Risk Doctors</div>
+        <div class="rf-at-risk-stat rf-sev-${atRiskSev}-text">${fmtN(rf.atRiskCount)}<span class="rf-at-risk-denom"> / ${fmtN(rf.totalCustomers)}</span></div>
+        <div class="rf-at-risk-msg">${atRiskMsg}</div>
+        <div class="rf-at-risk-tiers">
+          <div class="rf-at-risk-tier-item" data-tier="1">
+            <span class="tier-label">Tier 1: Easy Win (1 missed call)</span>
+            <span class="tier-value">${fmtN(rf.atRiskTiers ? rf.atRiskTiers.tier1.count : 0)} doctors</span>
+          </div>
+          <div class="rf-at-risk-tier-item" data-tier="2">
+            <span class="tier-label">Tier 2: Moderate Gap (2 missed calls)</span>
+            <span class="tier-value">${fmtN(rf.atRiskTiers ? rf.atRiskTiers.tier2.count : 0)} doctors</span>
+          </div>
+          <div class="rf-at-risk-tier-item" data-tier="3">
+            <span class="tier-label">Tier 3: Major Gap (3+ missed calls)</span>
+            <span class="tier-value">${fmtN(rf.atRiskTiers ? rf.atRiskTiers.tier3.count : 0)} doctors</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rf-panel rf-panel-half rf-panel-action-plan">
+        <div class="rf-panel-title">📋 Action Plan</div>
+        <ul class="rf-action-list">${actionHtml}</ul>
+      </div>
+
+    </div>`;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+function renderTeamComparison(result) {
+  const teams = result.teamComparison;
+  Charts.horizontalBarChart(
+    "chart-team-coverage",
+    teams.map((t) => t.team),
+    [Charts.coloredBarDataset("Coverage %", teams.map((t) => t.team), teams.map((t) => t.coveragePct * 100))]
+  );
+
+  Tables.render(sections.teamTable, {
+    id: "team-comparison",
+    columns: [
+      { key: "team", label: "Team" },
+      { key: "headcount", label: "Headcount", format: "number", align: "right" },
+      { key: "resignedCount", label: "Resigned", format: "number", align: "right" },
+      { key: "attritionRate", label: "Attrition %", format: "percent1", align: "right" },
+      { key: "coveragePct", label: "Coverage %", format: "percent1", align: "right", defaultSort: "desc" },
+      { key: "rightFreqPct", label: "Right Freq %", format: "percent1", align: "right" },
+      { key: "customersPerRep", label: "Customers/Rep", format: "decimal1", align: "right" },
+    ],
+    rows: teams,
+    exportFileName: `team-comparison_${filenameSuffix}`,
+    emptyMessage: "No teams match the current filters.",
+  });
+}
+
+function renderRankingTables(result) {
+  const managerColumns = [
+    { key: "name", label: "Name", width: "44%", render: (row) => `
+      <div class="clickable-manager-row" data-manager="${UI.escapeHtml(row.name)}" style="cursor:pointer; display:inline-block;">
+        ${UI.nameWithAvatar(row.name, row.profile)}
+      </div>` 
+    },
+    { key: "status", label: "Status", width: "14%" },
+    { key: "span", label: "Span", width: "10%", format: "number", align: "right" },
+    { key: "coveragePct", label: "Coverage %", width: "16%", format: "percent1", align: "right", defaultSort: "desc" },
+    { key: "rightFreqPct", label: "Right Freq %", width: "16%", format: "percent1", align: "right" },
+  ];
+
+  const areaManagerColumns = [
+    { key: "name", label: "Name", width: "44%", render: (row) => UI.nameWithAvatar(row.name, row.profile) },
+    { key: "status", label: "Status", width: "14%" },
+    { key: "span", label: "Span", width: "10%", format: "number", align: "right" },
+    { key: "coveragePct", label: "Coverage %", width: "16%", format: "percent1", align: "right", defaultSort: "desc" },
+    { key: "rightFreqPct", label: "Right Freq %", width: "16%", format: "percent1", align: "right" },
+  ];
+
+  Tables.render(sections.managerTable, {
+    id: "manager-ranking", columns: managerColumns, rows: result.managerRanking,
+    exportFileName: `manager-ranking_${filenameSuffix}`, emptyMessage: "No managers match the current filters.",
+  });
+  Tables.render(sections.areaManagerTable, {
+    id: "area-manager-ranking", columns: areaManagerColumns, rows: result.areaManagerRanking,
+    exportFileName: `area-manager-ranking_${filenameSuffix}`, emptyMessage: "No area managers match the current filters.",
+  });
+}
+
+function renderSpecialtyClassCharts(result) {
+  const spec = result.specialtyCoverage;
+  const specLabels = spec.map((s) => s.name || "(Blank)");
+  Charts.horizontalBarChart(
+    "chart-specialty",
+    specLabels,
+    [Charts.coloredBarDataset("Coverage %", spec.map((s) => s.name), spec.map((s) => s.coveragePct * 100))]
+  );
+
+  const klass = result.classCoverage;
+  const classLabels = klass.map((c) => c.name || "(Blank)");
+  Charts.horizontalBarChart(
+    "chart-class",
+    classLabels,
+    [Charts.coloredBarDataset("Coverage %", klass.map((c) => c.name), klass.map((c) => c.coveragePct * 100))]
+  );
+}
+
+function renderLeaderboards(result) {
+  const topColumns = [
+    { key: "employee", label: "Employee", width: "30%", render: (row) => UI.nameWithAvatar(row.employee, row.profile) },
+    { key: "team", label: "Team", width: "10%" },
+    { key: "manager", label: "Manager", width: "28%", titleKey: "manager", render: (row) => UI.nameWithAvatar(row.manager) },
+    { key: "customerCount", label: "Customers", width: "9%", format: "number", align: "right" },
+    { key: "coveragePct", label: "Coverage %", width: "12%", format: "percent1", align: "right", defaultSort: "desc" },
+    { key: "rightFreqPct", label: "Right Freq %", width: "11%", format: "percent1", align: "right" },
+  ];
+  const bottomColumns = [
+    { key: "employee", label: "Employee", width: "30%", render: (row) => UI.nameWithAvatar(row.employee, row.profile) },
+    { key: "team", label: "Team", width: "10%" },
+    { key: "manager", label: "Manager", width: "28%", titleKey: "manager", render: (row) => UI.nameWithAvatar(row.manager) },
+    { key: "customerCount", label: "Customers", width: "9%", format: "number", align: "right" },
+    { key: "coveragePct", label: "Coverage %", width: "12%", format: "percent1", align: "right", defaultSort: "asc" },
+    { key: "rightFreqPct", label: "Right Freq %", width: "11%", format: "percent1", align: "right" },
+  ];
+
+  Tables.render(sections.leaderboardTop, {
+    id: "leaderboard-top", columns: topColumns, rows: result.leaderboards.top,
+    pageSize: 10, exportFileName: `leaderboard-top-employees_${filenameSuffix}`,
+    emptyMessage: "No qualifying employees (need 5+ customers) match the current filters.",
+  });
+  Tables.render(sections.leaderboardBottom, {
+    id: "leaderboard-bottom", columns: bottomColumns, rows: result.leaderboards.bottom,
+    pageSize: 10, exportFileName: `leaderboard-bottom-employees_${filenameSuffix}`,
+    emptyMessage: "No qualifying employees (need 5+ customers) match the current filters.",
+  });
+}
+
+/* ── Sick Leave Impact Rule: the rule, and the management panel ─────────
+ * Both read dashboard.json's pre-built, latest-period-only leaveImpact block
+ * via CacheStore (the same accessor coverage-interface.js's public getters
+ * use). Neither is part of Analytics.run()'s per-filter recompute, so they
+ * are rendered once from buildLayout() and not called from renderAll().   */
+
+function leaveImpactData() {
+  const dash = (typeof CacheStore !== "undefined" && CacheStore.isReady()) ? CacheStore.getDashboard() : null;
+  const li = dash && dash.leaveImpact;
+  return (li && li.periods) ? li : null;
+}
+
+/** Which period(s) the panel should show, from the global filter bar.
+ * filterState.period is [] by default, which across this whole tab means
+ * "Latest" (see CONFIG.filters.defaults in config.js) -- so an unfiltered
+ * Coverage tab shows the latest month, exactly like the KPI cards above it. */
+function leavePeriodsInScope(li, filterState) {
+  const wanted = (filterState && Array.isArray(filterState.period)) ? filterState.period : [];
+  const known = li.periodOrder || Object.keys(li.periods || {});
+  if (!wanted.length) return [li.latestPeriod].filter((p) => li.periods[p]);
+  // Preserve chronological order regardless of the order they were picked in.
+  return known.filter((p) => wanted.indexOf(p) >= 0 && li.periods[p]);
+}
+
+/** The rule itself, in plain language, so a moved Right Frequency number is
+ * never a mystery. Thresholds and the 22-day divisor are read from the cache
+ * (leaveImpact.rule) rather than hardcoded here, so the text on screen can
+ * never drift from the constants refresh.py actually applied. Deliberately
+ * NOT period-aware: the rule is the same every month, only the people it
+ * catches change. */
+function renderLeaveRule() {
+  const el = sections.leaveRuleBody;
+  if (!el) return;
+  const li = leaveImpactData();
+  if (!li) { el.innerHTML = UI.emptyState("Leave rule data is not available in this cache."); return; }
+
+  const r = li.rule || {};
+  const nMax = r.normalMaxDays != null ? r.normalMaxDays : 5;
+  const mMax = r.moderateMaxDays != null ? r.moderateMaxDays : 15;
+  const std = r.standardMonthlyDays != null ? r.standardMonthlyDays : 22;
+  if (sections.leaveRulePeriod) {
+    sections.leaveRulePeriod.textContent = "Evaluated per rep, per month";
+  }
+
+  el.innerHTML = `
+    <div class="lv-bands">
+      <div class="lv-band normal">
+        <div class="lv-band-days">0 &ndash; ${nMax} days</div>
+        <div class="lv-band-label">Normal</div>
+        <ul class="lv-band-rules">
+          <li>Evaluated on <span class="keep">100% standard targets</span></li>
+          <li>No adjustment to Coverage or Right Frequency</li>
+          <li>Ranked normally</li>
+        </ul>
+      </div>
+      <div class="lv-band moderate">
+        <div class="lv-band-days">${nMax + 1} &ndash; ${mMax} days</div>
+        <div class="lv-band-label">Moderate</div>
+        <ul class="lv-band-rules">
+          <li><span class="keep">Right Frequency target prorated</span> by the active-working-days ratio</li>
+          <li>Coverage reach requirement <span class="keep">unchanged</span></li>
+          <li>Ranked normally</li>
+        </ul>
+      </div>
+      <div class="lv-band excluded">
+        <div class="lv-band-days">&gt; ${mMax} days &nbsp;&middot;&nbsp; Maternity</div>
+        <div class="lv-band-label">Excluded &mdash; Territory Flagged</div>
+        <ul class="lv-band-rules">
+          <li><span class="keep">Removed from Coverage / RF rates</span> at rep, team, BU and corporate level</li>
+          <li>Excluded from competitive rankings</li>
+          <li>Tier A accounts surfaced for backup coverage</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="lv-method">
+      <div class="lv-method-title">&#8505;&#65039; How the leave days are counted</div>
+      <div class="lv-method-body">
+        Days come from <b>Sick Leave report.xlsx</b>, counted as <b>calendar days</b> exactly as the report's
+        <b>Total</b> column states them, and assigned to the calendar month they actually fall in (a leave crossing
+        month-end is split across both months). Only rows of <b>Type = Sick</b> count toward the day bands &mdash;
+        Annual, Marriage and Unpaid leave never inflate the count. <b>Maternity</b> is a separate, unconditional
+        exclusion regardless of day count. Where a <b>Doctor Action</b> note overrides the approved span
+        (&ldquo;Only 7 Days&rdquo;, &ldquo;Rejected by Dr&rdquo;), the approved figure is used instead of Total.
+      </div>
+      <div class="lv-method-body">
+        <b>The proration formula (Moderate band only).</b>
+        Active ratio = <b>(${std} &minus; leave days) &divide; ${std}</b>, where ${std} is the standard working month.
+        For each customer row the target becomes <b>floor(Frequency &times; active ratio)</b>, and the row counts as
+        right-frequency met when <b>actual visits &ge; the prorated target</b>. Targets are only ever lowered,
+        never raised &mdash; and <b>Coverage is never prorated</b>: reach is still expected in full, since a rep on
+        partial leave is still accountable for seeing their customers at least once.
+      </div>
+      <div class="lv-method-body">
+        <b>Every month stands alone.</b> The bands are re-evaluated from scratch each period, so the same rep can be
+        Excluded in one month and Normal in the next &mdash; days are never carried forward or accumulated across
+        months. Use the <b>Period</b> filter to move the panel below between months.
+      </div>
+      <div class="lv-method-source">
+        Source: Sick Leave report.xlsx &middot; matched to the coverage workbook by Employee Code &middot;
+        applied in refresh.py (apply_sick_leave_rules) before every Coverage/Right-Frequency aggregate on this
+        platform.
+      </div>
+    </div>`;
+}
+
+/** The management panel: every rep with leave on record, for whichever
+ * month(s) the Period filter has in scope, grouped by band, with Right
+ * Frequency shown before -> after so the rule's effect is visible per rep.
+ *
+ * Period-aware (2026-09-16). Each month is scored on its own days and its own
+ * band, so when more than one month is in scope the table lists rep-MONTHS
+ * rather than reps, with a Month column -- merging them would be dishonest,
+ * since a rep Excluded in June and Normal in July is genuinely both.
+ * Also honours the BU / Team / Manager / Employee filters, so a manager who
+ * narrows the tab to their own team sees only their own people here too. */
+function renderLeaveImpact(filterState) {
+  const el = sections.leaveImpactBody;
+  if (!el) return;
+  const li = leaveImpactData();
+  if (!li) { el.innerHTML = UI.emptyState("Leave impact data is not available in this cache."); return; }
+
+  const fs = filterState || _lastFilterState || {};
+  const scope = leavePeriodsInScope(li, fs);
+  const multi = scope.length > 1;
+
+  // Hierarchy filters, applied client-side against the rep rows.
+  const has = (key) => Array.isArray(fs[key]) && fs[key].length > 0;
+  const keep = (row) =>
+    (!has("businessUnit") || fs.businessUnit.indexOf(row.businessUnit) >= 0) &&
+    (!has("team") || fs.team.indexOf(row.team) >= 0) &&
+    (!has("manager") || fs.manager.indexOf(row.manager) >= 0) &&
+    (!has("employee") || fs.employee.indexOf(row.employee) >= 0);
+
+  let reps = [];
+  scope.forEach((p) => { reps = reps.concat((li.periods[p].reps || []).filter(keep)); });
+
+  if (multi) {
+    const bandOrder = { Excluded: 0, Moderate: 1, Normal: 2 };
+    const periodIdx = (p) => scope.indexOf(p);
+    reps.sort((a, b) =>
+      (bandOrder[a.band] - bandOrder[b.band]) ||
+      (periodIdx(a.period) - periodIdx(b.period)) ||
+      ((b.tierAUncovered || 0) - (a.tierAUncovered || 0)));
+  }
+
+  const s = {
+    excluded: reps.filter((d) => d.band === "Excluded").length,
+    moderate: reps.filter((d) => d.band === "Moderate").length,
+    normal: reps.filter((d) => d.band === "Normal").length,
+    tierAUncovered: reps.reduce((t, d) => t + (d.band === "Excluded" ? (d.tierAUncovered || 0) : 0), 0),
+  };
+
+  const unit = multi ? "rep-month" : "rep";
+  const periodLabel = scope.length
+    ? (multi ? `${scope[0]} &ndash; ${scope[scope.length - 1]} (${scope.length} months)` : scope[0])
+    : "no period in scope";
+  if (sections.leaveImpactPeriod) {
+    sections.leaveImpactPeriod.innerHTML =
+      `${periodLabel} &middot; ${reps.length} ${unit}${reps.length === 1 ? "" : "s"} with leave on record`;
+  }
+
+  if (!reps.length) {
+    el.innerHTML = UI.emptyState("No reps have leave on record for the current filters.");
+    return;
+  }
+
+  const riskCount = reps.filter((d) => d.band === "Excluded" && d.tierAUncovered > 0).length;
+  const pct1 = (v) => (v == null ? "&mdash;" : (v * 100).toFixed(1) + "%");
+  const esc = UI.escapeHtml;
+
+  const tiles = `
+    <div class="lv-tiles">
+      <div class="lv-tile alert"><div class="lv-tile-v">${s.excluded}</div>
+        <div class="lv-tile-l">Excluded from rates &amp; rankings<br>(&gt;15 days or Maternity)</div></div>
+      <div class="lv-tile warn"><div class="lv-tile-v">${s.moderate}</div>
+        <div class="lv-tile-l">Right Frequency target prorated<br>(6&ndash;15 days)</div></div>
+      <div class="lv-tile"><div class="lv-tile-v">${s.normal}</div>
+        <div class="lv-tile-l">Evaluated on full targets<br>(0&ndash;5 days)</div></div>
+      <div class="lv-tile alert"><div class="lv-tile-v">${s.tierAUncovered}</div>
+        <div class="lv-tile-l">Tier A accounts uncovered<br>in excluded territories</div></div>
+    </div>`;
+
+  const tabs = `
+    <div class="lv-tabs" id="lv-tabs">
+      <button class="lv-tab on" data-f="all">All<span class="n">${reps.length}</span></button>
+      <button class="lv-tab" data-f="Excluded">Excluded<span class="n">${s.excluded}</span></button>
+      <button class="lv-tab" data-f="Moderate">Prorated<span class="n">${s.moderate}</span></button>
+      <button class="lv-tab" data-f="Normal">Normal<span class="n">${s.normal}</span></button>
+      <button class="lv-tab" data-f="risk">Needs backup cover<span class="n">${riskCount}</span></button>
+    </div>`;
+
+  const colCount = multi ? 11 : 10;
+
+  const rowHtml = (d) => {
+    const before = d.rightFreqBefore, after = d.rightFreqAfter;
+    const flat = before == null || after == null || Math.abs(after - before) < 0.00005;
+    const rf = flat
+      ? `<span class="rf-after rf-flat">${pct1(after)}</span>`
+      : `<span class="rf-before">${pct1(before)}</span><span class="rf-arrow">&rarr;</span>` +
+        `<span class="rf-after rf-up">${pct1(after)}</span>`;
+    const ta = d.tierAUncovered || 0;
+    const riskCls = ta === 0 ? "ok" : (ta >= 20 ? "hi" : "mid");
+    const names = (d.tierAUncoveredCustomers || []);
+    const tip = names.length ? ` title="${esc(names.join(" · "))}"` : "";
+    let backup;
+    if (d.band !== "Excluded") backup = `<span class="dash">&mdash;</span>`;
+    else if (ta > 0) backup = `<span class="lv-need">Needs backup cover</span>`;
+    else backup = `<span class="lv-covered">Tier A covered</span>`;
+    return `<tr>
+      ${multi ? `<td class="lv-month">${esc(d.period)}</td>` : ""}
+      <td><div class="rep-name">${esc(d.employee)}</div>
+          <div class="rep-sub">${esc(d.employeeCode)} &middot; ${esc(d.reason || "")}</div></td>
+      <td>${esc(d.team)}</td>
+      <td>${esc(d.manager)}</td>
+      <td><span class="pill ${d.band.toLowerCase()}">${d.band === "Moderate" ? "Prorated" : esc(d.band)}</span></td>
+      <td class="num">${d.leaveDays ? d.leaveDays : '<span class="dash">&mdash;</span>'}</td>
+      <td class="num">${d.band === "Moderate" && d.activeRatio != null ? d.activeRatio.toFixed(2) : '<span class="dash">&mdash;</span>'}</td>
+      <td class="num"><span class="rf-shift">${rf}</span></td>
+      <td class="num">${pct1(d.coveragePct)}</td>
+      <td class="num"${tip}><span class="risk ${riskCls}">${ta}</span><span class="dash"> / ${d.tierAAccounts || 0}</span></td>
+      <td>${backup}</td>
+    </tr>`;
+  };
+
+  const GROUPS = [
+    ["Excluded", "Excluded &mdash; territory flagged, out of every rate and ranking"],
+    ["Moderate", "Prorated &mdash; Right Frequency target softened, still ranked"],
+    ["Normal", "Normal &mdash; evaluated on full standard targets"],
+  ];
+
+  const body = (filter) => {
+    let html = "";
+    GROUPS.forEach(([key, label]) => {
+      let rows = reps.filter((d) => d.band === key);
+      if (filter === "risk") rows = rows.filter((d) => d.band === "Excluded" && d.tierAUncovered > 0);
+      else if (filter !== "all") rows = rows.filter((d) => d.band === filter);
+      if (!rows.length) return;
+      html += `<tr class="grp-row"><td colspan="${colCount}">${label} &middot; ${rows.length}</td></tr>`;
+      html += rows.map(rowHtml).join("");
+    });
+    return html || `<tr><td colspan="${colCount}" class="lv-empty">No reps in this group.</td></tr>`;
+  };
+
+  el.innerHTML = tiles + tabs + `
+    <div class="lv-table-wrap">
+      <table class="lv">
+        <thead><tr>
+          ${multi ? "<th>Month</th>" : ""}
+          <th>Representative</th><th>Team</th><th>Manager</th><th>Status</th>
+          <th class="num">Leave<br>days</th><th class="num">Active<br>ratio</th>
+          <th class="num">Right Frequency</th><th class="num">Coverage</th>
+          <th class="num">Tier A<br>at risk</th><th>Backup coverage</th>
+        </tr></thead>
+        <tbody id="lv-tbody">${body("all")}</tbody>
+      </table>
+    </div>
+    <div class="lv-foot">
+      Right Frequency shows <b>before &rarr; after</b> the leave rule. A flat value means the rule changed nothing
+      for that rep &mdash; either they are in the Normal band, or their actual visits still missed even the prorated
+      target. Excluded reps keep their real figures on this table, but contribute to no rate or ranking anywhere
+      else on the dashboard. Hover a Tier A count to see the uncovered account names.
+      ${multi
+        ? "Each month is banded on its own leave days, so a rep can appear more than once with a different status."
+        : "Use the <b>Period</b> filter to switch months &mdash; every month is banded on its own leave days."}
+    </div>`;
+
+  const tabsEl = el.querySelector("#lv-tabs");
+  const tbody = el.querySelector("#lv-tbody");
+  if (tabsEl && tbody) {
+    tabsEl.addEventListener("click", (e) => {
+      const btn = e.target.closest(".lv-tab");
+      if (!btn) return;
+      tabsEl.querySelectorAll(".lv-tab").forEach((b) => b.classList.remove("on"));
+      btn.classList.add("on");
+      tbody.innerHTML = body(btn.dataset.f);
+    });
+  }
+}
+
+/* renderAttritionVacancyQuality() was deleted here 2026-09-16 along with the
+   "Attrition & Vacancy" section it rendered (see buildLayout). Removed rather
+   than left orphaned, so it doesn't become another never-called function
+   nobody dares touch. result.attrition / result.vacancies are still produced
+   by analytics.js and refresh.py and still feed the KPI cards. */
+
+/** Shared row-array sorter for the customer-drilldown modals (mirrors
+ * Tables.applySort's semantics: numeric compare when both values are
+ * numbers, else locale-aware string compare; null/undefined sort last). */
+function sortRows(rows, key, dir) {
+  if (!key) return rows;
+  const sorted = [...rows].sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (av === null || av === undefined) return 1;
+    if (bv === null || bv === undefined) return -1;
+    if (typeof av === "number" && typeof bv === "number") return av - bv;
+    return String(av).localeCompare(String(bv));
+  });
+  return dir === "desc" ? sorted.reverse() : sorted;
+}
+
+/** Sortable <th> markup + click wiring, shared by both drilldown-modal
+ * renderers below (openFreqModal's renderFreqModalBody and
+ * wireNotSeenModal's renderBody) so header-click sorting behaves and
+ * looks identical (reuses Tables' existing .sortable/.sort-arrow/
+ * .sorted-asc/.sorted-desc CSS -- no new styles needed). */
+function sortableTh(c, sortKey, sortDir) {
+  return `<th data-key="${c.key}" class="sortable ${sortKey === c.key ? "sorted-" + sortDir : ""}" style="text-align:${c.align || "left"}">${UI.escapeHtml(c.label)}<span class="sort-arrow"></span></th>`;
+}
+function wireSortableHeaders(container, onSort) {
+  container.querySelectorAll("th[data-key]").forEach((th) => {
+    th.addEventListener("click", () => onSort(th.dataset.key));
+  });
+}
+
+/** Renders a Team cell as one or more clickable "chips" (a Unique-view
+ * cell can hold several comma-joined line names, e.g. "DIAB-I, DIAB-II")
+ * so clicking any single line name drills into that line's customers --
+ * wired once, by delegation, in wireNotSeenModal(). 2026-08-30. */
+function renderTeamCell(align, rawValue) {
+  const names = String(rawValue ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!names.length) return `<td style="text-align:${align || "left"}"></td>`;
+  const chips = names.map((n) =>
+    `<span class="team-chip" data-team="${UI.escapeHtml(n)}">${UI.escapeHtml(n)}</span>`
+  ).join(", ");
+  return `<td style="text-align:${align || "left"}" title="${UI.escapeHtml(names.join(", "))}">${chips}</td>`;
+}
+
+/* ── Shared column sets for the customer-drilldown modal (reuses the
+ * existing #ns-modal-overlay shell via openFreqModal). 2026-08-30: Ahmed
+ * reverted the "Team" header label back from "Position", added an Area
+ * column, and dropped the Unique view's Coverage column. ─────────────── */
+const DRILLDOWN_COLS_COVERAGE = [
+  { key: "customerName", label: "Customer Name", width: "16%" },
+  { key: "specialty",    label: "Specialty",     width: "8%"  },
+  { key: "klass",        label: "Class",         width: "5%"  },
+  { key: "employee",     label: "Employee",      width: "11%" },
+  { key: "team",         label: "Team",          width: "8%"  },
+  { key: "manager",      label: "Manager",       width: "12%" },
+  { key: "area",         label: "Area",          width: "9%"  },
+  { key: "frequency",    label: "Target",        width: "7%", align: "right" },
+  { key: "visits",       label: "Actual",        width: "7%", align: "right" },
+  { key: "remaining",    label: "Remaining",     width: "8%", align: "right" },
+  { key: "status",       label: "Status",        width: "8%"  },
+];
+/* ── Prorated Target column (2026-09-16) ──────────────────────────────────
+   Ahmed: "add a Prorated Target column, yes, for prorated only."
+
+   Two senses of "prorated only", both honoured:
+     1. The COLUMN only appears when at least one row in the open drilldown
+        was actually prorated. A manager whose scope contains no Moderate-band
+        rep never sees it, so the table stays as narrow as it is today.
+     2. Within the column, only prorated rows carry a number. Everything else
+        shows an em dash, never a copy of the standard target -- a repeated
+        number reads as "the rule touched this row and changed nothing",
+        which is a different and wrong claim.
+
+   The Target / Actual / Remaining / Status columns are left exactly as they
+   are, on the standard basis. This column sits beside them rather than
+   replacing anything, so nothing a manager already trusts shifts meaning
+   underneath them. Where the two disagree -- prorated target met, standard
+   target missed -- the Status cell gains a small "met prorated" tag instead
+   of the Below pill being quietly rewritten. See renderFreqModalBody(). */
+const DRILLDOWN_COL_PRORATED = {
+  key: "proratedTarget", label: "Prorated", width: "9%", align: "right",
+  // Blank, never -1, in the Excel export: a sentinel that means "not
+  // prorated" on screen would be read as a real target in a spreadsheet.
+  exportValue: (v) => (v >= 0 ? v : ""),
+};
+
+function withProratedCol(cols, list) {
+  if (!Array.isArray(list) || !list.some((r) => r && r.isProrated)) return cols;
+  const out = cols.slice();
+  const at = out.findIndex((c) => c.key === "frequency");
+  out.splice(at < 0 ? out.length : at + 1, 0, DRILLDOWN_COL_PRORATED);
+  // The base column sets already sum to ~100%, so dropping an eleventh
+  // column in unaltered overflows the table and clips both the new header
+  // ("Prorated Targe…") and the Status cell's "met prorated" tag. Give
+  // Status the room its extra tag needs, then rescale every width back to
+  // 100% proportionally -- which keeps the existing columns' relative
+  // proportions intact instead of hand-tuning a second set of numbers that
+  // would then have to be kept in sync with the first.
+  const WIDE_STATUS = 13;
+  const widths = out.map((c) => (c.key === "status" ? WIDE_STATUS : parseFloat(c.width) || 8));
+  const total = widths.reduce((a, w) => a + w, 0) || 100;
+  return out.map((c, i) => Object.assign({}, c, { width: (widths[i] * 100 / total).toFixed(2) + "%" }));
+}
+
+const DRILLDOWN_COLS_UNIQUE = [
+  { key: "customerName", label: "Customer Name", width: "18%" },
+  { key: "specialty",    label: "Specialty",     width: "10%" },
+  { key: "klass",        label: "Class",         width: "6%"  },
+  { key: "team",         label: "Team",          width: "11%" },
+  { key: "manager",      label: "Manager",       width: "12%" },
+  { key: "area",         label: "Area",          width: "10%" },
+  { key: "frequency",    label: "Target",        width: "7%", align: "right" },
+  { key: "visits",       label: "Actual",        width: "7%", align: "right" },
+  { key: "remaining",    label: "Remaining",     width: "8%", align: "right" },
+  { key: "status",       label: "Status",        width: "8%"  },
+];
+
+/* ── Not-Seen Customers Modal ─────────────────────────────────────────────── */
+function wireNotSeenModal() {
+  const overlay  = document.getElementById("ns-modal-overlay");
+  const closeBtn = document.getElementById("ns-modal-close");
+  let   searchEl = document.getElementById("ns-modal-search");
+  const body     = document.getElementById("ns-modal-body");
+  const badge    = document.getElementById("ns-modal-badge");
+  const info     = document.getElementById("ns-modal-info");
+  const prevBtn  = document.getElementById("ns-modal-prev");
+  const nextBtn  = document.getElementById("ns-modal-next");
+  const pageLabel= document.getElementById("ns-modal-page-label");
+  let   exportBtn= document.getElementById("ns-modal-export");
+
+  const PAGE_SIZE = 50;
+  let _allRows = [];
+  let _filtered = [];
+  let _page = 1;
+  let _sortKey = null;
+  let _sortDir = "desc";
+
+  const COLS = [
+    { key: "customerName", label: "Customer Name", width: "16%" },
+    { key: "specialty",    label: "Specialty",     width: "8%"  },
+    { key: "klass",        label: "Class",         width: "5%"  },
+    { key: "type",         label: "Type",          width: "5%"  },
+    { key: "employee",     label: "Employee",      width: "11%" },
+    { key: "team",         label: "Team",          width: "8%"  },
+    { key: "manager",      label: "Manager",       width: "11%" },
+    { key: "area",         label: "Area",          width: "9%"  },
+    { key: "frequency",    label: "Freq",          width: "5%", align: "right" },
+    { key: "lastVisitDate",label: "Last Visit",    width: "8%"  },
+    { key: "visitedMonths",label: "Visited Months",width: "14%" },
+  ];
+
+  function esc(s) { return UI.escapeHtml(String(s ?? "")); }
+
+  function applySearch(term) {
+    if (!term) return _allRows;
+    const q = term.toLowerCase();
+    return _allRows.filter((r) =>
+      ["customerName","specialty","klass","type","employee","team","manager","area"]
+        .some((k) => String(r[k] ?? "").toLowerCase().includes(q))
+    );
+  }
+
+  function renderBody() {
+    const sorted = sortRows(_filtered, _sortKey, _sortDir);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    _page = Math.min(_page, totalPages);
+    const slice = sorted.slice((_page - 1) * PAGE_SIZE, _page * PAGE_SIZE);
+
+    info.textContent = `${sorted.length.toLocaleString()} customer${sorted.length !== 1 ? "s" : ""} not seen`;
+    pageLabel.textContent = `${_page} / ${totalPages}`;
+    prevBtn.disabled = _page <= 1;
+    nextBtn.disabled = _page >= totalPages;
+
+    if (!slice.length) {
+      body.innerHTML = `<div style="padding:32px;text-align:center;color:#94A3B8;">No customers match your search.</div>`;
+      return;
+    }
+
+    const colgroup = COLS.map((c) => `<col style="width:${c.width}">`).join("");
+    const thead = COLS.map((c) => sortableTh(c, _sortKey, _sortDir)).join("");
+    const tbody = slice.map((r) =>
+      `<tr>${COLS.map((c) =>
+        c.key === "team" ? renderTeamCell(c.align, r[c.key])
+        : `<td style="text-align:${c.align||"left"}" title="${esc(r[c.key])}">${esc(r[c.key])}</td>`
+      ).join("")}</tr>`
+    ).join("");
+
+    body.innerHTML = `
+      <table class="data-table">
+        <colgroup>${colgroup}</colgroup>
+        <thead><tr>${thead}</tr></thead>
+        <tbody>${tbody}</tbody>
+      </table>`;
+
+    wireSortableHeaders(body, (key) => {
+      if (_sortKey === key) { _sortDir = _sortDir === "asc" ? "desc" : "asc"; } else { _sortKey = key; _sortDir = "desc"; }
+      _page = 1;
+      renderBody();
+    });
+  }
+
+  function openModal() {
+    if (typeof Analytics === "undefined" || !Analytics.getNotSeenCustomers) return;
+    _allRows = Analytics.getNotSeenCustomers(_lastFilterState || Analytics.defaultFilters());
+    // 2026-09-24: this overlay is shared with the Over/Below Freq, At-Risk,
+    // Team and other popups (openFreqModal etc.), which rename the title and
+    // replace the search box + Export button with clones bound to THEIR list.
+    // Reset the title and re-bind both controls to Not Seen on every open, so
+    // Not Seen never inherits the previous popup's title, search or export.
+    const titleEl = document.getElementById("ns-modal-title-text");
+    if (titleEl) titleEl.textContent = "Not Seen Customers";
+    bindSearchAndExport();
+    badge.textContent = _allRows.length.toLocaleString();
+    searchEl.value = "";
+    _filtered = _allRows;
+    _page = 1;
+    _sortKey = null;
+    _sortDir = "desc";
+    renderBody();
+    overlay.classList.add("open");
+    searchEl.focus();
+  }
+
+  function closeModal() {
+    overlay.classList.remove("open");
+  }
+
+  // Click on notSeen / overFreq / belowFreq KPI cards or At-Risk Tiers
+  document.getElementById("app-root").addEventListener("click", (e) => {
+    const card = e.target.closest(".kpi-card");
+    if (card) {
+      const kpi = card.dataset.kpi;
+      if (kpi === "notSeenCount" || kpi === "notSeenPct") {
+        openModal();
+      } else if (kpi === "overFreqCount") {
+        if (_lastResult && _lastResult.overFreq) {
+          openFreqModal("over", _lastResult.overFreq.list, "Customers Visited Over Target Frequency");
+        }
+      } else if (kpi === "belowFreqCount") {
+        if (_lastResult && _lastResult.belowFreq) {
+          openFreqModal("below", _lastResult.belowFreq.list, "Customers Visited Below Target Frequency");
+        }
+      } else if (kpi === "totalUniqueCustomers") {
+        if (_lastResult && _lastResult.uniqueCustomers) {
+          openFreqModal("unique", _lastResult.uniqueCustomers.list, "Total Customers — Unique", withProratedCol(DRILLDOWN_COLS_UNIQUE, _lastResult.uniqueCustomers.list));
+        }
+      } else if (kpi === "totalSharedCustomers") {
+        if (_lastResult && _lastResult.allCoverage) {
+          openFreqModal("shared", _lastResult.allCoverage.list, "Total Customers — Shared Coverage", withProratedCol(DRILLDOWN_COLS_COVERAGE, _lastResult.allCoverage.list));
+        }
+      }
+      return;
+    }
+
+    const mgrRow = e.target.closest(".clickable-manager-row");
+    if (mgrRow) {
+      const managerName = mgrRow.dataset.manager;
+      openTeamPerformanceModal(managerName);
+      return;
+    }
+
+    const tierItem = e.target.closest(".rf-at-risk-tier-item");
+    if (tierItem && _lastResult && _lastResult.rfInsights && _lastResult.rfInsights.atRiskTiers) {
+      const tierNum = tierItem.dataset.tier;
+      const tier = _lastResult.rfInsights.atRiskTiers[`tier${tierNum}`];
+      if (tier && tier.list) {
+        const tierNames = {
+          "1": "Easy Win (1 Missed Call)",
+          "2": "Moderate Gap (2 Missed Calls)",
+          "3": "Major Gap (3+ Missed Calls)"
+        };
+        openFreqModal(`tier${tierNum}`, tier.list, `At-Risk Doctors — ${tierNames[tierNum]}`);
+      }
+    }
+  });
+
+  closeBtn.addEventListener("click", closeModal);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  // Team-chip drilldown -- click any line name in any popup's Team column
+  // (Not Seen / Over / Below / At-Risk / Unique / Shared / Specialty /
+  // Class) to see that line's customers. Wired once here (body is the
+  // one stable #ns-modal-body element every popup renders into) rather
+  // than inside openFreqModal, which runs on every popup open and would
+  // otherwise stack a fresh listener each time. 2026-08-30.
+  body.addEventListener("click", (e) => {
+    const chip = e.target.closest(".team-chip");
+    if (!chip) return;
+    const teamName = chip.dataset.team;
+    if (!teamName || !_lastResult || !_lastResult.allCoverage) return;
+    const rows = _lastResult.allCoverage.list.filter((r) => (r.team || "(Blank)") === teamName);
+    openFreqModal("team", rows, `Customers — Team: ${teamName}`, DRILLDOWN_COLS_COVERAGE);
+  });
+
+  function bindSearchAndExport() {
+    const curSearch = document.getElementById("ns-modal-search");
+    const freshSearch = curSearch.cloneNode(true);
+    freshSearch.placeholder = "Search by customer, employee, specialty…";
+    curSearch.parentNode.replaceChild(freshSearch, curSearch);
+    searchEl = freshSearch;
+    searchEl.addEventListener("input", Utils.debounce((e) => {
+      _filtered = applySearch(e.target.value.trim());
+      _page = 1;
+      renderBody();
+    }, 200));
+
+    const curExport = document.getElementById("ns-modal-export");
+    const freshExport = curExport.cloneNode(true);
+    curExport.parentNode.replaceChild(freshExport, curExport);
+    exportBtn = freshExport;
+    exportBtn.addEventListener("click", () => {
+      if (typeof Exporter === "undefined") return;
+      Exporter.tableToExcel(COLS, sortRows(_filtered, _sortKey, _sortDir), `not-seen-customers_${filenameSuffix}`);
+    });
+  }
+
+  prevBtn.addEventListener("click", () => { _page--; renderBody(); });
+  nextBtn.addEventListener("click", () => { _page++; renderBody(); });
+
+}
+
+/* ── KOL Coverage ─────────────────────────────────────────────────────────── */
+function ragClass(pct) {
+  if (pct === null) return "";
+  if (pct >= 1)    return "kol-green";
+  if (pct >= 0.8)  return "kol-amber";
+  return "kol-red";
+}
+
+function renderKolCoverage(filterState, cachedRows) {
+  let rows = Analytics.getKolCoverage(filterState || Analytics.defaultFilters());
+  // View-only mode: Analytics has no raw records — fall back to pre-computed cache
+  if (!rows.length && cachedRows && cachedRows.length) rows = cachedRows;
+
+  if (!rows.length) {
+    sections.kolTable.innerHTML = UI.emptyState("No customer data for the current filters.");
+    return;
+  }
+
+  const esc = UI.escapeHtml.bind(UI);
+  function pctCell(pct, notSeen, mgrName, quarter) {
+    const rag  = ragClass(pct);
+    const disp = pct !== null ? (pct * 100).toFixed(1) + "%" : "–";
+    const ns   = notSeen > 0
+      ? `<span class="kol-not-seen-btn" data-mgr="${esc(mgrName)}" data-q="${quarter}">${notSeen} not seen</span>`
+      : `<span class="kol-zero-ns">✓ all seen</span>`;
+    return `<td class="kol-pct-cell ${rag}">${disp}<br>${ns}</td>`;
+  }
+
+  const thead = `<thead><tr>
+    <th style="width:26%">Employee</th>
+    <th style="width:12%">Title</th>
+    <th style="width:6%;text-align:right">Customer List</th>
+    <th style="width:13%;text-align:center">Q1 Coverage %<br><small>Feb–Mar</small></th>
+    <th style="width:9%;text-align:center">Q1 Not Seen</th>
+    <th style="width:13%;text-align:center">Q2 Coverage %<br><small>Apr–Jun</small></th>
+    <th style="width:9%;text-align:center">Q2 Not Seen</th>
+    <th style="width:12%;text-align:left">Team</th>
+  </tr></thead>`;
+
+  const tbody = rows.map((r) => `<tr>
+    <td>${UI.nameWithAvatar(r.name, r.profile)}</td>
+    <td style="font-size:11px;color:#475569" title="${esc(r.title)}">${esc(r.title)}</td>
+    <td style="text-align:right;font-weight:600">${r.kolCount}</td>
+    <td class="kol-pct-cell ${ragClass(r.q1CoveragePct)}" style="text-align:center">
+      ${r.q1CoveragePct !== null ? (r.q1CoveragePct * 100).toFixed(1) + "%" : "–"}
+    </td>
+    <td style="text-align:center">
+      ${r.q1NotSeen > 0
+        ? `<span class="kol-not-seen-btn" data-mgr="${esc(r.name)}" data-q="q1">${r.q1NotSeen}</span>`
+        : `<span class="kol-zero-ns">✓</span>`}
+    </td>
+    <td class="kol-pct-cell ${ragClass(r.q2CoveragePct)}" style="text-align:center">
+      ${r.q2CoveragePct !== null ? (r.q2CoveragePct * 100).toFixed(1) + "%" : "–"}
+    </td>
+    <td style="text-align:center">
+      ${r.q2NotSeen > 0
+        ? `<span class="kol-not-seen-btn" data-mgr="${esc(r.name)}" data-q="q2">${r.q2NotSeen}</span>`
+        : `<span class="kol-zero-ns">✓</span>`}
+    </td>
+    <td style="font-size:11px;color:#64748B" title="${esc(r.team)}">${esc(r.team)}</td>
+  </tr>`).join("");
+
+  // search + pagination via simple in-memory state
+  sections.kolTable.innerHTML = `
+    <div class="table-toolbar">
+      <input type="search" class="table-search kol-search" placeholder="Search employee, title, team…" />
+      <button class="table-export-btn kol-export-btn">Export to Excel</button>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table kol-table">
+        <colgroup>
+          <col style="width:26%"><col style="width:12%"><col style="width:6%">
+          <col style="width:13%"><col style="width:9%"><col style="width:13%">
+          <col style="width:9%"><col style="width:12%">
+        </colgroup>
+        ${thead}
+        <tbody id="kol-tbody">${tbody}</tbody>
+      </table>
+    </div>`;
+
+  // Store rows on the element so the modal can find them by manager name
+  sections.kolTable._kolRows = rows;
+
+  // Search
+  sections.kolTable.querySelector(".kol-search").addEventListener("input", Utils.debounce((e) => {
+    const q = e.target.value.toLowerCase();
+    sections.kolTable.querySelectorAll("#kol-tbody tr").forEach((tr) => {
+      tr.style.display = q && !tr.textContent.toLowerCase().includes(q) ? "none" : "";
+    });
+  }, 200));
+
+  // Export
+  sections.kolTable.querySelector(".kol-export-btn").addEventListener("click", () => {
+    const exportCols = [
+      { key: "name", label: "Employee" }, { key: "title", label: "Title" },
+      { key: "profile", label: "Profile" }, { key: "team", label: "Team" },
+      { key: "kolCount", label: "Customer List" },
+      { key: "q1CoveragePct", label: "Q1 Coverage %", format: "percent1" },
+      { key: "q1NotSeen", label: "Q1 Not Seen" },
+      { key: "q2CoveragePct", label: "Q2 Coverage %", format: "percent1" },
+      { key: "q2NotSeen", label: "Q2 Not Seen" },
+    ];
+    if (typeof Exporter !== "undefined") Exporter.tableToExcel(exportCols, rows, `kol-coverage_${filenameSuffix}`);
+  });
+
+  // Not-seen drill-down — delegate to modal
+  sections.kolTable.addEventListener("click", (e) => {
+    const btn = e.target.closest(".kol-not-seen-btn");
+    if (!btn) return;
+    const mgrName = btn.dataset.mgr;
+    const quarter = btn.dataset.q; // "q1" or "q2"
+    openKolModal(mgrName, quarter, sections.kolTable._kolRows);
+  });
+}
+
+function openKolModal(mgrName, quarter, kolRows) {
+  const entry = kolRows.find((r) => r.name === mgrName);
+  if (!entry) return;
+  const list = quarter === "q1" ? entry.q1NotSeenList : entry.q2NotSeenList;
+  const qLabel = quarter === "q1" ? "Q1 (Feb–Mar)" : "Q2 (Apr–Jun)";
+
+  // Reuse the existing not-seen modal overlay
+  const overlay = document.getElementById("ns-modal-overlay");
+  const badge   = document.getElementById("ns-modal-badge");
+  const body    = document.getElementById("ns-modal-body");
+  const info    = document.getElementById("ns-modal-info");
+  const titleEl = document.getElementById("ns-modal-title-text");
+  const searchEl= document.getElementById("ns-modal-search");
+  const prevBtn = document.getElementById("ns-modal-prev");
+  const nextBtn = document.getElementById("ns-modal-next");
+  const pageLabel=document.getElementById("ns-modal-page-label");
+  const exportBtn=document.getElementById("ns-modal-export");
+
+  titleEl.textContent = `Customers Not Seen — ${mgrName} — ${qLabel}`;
+  badge.textContent   = list.length;
+  searchEl.value      = "";
+  prevBtn.disabled    = true;
+  nextBtn.disabled    = true;
+  pageLabel.textContent = "";
+  info.textContent    = `${list.length} customer${list.length !== 1 ? "s" : ""} not visited in ${qLabel}`;
+
+  const COLS = [
+    { key: "customerName", label: "Customer Name", width: "30%" },
+    { key: "specialty",    label: "Specialty",     width: "15%" },
+    { key: "klass",        label: "Class",          width: "8%" },
+    { key: "type",         label: "Type",           width: "10%" },
+    { key: "area",         label: "Area",           width: "15%" },
+    { key: "lastVisitDate",label: "Last Visit",     width: "14%" },
+    { key: "frequency",    label: "Target Freq",    width: "8%", align: "right" },
+  ];
+
+  function renderKolModalBody(filteredRows) {
+    if (!filteredRows.length) {
+      body.innerHTML = `<div style="padding:32px;text-align:center;color:#94A3B8;">No customers match.</div>`;
+      return;
+    }
+    const colgroup = COLS.map((c) => `<col style="width:${c.width}">`).join("");
+    const thead    = COLS.map((c) =>
+      `<th style="text-align:${c.align || "left"}">${UI.escapeHtml(c.label)}</th>`
+    ).join("");
+    const tbody = filteredRows.map((r) =>
+      `<tr>${COLS.map((c) =>
+        `<td style="text-align:${c.align || "left"}" title="${UI.escapeHtml(String(r[c.key] ?? ""))}">${UI.escapeHtml(String(r[c.key] ?? ""))}</td>`
+      ).join("")}</tr>`
+    ).join("");
+    body.innerHTML = `<table class="data-table">
+      <colgroup>${colgroup}</colgroup>
+      <thead><tr>${thead}</tr></thead>
+      <tbody>${tbody}</tbody>
+    </table>`;
+  }
+
+  let filtered = list;
+  renderKolModalBody(filtered);
+  overlay.classList.add("open");
+  searchEl.focus();
+
+  // Replace search handler for KOL context
+  const newSearch = searchEl.cloneNode(true);
+  newSearch.placeholder = "Search by customer, specialty, class…";
+  searchEl.parentNode.replaceChild(newSearch, searchEl);
+  newSearch.addEventListener("input", Utils.debounce((e) => {
+    const q = e.target.value.toLowerCase();
+    filtered = q
+      ? list.filter((r) => ["customerName","specialty","klass","type","area"].some(
+          (k) => String(r[k] ?? "").toLowerCase().includes(q)
+        ))
+      : list;
+    renderKolModalBody(filtered);
+  }, 200));
+
+  // Replace export handler
+  const newExport = exportBtn.cloneNode(true);
+  exportBtn.parentNode.replaceChild(newExport, exportBtn);
+  newExport.addEventListener("click", () => {
+    if (typeof Exporter !== "undefined")
+      Exporter.tableToExcel(COLS, filtered, `customers-not-seen_${UI.escapeHtml(mgrName)}_${quarter}_${filenameSuffix}`);
+  });
+}
+
+function openFreqModal(mode, list, title, colsOverride) {
+  // Reuse the existing not-seen modal overlay
+  const overlay = document.getElementById("ns-modal-overlay");
+  const badge   = document.getElementById("ns-modal-badge");
+  const body    = document.getElementById("ns-modal-body");
+  const info    = document.getElementById("ns-modal-info");
+  const titleEl = document.getElementById("ns-modal-title-text");
+  const searchEl= document.getElementById("ns-modal-search");
+  const prevBtn = document.getElementById("ns-modal-prev");
+  const nextBtn = document.getElementById("ns-modal-next");
+  const pageLabel=document.getElementById("ns-modal-page-label");
+  const exportBtn=document.getElementById("ns-modal-export");
+
+  titleEl.textContent = title;
+  badge.textContent   = list.length;
+  searchEl.value      = "";
+  prevBtn.disabled    = true;
+  nextBtn.disabled    = true;
+  pageLabel.textContent = "";
+  info.textContent    = `${list.length} customer${list.length !== 1 ? "s" : ""} in this list`;
+
+  let sortKey = null;
+  let sortDir = "desc";
+
+  const COLS = colsOverride || [
+    { key: "customerName", label: "Customer Name", width: "20%" },
+    { key: "specialty",    label: "Specialty",     width: "10%" },
+    { key: "klass",        label: "Class",          width: "6%" },
+    { key: "type",         label: "Type",           width: "8%" },
+    { key: "employee",     label: "Employee",       width: "12%" },
+    { key: "team",         label: "Team",           width: "10%" },
+    { key: "manager",      label: "Manager",        width: "10%" },
+    { key: "area",         label: "Area",           width: "10%" },
+    { key: "lastVisitDate",label: "Last Visit",     width: "10%" },
+    { key: "frequency",    label: "Freq",           width: "6%", align: "right" },
+    { key: "visits",       label: "Visits",         width: "6%", align: "right" },
+    mode === "over"
+      ? { key: "overCalls",  label: "Over Target",     width: "6%", align: "right" }
+      : { key: "missedCalls",  label: "Missed",         width: "6%", align: "right" }
+  ];
+
+  function renderFreqModalBody(filteredRows) {
+    if (!filteredRows.length) {
+      body.innerHTML = `<div style="padding:32px;text-align:center;color:#94A3B8;">No doctors match.</div>`;
+      return;
+    }
+    const sortedRows = sortRows(filteredRows, sortKey, sortDir);
+    const colgroup = COLS.map((c) => `<col style="width:${c.width}">`).join("");
+    const thead    = COLS.map((c) => sortableTh(c, sortKey, sortDir)).join("");
+    const STATUS_STYLE = {
+      on:    "background:#DCFCE7;color:#15803D;",
+      below: "background:#FEE2E2;color:#DC2626;",
+      over:  "background:#FEF3C7;color:#B45309;",
+    };
+    const STATUS_LABEL = { on: "On Target", below: "Below", over: "Over" };
+    const tbody = sortedRows.map((r) =>
+      `<tr>${COLS.map((c) => {
+        const val = r[c.key];
+        if (c.key === "team") return renderTeamCell(c.align, val);
+        if (c.key === "proratedTarget") {
+          // -1 is "not prorated", not a target of minus one. A real 0 IS
+          // shown, and flagged: floor(1 x activeRatio) collapses a
+          // Frequency-1 account to a target of zero, which the rule refuses
+          // to credit (prorated_tgt > 0), so that account still has to meet
+          // its full target. That is the least obvious case in the whole
+          // rule and the one most worth spelling out on the row itself.
+          if (!(val >= 0)) {
+            return `<td style="text-align:${c.align || "left"};color:#94A3B8;" title="Not prorated — the standard target stands">—</td>`;
+          }
+          if (val === 0) {
+            return `<td style="text-align:${c.align || "left"}" title="Prorated to 0 — no relief applies, this account must still meet its full target of ${UI.escapeHtml(String(r.frequency ?? ""))}">
+              <strong style="color:#B45309;">0</strong> <span style="font-size:10px;color:#B45309;">no relief</span>
+            </td>`;
+          }
+          // The Unique view sums one row per covering rep, so an aggregated
+          // customer's number is the sum of each rep's OWN effective target
+          // — only some of which were prorated. Say so, rather than letting
+          // "100 → 97" read as if the whole target had been softened.
+          const shared = r.coverageCount > 1;
+          const tip = shared
+            ? `Summed across ${r.coverageCount} covering reps, each at their own effective target — ${r.proratedRepCount} of them prorated under the Sick Leave Impact Rule. Standard total: ${r.frequency}.`
+            : `Sick Leave Impact Rule: Moderate band — visit target prorated from ${r.frequency} to ${val} by the active-working-days ratio`;
+          return `<td style="text-align:${c.align || "left"}" title="${UI.escapeHtml(tip)}">
+            <strong style="color:#B45309;">${val}</strong>
+          </td>`;
+        }
+        if (c.key === "status") {
+          const st = STATUS_STYLE[val] ? val : "on";
+          // The pill keeps telling the STANDARD truth, unchanged. The tag
+          // beside it says the rule credited this row anyway -- shown only
+          // where the two actually disagree.
+          const proratedTag = r.proratedMet
+            ? `<span title="Missed the standard target but met the prorated one — credited under the Sick Leave Impact Rule" style="display:block;margin-top:3px;padding:1px 7px;border-radius:20px;font-size:9.5px;font-weight:700;background:#FEF3C7;color:#B45309;white-space:nowrap;">✓ met prorated</span>`
+            : "";
+          // overflow/text-overflow are overridden inline because
+          // .data-table td ellipsis-clips its content -- which silently ate
+          // the tag entirely, leaving a bare "…" next to the Below pill.
+          return `<td style="text-align:${c.align || "left"};white-space:normal;overflow:visible;text-overflow:clip;line-height:1.7;">
+            <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;${STATUS_STYLE[st]}">${STATUS_LABEL[st]}</span>${proratedTag}
+          </td>`;
+        }
+        const isBoldKey = c.key === "missedCalls" || c.key === "overCalls" || c.key === "remaining";
+        return `<td style="text-align:${c.align || "left"}" title="${UI.escapeHtml(String(val ?? ""))}">
+          ${isBoldKey ? `<strong>${val}</strong>` : UI.escapeHtml(String(val ?? ""))}
+        </td>`;
+      }).join("")}</tr>`
+    ).join("");
+    body.innerHTML = `<table class="data-table">
+      <colgroup>${colgroup}</colgroup>
+      <thead><tr>${thead}</tr></thead>
+      <tbody>${tbody}</tbody>
+    </table>`;
+
+    wireSortableHeaders(body, (key) => {
+      if (sortKey === key) { sortDir = sortDir === "asc" ? "desc" : "asc"; } else { sortKey = key; sortDir = "desc"; }
+      renderFreqModalBody(filteredRows);
+    });
+  }
+
+  let filtered = list;
+  renderFreqModalBody(filtered);
+  overlay.classList.add("open");
+
+  // Replace search handler
+  const newSearch = searchEl.cloneNode(true);
+  newSearch.placeholder = "Search by customer, employee, area…";
+  searchEl.parentNode.replaceChild(newSearch, searchEl);
+  newSearch.addEventListener("input", Utils.debounce((e) => {
+    const q = e.target.value.toLowerCase();
+    filtered = q
+      ? list.filter((r) => ["customerName","specialty","klass","type","employee","team","manager","area"].some(
+          (k) => String(r[k] ?? "").toLowerCase().includes(q)
+        ))
+      : list;
+    renderFreqModalBody(filtered);
+  }, 200));
+
+  // Replace export handler
+  const newExport = exportBtn.cloneNode(true);
+  exportBtn.parentNode.replaceChild(newExport, exportBtn);
+  newExport.addEventListener("click", () => {
+    if (typeof Exporter !== "undefined")
+      Exporter.tableToExcel(COLS, sortRows(filtered, sortKey, sortDir), `${mode}-customers_${filenameSuffix}`);
+  });
+
+  setTimeout(() => { newSearch.focus(); }, 50);
+}
+
+function openTeamPerformanceModal(managerName) {
+  if (typeof Analytics === "undefined" || !Analytics.getTeamPerformance) return;
+  
+  const list = Analytics.getTeamPerformance(managerName, _lastFilterState || Analytics.defaultFilters());
+  
+  const overlay = document.getElementById("ns-modal-overlay");
+  const badge   = document.getElementById("ns-modal-badge");
+  const body    = document.getElementById("ns-modal-body");
+  const info    = document.getElementById("ns-modal-info");
+  const titleEl = document.getElementById("ns-modal-title-text");
+  const searchEl= document.getElementById("ns-modal-search");
+  const prevBtn = document.getElementById("ns-modal-prev");
+  const nextBtn = document.getElementById("ns-modal-next");
+  const pageLabel=document.getElementById("ns-modal-page-label");
+  const exportBtn=document.getElementById("ns-modal-export");
+
+  titleEl.textContent = `Team Performance — Manager: ${managerName}`;
+  badge.textContent   = list.length;
+  searchEl.value      = "";
+  prevBtn.disabled    = true;
+  nextBtn.disabled    = true;
+  pageLabel.textContent = "";
+  info.textContent    = `${list.length} representative${list.length !== 1 ? "s" : ""} reporting to this manager`;
+
+  const COLS = [
+    { key: "employee",      label: "Representative", width: "25%" },
+    { key: "profile",       label: "Territory Profile", width: "15%" },
+    { key: "team",          label: "Team",           width: "12%" },
+    { key: "customerCount", label: "Customers",      width: "10%", align: "right" },
+    { key: "totalTargetVisits", label: "Target Visits", width: "10%", align: "right" },
+    { key: "totalActualVisits", label: "Actual Visits", width: "10%", align: "right" },
+    { key: "visitAchievementPct", label: "Visit Ach %", width: "12%", align: "right" },
+    { key: "coveragePct",   label: "Coverage %",     width: "12%", align: "right" },
+    { key: "rightFreqPct",  label: "Right Freq %",   width: "12%", align: "right" },
+  ];
+
+  function getPerformanceClass(pct) {
+    if (pct === null || pct === undefined) return "";
+    if (pct >= 0.90) return "kol-green";
+    if (pct >= 0.80) return "kol-amber";
+    return "kol-red";
+  }
+
+  function renderModalBody(filteredRows) {
+    if (!filteredRows.length) {
+      body.innerHTML = `<div style="padding:32px;text-align:center;color:#94A3B8;">No representatives match.</div>`;
+      return;
+    }
+    const colgroup = COLS.map((c) => `<col style="width:${c.width}">`).join("");
+    const thead    = COLS.map((c) =>
+      `<th style="text-align:${c.align || "left"}">${UI.escapeHtml(c.label)}</th>`
+    ).join("");
+    const tbody = filteredRows.map((r) => {
+      return `<tr>${COLS.map((c) => {
+        const val = r[c.key];
+        const isPctKey = c.key === "visitAchievementPct" || c.key === "coveragePct" || c.key === "rightFreqPct";
+        
+        let cellContent = "";
+        let cellClass = "";
+        
+        if (isPctKey) {
+          const pctVal = val !== null && val !== undefined ? (val * 100).toFixed(1) + "%" : "–";
+          cellContent = `<strong>${pctVal}</strong>`;
+          cellClass = `kol-pct-cell ${getPerformanceClass(val)}`;
+        } else if (c.key === "employee") {
+          cellContent = UI.nameWithAvatar(val, r.profile);
+        } else {
+          cellContent = UI.escapeHtml(String(val ?? ""));
+        }
+        
+        return `<td class="${cellClass}" style="text-align:${c.align || "left"}" title="${UI.escapeHtml(String(val ?? ""))}">
+          ${cellContent}
+        </td>`;
+      }).join("")}</tr>`;
+    }).join("");
+    body.innerHTML = `<table class="data-table">
+      <colgroup>${colgroup}</colgroup>
+      <thead><tr>${thead}</tr></thead>
+      <tbody>${tbody}</tbody>
+    </table>`;
+  }
+
+  let filtered = list;
+  renderModalBody(filtered);
+  overlay.classList.add("open");
+
+  // Replace search handler
+  const newSearch = searchEl.cloneNode(true);
+  newSearch.placeholder = "Search representative, team, territory…";
+  searchEl.parentNode.replaceChild(newSearch, searchEl);
+  newSearch.addEventListener("input", Utils.debounce((e) => {
+    const q = e.target.value.toLowerCase();
+    filtered = q
+      ? list.filter((r) => ["employee","profile","team"].some(
+          (k) => String(r[k] ?? "").toLowerCase().includes(q)
+        ))
+      : list;
+    renderModalBody(filtered);
+  }, 200));
+
+  // Replace export handler
+  const newExport = exportBtn.cloneNode(true);
+  exportBtn.parentNode.replaceChild(newExport, exportBtn);
+  newExport.addEventListener("click", () => {
+    if (typeof Exporter !== "undefined")
+      Exporter.tableToExcel(COLS, filtered, `team-performance_${managerName}_${filenameSuffix}`);
+  });
+
+  setTimeout(() => { newSearch.focus(); }, 50);
+}
+
+window.DashboardNavigation = {
+  applyFilter: function(targetTab, filterKey, filterValue) {
+    // 1. Security Scope Check
+    if (window.AUTH) {
+      if (filterKey === "line" && filterValue && !window.AUTH.isLineAllowed(filterValue)) {
+        console.warn("[DashboardNavigation] Rejected: Unauthorized Line: " + filterValue);
+        return false;
+      }
+      if (filterKey === "bu" && filterValue && !window.AUTH.isBuAllowed(filterValue)) {
+        console.warn("[DashboardNavigation] Rejected: Unauthorized BU: " + filterValue);
+        return false;
+      }
+    }
+
+    // 2. Tab Switch if necessary
+    const activeTabEl = document.querySelector("#sidebar-nav .menu-item.active");
+    const currentTab = activeTabEl ? activeTabEl.dataset.tab : "";
+    if (currentTab !== targetTab) {
+      const tabBtn = document.querySelector(`#sidebar-nav .menu-item[data-tab="${targetTab}"]`);
+      if (tabBtn) {
+        window.__isProgrammaticTabSwitch = true;
+        tabBtn.click();
+        window.__isProgrammaticTabSwitch = false;
+      }
+    }
+
+    // 3. Delegate to public dashboard setters
+    setTimeout(() => {
+      if (targetTab === "executive" && window.ExecutiveDashboard && typeof window.ExecutiveDashboard.setFilters === "function") {
+        window.ExecutiveDashboard.setFilters({ [filterKey]: filterValue });
+      } else if (targetTab === "sales" && window.SalesDashboard && typeof window.SalesDashboard.setFilters === "function") {
+        window.SalesDashboard.setFilters({ [filterKey]: filterValue });
+      } else if (targetTab === "coverage" && window.Filters && typeof window.Filters.setFilter === "function") {
+        window.Filters.setFilter(filterKey, filterValue);
+      } else if (targetTab === "sfe" && window.SFEDashboard && typeof window.SFEDashboard.setFilters === "function") {
+        window.SFEDashboard.setFilters({ [filterKey]: filterValue });
+      }
+    }, 150);
+    return true;
+  },
+  invalidate: function() {
+    if (window.AskEngine && window.AskEngine.AskContext) {
+      window.AskEngine.AskContext.clear();
+    }
+  },
+  invalidateContext: function() {
+    if (window.AskEngine && window.AskEngine.AskContext) {
+      window.AskEngine.AskContext.clear();
+    }
+  }
+};

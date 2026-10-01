@@ -1,0 +1,622 @@
+/* =====================================================================
+   ZETA PHARMA — GLOBAL & EGYPT NEW DRUG REGISTRATION INTELLIGENCE (.reg-*)
+   -----------------------------------------------------------------------
+   Deliberately distinct accent from the general market-intel blue
+   (#0F4C81) and the breaking-news ticker red (#E11D48): this module uses
+   an indigo/violet "regulatory" theme so the Egypt/Global registration
+   layer reads as its own intelligence discipline at a glance, while still
+   reusing the shared .nws-* layout primitives (wrap, header, metrics
+   grid, controls, pills, sync dot) already defined in news-feed.css so
+   the two tabs feel like one dashboard family rather than two products.
+   ===================================================================== */
+
+/* ---- Page-level accents (layered on top of shared .nws-wrap/.nws-header) */
+
+.reg-wrap {
+  /* inherits everything from .nws-wrap; nothing to override at this level */
+}
+
+.reg-badge-top {
+  color: #4338CA;
+  background: #EEF2FF;
+}
+
+.reg-metrics-grid {
+  margin-top: 4px;
+}
+
+.reg-coverage-note {
+  font-size: 12px;
+  color: #6366F1;
+  background: #F5F3FF;
+  border: 1px solid #E0E7FF;
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin: -10px 0 20px;
+  line-height: 1.5;
+}
+
+/* ---- Not-yet-generated empty state (before the ETL has ever run) ---- */
+
+.reg-empty-state {
+  text-align: center;
+  padding: 60px 24px;
+  background: #FFFFFF;
+  border: 1px dashed #C7D2FE;
+  border-radius: 12px;
+  color: #4338CA;
+  margin-bottom: 24px;
+}
+
+.reg-empty-icon {
+  font-size: 34px;
+  margin-bottom: 10px;
+}
+
+.reg-empty-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #312E81;
+  margin-bottom: 6px;
+}
+
+.reg-empty-state p {
+  font-size: 13px;
+  color: #6366F1;
+  margin: 0;
+}
+
+.reg-empty-state code {
+  background: #EEF2FF;
+  color: #4338CA;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ---- Section (one of the 7 "what's coming" categories, spec section G) */
+
+.reg-section {
+  margin-bottom: 30px;
+}
+
+.reg-section-head {
+  margin-bottom: 14px;
+}
+
+.reg-section-head h3 {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1E1B4B;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reg-section-count {
+  font-size: 12px;
+  font-weight: 800;
+  color: #4338CA;
+  background: #EEF2FF;
+  padding: 1px 9px;
+  border-radius: 20px;
+}
+
+.reg-section-head p {
+  font-size: 12.5px;
+  color: #64748B;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.reg-section-empty {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 18px 20px;
+  font-size: 13px;
+  color: #64748B;
+  font-style: italic;
+}
+
+.reg-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 16px;
+}
+
+/* ---- Card (global <-> Egypt cross-market comparison card, spec D) ---- */
+
+.reg-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-top: 3.5px solid #6366F1;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.reg-card:hover {
+  border-color: #C7D2FE;
+  box-shadow: 0 6px 16px rgba(67, 56, 202, 0.08);
+  transform: translateY(-1px);
+}
+
+.reg-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.reg-card-title-block {
+  min-width: 0;
+}
+
+.reg-card-drug-name {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: #1E1B4B;
+  line-height: 1.3;
+}
+
+.reg-card-ingredient {
+  font-size: 12px;
+  color: #6366F1;
+  font-weight: 600;
+  margin-top: 1px;
+}
+
+.reg-card-readiness {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.reg-card-indication {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+/* ---- Global <-> Egypt status columns (the heart of spec section D) --- */
+
+.reg-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: #F8FAFC;
+  border: 1px solid #F1F5F9;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.reg-status-col {
+  min-width: 0;
+}
+
+.reg-status-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94A3B8;
+  margin-bottom: 5px;
+}
+
+.reg-status-detail {
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+/* ---- Status/stage badges — never color-coded to imply approval that  */
+/* hasn't happened; "near"/"review"/"unknown" are visually distinct     */
+/* from "approved" on purpose (spec: never overstate proximity).        */
+
+.reg-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 5px;
+  letter-spacing: 0.02em;
+}
+
+.reg-badge-approved {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.reg-badge-near {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.reg-badge-review {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.reg-badge-terminal-neg {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.reg-badge-unknown {
+  background: #F1F5F9;
+  color: #64748B;
+}
+
+/* ---- Taxonomy cross-reference chips (spec section F) ---- */
+
+.reg-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.reg-chip {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #4338CA;
+  background: #EEF2FF;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.reg-chip-molecule {
+  color: #0F4C81;
+  background: #E8F1F8;
+}
+
+.reg-chip-competitor {
+  color: #92400E;
+  background: #FEF3C7;
+}
+
+/* ---- Explainable Registration Readiness Score (spec section E) ---- */
+
+.reg-readiness-score {
+  font-size: 22px;
+  font-weight: 800;
+  color: #4338CA;
+  display: block;
+  line-height: 1.1;
+}
+
+.reg-readiness-bucket {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6366F1;
+  white-space: nowrap;
+}
+
+.reg-readiness-na {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.reg-readiness-detail {
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.reg-readiness-detail summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #4338CA;
+  font-size: 11.5px;
+  padding: 4px 0;
+  outline: none;
+}
+
+.reg-readiness-detail summary:hover {
+  text-decoration: underline;
+}
+
+.reg-component-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0 4px 4px;
+  font-size: 12px;
+  color: #334155;
+  border-bottom: 1px dashed #EEF2FF;
+}
+
+.reg-component-row:last-child {
+  border-bottom: none;
+}
+
+.reg-component-pts {
+  font-weight: 800;
+  color: #16A34A;
+  min-width: 28px;
+  flex-shrink: 0;
+}
+
+/* ---- Card footer: source attribution + confidence (spec sections I/J) */
+
+.reg-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #F1F5F9;
+  margin-top: auto;
+}
+
+.reg-link {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #4338CA;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reg-link:hover {
+  text-decoration: underline;
+}
+
+.reg-confidence {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.reg-confidence-high {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.reg-confidence-medium {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.reg-confidence-low {
+  background: #F1F5F9;
+  color: #64748B;
+}
+
+/* ---- View selector and subnav tabs ---- */
+.reg-view-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  background: #FFFFFF;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+}
+
+.reg-view-btn {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reg-view-btn:hover {
+  background: #EEF2FF;
+  color: #4338CA;
+  border-color: #C7D2FE;
+}
+
+.reg-view-btn.active {
+  background: #4338CA;
+  color: #FFFFFF;
+  border-color: #4338CA;
+  box-shadow: 0 2px 6px rgba(67, 56, 202, 0.25);
+}
+
+.reg-view-count {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.reg-view-btn.active .reg-view-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+/* ---- Executive 2-Line Summary Block ---- */
+.reg-executive-summary {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-left: 3.5px solid #6366F1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.reg-card-watchlist .reg-executive-summary {
+  background: #F0F9FF;
+  border-color: #BAE6FD;
+  border-left-color: #0284C7;
+}
+
+.reg-card-egypt-reg .reg-executive-summary {
+  background: #F0FDF4;
+  border-color: #BBF7D0;
+  border-left-color: #16A34A;
+}
+
+.reg-card-egypt-under .reg-executive-summary {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+  border-left-color: #D97706;
+}
+
+.reg-summary-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.42;
+  font-size: 12px;
+}
+
+.reg-summary-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #EEF2FF;
+  color: #4338CA;
+  white-space: nowrap;
+}
+
+.reg-summary-tag-strategy {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.reg-card-watchlist .reg-summary-tag {
+  background: #E0F2FE;
+  color: #0369A1;
+}
+
+.reg-card-watchlist .reg-summary-tag-strategy {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.reg-card-egypt-reg .reg-summary-tag {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.reg-card-egypt-reg .reg-summary-tag-strategy {
+  background: #E0E7FF;
+  color: #3730A3;
+}
+
+.reg-card-egypt-under .reg-summary-tag {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.reg-card-egypt-under .reg-summary-tag-strategy {
+  background: #FFEDD5;
+  color: #9A3412;
+}
+
+.reg-summary-text {
+  color: #1E293B;
+  font-weight: 500;
+  flex: 1;
+}
+
+/* ---- Strategic Rationale Box (Watchlist) ---- */
+.reg-rationale-box {
+  background: #F0F9FF;
+  border: 1px solid #BAE6FD;
+  border-left: 3.5px solid #0284C7;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: #0369A1;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+.reg-rationale-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0284C7;
+  margin-bottom: 3px;
+}
+
+/* ---- Card Tier Accents ---- */
+.reg-card-watchlist {
+  border-top-color: #0284C7;
+}
+
+.reg-card-egypt-reg {
+  border-top-color: #16A34A;
+  background: #F0FDF4;
+}
+
+.reg-card-egypt-under {
+  border-top-color: #D97706;
+  background: #FFFBEB;
+}
+
+/* ---- Badges ---- */
+.reg-badge-egypt-reg {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #86EFAC;
+}
+
+.reg-badge-egypt-under {
+  background: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+}
+
+.reg-badge-watchlist {
+  background: #E0F2FE;
+  color: #0369A1;
+  border: 1px solid #BAE6FD;
+}
+
+.reg-badge-global-app {
+  background: #F3E8FF;
+  color: #7E22CE;
+  border: 1px solid #E9D5FF;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  .reg-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .reg-status-grid {
+    grid-template-columns: 1fr;
+  }
+  .reg-view-selector {
+    flex-direction: column;
+  }
+}
