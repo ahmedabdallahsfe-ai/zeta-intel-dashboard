@@ -58,7 +58,7 @@
       file: "cache/customer_analytics.data.js",
       globalVar: "CUSTOMER_ANALYTICS_CACHE",
       label: "Customer analytics",
-      version: "20261001_q3upd",
+      version: "20261002_2042_auto",
     },
     market_intel: {
       file: "cache/market_intel.data.js",
@@ -70,13 +70,13 @@
       file: "cache/coaching.data.js",
       globalVar: "COACHING_CACHE",
       label: "Coaching intelligence",
-      version: "20260929_allcoachslots",
+      version: "20261002_2042_auto",
     },
     business_review: {
       file: "cache/business_review.data.js",
       globalVar: "BUSINESS_REVIEW_CACHE",
       label: "BU business review",
-      version: "20261001_iqviaupd",
+      version: "20261002_2042_auto",
     },
     list_intel: {
       file: "cache/list_intel.data.js",
