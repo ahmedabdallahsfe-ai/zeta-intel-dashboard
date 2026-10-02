@@ -76,7 +76,7 @@
       file: "cache/business_review.data.js",
       globalVar: "BUSINESS_REVIEW_CACHE",
       label: "BU business review",
-      version: "20260928_iqvia_src",
+      version: "20261001_iqviaupd",
     },
     list_intel: {
       file: "cache/list_intel.data.js",
