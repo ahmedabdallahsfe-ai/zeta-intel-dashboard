@@ -70,14 +70,25 @@ sources:
 
   - id: fierce_pharma
     name: "FiercePharma"
-    url: "https://www.fiercepharma.com/rss/xml"
+    url: "https://www.fiercepharma.com/rss/pharma/xml"
     type: "rss"
     category: "COMPETITOR"
     country: "Global"
     default_importance: 4
     default_weight: 1.2
     enabled: true
-    status_note: "Feed confirmed valid and current 2026-09-10. If articles_returned is repeatedly 0 in logs/news_refresh.log, suspect anti-bot blocking on the fetch path, not a dead source."
+    status_note: "URL CHANGED 2026-10-02: the all-site feed /rss/xml returned HTTP 403 on every refresh from the dashboard PC (anti-bot block on that path), while the section feed /rss/marketing/xml kept working. Switched to the Pharma section feed /rss/pharma/xml (same publisher, same path pattern as the working marketing feed; confirmed valid 2026-10-02, 25 items, current). If it also returns 403, disable this entry -- BioPharma Dive below covers the same news."
+
+  - id: biopharma_dive
+    name: "BioPharma Dive"
+    url: "https://www.biopharmadive.com/feeds/news/"
+    type: "rss"
+    category: "COMPETITOR"
+    country: "Global"
+    default_importance: 4
+    default_weight: 1.1
+    enabled: true
+    status_note: "ADDED 2026-10-02 as a trusted second source for global pharma/competitor news (Industry Dive trade publication), so the feed does not depend on FiercePharma alone. Confirmed valid 2026-10-02, 10 items, current."
 
   - id: fierce_marketing
     name: "FiercePharma Marketing & Sales"

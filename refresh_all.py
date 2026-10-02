@@ -735,6 +735,52 @@ def find_git():
     return None
 
 
+def commit_candidates(cfg, step_ids):
+    """Files a push would add: version-tag/tool files + outputs and git_extra of the given steps.
+    Paths listed under settings.git.untrack are never added."""
+    gcfg = cfg['settings']['git']
+    by_id = {st['id']: st for st in cfg['steps']}
+    patterns = list(gcfg.get('always_add', []))
+    for sid in step_ids:
+        st = by_id.get(sid)
+        if st:
+            patterns += st.get('outputs', []) + st.get('git_extra', [])
+    patterns += gcfg.get('force_add', [])
+    untrack = {u.replace('\\', '/') for u in gcfg.get('untrack', [])}
+    return sorted({rel(f) for pat in patterns for f in glob.glob(ab(pat))
+                   if os.path.isfile(f) and rel(f) not in untrack})
+
+
+def publish_preview(cfg, step_ids):
+    """Read-only preview (CHECK mode): what the next push would commit / untrack."""
+    git = find_git()
+    banner('PUBLISH PREVIEW (read-only -- what the next push would commit)')
+    if not git:
+        out('  git not found -- cannot preview.')
+        return
+    base = [git, '-c', 'core.filemode=false', '--no-optional-locks']
+    if not IS_WINDOWS:  # the Cowork VM sees the Windows checkout through a mount: normalise line endings
+        base[1:1] = ['-c', 'core.autocrlf=true']
+    st = subprocess.run(base + ['status', '--porcelain', '--untracked-files=all'], cwd=ROOT,
+                        capture_output=True, text=True, errors='replace').stdout
+    dirty = {l[3:].strip().strip('"') for l in st.splitlines() if l.strip()}
+    cands = commit_candidates(cfg, step_ids)
+    would = [c for c in cands if c in dirty]
+    out(f"  Steps whose files are included: {', '.join(step_ids) if step_ids else '(none)'}")
+    out(f'  Files that would be committed ({len(would)}):')
+    for c in would:
+        out('    + ' + c)
+    if not would:
+        out('    (none)')
+    for u in cfg['settings']['git'].get('untrack', []):
+        tracked = subprocess.run(base + ['ls-files', '--error-unmatch', '--', u], cwd=ROOT,
+                                 capture_output=True, text=True).returncode == 0
+        out(f'  Stop publishing: {u} -> ' + ('will be REMOVED FROM GITHUB (git rm --cached; your local file stays)'
+                                              if tracked else 'already not on GitHub (nothing to do)'))
+    others = sorted(d for d in dirty if d not in cands)
+    out(f'  Other changed files in the folder that will NOT be committed: {len(others)}')
+
+
 def git_push(cfg, step_ids):
     gcfg = cfg['settings']['git']
     if not IS_WINDOWS:
@@ -760,14 +806,14 @@ def git_push(cfg, step_ids):
                     os.remove(ab(lock))
                 except OSError:
                     pass
-    by_id = {st['id']: st for st in cfg['steps']}
-    patterns = list(gcfg.get('always_add', []))
-    for sid in step_ids:
-        st = by_id.get(sid)
-        if st:
-            patterns += st.get('outputs', []) + st.get('git_extra', [])
-    patterns += gcfg.get('force_add', [])
-    files = sorted({rel(f) for pat in patterns for f in glob.glob(ab(pat)) if os.path.isfile(f)})
+    for u in gcfg.get('untrack', []):
+        if subprocess.run([git, 'ls-files', '--error-unmatch', '--', u], cwd=ROOT,
+                          capture_output=True, text=True).returncode == 0:
+            out(f'Stop publishing {u}: removing it from GitHub (your local file is kept).')
+            if g('rm', '--cached', '--quiet', '--', u).returncode != 0:
+                out(f'[ERROR] could not untrack {u}. Nothing committed.')
+                return False
+    files = commit_candidates(cfg, step_ids)
     out(f'Committing {len(files)} candidate file(s) (unchanged ones are ignored by git):')
     if files:
         if g('add', '-f', '--', *files).returncode != 0:
@@ -1042,6 +1088,8 @@ def main():
         out('(Use the FULL option to force a complete rebuild.)')
         if args.parity:
             parity_report(cfg)
+        if args.check:
+            publish_preview(cfg, state.get('unpushed_steps', []))
         return finish(0, 'UP TO DATE', 'ok', 'Nothing changed -- nothing was built or pushed.',
                       ('Not pushed yet from an earlier NO-PUSH run: ' + ', '.join(unpushed)) if unpushed else 'Nothing to push.')
     pages = []
@@ -1109,6 +1157,7 @@ def main():
         R['tags'] = [[f, c, '(would be) ' + tag] for f, old, new, c in edits if f]
         if args.parity:
             parity_report(cfg)
+        publish_preview(cfg, sorted(set(state.get('unpushed_steps', [])) | {s['id'] for s in plan}))
         banner('CHECK-ONLY finished: nothing was built, nothing was changed, nothing was pushed.')
         return finish(0 if not blocking else 3, 'CHECK-ONLY', 'info',
                       f'{len(plan)} step(s) would run. Nothing was built, changed or pushed.', 'CHECK-ONLY: nothing pushed.')

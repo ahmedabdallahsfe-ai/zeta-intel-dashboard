@@ -48,6 +48,8 @@
                      "refresh_all.py", "config/refresh_map.json", "etl/build_manifest_from_map.py",
                      "UPDATE_DASHBOARD.bat", "UPDATE_DASHBOARD_CHECK.bat", "UPDATE_DASHBOARD_FULL.bat", "UPDATE_DASHBOARD_NOPUSH.bat"],
       "add_all": false,
+      "untrack": ["cache/sales.json"],
+      "_note_untrack": "2026-10-02 (Ahmed approved): files that must stay local only. On the next push they are removed from GitHub with 'git rm --cached' (the local file is kept and still generated), and never added again by UPDATE_DASHBOARD. Verified before the change: no dashboard page, loader or fallback loads cache/sales.json -- every page reads cache/sales.data.js; only local build scripts (Coaching) read sales.json. NOTE: refresh.bat and push_now.bat still 'git add -f cache/sales.json'; if either fallback is used, the file goes back to GitHub and the next UPDATE_DASHBOARD run removes it again.",
       "_note": "Commits ONLY the outputs + git_extra files of the steps that ran (or are still waiting to be pushed) plus the version-tag files. Code, docs and other changes in the folder are NOT committed (unlike refresh.bat, which runs 'git add -A'). Set add_all to true to copy refresh.bat's behaviour."
     }
   },
@@ -122,7 +124,7 @@
       ],
       "depends_on": [],
       "outputs": ["cache/sales.data.js"],
-      "git_extra": ["cache/sales.json"],
+      "_note_git": "cache/sales.json is still generated locally (the Coaching build reads it) but is NOT published -- see settings.git.untrack. The dashboard only loads cache/sales.data.js.",
       "pages": ["sales", "executive", "askdata"]
     },
     {
@@ -254,6 +256,7 @@
       ],
       "depends_on": [],
       "outputs": ["cache/news_latest.data.js", "cache/news_archive.data.js"],
+      "git_extra": ["config/news_sources.yaml"],
       "pages": ["marketnews"]
     },
     {
