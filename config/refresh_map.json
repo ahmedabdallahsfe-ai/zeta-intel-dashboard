@@ -1,0 +1,339 @@
+{
+  "_readme": [
+    "ZETA INTEL DASHBOARD - REFRESH DEPENDENCY MAP (single source of truth for UPDATE_DASHBOARD.bat / refresh_all.py).",
+    "Created 2026-10-02. refresh.bat is NOT driven by this file and stays the emergency fallback.",
+    "MANUAL ONLY (Ahmed, 2026-10-02): nothing here runs automatically -- no scheduler, no watcher, no background job. A build, commit or push happens only when UPDATE_DASHBOARD.bat is double-clicked.",
+    "",
+    "TO ADD A NEW EXCEL SOURCE: add its path (relative to this dashboard folder) to the 'sources' list of every step that reads it. Globs like 'List Intell/*.xlsx' are allowed.",
+    "TO ADD A NEW BUILD SCRIPT: add a step object below, in run order. 'depends_on' = steps whose OUTPUT this step reads; when any of them is rebuilt, this step is rebuilt too.",
+    "",
+    "Step fields:",
+    "  id / label        short id and readable name",
+    "  commands          list of commands, each a list of args; the first arg is a .py file run with the same Python as refresh_all.py. All must succeed.",
+    "  critical          true  = a failure STOPS the run and NOTHING is pushed; false = warning, previous cache is kept, push continues.",
+    "  sources           input files (Excel, CSV, JSON, YAML). A change in any of them triggers the step.",
+    "  depends_on        upstream step ids (their caches are inputs to this step).",
+    "  outputs           caches this step writes. Used for validation, version tags and git.",
+    "  pages             dashboard pages that show this data (ids from 'pages' below).",
+    "  multi_pass        optional: re-run the command until 'until' text appears in its output (sales).",
+    "  skip_if_missing   optional: skip the step (not an error) when this file does not exist.",
+    "  max_age_hours     optional: also run when the step's outputs are older than this (internet feeds).",
+    "  needs_network     optional: informational; such steps should normally be non-critical.",
+    "  requires_success_of  optional: skip this step when the named step ran and failed in this run.",
+    "  in_full           optional (default true): set false to keep a step out of FULL mode (only runs when its own sources change).",
+    "  git_extra         optional: other generated files the step writes that must be committed with it (not validated, not version-tagged)."
+  ],
+
+  "settings": {
+    "state_file": "logs/update_dashboard_state.json",
+    "log_dir": "logs",
+    "backup_dir": "backups/bak_archive/update_dashboard",
+    "report_file": "logs/UPDATE_DASHBOARD_LAST_REPORT.txt",
+    "html_report_file": "logs/UPDATE_DASHBOARD_LAST_REPORT.html",
+    "version_tag_files": ["dashboard.html", "js/cache-loader.js"],
+    "validation": {
+      "file_size_drop_warn_pct": 30,
+      "count_drop_warn_pct": 20,
+      "count_jump_warn_pct": 150,
+      "min_output_bytes": 200,
+      "sales_actual_change_warn_pct": 0.5,
+      "sales_actual_change_floor": 10000,
+      "iqvia_period_change_warn_pct": 0.5,
+      "_note": "Sales: a change in ACTUAL sales or units of an existing line-month above max(0.5%, 10,000) is a WARNING; target changes are listed in the report. IQVIA: a removed period, a period total moving more than 0.5%, or any product whose DEFIND Market_1 mapping changed is a WARNING. Warnings pause the push and ask Y/N."
+    },
+    "git": {
+      "branch": "main",
+      "commit_message": "UPDATE_DASHBOARD: {steps} ({stamp})",
+      "always_add": ["dashboard.html", "js/cache-loader.js",
+                     "refresh_all.py", "config/refresh_map.json", "etl/build_manifest_from_map.py",
+                     "UPDATE_DASHBOARD.bat", "UPDATE_DASHBOARD_CHECK.bat", "UPDATE_DASHBOARD_FULL.bat", "UPDATE_DASHBOARD_NOPUSH.bat"],
+      "add_all": false,
+      "_note": "Commits ONLY the outputs + git_extra files of the steps that ran (or are still waiting to be pushed) plus the version-tag files. Code, docs and other changes in the folder are NOT committed (unlike refresh.bat, which runs 'git add -A'). Set add_all to true to copy refresh.bat's behaviour."
+    }
+  },
+
+  "pages": {
+    "executive":   "Executive Command Center",
+    "bureview":    "BU Business Review",
+    "coverage":    "Operational and Execution (Coverage)",
+    "listintel":   "List Intelligence",
+    "sfe":         "Zeta Organogram (SFE)",
+    "coaching":    "Coaching Intelligence",
+    "sales":       "Sales Performance (incl. Customer Health)",
+    "expense":     "Expense vs Sales (tab hidden from the dashboard since 2026-08-09)",
+    "iqvia":       "Market Intelligence (IQVIA)",
+    "tomarket":    "To-Market vs In-Market",
+    "marketintel": "Total Market Intelligence",
+    "sprint":      "Zeta Sprint 2026",
+    "workingdays": "Field Working Days",
+    "imsrx":       "IMS Rx",
+    "marketnews":  "Market Intelligence Feed",
+    "regulatory":  "Regulatory & Egypt Registration",
+    "login":       "Sign-in / user access",
+    "askdata":     "Ask the Data",
+    "controlpanel":"Control Panel data file (tab hidden since 2026-08-09; freshness is shown in the update report)"
+  },
+
+  "watch_only": [
+    {
+      "path": "Zeta_Dashboard_User_Config.xlsx",
+      "note": "This ROOT copy is NOT read by the dashboard build. The build reads iqvia_source/config/Zeta_Dashboard_User_Config.xlsx. If you changed users here, copy the same change there (or run etl/sync_users.py)."
+    }
+  ],
+
+  "static_caches": [
+    {"path": "cache/teamkpis.data.js", "note": "No build script writes this file (last set 2026-07-24). Read by BU Business Review and Coverage. Not refreshed by any step."}
+  ],
+
+  "steps": [
+    {
+      "id": "coverage",
+      "label": "Coverage & SFE + Organogram",
+      "commands": [["refresh.py"]],
+      "critical": true,
+      "sources": [
+        "Final Total Coverage Feb to June.xlsx",
+        "Sick Leave report.xlsx",
+        "Total Organogram July 2026.xlsx"
+      ],
+      "depends_on": [],
+      "outputs": ["cache/dashboard.data.js", "cache/records.data.js", "cache/metadata.data.js", "cache/organogram.data.js"],
+      "pages": ["coverage", "sfe", "executive", "askdata"]
+    },
+    {
+      "id": "sales",
+      "label": "Sales (actuals, targets, shortage scenario)",
+      "commands": [["refresh_sales.py"]],
+      "critical": true,
+      "multi_pass": {
+        "until": "Sales Aggregation Complete",
+        "max_passes": 20,
+        "clear_temp_files": ["zeta_sales_agg_checkpoint.db", "zeta_sales_agg_checkpoint.db-wal", "zeta_sales_agg_checkpoint.db-shm", "zeta_sales_recon_checkpoint.pkl"]
+      },
+      "sources": [
+        "ZETA SALES_2026/Q1_Sales.xlsx",
+        "ZETA SALES_2026/Q2_Sales.xlsx",
+        "ZETA SALES_2026/Q3_SALES.xlsx",
+        "ZETA SALES_2026/TGT.xlsx",
+        "ZETA SALES_2026/june.xlsx",
+        "ZETA SALES_2026/June TGT 2026.xlsx",
+        "ZETA SALES_2026/CHC_BU_YTD_PERFROMANCE.xlsx",
+        "ZETA SALES_2026/Shortage_Conditions.xlsx"
+      ],
+      "depends_on": [],
+      "outputs": ["cache/sales.data.js"],
+      "git_extra": ["cache/sales.json"],
+      "pages": ["sales", "executive", "askdata"]
+    },
+    {
+      "id": "expense",
+      "label": "Expense vs Sales",
+      "commands": [["etl/build_expense_foundation.py"], ["etl/build_expense_cache.py"]],
+      "critical": false,
+      "_note_critical": "Non-critical since 2026-10-02: the Expense tab is hidden from the dashboard, so an Expense failure must not block publishing Sales. refresh.bat still treats it as fatal.",
+      "sources": [
+        "Market Expenses & FTE (3).xlsx",
+        "expense/templates/expense_actuals_template.xlsx"
+      ],
+      "git_extra": ["expense/mapping/expense_sku_map.csv", "expense/reports/*.csv", "expense/PHASE_A_SUMMARY.txt"],
+      "depends_on": ["sales"],
+      "outputs": ["cache/expense_budget.data.js"],
+      "pages": ["expense"]
+    },
+    {
+      "id": "iqvia",
+      "label": "IQVIA Market Share",
+      "commands": [["refresh_iqvia.py"]],
+      "critical": true,
+      "sources": [
+        "iqvia_source/IQVIA_SOURCE.xlsx",
+        "iqvia_source/TARGET_MARKET_SHARE.xlsx",
+        "iqvia_source/Egypt_Combined_Data monthly report_Sep-02-2026 (1).xlsx",
+        "iqvia_source/config/Zeta_Dashboard_User_Config.xlsx",
+        "iqvia_source/config/corp_restatements.json",
+        "iqvia_source/config/dm1_corrections.json"
+      ],
+      "depends_on": [],
+      "outputs": ["cache/iqvia.data.js"],
+      "git_extra": ["cache/iqvia.json"],
+      "pages": ["iqvia", "executive", "login", "askdata"]
+    },
+    {
+      "id": "auth",
+      "label": "Sign-in roster",
+      "commands": [["etl/build_auth_cache.py"]],
+      "critical": false,
+      "sources": [],
+      "depends_on": ["iqvia"],
+      "outputs": ["cache/auth.data.js"],
+      "pages": ["login"]
+    },
+    {
+      "id": "ims_rx_full",
+      "label": "IMS Rx (full rebuild)",
+      "commands": [["etl/build_ims_rx_cache.py"]],
+      "critical": false,
+      "in_full": false,
+      "sources": [
+        "IMS RX TOTAL YEAR 2025.xlsx",
+        "IMS 2022 to April 2026.xlsx"
+      ],
+      "depends_on": [],
+      "outputs": ["cache/ims_rx.data.js"],
+      "git_extra": ["cache/ims_rx.json"],
+      "pages": ["imsrx"],
+      "_note": "refresh.bat never runs the full IMS Rx build (2025 Rx file is static). Here it runs only when its own sources change."
+    },
+    {
+      "id": "ims_rx_dm",
+      "label": "IMS Rx market-definition sync",
+      "commands": [["etl/build_ims_rx_cache.py", "--dm-only"]],
+      "critical": false,
+      "sources": ["config/promo_specialty_map.xlsx", "config/promo_specialty_map.json", "List Intell/*Pro*.xlsx"],
+      "_note": "--dm-only re-attaches the IQVIA market definitions AND the promoted-specialty targets (promo grids + specialty map) to the existing Rx cache.",
+      "depends_on": ["iqvia", "ims_rx_full"],
+      "outputs": ["cache/ims_rx.data.js"],
+      "pages": ["imsrx"]
+    },
+    {
+      "id": "customer_analytics",
+      "label": "Customer Analytics (Customer Health)",
+      "commands": [["etl/build_customer_analytics_cache.py"]],
+      "critical": true,
+      "sources": [
+        "TOTAL_SALES_2026.xlsx",
+        "ZETA SALES_2026/june.xlsx",
+        "ZETA SALES_2026/Q3_SALES.xlsx",
+        "ZETA SALES_2026/CHC_BU_YTD_PERFROMANCE.xlsx"
+      ],
+      "depends_on": [],
+      "outputs": ["cache/customer_analytics.data.js"],
+      "pages": ["sales", "executive"]
+    },
+    {
+      "id": "coaching",
+      "label": "Coaching Intelligence",
+      "commands": [["etl/build_coaching_cache.py"]],
+      "critical": false,
+      "sources": ["Visits Details S1 DM.xlsx", "Database Shortcut.xlsx"],
+      "depends_on": ["sales"],
+      "outputs": ["cache/coaching.data.js"],
+      "pages": ["coaching", "executive"]
+    },
+    {
+      "id": "market_intel",
+      "label": "Total Market Intelligence",
+      "commands": [["etl/build_market_intel_cache.py"]],
+      "critical": false,
+      "sources": ["IMS 2022 to April 2026.xlsx"],
+      "depends_on": [],
+      "outputs": ["cache/market_intel.data.js"],
+      "pages": ["marketintel"]
+    },
+    {
+      "id": "list_intel",
+      "label": "List Intelligence",
+      "commands": [["etl/build_list_intel_cache.py"]],
+      "critical": false,
+      "sources": ["List Intell/*.xlsx"],
+      "depends_on": [],
+      "outputs": ["cache/list_intel.data.js"],
+      "pages": ["listintel"]
+    },
+    {
+      "id": "news",
+      "label": "Market Intelligence Feed (internet)",
+      "commands": [["etl/build_news_cache.py"]],
+      "critical": false,
+      "needs_network": true,
+      "max_age_hours": 24,
+      "sources": [
+        "config/news_sources.yaml", "config/news_keywords.yaml", "config/competitors.yaml",
+        "config/molecules.yaml", "config/therapeutic_areas.yaml", "config/intelligence_types.yaml",
+        "config/geography.yaml", "config/pipeline_settings.yaml", "config/scoring_rules.yaml"
+      ],
+      "depends_on": [],
+      "outputs": ["cache/news_latest.data.js", "cache/news_archive.data.js"],
+      "pages": ["marketnews"]
+    },
+    {
+      "id": "regulatory",
+      "label": "Regulatory & Egypt Registration (internet)",
+      "commands": [["etl/build_regulatory_cache.py"]],
+      "critical": false,
+      "needs_network": true,
+      "max_age_hours": 24,
+      "sources": [
+        "config/regulatory_pipeline_settings.yaml", "config/competitors.yaml", "config/molecules.yaml",
+        "config/therapeutic_areas.yaml", "config/intelligence_types.yaml", "config/geography.yaml",
+        "config/news_keywords.yaml"
+      ],
+      "depends_on": [],
+      "outputs": ["cache/regulatory_pipeline.data.js", "cache/egypt_registration.data.js"],
+      "pages": ["regulatory"]
+    },
+    {
+      "id": "tms_ims",
+      "label": "To-Market vs In-Market (stock days)",
+      "commands": [["TO MARKET_IN MARKET/refresh_dashboard.py"]],
+      "critical": true,
+      "skip_if_missing": "TO MARKET_IN MARKET/TMS VS IMS.xlsx",
+      "sources": ["TO MARKET_IN MARKET/TMS VS IMS.xlsx", "TO MARKET_IN MARKET/Opening Stock.xlsx"],
+      "depends_on": [],
+      "outputs": ["cache/tms_ims.data.js", "TO MARKET_IN MARKET/index.html"],
+      "pages": ["tomarket", "executive"]
+    },
+    {
+      "id": "sprint",
+      "label": "Zeta Sprint 2026",
+      "commands": [["etl/build_sprint_cache.py"]],
+      "critical": false,
+      "sources": [
+        "Database Shortcut.xlsx",
+        "zeta sprint/Sprint_Missing_KPI_Template.xlsx",
+        "zeta sprint/scaling scores.xlsx"
+      ],
+      "depends_on": ["coverage", "sales", "coaching"],
+      "outputs": ["cache/sprint.data.js", "cache/sprint_history/index.js"],
+      "git_extra": ["cache/sprint.json", "cache/sprint_history/index.json", "cache/sprint_history/*.data.js"],
+      "pages": ["sprint"]
+    },
+    {
+      "id": "working_days",
+      "label": "Field Working Days",
+      "commands": [["etl/build_working_days_cache.py"]],
+      "critical": false,
+      "requires_success_of": "sprint",
+      "sources": ["zeta sprint/Sprint_Missing_KPI_Template.xlsx", "Database Shortcut.xlsx"],
+      "depends_on": ["sprint", "coaching"],
+      "outputs": ["cache/working_days.data.js"],
+      "pages": ["workingdays", "sprint"]
+    },
+    {
+      "id": "business_review",
+      "label": "BU Business Review",
+      "commands": [["etl/build_business_review_cache.py"]],
+      "critical": false,
+      "sources": [
+        "Business Review/BU_Review_Actions.xlsx",
+        "Business Review/Brand_IQVIA_Map.xlsx",
+        "ZETA SALES_2026/CHC_BU_YTD_PERFROMANCE.xlsx"
+      ],
+      "depends_on": ["sales", "coverage", "coaching", "customer_analytics", "iqvia", "working_days"],
+      "outputs": ["cache/business_review.data.js"],
+      "pages": ["bureview"]
+    },
+    {
+      "id": "manifest",
+      "label": "Build manifest (Control Panel freshness)",
+      "commands": [["etl/build_manifest_from_map.py"]],
+      "_note": "Same output file and format as etl/build_manifest.py (which refresh.bat still runs), but the dataset list comes from this map, so it always names the real source files.",
+      "critical": false,
+      "always_run_when_anything_runs": true,
+      "sources": [],
+      "depends_on": [],
+      "outputs": ["cache/build_manifest.data.js"],
+      "pages": ["controlpanel"]
+    }
+  ]
+}

@@ -1,56 +1,58 @@
 window.ZETA_NEWS_FEED = {
   "meta": {
-    "generatedAt": "2026-10-02T17:57:13.415843+00:00",
-    "syncLabel": "2026-10-02 17:57 UTC",
-    "totalArticles": 53,
+    "generatedAt": "2026-10-02T19:01:31.438541+00:00",
+    "syncLabel": "2026-10-02 19:01 UTC",
+    "totalArticles": 63,
     "criticalCount": 0,
-    "highImpactCount": 0,
-    "breakingCount": 0,
+    "highImpactCount": 1,
+    "breakingCount": 1,
     "buDistribution": {
-      "DIAB": 13,
-      "GIT": 14,
+      "DIAB": 14,
+      "GIT": 15,
       "Cluster": 13,
       "CHC": 0,
-      "Corporate": 16
+      "Corporate": 24
     },
     "impactDistribution": {
       "CRITICAL": 0,
-      "HIGH": 0,
-      "MEDIUM": 32,
-      "LOW": 21
+      "HIGH": 1,
+      "MEDIUM": 35,
+      "LOW": 27
     },
     "geoDistribution": {
       "Egypt": 0,
       "MENA": 2,
-      "Global": 51
+      "Global": 61
     },
     "taDistribution": {
-      "Obesity & Incretin Therapies": 5,
+      "Obesity & Incretin Therapies": 6,
+      "Dermatology": 9,
       "Diabetes & Metabolic Disease": 8,
       "Cardio-Renal-Metabolic": 5,
       "Gastroenterology": 5,
-      "Dermatology": 8,
+      "Competitor & Market Moves": 1,
       "Emerging Technologies & Pipeline": 1,
-      "Pediatrics": 5,
-      "General Strategic Intelligence": 16
+      "General Strategic Intelligence": 23,
+      "Pediatrics": 5
     },
     "typeDistribution": {
-      "Clinical Trial": 25,
+      "Market Access": 27,
+      "Clinical Trial": 26,
       "Clinical Result": 25,
       "Guideline": 1,
       "Safety": 6,
       "Technology": 1,
-      "Market Access": 19,
-      "Regulatory": 2
+      "Regulatory": 2,
+      "M&A": 1
     },
-    "competitorIntelCount": 0,
-    "obesityIncretinCount": 6,
+    "competitorIntelCount": 4,
+    "obesityIncretinCount": 7,
     "liveFeedMaxAgeDays": 180,
     "dateRangeOldest": "2026-05-07T11:53:42+00:00",
     "dateRangeNewest": "2026-12-15T00:00:00+00:00",
-    "sourcesTotal": 7,
-    "sourcesEnabled": 6,
-    "sourcesHealthy": 12,
+    "sourcesTotal": 8,
+    "sourcesEnabled": 7,
+    "sourcesHealthy": 14,
     "sourceHealth": [
       {
         "id": "eda_regulatory",
@@ -64,11 +66,20 @@ window.ZETA_NEWS_FEED = {
       {
         "id": "fierce_pharma",
         "name": "FiercePharma",
-        "status": "FAIL",
-        "articlesReturned": 0,
+        "status": "PASS",
+        "articlesReturned": 25,
         "newestDate": null,
         "oldestDate": null,
-        "errorType": "HTTPError"
+        "errorType": null
+      },
+      {
+        "id": "biopharma_dive",
+        "name": "BioPharma Dive",
+        "status": "PASS",
+        "articlesReturned": 10,
+        "newestDate": "2026-10-02T15:00:00+00:00",
+        "oldestDate": "2026-09-30T14:18:00+00:00",
+        "errorType": null
       },
       {
         "id": "fierce_marketing",
@@ -188,13 +199,108 @@ window.ZETA_NEWS_FEED = {
         "errorType": "DISABLED 2026-09-10: no working RSS/Atom endpoint found (404 on /en/rss/ and /en/rss; no autodiscovery tag on the real news page). Re-test periodically; do not silently scrape the HTML news listing."
       }
     ],
-    "removedByRecency": 1753,
+    "removedByRecency": 1778,
     "removedByDuplicate": 61,
     "removedBySourceCap": 15,
     "removedUntargetedSafety": 43,
     "archiveCount": 500
   },
   "articles": [
+    {
+      "id": "zeta_intel_20261001_feaa8480",
+      "title": "3 takeaways from a European obesity scientific meeting",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-01T16:16:00+00:00",
+      "age_days": 1,
+      "url": "https://www.biopharmadive.com/news/3-takeaways-from-european-obesity-scientific-meeting/831870/",
+      "summary": "Eli Lilly impressed with its amylin-Zepbound combination data. Elsewhere, Novo demonstrated continued weight loss following a switch to oral and AbbVie and Boehringer gave glimpses into their contenders.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [
+        "Competitor & Market Moves"
+      ],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Tirzepatide"
+      ],
+      "mechanisms": [
+        "GLP-1/GIP"
+      ],
+      "companies": [
+        "Boehringer Ingelheim",
+        "Eli Lilly",
+        "Novo Nordisk"
+      ],
+      "brands": [
+        "Zepbound"
+      ],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "Boehringer Ingelheim",
+        "Eli Lilly",
+        "Global",
+        "Market Access",
+        "Novo Nordisk",
+        "Obesity & Incretin Therapies",
+        "Tirzepatide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": null,
+      "importance": 4,
+      "relevance": 81,
+      "impact": "HIGH",
+      "breaking": true,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "High-growth incretin market signal; critical benchmark for Zeta metabolic pipeline and oral formulations."
+    },
+    {
+      "id": "zeta_intel_20261001_b6d85010",
+      "title": "Pfizer’s eczema drug clears skin in mid-stage trial",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-01T15:03:19+00:00",
+      "age_days": 1,
+      "url": "https://www.biopharmadive.com/news/pfizer-eczema-drug-clears-skin-in-mid-stage-trial/831905/",
+      "summary": "Detailed results are competitive with Dupixent and Ebglyss, but the drug lacks differentiation amid an increasingly competitive landscape, one analyst argued.",
+      "primary_therapeutic_area": "Dermatology",
+      "secondary_therapeutic_areas": [
+        "Competitor & Market Moves"
+      ],
+      "business_units": [
+        "GIT"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [
+        "Pfizer"
+      ],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "Dermatology",
+        "Global",
+        "Market Access",
+        "Pfizer"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 3,
+      "relevance": 67,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to GIT commercial planning and territory execution."
+    },
     {
       "id": "zeta_intel_20261215_61a433ea",
       "title": "Detection and Excretion Profile of Retatrutide in Human Plasma and Urine by LC-HRMS: Implications for Antidoping Analysis",
@@ -1094,6 +1200,48 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "External strategic intelligence relevant to GIT commercial planning and territory execution."
     },
     {
+      "id": "zeta_intel_20261001_3b3c3a08",
+      "title": "Sanofi, Regeneron broaden alliance to find their next Dupixent",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-01T15:38:00+00:00",
+      "age_days": 1,
+      "url": "https://www.biopharmadive.com/news/sanofi-regeneron-alliance-expanded-dupixent-immunology-drugs-development/831894/",
+      "summary": "The deal carries a $1 billion upfront payment and tasks the two companies to develop long-acting antibody drugs that go after the same targets as their blockbuster anti-inflammation agent.",
+      "primary_therapeutic_area": "Competitor & Market Moves",
+      "secondary_therapeutic_areas": [
+        "Dermatology"
+      ],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [
+        "Sanofi"
+      ],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "Competitor & Market Moves",
+        "Global",
+        "Market Access",
+        "Sanofi"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 3,
+      "relevance": 59,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
       "id": "zeta_intel_20260909_b9ce0a7b",
       "title": "Drug Recall (Class II): Clindamycin Injection USP in 5% Dextrose, 900 mg per 50 mL (12 mg/mL) in GALAXY 50 mL Single Dose Container, Rx only, Sterile Nonpyrogenic, Baxter Healthcare Corporation, Deerfield, IL 60015 USA,",
       "source": "FDA Drug Enforcement (openFDA)",
@@ -1545,7 +1693,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-08-25T18:21:22+00:00",
-      "age_days": 37,
+      "age_days": 38,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-authorizes-first-wearable-device-continuously-monitors-both-ketone-levels-and-blood-sugar",
       "summary": "The U.S. Food and Drug Administration today authorized the Libre Duo 10 Day Continuous Dual Glucose Ketone Monitoring System for people aged 2 years and older living with diabetes.",
       "primary_therapeutic_area": "Diabetes & Metabolic Disease",
@@ -1575,6 +1723,46 @@ window.ZETA_NEWS_FEED = {
       "is_live": true,
       "is_academic_noise": false,
       "why_it_matters": "Antidiabetic therapy update; evaluate positioning versus standard of care."
+    },
+    {
+      "id": "zeta_intel_20261001_a0d003d6",
+      "title": "Lilly, Foghorn part ways; Wave’s FDA-approved plans",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-01T16:04:53+00:00",
+      "age_days": 1,
+      "url": "https://www.biopharmadive.com/news/foghorn-eli-lilly-wave-samsung-bioepis-teva-varda-hatteras/831918/",
+      "summary": "The pharma giant cut its partnership after a cancer drug disappointed in testing. Elsewhere, Teva and Samsung Bioepis expanded a partnership and space biotech Varda brought in $251 million.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [
+        "Eli Lilly"
+      ],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "Eli Lilly",
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 3,
+      "relevance": 51,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
     },
     {
       "id": "zeta_intel_20261001_fcbeef17",
@@ -1656,7 +1844,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-17T18:26:43+00:00",
-      "age_days": 14,
+      "age_days": 15,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-gene-therapy-pediatric-patients-sanfilippo-syndrome-type",
       "summary": "The U.S. Food and Drug Administration today approved Fayuvi (rebisufligene etisparvovec-hopf), the first treatment for pediatric patients with mucopolysaccharidosis type IIIA (MPS IIIA), also known as Sanfilippo syndrome type A.",
       "primary_therapeutic_area": "Pediatrics",
@@ -1680,7 +1868,7 @@ window.ZETA_NEWS_FEED = {
       "opportunity_type": null,
       "opportunity_sublabel": null,
       "importance": 2,
-      "relevance": 47,
+      "relevance": 46,
       "impact": "LOW",
       "breaking": false,
       "is_live": true,
@@ -1908,6 +2096,228 @@ window.ZETA_NEWS_FEED = {
       "is_live": true,
       "is_academic_noise": false,
       "why_it_matters": "Regulatory development in General Strategic Intelligence; monitor international guideline harmonization."
+    },
+    {
+      "id": "zeta_intel_20261002_66ff8958",
+      "title": "This week in charts: Kodiak’s big comeback and Hengrui’s dealmaking",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-02T15:00:00+00:00",
+      "age_days": 0,
+      "url": "https://www.biopharmadive.com/news/week-in-charts-kodiaks-big-comeback-and-hengruis-dealmaking/831690/",
+      "summary": "The latest installment in BioPharma Dive’s data visualization series features a closer look at Kodiak’s stock performance and Hengrui's ties with U.S. and European drugmakers.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 2,
+      "relevance": 36,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20261001_c7ad2eec",
+      "title": "HHS kicks off new programs to speed clinical trials as Chinese competition looms",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-01T15:06:05+00:00",
+      "age_days": 1,
+      "url": "https://www.biopharmadive.com/news/hhs-clinical-trial-speed-arpa-h-drug-testing/831909/",
+      "summary": "The department is offering funding to teams with innovative proposals as it considers ending the traditional phased clinical trial system.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Clinical Trial"
+      ],
+      "tags": [
+        "Clinical Trial",
+        "General Strategic Intelligence",
+        "Global"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 2,
+      "relevance": 36,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20261001_bf0eaf06",
+      "title": "5 FDA decisions to watch in the fourth quarter of 2026",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-01T13:04:00+00:00",
+      "age_days": 1,
+      "url": "https://www.biopharmadive.com/news/fda-approval-decisions-watch-2026/808684/",
+      "summary": "The next three months will feature anticipated decisions on a new kind of cancer immunotherapy, as well as medicines important to the futures of Roche, GSK and Gilead.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 2,
+      "relevance": 36,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260930_ac12080c",
+      "title": "Bristol Myers trial revisions shake confidence in new class of fibrosis drugs",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-09-30T16:22:00+00:00",
+      "age_days": 2,
+      "url": "https://www.biopharmadive.com/news/bristol-admilparant-fibrosis-aloft-study-amendment-lpa1r-contineum/831763/",
+      "summary": "A spokesperson confirmed that a “limited number” of liver-related safety events, including a patient death, were observed in testing of Bristol Myers’ admilparant — though it’s unclear whether the drug was to blame.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 2,
+      "relevance": 36,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260930_a04d74d4",
+      "title": "FDA starts review of Roche’s multiple sclerosis pill",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-09-30T15:54:00+00:00",
+      "age_days": 2,
+      "url": "https://www.biopharmadive.com/news/roche-fenebrutinib-ms-fda-accept-application-btk/831746/",
+      "summary": "The FDA previously hadn’t ever accepted an application of a drug like fenebrutinib in two major forms of MS. But safety questions still hang over Roche’s program.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 2,
+      "relevance": 36,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20260930_ebb204b1",
+      "title": "PhRMA names next CEO; Pierre Fabre takes third swing at Ebvallo approval",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-09-30T14:18:00+00:00",
+      "age_days": 2,
+      "url": "https://www.biopharmadive.com/news/phrma-cantor-ebvallo-fda-mirum-bluejay-abbvie-juvmo/831450/",
+      "summary": "A former congressman will take over for prominent lobbyist Steve Ubl. Elsewhere, recent buyout deals paid dividends for Mirum and AbbVie.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "M&A"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "M&A"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 2,
+      "relevance": 36,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
     },
     {
       "id": "zeta_intel_20260923_02f44b23",
