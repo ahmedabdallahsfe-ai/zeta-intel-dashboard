@@ -82,7 +82,7 @@
       file: "cache/list_intel.data.js",
       globalVar: "LIST_INTEL_CACHE",
       label: "List intelligence",
-      version: "20261001_listupd",
+      version: "20261003_1529_auto",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",

@@ -237,9 +237,10 @@
       "label": "List Intelligence",
       "commands": [["etl/build_list_intel_cache.py"]],
       "critical": false,
-      "sources": ["List Intell/*.xlsx"],
+      "sources": ["List Intell/*.xlsx", "List Intell/history/*.xlsx"],
       "depends_on": [],
       "outputs": ["cache/list_intel.data.js"],
+      "git_extra": ["cache/list_intel_history/*.data.js"],
       "pages": ["listintel"]
     },
     {
