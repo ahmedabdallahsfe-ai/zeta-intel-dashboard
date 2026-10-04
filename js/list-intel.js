@@ -35,6 +35,13 @@ let _loaded = false;
 let RAW = null;          // full decoded cache, never rendered directly
 let SCOPE = null;        // { all:true } | { all:false, lines:[...] }
 let _scopeKey = null;
+/* As-of snapshots (2026-10-03, Ahmed: "make Date filter as of"). LATEST_RAW is the
+   default cache (newest CRM extract); older extracts are fetched on demand from
+   cache/list_intel_history/<date>.data.js and kept decoded in SNAP_CACHE. */
+let LATEST_RAW = null;
+let SNAP_CACHE = {};
+let _containerId = null;
+let _snapLoading = false;
 
 function gunzipB64Json(b64) {
   const str = atob(b64);
@@ -48,7 +55,9 @@ function loadCache() {
   if (!window.LIST_INTEL_CACHE || !window.LIST_INTEL_CACHE.b64Data || typeof pako === 'undefined') return false;
   try {
     RAW = gunzipB64Json(window.LIST_INTEL_CACHE.b64Data);
+    LATEST_RAW = RAW;
     META = RAW.meta || {};
+    if (META.asOf) SNAP_CACHE[META.asOf] = RAW;
     if (META.rules && META.rules.crmWorkingDays) WD_RULE = META.rules.crmWorkingDays;
     _loaded = true;
     return true;
@@ -71,10 +80,19 @@ function currentScope() {
    CHC_Sales reps that are merged into CHC for reporting. Customers and promo
    grids follow the kept reps. Re-applied whenever the signed-in scope changes. */
 function applyScope(scope) {
-  const key = JSON.stringify(scope);
+  const key = JSON.stringify(scope) + '|' + (META.asOf || '');
   if (key === _scopeKey) return;
   _scopeKey = key;
   SCOPE = scope;
+  scopeData(scope);
+  // a different scope must never inherit filters/drill-downs pointing outside it
+  STATE.tab = 'overview';
+  STATE.filters = { bu:'', line:'', plan:'', area:'', manager:'', repSearch:'', activeVacant:'all', deviationView:'all', specialty:'', cls:'' };
+  STATE.selectedLine = null; STATE.expandedRepKey = null; STATE.custPage = 0; STATE.aqPage = 0; STATE.qaLine = null;
+}
+
+/* Row-level filtering of the CURRENT snapshot (RAW) to the signed-in scope. */
+function scopeData(scope) {
   if (!scope || scope.all) {
     REPS = RAW.reps || [];
     CUSTOMERS = RAW.customers || {};
@@ -89,10 +107,76 @@ function applyScope(scope) {
     PROMO_TARGETS = {};
     for (const l in (RAW.promoTargets || {})) if (lines.has(l)) PROMO_TARGETS[l] = RAW.promoTargets[l];
   }
-  // a different scope must never inherit filters/drill-downs pointing outside it
-  STATE.tab = 'overview';
-  STATE.filters = { bu:'', line:'', plan:'', area:'', manager:'', repSearch:'', activeVacant:'all', deviationView:'all', specialty:'', cls:'' };
+}
+
+/* ---- As-of snapshot switching ---- */
+function snapshotList() {
+  const m = (LATEST_RAW && LATEST_RAW.meta) || {};
+  if (Array.isArray(m.snapshots) && m.snapshots.length) return m.snapshots;
+  return m.asOf ? [{ asOf: m.asOf, dataFile: null }] : [];
+}
+function fmtAsOf(d) {
+  if (!d) return '';
+  const p = String(d).slice(0, 10).split('-');
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(+p[1] || 1) - 1];
+  return p.length === 3 ? `${p[2]}-${mon}-${p[0]}` : String(d);
+}
+function loadSnapshotScript(snap) {
+  return new Promise((resolve, reject) => {
+    const v = encodeURIComponent(((LATEST_RAW && LATEST_RAW.meta && LATEST_RAW.meta.builtAt) || '').replace(/\D/g, ''));
+    const el = document.createElement('script');
+    el.src = snap.dataFile + (v ? '?v=' + v : '');
+    el.onload = () => resolve();
+    el.onerror = () => reject(new Error('could not load ' + snap.dataFile));
+    document.head.appendChild(el);
+  });
+}
+async function selectSnapshot(asOf) {
+  if (_snapLoading || !asOf || asOf === META.asOf) return;
+  const snap = snapshotList().find(s => s.asOf === asOf);
+  if (!snap) return;
+  let data = SNAP_CACHE[asOf];
+  if (!data) {
+    _snapLoading = true;
+    const sel = document.getElementById('li_asOf');
+    if (sel) sel.disabled = true;
+    try {
+      const store = window.LIST_INTEL_SNAPSHOTS || {};
+      if (!store[asOf]) await loadSnapshotScript(snap);
+      const entry = (window.LIST_INTEL_SNAPSHOTS || {})[asOf];
+      if (!entry || !entry.b64Data) throw new Error('snapshot ' + asOf + ' not in ' + snap.dataFile);
+      data = gunzipB64Json(entry.b64Data);
+      SNAP_CACHE[asOf] = data;
+      delete window.LIST_INTEL_SNAPSHOTS[asOf];   // keep only the decoded copy
+    } catch (e) {
+      console.error('[ListIntel] as-of snapshot load failed', e);
+      _snapLoading = false;
+      if (sel) { sel.disabled = false; sel.value = META.asOf || ''; }
+      alertSnapshot('Could not load the CRM lists as of ' + fmtAsOf(asOf) + '. Re-run the refresh and try again.');
+      return;
+    }
+    _snapLoading = false;
+  }
+  RAW = data;
+  META = RAW.meta || {};
+  if (META.rules && META.rules.crmWorkingDays) WD_RULE = META.rules.crmWorkingDays;
+  _scopeKey = JSON.stringify(SCOPE) + '|' + (META.asOf || '');
+  scopeData(SCOPE);
+  // keep the user's filters where the values still exist in this snapshot; drop drill-downs
+  const f = STATE.filters;
+  if (f.bu && !allBUs().includes(f.bu)) f.bu = '';
+  if (f.line && !allLines(f.bu).includes(f.line)) f.line = '';
+  if (f.area && !allAreas(f).includes(f.area)) f.area = '';
+  if (f.manager && !allManagers(f).includes(f.manager)) f.manager = '';
+  if (f.specialty && !allSpecialties(f).includes(f.specialty)) f.specialty = '';
+  if (f.cls && !allClasses(f).includes(f.cls)) f.cls = '';
   STATE.selectedLine = null; STATE.expandedRepKey = null; STATE.custPage = 0; STATE.aqPage = 0; STATE.qaLine = null;
+  const container = document.getElementById(_containerId);
+  if (container) mount(container);
+}
+function alertSnapshot(msg) {
+  const host = document.getElementById('li_asOfMsg');
+  if (host) { host.textContent = msg; host.style.display = ''; }
 }
 
 /* ---- live Data Quality statistics (replaces the standalone page's typed-in counts) ---- */
@@ -1507,6 +1591,7 @@ function browserDownload(filename, data){
 // same headers/rows, just a different container format. Never blocks on this.
 async function saveTable(filenameBase, headers, rows, sheetName){
   let filename, data;
+  if (META.asOf && !String(filenameBase).includes('_asof_')) filenameBase = filenameBase + '_asof_' + META.asOf;
   if (typeof XLSX !== 'undefined'){
     try {
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -1863,25 +1948,39 @@ function renderInsights(){
 
 /* ================= dashboard integration ================= */
 function shellHtml() {
-  const asOf = META.sources && META.sources.listsModified ? META.sources.listsModified.slice(0, 10) : '';
+  const asOf = META.asOf || (META.sources && META.sources.listsModified ? META.sources.listsModified.slice(0, 10) : '');
+  const snaps = snapshotList();
+  const latestAsOf = snaps.length ? snaps[0].asOf : asOf;
+  const isHist = !!(asOf && latestAsOf && asOf !== latestAsOf);
+  const asOfSel = snaps.length ? `<div class="li-asof">
+        <label class="lbl" for="li_asOf">As of</label>
+        <select id="li_asOf" aria-label="CRM lists as of date"${snaps.length < 2 ? ' title="Only one CRM extract is loaded. Older extracts dropped in List Intell\\history appear here."' : ''}>
+          ${snaps.map((s, i) => `<option value="${esc(s.asOf)}"${s.asOf === asOf ? ' selected' : ''}>${esc(fmtAsOf(s.asOf))}${i === 0 ? ' (latest)' : ''}</option>`).join('')}
+        </select>
+      </div>` : '';
   const nLines = Object.keys(PROMO_TARGETS).length;
   return `<div class="li-root">
     <div class="li-head">
       <div>
         <div class="li-title-row"><span class="li-tag">FIELD FORCE</span><h1>List Intelligence</h1></div>
-        <div class="li-sub">CRM customer lists vs Promo Grid targets · ${nLines} line${nLines === 1 ? '' : 's'} · Physicians (PM) &amp; AM Accounts plans · Pharmacy out of scope${asOf ? ' · CRM lists as of ' + esc(asOf) : ''}</div>
+        <div class="li-sub">CRM customer lists vs Promo Grid targets · ${nLines} line${nLines === 1 ? '' : 's'} · Physicians (PM) &amp; AM Accounts plans · Pharmacy out of scope${asOf ? ' · CRM lists as of <b>' + esc(fmtAsOf(asOf)) + '</b>' : ''}</div>
         ${SCOPE && !SCOPE.all ? `<div class="li-scope">Your view${SCOPE.role==='BU Manager' && SCOPE.bu && SCOPE.bu.length ? ` (${SCOPE.bu.map(esc).join(', ')} BU)` : ''}: ${SCOPE.lines.map(esc).join(', ')} only</div>` : ''}
       </div>
+      <div class="li-head-ctl">
+      ${asOfSel}
       <div class="li-tol">
         <span class="lbl">Tolerance</span>
         <button class="toggle ${STATE.tolerance ? 'on' : ''}" id="li_toleranceToggle" aria-label="Toggle ±10% tolerance band"></button>
         <span class="tol-band" id="li_tolBandLabel"></span>
       </div>
+      </div>
     </div>
+    ${isHist ? `<div class="li-hist" role="status"><b>Historical view</b> — CRM lists as of ${esc(fmtAsOf(asOf))} (latest is ${esc(fmtAsOf(latestAsOf))}). Targets use the current Promo Grids. <button type="button" class="li-hist-btn" id="li_asOfLatest">Back to latest</button></div>` : ''}
+    <div class="li-hist li-hist-err" id="li_asOfMsg" style="display:none"></div>
     <div class="tabs" id="li_tabs"></div>
     <div class="crumbbar" id="li_crumbs"></div>
     <div class="main" id="li_main"></div>
-    <footer class="credit">Target = flat per-rep Promo Grid figure · Current = CRM Total PM/AM Lists · Capacity = call rate × ${fmt(WD_RULE.PM)} (PM) / × ${fmt(WD_RULE.AM)} (AM) working days · Pharmacy plan excluded · Built ${esc(META.builtAt || '')}</footer>
+    <footer class="credit">Target = flat per-rep Promo Grid figure · Current = CRM Total PM/AM Lists · Capacity = call rate × ${fmt(WD_RULE.PM)} (PM) / × ${fmt(WD_RULE.AM)} (AM) working days · Pharmacy plan excluded · CRM lists as of ${esc(fmtAsOf(asOf))} · Built ${esc(META.builtAt || '')}</footer>
   </div>`;
 }
 
@@ -1904,6 +2003,21 @@ function wireCapacityCards() {
   });
 }
 
+function mount(container) {
+  container.innerHTML = shellHtml();
+  initTooltips();
+  document.getElementById('li_toleranceToggle').addEventListener('click', () => {
+    STATE.tolerance = !STATE.tolerance;
+    render();
+  });
+  const sel = document.getElementById('li_asOf');
+  if (sel) sel.addEventListener('change', () => selectSnapshot(sel.value));
+  const back = document.getElementById('li_asOfLatest');
+  if (back) back.addEventListener('click', () => { const s = snapshotList(); if (s.length) selectSnapshot(s[0].asOf); });
+  wireCapacityCards();
+  render();
+}
+
 window.ListIntelDashboard = {
   canView: canViewPage,
   init(containerId) {
@@ -1923,14 +2037,8 @@ window.ListIntelDashboard = {
       message(container, '\u{1F4ED}', 'No representatives for your lines', 'Your login\'s lines (' + (SCOPE && SCOPE.lines ? SCOPE.lines.join(', ') : '-') + ') have no rows in the current CRM lists.');
       return;
     }
-    container.innerHTML = shellHtml();
-    initTooltips();
-    document.getElementById('li_toleranceToggle').addEventListener('click', () => {
-      STATE.tolerance = !STATE.tolerance;
-      render();
-    });
-    wireCapacityCards();
-    render();
+    _containerId = containerId;
+    mount(container);
   },
   destroy() {
     document.body.classList.remove('list-intel-mode');
@@ -1938,6 +2046,7 @@ window.ListIntelDashboard = {
     if (tip) tip.style.display = 'none';
   },
   /** Read-only accessor for tests / a future Ask provider. */
-  _debug() { return { reps: REPS.length, customers: Object.keys(CUSTOMERS).length, lines: Object.keys(PROMO_TARGETS).length, scope: SCOPE, state: STATE }; },
+  _debug() { return { reps: REPS.length, customers: Object.keys(CUSTOMERS).length, lines: Object.keys(PROMO_TARGETS).length, scope: SCOPE, state: STATE, asOf: META.asOf || null, snapshots: snapshotList().map(s => s.asOf) }; },
+  selectAsOf(d) { return selectSnapshot(d); },
 };
 })();

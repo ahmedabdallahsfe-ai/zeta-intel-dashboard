@@ -47,6 +47,23 @@ OUTPUT
                              -- same convention as market_intel.data.js; loaded
                              lazily by js/cache-loader.js when the tab opens.
 
+AS-OF SNAPSHOTS  (added 2026-10-03, Ahmed: "make Date filter as of")
+-----------------------------------------------------------------------------
+  Each CRM extract carries a "Date" column (the day the report was pulled from
+  the CRM; one value per workbook, the same on all three sheets). Every
+  extract found in  List Intell/All Lists*.xlsx  and  List Intell/history/*.xlsx
+  becomes one snapshot keyed by that date:
+    * newest date  -> cache/list_intel.data.js (default view, unchanged shape
+                      + meta.asOf + meta.snapshots)
+    * older dates  -> cache/list_intel_history/<YYYY-MM-DD>.data.js
+                      (window.LIST_INTEL_SNAPSHOTS[date]; fetched only when a
+                      user picks that date in the "As of" filter)
+  All snapshots are measured against the CURRENT Promo Grids.
+  Safety: two workbooks with the same date, mixed dates inside one workbook,
+  or a date in the future -> exit 1. The newest extract may not be older than
+  the as-of date already published (set LIST_INTEL_ALLOW_OLDER=1 to override).
+  A workbook without a Date column falls back to its file date (warning).
+
 Run:  python etl/build_list_intel_cache.py            (from the project root)
 Exit code 0 = built; 1 = a source problem that makes the output unsafe.
 """
@@ -59,6 +76,8 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE_DIR = os.path.join(ROOT_DIR, 'List Intell')
 OUT_JSON = os.path.join(ROOT_DIR, 'cache', 'list_intel.json')
 OUT_JS = os.path.join(ROOT_DIR, 'cache', 'list_intel.data.js')
+HISTORY_SRC_DIR = os.path.join(SOURCE_DIR, 'history')
+OUT_HIST_DIR = os.path.join(ROOT_DIR, 'cache', 'list_intel_history')
 
 CLASSES = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
 WORKING_DAYS = {'PM': 20, 'AM': 22}
@@ -285,14 +304,38 @@ def fmt(v):
 
 
 # ---------------------------------------------------------------- CRM lists
-def find_lists_workbook():
-    c = [f for f in glob.glob(os.path.join(SOURCE_DIR, 'All Lists*.xlsx')) if not os.path.basename(f).startswith('~$')]
+def find_lists_workbooks():
+    """Every CRM extract: List Intell/All Lists*.xlsx plus List Intell/history/*.xlsx."""
+    c = glob.glob(os.path.join(SOURCE_DIR, 'All Lists*.xlsx')) + glob.glob(os.path.join(HISTORY_SRC_DIR, '*.xlsx'))
+    c = sorted(f for f in c if not os.path.basename(f).startswith('~$'))
     if not c:
         fail('no "All Lists*.xlsx" in ' + SOURCE_DIR)
-    if len(c) > 1:
-        c.sort(key=os.path.getmtime, reverse=True)
-        warn('several lists workbooks, using the newest: ' + os.path.basename(c[0]))
-    return c[0]
+    return c
+
+
+def to_date(v):
+    """Date cell -> 'YYYY-MM-DD' (datetime/date, Excel serial, or text
+    yyyy-mm-dd / dd/mm/yyyy / dd-mm-yyyy). Blank -> None. Unreadable -> 'BAD:<v>'."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    if isinstance(v, datetime.datetime):
+        return v.date().isoformat()
+    if isinstance(v, datetime.date):
+        return v.isoformat()
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and 20000 < v < 80000:
+        return (datetime.date(1899, 12, 30) + datetime.timedelta(days=int(v))).isoformat()
+    t = str(v).strip()
+    for f in ('%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%d/%m/%Y', '%d-%m-%Y', '%d.%m.%Y', '%d-%b-%Y', '%d %b %Y'):
+        try:
+            return datetime.datetime.strptime(t, f).date().isoformat()
+        except ValueError:
+            pass
+    return 'BAD:' + t
+
+
+def date_index(header):
+    h = [norm(x) for x in header]
+    return h.index('date') if 'date' in h else None
 
 
 def header_index(header, wanted, sheet):
@@ -322,7 +365,7 @@ def status_for(dev):
     return 'Balanced' if dev == 0 else ('Under Capacity' if dev < 0 else 'Over Capacity')
 
 
-def read_reps(wb, promo):
+def read_reps(wb, promo, dates):
     reps = []
     for plan, sheet in PLAN_SHEETS.items():
         if sheet not in wb.sheetnames:
@@ -330,9 +373,14 @@ def read_reps(wb, promo):
         rows = wb[sheet].iter_rows(values_only=True)
         header = next(rows)
         ix = header_index(header, PLAN_COLS, sheet)
+        di = date_index(header)
         for row in rows:
             if row is None or all(v is None for v in row):
                 continue
+            if di is not None:
+                d = to_date(row[di])
+                if d:
+                    dates.setdefault(d, set()).add(sheet)
             emp = clean_name(row[ix['employee']])
             orig_line = clean_name(row[ix['line']])
             if not emp and not orig_line:
@@ -387,16 +435,22 @@ DETAIL_COLS = {
 }
 
 
-def read_customers(wb):
+def read_customers(wb, dates):
     if DETAILS_SHEET not in wb.sheetnames:
         fail('lists workbook has no sheet "%s"' % DETAILS_SHEET)
     rows = wb[DETAILS_SHEET].iter_rows(values_only=True)
-    ix = header_index(next(rows), DETAIL_COLS, DETAILS_SHEET)
+    header = next(rows)
+    ix = header_index(header, DETAIL_COLS, DETAILS_SHEET)
+    di = date_index(header)
     cust = OrderedDict()
     n = 0
     for row in rows:
         if row is None or all(v is None for v in row):
             continue
+        if di is not None:
+            d = to_date(row[di])
+            if d:
+                dates.setdefault(d, set()).add(DETAILS_SHEET)
         emp = clean_name(row[ix['employee']])
         if not emp:
             continue
@@ -442,52 +496,121 @@ def main():
         promo[line] = parse_grid(line, path)
     log('promo grids: %d lines (%s)' % (len(promo), ', '.join(promo)))
 
-    lists_path = find_lists_workbook()
-    wb = openpyxl.load_workbook(lists_path, read_only=True, data_only=True)
-    reps = read_reps(wb, promo)
-    customers, n_cust = read_customers(wb)
-    wb.close()
-    log('reps: %d rows (%d PM, %d AM, %d vacant); customers: %d rows for %d employees' % (
-        len(reps), sum(r['plan'] == 'PM' for r in reps), sum(r['plan'] == 'AM' for r in reps),
-        sum(r['vacant'] for r in reps), n_cust, len(customers)))
-    sanity(reps, customers, promo)
+    # ---- every CRM extract -> one as-of snapshot
+    today = datetime.date.today().isoformat()
+    snaps = OrderedDict()   # asOf -> dict
+    for path in find_lists_workbooks():
+        name = os.path.relpath(path, SOURCE_DIR)
+        log('reading lists workbook: ' + name)
+        dates = {}
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        reps = read_reps(wb, promo, dates)
+        customers, n_cust = read_customers(wb, dates)
+        wb.close()
+        bad = [d for d in dates if d.startswith('BAD:')]
+        if bad:
+            fail('%s: unreadable value(s) in the Date column: %s' % (name, [b[4:] for b in bad[:3]]))
+        if len(dates) > 1:
+            fail('%s: the Date column holds %d different dates (%s) -- one extract must carry one date' % (
+                name, len(dates), ', '.join(sorted(dates))))
+        if dates:
+            as_of = next(iter(dates))
+            date_src = 'Date column'
+        else:
+            as_of = datetime.date.fromtimestamp(os.path.getmtime(path)).isoformat()
+            date_src = 'file date (no Date column)'
+            warn('%s has no Date column -- using its file date %s as the as-of date' % (name, as_of))
+        if as_of > today:
+            fail('%s: as-of date %s is in the future' % (name, as_of))
+        if as_of in snaps:
+            fail('two workbooks carry the same as-of date %s: %s and %s -- keep one' % (
+                as_of, snaps[as_of]['file'], name))
+        log('  as of %s (%s): %d reps (%d PM, %d AM, %d vacant), %d customer rows' % (
+            as_of, date_src, len(reps), sum(r['plan'] == 'PM' for r in reps), sum(r['plan'] == 'AM' for r in reps),
+            sum(r['vacant'] for r in reps), n_cust))
+        n_warn = len(WARNINGS)
+        sanity(reps, customers, promo)
+        for i in range(n_warn, len(WARNINGS)):
+            WARNINGS[i] = '[as of %s] %s' % (as_of, WARNINGS[i])
+        snaps[as_of] = {'file': name, 'path': path, 'dateSource': date_src, 'reps': reps,
+                        'customers': customers, 'nCust': n_cust}
 
-    data = OrderedDict()
-    data['meta'] = OrderedDict([
-        ('builtAt', started.strftime('%Y-%m-%d %H:%M')),
-        ('sources', OrderedDict([
-            ('lists', os.path.basename(lists_path)),
-            ('listsModified', datetime.datetime.fromtimestamp(os.path.getmtime(lists_path)).strftime('%Y-%m-%d %H:%M')),
-            ('grids', OrderedDict((l, os.path.basename(p)) for l, p in grids.items())),
-        ])),
-        ('rules', OrderedDict([
-            ('targetBasis', 'flat per-rep list size from the Promo Grid'),
-            ('lineTargetBasis', 'target per rep x Planned MR'),
-            ('tolerancePct', TOLERANCE_PCT),
-            ('toleranceDefaultOn', True),
-            ('crmWorkingDays', WORKING_DAYS),
-            ('lineRemap', LINE_REMAP),
-            ('pharmacyPlan', 'excluded'),
-            ('customerAddress', 'excluded'),
-        ])),
-        ('customerColumns', CUSTOMER_COLUMNS),
-        ('warnings', WARNINGS),
-    ])
-    data['promoTargets'] = promo
-    data['reps'] = reps
-    data['customers'] = customers
+    order = sorted(snaps, reverse=True)
+    latest = order[0]
+
+    # rollback guard: never silently publish an older extract over a newer one
+    prev_as_of = None
+    try:
+        with open(OUT_JSON, encoding='utf-8') as f:
+            prev_as_of = (json.load(f).get('meta') or {}).get('asOf')
+    except Exception:
+        pass
+    if prev_as_of and latest < prev_as_of and os.environ.get('LIST_INTEL_ALLOW_OLDER') != '1':
+        fail('the newest extract is dated %s but the published data is as of %s -- put the newer '
+             '"All Lists" file back (or set LIST_INTEL_ALLOW_OLDER=1 to publish the older one)' % (latest, prev_as_of))
+
+    snapshot_list = [OrderedDict([
+        ('asOf', d), ('file', snaps[d]['file']), ('dateSource', snaps[d]['dateSource']),
+        ('reps', len(snaps[d]['reps'])), ('customerRows', snaps[d]['nCust']),
+        ('dataFile', None if d == latest else 'cache/list_intel_history/%s.data.js' % d),
+    ]) for d in order]
+
+    def build(d):
+        sp = snaps[d]
+        data = OrderedDict()
+        data['meta'] = OrderedDict([
+            ('builtAt', started.strftime('%Y-%m-%d %H:%M')),
+            ('asOf', d),
+            ('asOfSource', sp['dateSource']),
+            ('isLatest', d == latest),
+            ('sources', OrderedDict([
+                ('lists', sp['file']),
+                ('listsModified', datetime.datetime.fromtimestamp(os.path.getmtime(sp['path'])).strftime('%Y-%m-%d %H:%M')),
+                ('grids', OrderedDict((l, os.path.basename(p)) for l, p in grids.items())),
+            ])),
+            ('rules', OrderedDict([
+                ('targetBasis', 'flat per-rep list size from the Promo Grid'),
+                ('lineTargetBasis', 'target per rep x Planned MR'),
+                ('tolerancePct', TOLERANCE_PCT),
+                ('toleranceDefaultOn', True),
+                ('crmWorkingDays', WORKING_DAYS),
+                ('lineRemap', LINE_REMAP),
+                ('pharmacyPlan', 'excluded'),
+                ('customerAddress', 'excluded'),
+                ('snapshotTargets', 'every as-of snapshot is measured against the current Promo Grids'),
+            ])),
+            ('customerColumns', CUSTOMER_COLUMNS),
+            ('warnings', WARNINGS),
+        ])
+        if d == latest:
+            data['meta']['snapshots'] = snapshot_list
+        data['promoTargets'] = promo
+        data['reps'] = sp['reps']
+        data['customers'] = sp['customers']
+        return json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+
+    def b64(js):
+        return base64.b64encode(gzip.compress(js.encode('utf-8'), compresslevel=9)).decode('ascii')
+
+    def write(path, text):
+        tmp = path + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            f.write(text)
+        os.replace(tmp, path)
 
     os.makedirs(os.path.dirname(OUT_JSON), exist_ok=True)
-    js = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
-    tmp = OUT_JSON + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as f:
-        f.write(js)
-    os.replace(tmp, OUT_JSON)
-    b64 = base64.b64encode(gzip.compress(js.encode('utf-8'), compresslevel=9)).decode('ascii')
-    tmp = OUT_JS + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as f:
-        f.write('window.LIST_INTEL_CACHE = {b64Data:"' + b64 + '"};\n')
-    os.replace(tmp, OUT_JS)
+    # older snapshots first, so a failure never leaves a new default pointing at missing files
+    if len(order) > 1:
+        os.makedirs(OUT_HIST_DIR, exist_ok=True)
+    for d in order[1:]:
+        hp = os.path.join(OUT_HIST_DIR, d + '.data.js')
+        write(hp, 'window.LIST_INTEL_SNAPSHOTS = window.LIST_INTEL_SNAPSHOTS || {};\n'
+                  'window.LIST_INTEL_SNAPSHOTS["' + d + '"] = {b64Data:"' + b64(build(d)) + '"};\n')
+        log('wrote list_intel_history/%s.data.js (%s KB)' % (d, format(os.path.getsize(hp) // 1024, ',')))
+    js = build(latest)
+    write(OUT_JSON, js)
+    write(OUT_JS, 'window.LIST_INTEL_CACHE = {b64Data:"' + b64(js) + '"};\n')
+    log('as-of snapshots: %s (default = %s)' % (', '.join(order), latest))
     log('wrote %s (%s KB) and %s (%s KB gzip+base64) in %.1fs, %d warning(s)' % (
         os.path.basename(OUT_JSON), format(os.path.getsize(OUT_JSON) // 1024, ','),
         os.path.basename(OUT_JS), format(os.path.getsize(OUT_JS) // 1024, ','),

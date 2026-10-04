@@ -261,3 +261,28 @@ body.list-intel-mode #ask-panel-slot:empty { display: none; }
 .li-root .li-repins-tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; margin-right: 4px; background: #FEF3C7; color: #92400E; }
 .li-root .li-repins-tag.bad { background: #FEE2E2; color: #991B1B; }
 @media (max-width: 768px){ .li-root .li-repins-flag { align-items: flex-start; } }
+
+/* ---------- As-of filter (2026-10-03) ---------- */
+.li-root .li-head-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.li-root .li-asof {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--li-border); border-radius: var(--radius-lg, 8px);
+  padding: 5px 10px; background: var(--li-surface); box-shadow: var(--shadow-xs, none);
+}
+.li-root .li-asof .lbl { font-size: 12px; font-weight: 600; color: var(--li-ink-soft); }
+.li-root .li-asof select {
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--li-ink);
+  border: 1px solid var(--li-border); border-radius: 6px; padding: 3px 6px; background: var(--li-surface); cursor: pointer;
+}
+.li-root .li-asof select:disabled { opacity: .6; cursor: progress; }
+.li-root .li-hist {
+  margin: 0 0 12px; padding: 8px 12px; border-radius: var(--radius-lg, 8px);
+  background: #FFF7E6; border: 1px solid #F5C26B; color: #7A4B00; font-size: 12.5px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.li-root .li-hist-err { background: #FDECEC; border-color: #F1A7A7; color: #8A1C1C; }
+.li-root .li-hist-btn {
+  margin-left: auto; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid currentColor; background: transparent; color: inherit; border-radius: 6px; padding: 3px 10px;
+}
+@media print { .li-root .li-asof select { border: none; -webkit-appearance: none; appearance: none; } .li-root .li-hist-btn { display: none; } }
