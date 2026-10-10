@@ -1523,8 +1523,11 @@
     _state.drillManagerId = null;
     _state.visitLogFor = null;
     _state.rosterPopupFor = null;
-    _filters = { bu: "", line: "" };
+    // BU/Line filter is KEPT when the user leaves this page and comes back (2026-10-08, Ahmed);
+    // a value this login can no longer see is dropped instead of showing an empty page.
     _visible = getVisibleManagers(data);
+    if (_filters.bu && !_visible.some(function (m) { return m.bu === _filters.bu; })) _filters = { bu: "", line: "" };
+    if (_filters.line && !_visible.some(function (m) { return m.line === _filters.line && (!_filters.bu || m.bu === _filters.bu); })) _filters.line = "";
     if (!_visible.length) {
       renderNoAccess(root);
       return;

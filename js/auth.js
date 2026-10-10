@@ -296,6 +296,35 @@
   }
 
   // -------------------------------------------------------------------
+  // LOCAL-ONLY & TIMEBEING PUBLISHED PAGES (2026-10-08, updated 2026-10-10)
+  // Rep 360° Scorecard remains local-only (shown on local PC runs only).
+  // Territory Market Insights is enabled for BEX and SFE roles.
+  // -------------------------------------------------------------------
+  var LOCAL_PAGE_ROLES = ["SFE Manager", "SFE", "sfe", "Admin"];
+
+  function isLocalRun() {
+    var l = window.location || {};
+    return l.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l.hostname || "");
+  }
+
+  function canViewLocalPages() {
+    if (!isLocalRun()) return false;
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return LOCAL_PAGE_ROLES.indexOf(u.role) >= 0 || (u.role && String(u.role).toLowerCase().indexOf("sfe") >= 0);
+  }
+
+  function canViewRep360() { return canViewLocalPages(); }
+
+  var TERRITORY_MARKET_ROLES = ["BEX", "bex", "SFE Manager", "SFE", "sfe", "Admin"];
+  function canViewTerritoryMarket() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    var r = String(u.role || "").toLowerCase();
+    return TERRITORY_MARKET_ROLES.indexOf(u.role) >= 0 || r.indexOf("sfe") >= 0 || r.indexOf("bex") >= 0;
+  }
+
+  // -------------------------------------------------------------------
   // COACHING INTELLIGENCE ACCESS (2026-08-31, Ahmed)
   // -------------------------------------------------------------------
   // New tab built on cache/coaching.data.js (etl/build_coaching_cache.py,
@@ -705,6 +734,11 @@
     SPRINT_ROLES: SPRINT_ROLES,
     canViewBuReview: canViewBuReview,
     BU_REVIEW_ROLES: BU_REVIEW_ROLES,
+    isLocalRun: isLocalRun,
+    canViewRep360: canViewRep360,
+    canViewTerritoryMarket: canViewTerritoryMarket,
+    TERRITORY_MARKET_ROLES: TERRITORY_MARKET_ROLES,
+    LOCAL_PAGE_ROLES: LOCAL_PAGE_ROLES,
     canViewListIntel: canViewListIntel,
     isListIntelOnly: isListIntelOnly,
     LIST_INTEL_ONLY_ROLES: LIST_INTEL_ONLY_ROLES,

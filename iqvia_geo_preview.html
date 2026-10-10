@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IQVIA Geo &amp; Territory — Preview</title>
+<!-- PREVIEW ONLY (2026-10-07). Not linked from dashboard.html, not in config/refresh_map.json, not pushed.
+     Open this file directly in Chrome/Edge from the CoverageDashboard folder.
+     Data: cache/iqvia_geo.data.js  <- etl/build_iqvia_geo_cache.py  <- IQVIA TERRIOTRY/Egypt Sales Territory.xlsx -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="css/iqvia-geo.css?v=20261008_preg">
+<style>html,body{margin:0;background:#F4F6F9}</style>
+</head>
+<body>
+<div id="iqvia-geo-root"></div>
+<script src="assets/pako.min.js"></script>
+<script src="cache/iqvia_geo.data.js?v=20261007_period"></script>
+<script src="js/iqvia-geo.js?v=20261008_preg"></script>
+<script>IqviaGeo.mount(document.getElementById('iqvia-geo-root'));</script>
+</body>
+</html>

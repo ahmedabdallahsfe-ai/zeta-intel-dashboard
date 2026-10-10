@@ -95,3 +95,9 @@ package-lock.json
 # field_force_dashboard*.html, which embeds doctor names + street addresses.
 # Only the ETL output cache/list_intel.data.js (no addresses) is ever published.
 List Intell/
+
+# LOCAL-ONLY pages (2026-10-08).
+# Rep 360 Scorecard stays local-only (not published).
+js/rep360.js
+css/rep360.css
+etl/build_rep360_cache.py

@@ -366,6 +366,10 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Zeta Sprint 2026";
     } else if (tab === "listintel") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - List Intelligence";
+    } else if (tab === "rep360") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Rep 360° Scorecard";
+    } else if (tab === "territorymarket") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Territory Market Insights";
     } else if (tab === "bureview") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - BU Business Review";
     } else if (tab === "workingdays") {
@@ -498,6 +502,12 @@ function startAppBody() {
       ? window.AUTH.canViewListIntel() : false;
     listIntelMenuItem.style.display = allowed ? "" : "none";
   }
+
+  // LOCAL-ONLY pages (2026-10-08) -- see renderRep360Tab / renderTerritoryMarketTab.
+  [["menu-item-rep360", "canViewRep360"], ["menu-item-territorymarket", "canViewTerritoryMarket"]].forEach(([id, fn]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (window.AUTH && typeof window.AUTH[fn] === "function" && window.AUTH[fn]()) ? "" : "none";
+  });
 
   // Coaching Intelligence (2026-08-31): visible to every management-tier
   // role plus Line Manager (see auth.js's canViewCoaching for why -- this
@@ -633,6 +643,12 @@ function startAppBody() {
       }
       if (currentTab === "listintel" && window.ListIntelDashboard) {
         window.ListIntelDashboard.destroy();
+      }
+      if (currentTab === "rep360" && window.Rep360Dashboard) {
+        window.Rep360Dashboard.destroy();
+      }
+      if (currentTab === "territorymarket" && window.TerritoryMarketDashboard) {
+        window.TerritoryMarketDashboard.destroy();
       }
       if (currentTab === "bureview" && window.BuReviewDashboard) {
         window.BuReviewDashboard.destroy();
@@ -773,6 +789,16 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             await renderListIntelTab(document.getElementById("app-root"));
+          } else if (tab === "rep360") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderRep360Tab(document.getElementById("app-root"));
+          } else if (tab === "territorymarket") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderTerritoryMarketTab(document.getElementById("app-root"));
           } else if (tab === "bureview") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
@@ -1077,6 +1103,61 @@ async function renderListIntelTab(container) {
   if (window.ListIntelDashboard) {
     window.ListIntelDashboard.init("app-root");
   }
+}
+
+/**
+ * LOCAL-ONLY pages (2026-10-08): Rep 360° Scorecard and Territory Market
+ * Insights. Shown only when the dashboard runs from this PC (AUTH.isLocalRun)
+ * to the SFE Manager / Admin. Their module files and data caches are loaded
+ * on demand here (not from dashboard.html) and are git-ignored, so nothing
+ * about them is published.
+ */
+const _localAssetPromises = {};
+function loadLocalAsset(url) {
+  if (_localAssetPromises[url]) return _localAssetPromises[url];
+  _localAssetPromises[url] = new Promise((resolve) => {
+    const isCss = /\.css(\?|$)/.test(url);
+    const el = document.createElement(isCss ? "link" : "script");
+    if (isCss) { el.rel = "stylesheet"; el.href = url; } else { el.src = url; el.async = false; }
+    el.onload = () => resolve(true);
+    el.onerror = () => { delete _localAssetPromises[url]; resolve(false); };
+    document.head.appendChild(el);
+  });
+  return _localAssetPromises[url];
+}
+
+function renderLocalOnlyDenied(container, name) {
+  container.innerHTML = window.DS
+    ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+        icon: "\u{1F512}",
+        title: "Access restricted",
+        hint: name + " is a local-only page: it opens only on the SFE PC (dashboard opened from the local folder), for the SFE Manager / Admin.",
+      })}</div></div>`
+    : "<p>Access restricted.</p>";
+}
+
+async function renderRep360Tab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewRep360 === "function" ? window.AUTH.canViewRep360() : false;
+  if (!allowed) { renderLocalOnlyDenied(container, "Rep 360° Scorecard"); return; }
+  container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Rep 360° Scorecard…</div>';
+  await Promise.all([loadLocalAsset("css/rep360.css?v=20261008_local"), loadLocalAsset("js/rep360.js?v=20261009_exp"),
+    window.CacheLoader ? window.CacheLoader.ensure("rep360") : Promise.resolve(false)]);
+  if (currentTab !== "rep360") return;
+  if (window.Rep360Dashboard) window.Rep360Dashboard.init("app-root");
+  else container.innerHTML = "<p style=\"padding:24px\">js/rep360.js not found in the dashboard folder.</p>";
+}
+
+async function renderTerritoryMarketTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewTerritoryMarket === "function" ? window.AUTH.canViewTerritoryMarket() : false;
+  if (!allowed) { renderLocalOnlyDenied(container, "Territory Market Insights"); return; }
+  container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Territory Market Insights…</div>';
+  await Promise.all([loadLocalAsset("css/iqvia-geo.css?v=20261010_fit"), loadLocalAsset("js/iqvia-geo.js?v=20261010_ux"),
+    window.CacheLoader ? window.CacheLoader.ensure("iqvia_geo") : Promise.resolve(false)]);
+  if (currentTab !== "territorymarket") return;
+  if (window.TerritoryMarketDashboard) window.TerritoryMarketDashboard.init("app-root");
+  else container.innerHTML = "<p style=\"padding:24px\">js/iqvia-geo.js not found in the dashboard folder.</p>";
 }
 
 /**

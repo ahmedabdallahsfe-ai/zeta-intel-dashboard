@@ -1,0 +1,187 @@
+/* IQVIA Geo & Territory — scoped to .igeo.  Layout: control bar → data-quality strip → KPI row → opportunity matrix + segment summary → brick table → position alignment → definitions. Follows the Zeta Enterprise Design System tokens. */
+.igeo{
+  --bg:#F4F6F9; --surface:#FFFFFF; --surface-alt:#F8FAFC; --border:#E2E8F0; --border-strong:#CBD5E1;
+  --fg:#0F172A; --fg-2:#64748B; --fg-3:#94A3B8;
+  --primary:#0F4C81; --primary-light:#E8F0F7;
+  --grow:#C2410C; --grow-bg:#FFEDD5; --defend:#15803D; --defend-bg:#DCFCE7; --maintain:#0F4C81; --maintain-bg:#E8F0F7;
+  --develop:#7C3AED; --develop-bg:#EDE9FE; --monitor:#64748B; --monitor-bg:#F1F5F9;
+  --good:#15803D; --bad:#B91C1C; --warn:#B45309; --warn-bg:#FEF3C7; --info-bg:#E0F2FE;
+  --hatch:rgba(180,83,9,.16);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#4a3aa7; --other:#CBD5E1; --mkt:#94A3B8;
+  --f-ui:'Inter','Segoe UI',system-ui,sans-serif; --f-num:'JetBrains Mono',ui-monospace,Consolas,monospace;
+  --r:8px; --shadow:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.05);
+}
+.igeo,.igeo *{box-sizing:border-box}
+.igeo{background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-size:13px;line-height:1.45;padding-inline:16px;padding-block:16px 40px}
+.igeo .wrap{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.igeo .num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.igeo header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px}
+.igeo h1{font-size:20px;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.igeo .sub{color:var(--fg-2);font-size:12px}
+.igeo .proto{display:inline-flex;gap:6px;align-items:center;background:var(--warn-bg);color:var(--warn);border-radius:999px;padding:3px 10px;font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.igeo .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;min-width:0}
+.igeo .card h2{font-size:13px;margin:0 0 2px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-2)}
+.igeo .card h2 + .sub{margin-bottom:10px}
+.igeo .controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.igeo .ctl{display:flex;flex-direction:column;gap:3px;min-width:0}
+.igeo .ctl label{font-size:10.5px;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.05em}
+.igeo select,.igeo input[type=search]{font:inherit;background:var(--surface-alt);color:var(--fg);border:1px solid var(--border-strong);border-radius:6px;padding:6px 8px;max-width:100%}
+.igeo select:focus-visible,.igeo input:focus-visible,.igeo button:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.igeo .seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:6px;overflow:hidden}
+.igeo .seg button{font:inherit;border:0;background:var(--surface-alt);color:var(--fg-2);padding:6px 10px;cursor:pointer}
+.igeo .seg button[aria-pressed=true]{background:var(--primary);color:#fff}
+.igeo .toggle{display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 10px;border:1px dashed var(--warn);border-radius:6px;background:var(--surface-alt);color:var(--fg)}
+.igeo .toggle input{accent-color:var(--warn)}
+.igeo .dq{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;color:var(--fg-2);padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)}
+.igeo .dq b{color:var(--fg);font-weight:600}
+.igeo .ok{color:var(--good);font-weight:700}
+.igeo .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.igeo .kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.igeo .kpi .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-2);font-weight:600}
+.igeo .kpi .v{font-size:22px;font-weight:600;font-family:var(--f-num);letter-spacing:-.02em}
+.igeo .kpi .d{font-size:11.5px;color:var(--fg-2)}
+.igeo .up{color:var(--good)}
+.igeo .dn{color:var(--bad)}
+.igeo .banner{padding:10px 12px;border-radius:var(--r);background:var(--warn-bg);color:var(--warn);font-weight:500}
+.igeo .grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}
+@media (max-width:900px){.igeo .grid2{grid-template-columns:1fr}
+}
+.igeo svg text{fill:var(--fg-2);font-family:var(--f-ui)}
+.igeo .mx-wrap{overflow-x:auto}
+.igeo .legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:11.5px;color:var(--fg-2);margin-top:6px}
+.igeo .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.igeo .chip{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600;white-space:nowrap}
+.igeo .s-Grow{background:var(--grow-bg);color:var(--grow)}
+.igeo .s-Defend{background:var(--defend-bg);color:var(--defend)}
+.igeo .s-Maintain{background:var(--maintain-bg);color:var(--maintain)}
+.igeo .s-Develop{background:var(--develop-bg);color:var(--develop)}
+.igeo .s-Monitor{background:var(--monitor-bg);color:var(--monitor)}
+.igeo .s-Low{background:var(--monitor-bg);color:var(--fg-3)}
+.igeo .segtbl{width:100%;border-collapse:collapse}
+.igeo .segtbl td{padding:7px 4px;border-bottom:1px solid var(--border)}
+.igeo .segtbl td.r{text-align:right}
+.igeo .act{font-size:11.5px;color:var(--fg-2)}
+.igeo .tbl-wrap{overflow-x:auto;max-height:520px;overflow-y:auto;border:1px solid var(--border);border-radius:6px}
+.igeo table.dt{width:100%;border-collapse:collapse;font-size:12.5px}
+.igeo table.dt th{position:sticky;top:0;background:var(--surface-alt);text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--fg-2);padding:8px;border-bottom:1px solid var(--border-strong);cursor:pointer;white-space:nowrap;z-index:1}
+.igeo table.dt th.r,.igeo table.dt td.r{text-align:right}
+.igeo table.dt td{padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+.igeo table.dt tbody tr{cursor:pointer}
+.igeo table.dt tbody tr:hover{background:var(--primary-light)}
+.igeo .muted{color:var(--fg-3)}
+.igeo .idx{display:inline-block;min-width:44px;text-align:right;padding:1px 6px;border-radius:4px;font-family:var(--f-num)}
+.igeo .i-lo{background:var(--grow-bg);color:var(--grow)}
+.igeo .i-mid{background:var(--monitor-bg);color:var(--fg)}
+.igeo .i-hi{background:var(--defend-bg);color:var(--defend)}
+.igeo .bar{height:6px;border-radius:3px;background:var(--primary);opacity:.75}
+.igeo .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.igeo .rchip{font:inherit;font-size:11.5px;border:1px solid var(--border-strong);background:var(--surface-alt);color:var(--fg-2);border-radius:999px;padding:3px 10px;cursor:pointer}
+.igeo .rchip[aria-pressed=true]{background:var(--primary);border-color:var(--primary);color:#fff}
+.igeo .alloc{background:repeating-linear-gradient(135deg,var(--hatch) 0 6px,transparent 6px 12px),var(--surface);border:1px dashed var(--warn)}
+.igeo .badge-alloc{display:inline-flex;gap:4px;align-items:center;font-size:11px;font-weight:600;color:var(--warn)}
+.igeo details.defs summary{cursor:pointer;font-weight:600}
+.igeo .defs table{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px}
+.igeo .defs td,.igeo .defs th{border-bottom:1px solid var(--border);padding:6px;text-align:left;vertical-align:top}
+.igeo .defs code{font-family:var(--f-num);font-size:11.5px}
+.igeo .drawer{position:fixed;top:0;right:0;height:100%;width:min(560px,100%);background:var(--surface);border-left:1px solid var(--border-strong);box-shadow:-8px 0 24px rgba(0,0,0,.18);z-index:20;overflow-y:auto;padding:calc(16px + env(safe-area-inset-top,0px)) 18px 24px;display:flex;flex-direction:column;gap:12px}
+.igeo .drawer[hidden]{display:none}
+.igeo .drawer .x{position:absolute;right:12px;top:calc(10px + env(safe-area-inset-top,0px));font:inherit;font-size:18px;border:0;background:none;color:var(--fg-2);cursor:pointer}
+.igeo .mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.igeo .mini>div{background:var(--surface-alt);border:1px solid var(--border);border-radius:6px;padding:8px}
+.igeo .mini .l{font-size:10px;text-transform:uppercase;color:var(--fg-2);letter-spacing:.04em}
+.igeo .mini .v{font-family:var(--f-num);font-size:15px;font-weight:600}
+.igeo tr.zeta td{font-weight:600}
+.igeo tr.zeta td:first-child{box-shadow:inset 3px 0 0 var(--primary)}
+.igeo .foot{font-size:11.5px;color:var(--fg-2)}
+.igeo .more{font:inherit;margin-top:8px;border:1px solid var(--border-strong);background:var(--surface-alt);color:var(--fg);border-radius:6px;padding:5px 12px;cursor:pointer}
+@media (prefers-reduced-motion:no-preference){.igeo .drawer{animation:sl .18s ease-out}
+@keyframes sl{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}
+}
+.igeo .rc-head,.igeo .rc-row{display:grid;grid-template-columns:96px minmax(0,1fr) 56px 64px 64px 40px;gap:8px;align-items:center}
+.igeo .rc-head{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--fg-2);padding:0 6px 6px;border-bottom:1px solid var(--border)}
+.igeo .rc-row{padding:7px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:4px}
+.igeo .rc-row:hover,.igeo .rc-row.sel,.igeo .st-row.sel{background:var(--primary-light)}
+.igeo .rc-name{font-weight:600;font-size:12px}
+.igeo .rc-bars{display:flex;flex-direction:column;gap:3px;min-width:0}
+.igeo .rc-b{display:flex;align-items:center;gap:6px}
+.igeo .rc-b i{display:block;height:9px;border-radius:0 4px 4px 0;min-width:2px}
+.igeo .rc-b em{font-style:normal;font-family:var(--f-num);font-size:11px;color:var(--fg-2)}
+.igeo .st-row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px;align-items:center;padding:5px 6px}
+.igeo .st-row.nat{border-bottom:1px solid var(--border-strong);padding-bottom:9px;margin-bottom:3px}
+.igeo .st-bar{display:flex;height:20px;gap:2px;min-width:0}
+.igeo .st-bar i{display:flex;align-items:center;justify-content:center;height:100%;min-width:1px}
+.igeo .st-bar i:first-child{border-radius:4px 0 0 4px}
+.igeo .st-bar i:last-child{border-radius:0 4px 4px 0}
+.igeo .st-bar b{font-size:10.5px;font-weight:600;color:#fff;font-family:var(--f-num);text-shadow:0 0 2px rgba(0,0,0,.45)}
+.igeo .st-bar b.lo{color:var(--fg-2);text-shadow:none}
+.igeo .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.igeo .dh{font-size:12px;text-transform:uppercase;color:var(--fg-2);letter-spacing:.05em;margin:0 0 6px}
+.igeo .rgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media (max-width:980px){.igeo .rgrid{grid-template-columns:1fr}
+}
+.igeo .shc small{display:block;font-size:10px;line-height:1.15}
+.igeo .shc small.gl{opacity:.85}
+.igeo .shc small.ixl .idx{min-width:0;padding:0 4px;font-size:10px;margin:1px 0}
+.igeo tr.prow td.tog{cursor:pointer;color:var(--primary);font-weight:700;width:18px;text-align:center}
+.igeo tr.brow td{background:var(--surface-alt);font-size:12px}
+.igeo td.zc,.igeo th.zh{background:color-mix(in srgb,var(--s1) 7%,transparent)}
+.igeo tr.brow td.zc{background:color-mix(in srgb,var(--s1) 10%,var(--surface-alt))}
+.igeo tr.brow td:nth-child(2){padding-left:18px}
+
+[data-theme="dark"] .igeo{
+  --bg:#0B1220; --surface:#111A2E; --surface-alt:#0F1729; --border:#22304A; --border-strong:#2E3F5E;
+  --fg:#E6ECF5; --fg-2:#98A6BD; --fg-3:#64748B; --primary:#6CA6DB; --primary-light:#16263F;
+  --grow:#FB923C; --grow-bg:#3A2312; --defend:#4ADE80; --defend-bg:#12301E; --maintain:#6CA6DB; --maintain-bg:#16263F;
+  --develop:#A78BFA; --develop-bg:#251B44; --monitor:#94A3B8; --monitor-bg:#1A2436;
+  --good:#4ADE80; --bad:#F87171; --warn:#FBBF24; --warn-bg:#3A2C0C; --info-bg:#0E2A3D; --hatch:rgba(251,191,36,.14); --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9; --other:#334155; --mkt:#64748B;
+  --shadow:0 1px 2px rgba(0,0,0,.4); }
+.igeo .card{margin:0;box-shadow:none}
+.igeo{min-height:100%}
+body.tmi-mode #filter-bar-container,body.tmi-mode .filter-bar-wrap,body.tmi-mode #topbar-export-pdf{display:none!important}
+body.tmi-mode #ask-panel-slot:empty{display:none}
+
+/* 2026-10-10 readability + Where-to-act drill-down */
+.igeo{font-size:14px}
+.igeo .sub{font-size:13px;line-height:1.5}
+.igeo .foot,.igeo .act,.igeo .legend,.igeo .dq,.igeo .kpi .d{font-size:12.5px}
+.igeo .ctl label,.igeo .kpi .l,.igeo table.dt th,.igeo .rc-head,.igeo .mini .l{font-size:11.5px;letter-spacing:.03em}
+.igeo table.dt{font-size:13px}
+.igeo .card h2{font-size:14px}
+.igeo .chip{font-size:11.5px}
+.igeo .shc small{font-size:11px}
+.igeo .shc small.ixl .idx{font-size:10.5px}
+.igeo .rc-name{font-size:13px}
+.igeo .info{cursor:help;color:var(--fg-2);margin-left:2px}
+.igeo .segtbl th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--fg-2);padding:6px 4px;border-bottom:1px solid var(--border)}
+.igeo .segtbl th.r{text-align:right}
+.igeo .segtbl tr.segrow{cursor:pointer}
+.igeo .segtbl tr.segrow:hover>td,.igeo .segtbl tr.segrow.open>td{background:var(--surface-alt)}
+.igeo .segtbl td.tog{width:18px;color:var(--fg-2);font-size:12px}
+.igeo .segtbl tr.segdet>td{padding:4px 4px 14px;border-bottom:1px solid var(--border)}
+.igeo .segtbl .dt td{padding:6px 8px}
+.igeo .segtbl tr.sp{cursor:pointer}
+.igeo .segtbl tr.sp:hover td{background:var(--surface-alt)}
+.igeo a.plink{color:inherit;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.igeo .drawer .lead{font-size:13px;margin:0 0 8px;line-height:1.5}
+.igeo .drawer table.cmpx td small{display:block;font-size:11.5px;line-height:1.3}
+.igeo .drawer table.cmpx td{vertical-align:top}
+.igeo .rc-row,.igeo .rc-head{grid-template-columns:100px minmax(0,1fr) 72px 72px 72px 72px}
+.igeo .rc-head{display:grid;gap:8px;align-items:end;text-transform:none;letter-spacing:0;font-weight:600;line-height:1.25}
+.igeo .drawer table.cmpx{table-layout:fixed;width:100%}
+.igeo .drawer table.cmpx td,.igeo .drawer table.cmpx th{white-space:normal}
+.igeo .drawer table.cmpx th:nth-child(1){width:46%}
+.igeo .drawer table.cmpx th:nth-child(4){width:24%}
+.igeo .drawer table.cmpx th:nth-child(1){width:40%}
+.igeo .drawer table.cmpx th:nth-child(2){width:17%}
+.igeo .drawer table.cmpx th:nth-child(3){width:19%}
+/* 2026-10-10 fix: Where-to-act drill-down must stay inside the card (no page-wide horizontal scroll) */
+.igeo .segtbl{table-layout:fixed;width:100%}
+.igeo .segtbl>thead>tr>th:nth-child(1){width:24px}
+.igeo .segtbl>thead>tr>th:nth-child(3){width:110px}
+.igeo .segtbl>thead>tr>th:nth-child(4){width:130px}
+.igeo .segtbl>thead>tr>th:nth-child(5){width:150px}
+.igeo .segtbl tr.segdet>td{min-width:0;overflow:hidden}
+.igeo .segtbl .tbl-wrap{overflow-x:auto;max-width:100%}
+.igeo .segtbl .dt td{white-space:normal}
+.igeo .segtbl .dt td.num,.igeo .segtbl .dt td.r{white-space:nowrap}
+.igeo .segtbl .dt th{white-space:normal}

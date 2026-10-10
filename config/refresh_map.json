@@ -153,7 +153,8 @@
         "iqvia_source/Egypt_Combined_Data monthly report_Sep-02-2026 (1).xlsx",
         "iqvia_source/config/Zeta_Dashboard_User_Config.xlsx",
         "iqvia_source/config/corp_restatements.json",
-        "iqvia_source/config/dm1_corrections.json"
+        "iqvia_source/config/dm1_corrections.json",
+        "iqvia_source/config/product_market_overrides.json"
       ],
       "depends_on": [],
       "outputs": ["cache/iqvia.data.js"],

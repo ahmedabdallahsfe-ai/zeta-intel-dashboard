@@ -469,10 +469,15 @@
         return;
       }
       document.body.classList.add("working-days-mode");
-      state.tier = "DM_DSM";
+      // Tier, month, BU/Line/Profile, search and sort are KEPT when the user leaves this page and
+      // comes back (2026-10-08, Ahmed). First visit: DM/DSM tier, latest month (state defaults).
       var avail = availableMonths(state.tier);
-      state.month = avail[avail.length - 1] || null;
+      if (!state.month || avail.indexOf(state.month) === -1) state.month = avail[avail.length - 1] || null;
       root.innerHTML = layoutHtml();
+      var tierBtns = root.querySelectorAll("#wd-tier-tabs .wd-tab-btn");
+      for (var ti = 0; ti < tierBtns.length; ti++) tierBtns[ti].classList.toggle("active", tierBtns[ti].getAttribute("data-tier") === state.tier);
+      var searchBox = el("wd-search");
+      if (searchBox) searchBox.value = state.search || "";
       wireEvents();
       renderAll();
     },

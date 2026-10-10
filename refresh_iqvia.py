@@ -17,6 +17,7 @@ SOURCE_XLSX   = os.path.join(ROOT_DIR, 'iqvia_source', 'IQVIA_SOURCE.xlsx')
 TARGET_XLSX   = os.path.join(ROOT_DIR, 'iqvia_source', 'TARGET_MARKET_SHARE.xlsx')
 USER_CONFIG    = os.path.join(ROOT_DIR, 'iqvia_source', 'config', 'Zeta_Dashboard_User_Config.xlsx')
 DM1_CORRECTIONS_FILE = os.path.join(ROOT_DIR, 'iqvia_source', 'config', 'dm1_corrections.json')
+PRODUCT_MARKET_OVERRIDES_FILE = os.path.join(ROOT_DIR, 'iqvia_source', 'config', 'product_market_overrides.json')
 
 OUTPUT_JSON   = os.path.join(ROOT_DIR, 'cache', 'iqvia.json')
 OUTPUT_JS     = os.path.join(ROOT_DIR, 'cache', 'iqvia.data.js')
@@ -260,6 +261,43 @@ if os.path.exists(CORP_RESTATEMENTS_FILE):
         log(f'WARNING: corporate restatements skipped ({e})')
 else:
     log('No corp_restatements.json -- corporate restatement step skipped')
+
+# -- 2d. PRODUCT-LEVEL MARKET OVERRIDES (2026-10-09, Ahmed: option B) ----------
+# iqvia_source/config/product_market_overrides.json pins named products / molecules
+# to their defined market (DM1/DM2/Line/BU) whatever the source's DEFIND columns
+# say, so a regenerated Market Mapping sheet cannot silently push them back to
+# OTHER MARKET. Logged per rule; a rule that matches nothing is a WARNING.
+if os.path.exists(PRODUCT_MARKET_OVERRIDES_FILE):
+    try:
+        _pmo = json.load(open(PRODUCT_MARKET_OVERRIDES_FILE, encoding='utf-8'))
+        if _pmo.get('enabled', True):
+            print('\n[2d/4] Applying product-level market overrides...', flush=True)
+            for _r in _pmo.get('overrides', []):
+                _prods = set(_r.get('products') or [])
+                _mol = (_r.get('molecule_contains') or '').upper()
+                _doses = set(str(x).upper() for x in (_r.get('doses') or []))
+                _pf = _r.get('period_from') or ''; _pt = _r.get('period_to') or ''
+                _n = 0; _v = 0; _moved = 0
+                for _i in range(len(prods_r)):
+                    if _prods and prods_r[_i] not in _prods: continue
+                    if _mol and _mol not in str(molecules_r[_i]).upper(): continue
+                    if _doses and str(doses_r[_i]).upper() not in _doses: continue  # source says 'Tablet', cache shows 'TABLET'
+                    _per = str(periods_r[_i])[:7]
+                    if _pf and _per < _pf: continue
+                    if _pt and _per > _pt: continue
+                    if dm1s_r[_i] != _r['dm1']: _moved += 1
+                    dm1s_r[_i] = _r['dm1']; dm2s_r[_i] = _r.get('dm2', _r['dm1'])
+                    if _r.get('line'): lines_r[_i] = _r['line']
+                    if _r.get('bu'): bus_r[_i] = _r['bu']
+                    _n += 1; _v += lcvs_r[_i]
+                if _n:
+                    log(f"Override {_r.get('id')}: {_n} rows -> {_r['dm1']} ({_moved} re-mapped), LCV {_v:,}")
+                else:
+                    log(f"WARNING: override {_r.get('id')} matched 0 rows -- check the rule against the source")
+        else:
+            log('Product market overrides disabled in config -- skipped')
+    except Exception as e:
+        log(f'WARNING: product market overrides skipped ({e})')
 
 corp_codes, corps_list   = build_lookup(corps_r)
 prod_codes, prods_list   = build_lookup(prods_r)

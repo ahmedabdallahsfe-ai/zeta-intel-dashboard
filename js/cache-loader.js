@@ -84,6 +84,19 @@
       label: "List intelligence",
       version: "20261003_1529_auto",
     },
+    // LOCAL-ONLY pages (2026-10-08) -- git-ignored caches, never published.
+    rep360: {
+      file: "cache/rep360.data.js",
+      globalVar: "REP360_CACHE",
+      label: "Rep 360 scorecard",
+      version: "20261009_exp",
+    },
+    iqvia_geo: {
+      file: "cache/iqvia_geo.data.js",
+      globalVar: "IQVIA_GEO_CACHE",
+      label: "Territory market insights (IQVIA geo)",
+      version: "20261010_restate",
+    },
     ims_rx: {
       file: "cache/ims_rx.data.js",
       globalVar: "IMS_RX_CACHE",

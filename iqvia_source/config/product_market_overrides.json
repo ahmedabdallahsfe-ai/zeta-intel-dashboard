@@ -1,0 +1,25 @@
+{
+  "_comment": "Product-level IQVIA market overrides (2026-10-09, Ahmed: option B). Applied by refresh_iqvia.py AFTER the source rows are read and AFTER the corporate restatements, so a future IQVIA_SOURCE update (or a regenerated 'Market Mapping' sheet) cannot silently push these products back to OTHER MARKET. A row matches a rule when ALL given conditions match: products (exact Product name), molecule_contains (case-insensitive text in Molecule), doses (standard dosage form), period_from/period_to (YYYY-MM, inclusive). Matching rows get the rule's dm1 / dm2 / line / bu. Edit here, then re-run UPDATE_DASHBOARD.",
+  "enabled": true,
+  "overrides": [
+    {
+      "id": "LACOSAMIDE-TABLETS",
+      "why": "IQVIA_SOURCE of 2026-10-09 mapped every lacosamide competitor to OTHER MARKET (row-majority mapping), leaving Epilosamide alone in LACOSAMIDE_MKT (~100% share). Market = all lacosamide tablets, all brands, all periods.",
+      "molecule_contains": "LACOSAMIDE",
+      "doses": ["TABLET"],
+      "dm1": "LACOSAMIDE_MKT", "dm2": "LACOSAMIDE_MKT", "line": "CNS", "bu": "GIT"
+    },
+    {
+      "id": "DOZOVA-ASHWAGANDHA",
+      "why": "IQVIA_SOURCE of 2026-10-09 moved DOZOVA A KSM66 from ONLY_DOZOVA_ASHW to OTHER MARKET (CHC Zeta share fell 7.1% -> 4.4%).",
+      "products": ["DOZOVA A KSM66"],
+      "dm1": "ONLY_DOZOVA_ASHW", "dm2": "ONLY_DOZOVA_ASHW", "line": "CHC", "bu": "CHC"
+    },
+    {
+      "id": "DOZOVA-WOMAN-MAX",
+      "why": "The new 60-tablet pack of DOZOVA WOMAN MAX (Jul-Aug 2026) came in as OTHER MARKET.",
+      "products": ["DOZOVA WOMAN MAX"],
+      "dm1": "MAN_WOMEN_MULTI_VIT", "dm2": "WOMEN_MULTI_VIT", "line": "CHC", "bu": "CHC"
+    }
+  ]
+}
