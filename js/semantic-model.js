@@ -189,8 +189,18 @@
    * Normalize a raw line string from ANY of the four caches to the
    * canonical spelling used by CANONICAL_LINE_TO_BU.
    */
+  // 2026-10-12 PERF: normalizeLine() is pure (constant tables above) but is called once per
+  // sales row (~900k) on the Executive page; unknown spellings scanned every key each time.
+  // Results are memoised per raw string -- same answers, no repeated scans.
+  var _normLineMemo = Object.create(null);
   function normalizeLine(rawLine) {
     if (rawLine === null || rawLine === undefined) return null;
+    var k = typeof rawLine === "string" ? rawLine : String(rawLine);
+    var hit = _normLineMemo[k];
+    if (hit !== undefined) return hit;
+    return (_normLineMemo[k] = normalizeLineUncached(rawLine));
+  }
+  function normalizeLineUncached(rawLine) {
     var s = String(rawLine).trim();
     if (LINE_SYNONYMS.hasOwnProperty(s)) return LINE_SYNONYMS[s];
     // Case-insensitive fallback match against known canonical/synonym keys

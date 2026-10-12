@@ -31,8 +31,9 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--out', default=os.path.join(ROOT, 'Claude outputs', 'Market Forecast'))
 ap.add_argument('--perms', type=int, default=200)
 ap.add_argument('--no-xlsx', action='store_true')
+ap.add_argument('--cache', action='store_true', help='dashboard mode: write cache/market_forecast.data.js only (used by UPDATE_DASHBOARD)')
 ARGS = ap.parse_args()
-os.makedirs(ARGS.out, exist_ok=True)
+if not ARGS.cache: os.makedirs(ARGS.out, exist_ok=True)
 RNG = np.random.default_rng(20261012)
 
 # ── Proposed thresholds (PENDING Ahmed's approval; one place only) ───────────
@@ -422,6 +423,7 @@ for sg in segments:
         fc = dict(base); fc['basis_note'] = (f'FY{oy} LE = actual Jan-{MON[om-1]} {oy} + forecast {MON[om % 12]}-Dec. '
                                             f'Growth % = FY{TARGET_YEAR} / FY{oy} LE - 1 (FY{oy} is part-forecast).')
         fc['fy_last_actual'] = {'year': FULL_YEARS[-1], 'su': hist[str(FULL_YEARS[-1])]['su']}
+        fc['path'] = [float(v) for v in paths[sel]]   # monthly forecast, origin+1 .. Dec of target year
         # empirical interval
         if sel != 'RUNRATE' and sel in met and len(met[sel]['logerr']) >= CFG['interval_min_origins']:
             le_ = np.array(met[sel]['logerr']); scale = math.sqrt((cut + 6.5) / 6.5)
@@ -503,6 +505,30 @@ for sg in segments:
     assumptions.append(f'FY{oy} base is a Landing Estimate ({om} actual months + {cut} forecast months).')
     rec['why'] = {'facts': facts, 'assumptions': assumptions}
     results.append(rec)
+
+FUTURE = []
+for k in range(1, H + 1):
+    yy, mm = ym(O + k); FUTURE.append(f'{yy}-{mm:02d}')
+
+# ── Dashboard cache mode ─────────────────────────────────────────────────────
+if ARGS.cache:
+    slim = []
+    for r in results:
+        r2 = {k: v for k, v in r.items() if k != 'monthly_zeta_su'}
+        slim.append(r2)
+    meta_c = {'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'source': 'cache/iqvia.json',
+              'data_period': data_period, 'origin': P[O], 'target_year': TARGET_YEAR, 'horizon_months': H,
+              'periods': P, 'future_periods': FUTURE, 'full_years': FULL_YEARS, 'partial_year': oy, 'partial_months': om,
+              'measure': 'IQVIA Standard Units', 'config': CFG, 'models': MODEL_LABEL, 'global_checks': glob}
+    js = json.dumps({'meta': meta_c, 'segments': slim}, separators=(',', ':'))
+    b64 = base64.b64encode(gzip.compress(js.encode('utf-8'), compresslevel=9)).decode('ascii')
+    outp = os.path.join(ROOT, 'cache', 'market_forecast.data.js')
+    tmp = outp + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as fh:
+        fh.write('window.MARKET_FORECAST_CACHE = {b64Data:"' + b64 + '"};\n')
+    os.replace(tmp, outp)
+    print(f'OK: {len(results)} segments, origin {P[O]}, target FY{TARGET_YEAR} -> cache/market_forecast.data.js ({len(b64)/1e6:.2f} MB)')
+    sys.exit(0)
 
 # ── Write JSON ───────────────────────────────────────────────────────────────
 meta = {'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'source': 'cache/iqvia.json',

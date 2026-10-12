@@ -97,6 +97,13 @@
       label: "Territory market insights (IQVIA geo)",
       version: "20261012_1309_auto",
     },
+    // Market Growth Forecast (2026-10-12) -- etl/build_market_forecast.py --cache
+    market_forecast: {
+      file: "cache/market_forecast.data.js",
+      globalVar: "MARKET_FORECAST_CACHE",
+      label: "Market growth forecast",
+      version: "20261012_mforecast",
+    },
     ims_rx: {
       file: "cache/ims_rx.data.js",
       globalVar: "IMS_RX_CACHE",

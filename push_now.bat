@@ -112,6 +112,7 @@ REM UPDATE_DASHBOARD removes it from GitHub). Do not add it back here.
 "%GIT_CMD%" add -f cache/market_intel.data.js   2>nul
 "%GIT_CMD%" add -f cache/tms_ims.data.js        2>nul
 "%GIT_CMD%" add -f cache/iqvia_geo.data.js      2>nul
+"%GIT_CMD%" add -f cache/market_forecast.data.js 2>nul
 "%GIT_CMD%" add -A
 
 if errorlevel 1 (

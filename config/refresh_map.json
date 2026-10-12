@@ -67,6 +67,7 @@
     "tomarket":    "To-Market vs In-Market",
     "marketintel": "Total Market Intelligence",
     "territorymarket": "Territory Market Insights",
+    "marketforecast": "Market Growth Forecast",
     "sprint":      "Zeta Sprint 2026",
     "workingdays": "Field Working Days",
     "imsrx":       "IMS Rx",
@@ -161,6 +162,17 @@
       "outputs": ["cache/iqvia.data.js"],
       "git_extra": ["cache/iqvia.json"],
       "pages": ["iqvia", "executive", "login", "askdata"]
+    },
+    {
+      "id": "market_forecast",
+      "label": "Market Growth Forecast (FY next year, IQVIA SU)",
+      "commands": [["etl/build_market_forecast.py", "--cache"]],
+      "critical": false,
+      "sources": [],
+      "depends_on": ["iqvia"],
+      "outputs": ["cache/market_forecast.data.js"],
+      "pages": ["marketforecast"],
+      "_note": "Added 2026-10-12 (Ahmed). Reads only cache/iqvia.json (iqvia step) and re-runs the forecast + rolling backtest for every DM1/DM2/BU/Line (~20 s). Non-critical: on failure the previous cache is kept. Review workbook: python etl/build_market_forecast.py (no --cache) -> Claude outputs/Market Forecast/."
     },
     {
       "id": "auth",

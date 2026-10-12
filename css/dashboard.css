@@ -507,6 +507,246 @@ ul.issue-list li {
 }
 
 /* ==========================================================================
+   SFE Act-As Feature (Impersonate & View User Dashboard)
+   ========================================================================== */
+.topbar-actas-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #F1F5F9;
+  border: 1px solid #CBD5E1;
+  border-radius: 999px;
+  padding: 3px 6px 3px 8px;
+  transition: all 0.2s ease;
+}
+
+.topbar-actas-wrapper.is-acting-as {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+.actas-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0F172A;
+  white-space: nowrap;
+}
+
+.topbar-actas-wrapper.is-acting-as .actas-pill-text {
+  color: #92400E;
+}
+
+.actas-controls-flex {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.actas-select {
+  height: 26px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #0F172A;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  max-width: 140px;
+}
+
+.actas-select:focus {
+  border-color: #0284C7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+
+.actas-user-select {
+  max-width: 180px;
+}
+
+.actas-btn {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.actas-apply-btn {
+  background: #0284C7;
+  color: #FFFFFF;
+}
+
+.actas-apply-btn:hover:not(:disabled) {
+  background: #0369A1;
+}
+
+.actas-apply-btn:disabled {
+  background: #94A3B8;
+  color: #E2E8F0;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.actas-apply-btn.active {
+  background: #D97706;
+  animation: pulse-actas 2s infinite;
+}
+
+@keyframes pulse-actas {
+  0% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(217, 119, 6, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+}
+
+.actas-exit-btn {
+  background: rgba(220, 38, 38, 0.1);
+  color: #DC2626;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.actas-exit-btn:hover {
+  background: rgba(220, 38, 38, 0.2);
+}
+
+/* User Badge Enhancements for Act-As Mode */
+.topbar-user-badge.actas-active-badge {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+}
+
+.topbar-user-badge .badge-avatar.badge-avatar-actas {
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+}
+
+.topbar-user-badge .badge-actas-tag {
+  color: #D97706;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.topbar-user-badge .badge-revert {
+  background: rgba(217, 119, 6, 0.15);
+  border: 1px solid rgba(217, 119, 6, 0.4);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  color: #B45309;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.topbar-user-badge .badge-revert:hover {
+  background: #F59E0B;
+  color: #FFFFFF;
+}
+
+/* Global Act-As Sticky Alert Banner */
+.actas-banner-alert {
+  background: linear-gradient(90deg, #FEF3C7 0%, #FFFBEB 100%);
+  border-bottom: 2px solid #F59E0B;
+  padding: 8px 24px;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.1);
+  position: relative;
+  z-index: 50;
+  animation: slideDownActAs 0.3s ease;
+}
+
+@keyframes slideDownActAs {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.actas-banner-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.actas-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.actas-banner-badge {
+  background: #D97706;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.06em;
+}
+
+.actas-banner-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #92400E;
+}
+
+.actas-banner-role-tag {
+  background: #FDE68A;
+  color: #B45309;
+  border: 1px solid #F59E0B;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.actas-banner-scope-info {
+  font-size: 12px;
+  color: #78350F;
+  font-weight: 500;
+}
+
+.actas-banner-real-note {
+  font-size: 11px;
+  color: #A16207;
+  margin-left: 6px;
+}
+
+.actas-banner-exit-btn {
+  background: #D97706;
+  color: #FFFFFF;
+  border: 1px solid #B45309;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.actas-banner-exit-btn:hover {
+  background: #B45309;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+/* ==========================================================================
    Phase 3: filter bar, sections, KPI cards, charts, tables
    (Layout/functionality pass -- final visual polish is Phase 4.)
    ========================================================================== */

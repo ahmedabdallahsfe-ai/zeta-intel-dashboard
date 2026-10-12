@@ -33,6 +33,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (signedInUser) {
     hideLoginGate();
     renderTopbarUserBadge();
+    renderActAsBanner();
+    renderActAsControls();
     startApp();
   }
   // Else: the gate is visible by default (no "hidden" class in the HTML) --
@@ -62,6 +64,8 @@ function wireLoginGate() {
     if (result.ok) {
       hideLoginGate();
       renderTopbarUserBadge();
+      renderActAsBanner();
+      renderActAsControls();
       startApp();
     } else {
       errEl.textContent = result.error;
@@ -188,20 +192,287 @@ function renderTopbarUserBadge() {
   if (!slot || !window.AUTH) return;
   const user = window.AUTH.getValidSessionUser();
   if (!user) { slot.innerHTML = ""; return; }
+  const isActing = window.AUTH.isActingAs && window.AUTH.isActingAs();
+  const realUser = window.AUTH.getRealSessionUser ? window.AUTH.getRealSessionUser() : user;
+
   slot.innerHTML = `
-    <div class="topbar-user-badge">
-      <div class="badge-avatar">
+    <div class="topbar-user-badge ${isActing ? 'actas-active-badge' : ''}" title="${isActing ? `Acting as ${user.name} (${user.role}) — Logged in as ${realUser.name}` : user.name}">
+      <div class="badge-avatar ${isActing ? 'badge-avatar-actas' : ''}">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
       </div>
       <div class="badge-info">
         <span class="badge-name">${user.name}</span>
-        <span class="badge-role">${user.role}</span>
+        <span class="badge-role">${user.role}${isActing ? ' <span class="badge-actas-tag">(ACT AS)</span>' : ''}</span>
       </div>
+      ${isActing ? `<div class="badge-revert" id="topbar-revert-btn" title="Revert to ${realUser.name}">Revert</div>` : ''}
       <div class="badge-signout" id="topbar-signout-btn">Sign out</div>
     </div>
   `;
   const signoutBtn = document.getElementById("topbar-signout-btn");
   if (signoutBtn) signoutBtn.addEventListener("click", () => window.AUTH.logout());
+  const revertBtn = document.getElementById("topbar-revert-btn");
+  if (revertBtn) {
+    revertBtn.addEventListener("click", () => {
+      try {
+        if (window.currentTab) {
+          sessionStorage.setItem("zeta_active_tab", window.currentTab);
+        }
+      } catch (e) {}
+      window.AUTH.stopActAs();
+      location.reload();
+    });
+  }
+}
+
+/**
+ * Renders the SFE "Act As" dropdown selector in the topbar.
+ * Allows an SFE Manager to select a Title (Role) and a User,
+ * and view the dashboard exactly as that user sees their page.
+ */
+function renderActAsControls() {
+  const slot = document.getElementById("topbar-actas-slot");
+  if (!slot || !window.AUTH) return;
+
+  if (!window.AUTH.canActAs || !window.AUTH.canActAs()) {
+    slot.innerHTML = "";
+    return;
+  }
+
+  const allUsersObj = window.AUTH.getAllUsers ? window.AUTH.getAllUsers() : {};
+  const allUsersList = Object.keys(allUsersObj).map(email => Object.assign({ email: email }, allUsersObj[email]));
+
+  // Distinct roles / titles
+  const roleSet = new Set();
+  allUsersList.forEach(u => {
+    if (u.role) roleSet.add(u.role);
+  });
+
+  const roleOrder = [
+    "BU Manager",
+    "Line Manager",
+    "Group Brand Manager",
+    "Commercial Manager",
+    "Marketing Consultant",
+    "CEO",
+    "VP",
+    "BEX",
+    "Admin",
+    "SFE Manager"
+  ];
+
+  const sortedRoles = Array.from(roleSet).sort((a, b) => {
+    const ia = roleOrder.indexOf(a);
+    const ib = roleOrder.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  const isActing = window.AUTH.isActingAs && window.AUTH.isActingAs();
+  const activeUser = window.AUTH.getValidSessionUser();
+  const currentRole = isActing && activeUser ? activeUser.role : "";
+  const currentEmail = isActing && activeUser ? (activeUser.email || "") : "";
+
+  function formatUserOptionText(u) {
+    var parts = [];
+    if (u.lines && u.lines.length) parts.push(u.lines.join(", "));
+    if (u.bu && u.bu.length) parts.push(u.bu.join(", "));
+    var scopeStr = parts.length ? " — " + parts.join(" | ") : "";
+    return u.name + scopeStr;
+  }
+
+  slot.innerHTML = `
+    <div class="topbar-actas-wrapper ${isActing ? 'is-acting-as' : ''}">
+      <div class="actas-pill" title="SFE Impersonation: Select Title and User to see his page">
+        <span class="actas-pill-icon">🎭</span>
+        <span class="actas-pill-text">Act As:</span>
+      </div>
+      <div class="actas-controls-flex">
+        <select id="actas-title-select" class="actas-select actas-title-select" title="Select Title / Role">
+          <option value="">All Titles</option>
+          ${sortedRoles.map(r => `<option value="${r}" ${r === currentRole ? "selected" : ""}>${r}</option>`).join("")}
+        </select>
+        <select id="actas-user-select" class="actas-select actas-user-select" title="Select User">
+          <option value="">Select User...</option>
+        </select>
+        <button type="button" id="actas-apply-btn" class="actas-btn actas-apply-btn" title="View dashboard as selected user">
+          View Page
+        </button>
+        ${isActing ? `
+          <button type="button" id="actas-exit-btn" class="actas-btn actas-exit-btn" title="Revert to SFE Manager view">
+            ✕ Exit
+          </button>
+        ` : ''}
+      </div>
+    </div>
+  `;
+
+  const titleSelect = document.getElementById("actas-title-select");
+  const userSelect = document.getElementById("actas-user-select");
+  const applyBtn = document.getElementById("actas-apply-btn");
+  const exitBtn = document.getElementById("actas-exit-btn");
+
+  function populateUsers(selectedRole, preselectEmail) {
+    if (!userSelect) return;
+    userSelect.innerHTML = "";
+
+    if (!selectedRole) {
+      userSelect.innerHTML = `<option value="">Select User (${allUsersList.length})...</option>`;
+      sortedRoles.forEach(r => {
+        const groupUsers = allUsersList.filter(u => u.role === r);
+        if (groupUsers.length) {
+          const optgroup = document.createElement("optgroup");
+          optgroup.label = r;
+          groupUsers.forEach(u => {
+            const opt = document.createElement("option");
+            opt.value = u.email;
+            opt.textContent = formatUserOptionText(u);
+            if (preselectEmail && u.email === preselectEmail) opt.selected = true;
+            optgroup.appendChild(opt);
+          });
+          userSelect.appendChild(optgroup);
+        }
+      });
+    } else {
+      const filtered = allUsersList.filter(u => u.role === selectedRole);
+      userSelect.innerHTML = `<option value="">Select ${selectedRole} (${filtered.length})...</option>`;
+      filtered.forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = u.email;
+        opt.textContent = formatUserOptionText(u);
+        if (preselectEmail && u.email === preselectEmail) opt.selected = true;
+        userSelect.appendChild(opt);
+      });
+    }
+
+    updateApplyBtnState();
+  }
+
+  function updateApplyBtnState() {
+    if (!applyBtn || !userSelect) return;
+    const selectedEmail = userSelect.value;
+    if (!selectedEmail) {
+      applyBtn.disabled = true;
+      applyBtn.classList.remove("active");
+    } else if (isActing && selectedEmail === currentEmail) {
+      applyBtn.disabled = true;
+      applyBtn.classList.remove("active");
+    } else {
+      applyBtn.disabled = false;
+      applyBtn.classList.add("active");
+    }
+  }
+
+  populateUsers(currentRole, currentEmail);
+
+  if (titleSelect) {
+    titleSelect.addEventListener("change", () => {
+      populateUsers(titleSelect.value, "");
+    });
+  }
+
+  if (userSelect) {
+    userSelect.addEventListener("change", () => {
+      const selEmail = userSelect.value;
+      if (selEmail && !titleSelect.value) {
+        const u = allUsersObj[selEmail];
+        if (u && u.role) {
+          titleSelect.value = u.role;
+        }
+      }
+      updateApplyBtnState();
+    });
+  }
+
+  if (applyBtn) {
+    applyBtn.addEventListener("click", () => {
+      const selEmail = userSelect.value;
+      if (!selEmail) return;
+      try {
+        if (window.currentTab) {
+          sessionStorage.setItem("zeta_active_tab", window.currentTab);
+        }
+      } catch (e) {}
+      window.AUTH.actAs(selEmail);
+      location.reload();
+    });
+  }
+
+  if (exitBtn) {
+    exitBtn.addEventListener("click", () => {
+      try {
+        if (window.currentTab) {
+          sessionStorage.setItem("zeta_active_tab", window.currentTab);
+        }
+      } catch (e) {}
+      window.AUTH.stopActAs();
+      location.reload();
+    });
+  }
+}
+
+/**
+ * Renders the prominent alert banner when an Act-As session is active.
+ */
+function renderActAsBanner() {
+  const slot = document.getElementById("actas-banner-slot");
+  if (!slot || !window.AUTH) return;
+
+  if (!window.AUTH.isActingAs || !window.AUTH.isActingAs()) {
+    slot.innerHTML = "";
+    return;
+  }
+
+  const activeUser = window.AUTH.getValidSessionUser();
+  const realUser = window.AUTH.getRealSessionUser ? window.AUTH.getRealSessionUser() : activeUser;
+  if (!activeUser || !realUser) {
+    slot.innerHTML = "";
+    return;
+  }
+
+  let scopeParts = [];
+  if (activeUser.bu && activeUser.bu.length) {
+    scopeParts.push(`BU: <strong>${activeUser.bu.join(", ")}</strong>`);
+  }
+  if (activeUser.lines && activeUser.lines.length) {
+    scopeParts.push(`Lines: <strong>${activeUser.lines.join(", ")}</strong>`);
+  }
+  const scopeHtml = scopeParts.length
+    ? `<span class="actas-banner-scope-info">${scopeParts.join(" &bull; ")}</span>`
+    : `<span class="actas-banner-scope-info">Scope: Company-Wide</span>`;
+
+  slot.innerHTML = `
+    <div class="actas-banner-alert" id="actas-banner-alert">
+      <div class="actas-banner-inner">
+        <div class="actas-banner-left">
+          <span class="actas-banner-badge">ACTING AS</span>
+          <span class="actas-banner-name">${activeUser.name}</span>
+          <span class="actas-banner-role-tag">${activeUser.role}</span>
+          ${scopeHtml}
+          <span class="actas-banner-real-note">Logged in as: <strong>${realUser.name}</strong> (${realUser.role})</span>
+        </div>
+        <div class="actas-banner-right">
+          <button type="button" class="actas-banner-exit-btn" id="actas-banner-revert-btn" title="Revert to your SFE view">
+            ✕ Revert to SFE Manager
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const revertBtn = document.getElementById("actas-banner-revert-btn");
+  if (revertBtn) {
+    revertBtn.addEventListener("click", () => {
+      try {
+        if (window.currentTab) {
+          sessionStorage.setItem("zeta_active_tab", window.currentTab);
+        }
+      } catch (e) {}
+      window.AUTH.stopActAs();
+      location.reload();
+    });
+  }
 }
 
 window.openNotifCenterModal = function() {
@@ -427,6 +698,8 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Rep 360° Scorecard";
     } else if (tab === "territorymarket") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Territory Market Insights";
+    } else if (tab === "marketforecast") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Market Growth Forecast";
     } else if (tab === "bureview") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - BU Business Review";
     } else if (tab === "workingdays") {
@@ -561,7 +834,7 @@ function startAppBody() {
   }
 
   // LOCAL-ONLY pages (2026-10-08) -- see renderRep360Tab / renderTerritoryMarketTab.
-  [["menu-item-rep360", "canViewRep360"], ["menu-item-territorymarket", "canViewTerritoryMarket"]].forEach(([id, fn]) => {
+  [["menu-item-rep360", "canViewRep360"], ["menu-item-territorymarket", "canViewTerritoryMarket"], ["menu-item-marketforecast", "canViewMarketForecast"]].forEach(([id, fn]) => {
     const el = document.getElementById(id);
     if (el) el.style.display = (window.AUTH && typeof window.AUTH[fn] === "function" && window.AUTH[fn]()) ? "" : "none";
   });
@@ -707,6 +980,9 @@ function startAppBody() {
       if (currentTab === "territorymarket" && window.TerritoryMarketDashboard) {
         window.TerritoryMarketDashboard.destroy();
       }
+      if (currentTab === "marketforecast" && window.MarketForecastDashboard) {
+        window.MarketForecastDashboard.destroy();
+      }
       if (currentTab === "bureview" && window.BuReviewDashboard) {
         window.BuReviewDashboard.destroy();
       }
@@ -735,6 +1011,8 @@ function startAppBody() {
         window.CoachingDashboard.destroy();
       }
       currentTab = tab;
+      window.currentTab = tab;
+      try { sessionStorage.setItem("zeta_active_tab", tab); } catch (e) {}
       updateTopbarTitle(tab);
 
       // Perf fix (2026-08-01, "navigation between pages are slow"): tab
@@ -856,6 +1134,11 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             await renderTerritoryMarketTab(document.getElementById("app-root"));
+          } else if (tab === "marketforecast") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderMarketForecastTab(document.getElementById("app-root"));
           } else if (tab === "bureview") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
@@ -888,6 +1171,18 @@ function startAppBody() {
       });
     });
   });
+
+  // If a previously saved tab exists (e.g. from switching perspective via Act As),
+  // restore it if the current active user is permitted to view it.
+  try {
+    const savedTab = sessionStorage.getItem("zeta_active_tab");
+    if (savedTab && savedTab !== "executive") {
+      const tabBtn = document.querySelector(`#sidebar-nav .menu-item[data-tab="${savedTab}"]`);
+      if (tabBtn && tabBtn.style.display !== "none") {
+        window.switchTab(savedTab);
+      }
+    }
+  } catch (e) {}
 
   Loader.hide();
   wireNotSeenModal();
@@ -1215,6 +1510,29 @@ async function renderTerritoryMarketTab(container) {
   if (currentTab !== "territorymarket") return;
   if (window.TerritoryMarketDashboard) window.TerritoryMarketDashboard.init("app-root");
   else container.innerHTML = "<p style=\"padding:24px\">js/iqvia-geo.js not found in the dashboard folder.</p>";
+}
+
+// Market Growth Forecast (2026-10-12): FY next-year IQVIA Standard Units forecast per market.
+// SFE Manager / SFE / Admin (auth.js canViewMarketForecast); cache is lazy (CacheLoader).
+async function renderMarketForecastTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewMarketForecast === "function" ? window.AUTH.canViewMarketForecast() : false;
+  if (!allowed) {
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "The Market Growth Forecast is available to SFE and BEX roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Growth Forecast…</div>';
+  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261012_mf1"), loadLocalAsset("js/market-forecast.js?v=20261012_mf1"),
+    window.CacheLoader ? window.CacheLoader.ensure("market_forecast") : Promise.resolve(false)]);
+  if (currentTab !== "marketforecast") return;
+  if (window.MarketForecastDashboard) window.MarketForecastDashboard.init("app-root");
+  else container.innerHTML = "<p style=\"padding:24px\">js/market-forecast.js not found in the dashboard folder.</p>";
 }
 
 /**

@@ -49,10 +49,42 @@
 
   var SALT = "ZETA2026INTEL";
   var SESSION_KEY = "zeta_session";
+  var ACT_AS_KEY = "zeta_act_as";
   var SESSION_TTL_MS = 8 * 3600 * 1000;
 
+  // 2026-10-12 PERF FIX (dashboard stuck on "Loading dashboard..."): users() rebuilds the
+  // merged user map and getValidSessionUser() re-reads localStorage/sessionStorage on EVERY
+  // call. isLineAllowed()/isBuAllowed() call them once per row (893k sales rows), so the
+  // first render took minutes. Both results are now memoised for the current task only
+  // (cleared by a setTimeout(0) and immediately by login/actAs/stopActAs/logout), so the
+  // logic and the answers are unchanged -- only repeated identical work is skipped.
+  var _authMemo = { users: null, vsu: undefined, armed: false };
+  function resetAuthMemo() { _authMemo.users = null; _authMemo.vsu = undefined; }
+  function armAuthMemo() {
+    if (_authMemo.armed) return;
+    _authMemo.armed = true;
+    setTimeout(function () { _authMemo.armed = false; resetAuthMemo(); }, 0);
+  }
+
   function users() {
-    return global.AUTH_USERS || (global.IQVIA_CACHE && global.IQVIA_CACHE.users) || {};
+    if (_authMemo.users) return _authMemo.users;
+    var u1 = (global.IQVIA_CACHE && global.IQVIA_CACHE.users) || {};
+    var u2 = global.AUTH_USERS || {};
+    var out = {};
+    for (var k2 in u2) {
+      if (u2.hasOwnProperty(k2)) {
+        var rec2 = u2[k2];
+        out[k2] = Object.assign({ email: k2 }, rec2);
+      }
+    }
+    for (var k1 in u1) {
+      if (u1.hasOwnProperty(k1)) {
+        var rec1 = u1[k1];
+        out[k1] = Object.assign({ email: k1 }, rec1);
+      }
+    }
+    _authMemo.users = out; armAuthMemo();
+    return out;
   }
 
   async function sha256(str) {
@@ -61,13 +93,10 @@
   }
 
   /**
-   * Pure session check -- no DOM access, no side effects. The single
-   * authentication rule for the whole platform: a valid, unexpired
-   * zeta_session pointing at a known user. Every workspace (Coverage,
-   * SFE, Sales, Executive, IQVIA) that needs to know "is someone
-   * signed in, and who" calls this, never localStorage directly.
+   * Returns the REAL authenticated session user from localStorage
+   * (the actual account that signed in with credentials).
    */
-  function getValidSessionUser() {
+  function getRealSessionUser() {
     try {
       var s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
       if (s && s.expires > Date.now()) {
@@ -76,6 +105,104 @@
       }
     } catch (e) {}
     return null;
+  }
+
+  /**
+   * SFE ACT-AS ENTITLEMENT:
+   * Only SFE Manager (or Admin) accounts are permitted to "Act As"
+   * other titles/users to inspect and verify their dashboards.
+   */
+  function canActAs() {
+    var real = getRealSessionUser();
+    if (!real) return false;
+    var r = String(real.role || "").trim();
+    return r === "SFE Manager" || r === "Admin" || r.toLowerCase().indexOf("sfe") >= 0;
+  }
+
+  /**
+   * Whether an Act-As impersonation session is currently active.
+   */
+  function isActingAs() {
+    if (!canActAs()) return false;
+    try {
+      var targetEmail = sessionStorage.getItem(ACT_AS_KEY);
+      if (targetEmail) {
+        var targetUser = users()[targetEmail.trim().toLowerCase()];
+        return !!targetUser;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  /**
+   * Returns the user object currently being acted as, if active.
+   */
+  function getActAsUser() {
+    if (!canActAs()) return null;
+    try {
+      var targetEmail = sessionStorage.getItem(ACT_AS_KEY);
+      if (targetEmail) {
+        var targetUser = users()[targetEmail.trim().toLowerCase()];
+        if (targetUser) return targetUser;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  /**
+   * Switch perspective to act as a target user (by email).
+   */
+  function actAs(email) {
+    if (!canActAs()) return false;
+    email = String(email || "").trim().toLowerCase();
+    var targetUser = users()[email];
+    if (!targetUser) return false;
+    try {
+      sessionStorage.setItem(ACT_AS_KEY, email);
+      sessionStorage.removeItem(ACTIVE_SCENARIO_KEY);
+    } catch (e) {
+      return false;
+    }
+    resetAuthMemo();
+    return true;
+  }
+
+  /**
+   * Stop acting as another user and revert back to SFE Manager view.
+   */
+  function stopActAs() {
+    try {
+      sessionStorage.removeItem(ACT_AS_KEY);
+      sessionStorage.removeItem(ACTIVE_SCENARIO_KEY);
+    } catch (e) {}
+    resetAuthMemo();
+    return true;
+  }
+
+  /**
+   * Pure session check -- no DOM access, no side effects. The single
+   * authentication rule for the whole platform: a valid, unexpired
+   * zeta_session pointing at a known user.
+   *
+   * If the authenticated session belongs to an SFE Manager and an
+   * "Act As" selection is active, this returns the acted-as user,
+   * causing the entire dashboard (scopes, tabs, filters, scenarios)
+   * to transparently render that user's view.
+   */
+  function getValidSessionUser() {
+    if (_authMemo.vsu !== undefined) return _authMemo.vsu;
+    var v = computeValidSessionUser();
+    _authMemo.vsu = v; armAuthMemo();
+    return v;
+  }
+  function computeValidSessionUser() {
+    var real = getRealSessionUser();
+    if (!real) return null;
+    if (canActAs()) {
+      var act = getActAsUser();
+      if (act) return act;
+    }
+    return real;
   }
 
   /**
@@ -96,6 +223,7 @@
         role: user.role,
         expires: Date.now() + SESSION_TTL_MS
       }));
+      resetAuthMemo();
       return { ok: true, user: user };
     } catch (e) {
       return { ok: false, error: "Login error. Try again." };
@@ -103,8 +231,13 @@
   }
 
   function logout() {
-    localStorage.removeItem(SESSION_KEY);
-    try { sessionStorage.removeItem(ACTIVE_SCENARIO_KEY); } catch (e) {}
+    resetAuthMemo();
+    try {
+      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(ACTIVE_SCENARIO_KEY);
+      sessionStorage.removeItem(ACT_AS_KEY);
+      sessionStorage.removeItem("zeta_active_tab");
+    } catch (e) {}
     location.reload();
   }
 
@@ -334,6 +467,19 @@
       return !u.bu.every(function (b) { return normalizeBuFallback(b) === "CHC"; });
     }
     return true;
+  }
+
+  // -------------------------------------------------------------------
+  // MARKET GROWTH FORECAST (2026-10-12, Ahmed): FY next-year market forecast
+  // in IQVIA Standard Units (js/market-forecast.js, cache/market_forecast.data.js).
+  // 2026-10-12 (Ahmed): published for SFE and BEX roles only (+ Admin). The page
+  // also scopes markets with isBuAllowed / isLineAllowed.
+  // -------------------------------------------------------------------
+  var MARKET_FORECAST_ROLES = ["SFE Manager", "SFE", "sfe", "BEX", "bex", "Admin"];
+  function canViewMarketForecast() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    return MARKET_FORECAST_ROLES.indexOf(u.role) >= 0 || (u.role && String(u.role).toLowerCase().indexOf("sfe") >= 0);
   }
 
   // -------------------------------------------------------------------
@@ -749,6 +895,7 @@
     isLocalRun: isLocalRun,
     canViewRep360: canViewRep360,
     canViewTerritoryMarket: canViewTerritoryMarket,
+    canViewMarketForecast: canViewMarketForecast,
     TERRITORY_MARKET_ROLES: TERRITORY_MARKET_ROLES,
     LOCAL_PAGE_ROLES: LOCAL_PAGE_ROLES,
     canViewListIntel: canViewListIntel,
@@ -776,6 +923,13 @@
     canDownloadCorporateBusinessReview: canDownloadCorporateBusinessReview,
     canDownloadBuBusinessReview: canDownloadBuBusinessReview,
     getActiveScenario: getActiveScenario,
-    setActiveScenario: setActiveScenario
+    setActiveScenario: setActiveScenario,
+    getRealSessionUser: getRealSessionUser,
+    canActAs: canActAs,
+    isActingAs: isActingAs,
+    getActAsUser: getActAsUser,
+    actAs: actAs,
+    stopActAs: stopActAs,
+    getAllUsers: users
   };
 })(window);

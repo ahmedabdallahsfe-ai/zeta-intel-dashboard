@@ -166,6 +166,10 @@
           <span class="menu-icon">🌍</span>
           <span class="menu-label">Market Intelligence</span>
         </li>
+        <li class="menu-item" data-tab="marketforecast" id="menu-item-marketforecast" style="display:none;">
+          <span class="menu-icon">📈</span>
+          <span class="menu-label">Market Growth Forecast</span>
+        </li>
         <li class="menu-item" data-tab="territorymarket" id="menu-item-territorymarket" style="display:none;">
           <span class="menu-icon">🗺️</span>
           <span class="menu-label">Territory Market Insights</span>
@@ -220,6 +224,8 @@
       <h1 id="topbar-title">Zeta Commercial Excellence Dashboard</h1>
     </div>
     <div class="topbar-actions">
+      <!-- Act As slot for SFE / Admin impersonation -->
+      <div id="topbar-actas-slot"></div>
       <div id="topbar-user-badge-slot"></div>
       <button type="button" id="topbar-notif-btn" class="topbar-export-btn notif-center-btn" style="background:#0F172A; color:#38BDF8; border:1px solid #334155; display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:600;" onclick="toggleNotifCenterModal(event)">
         <span style="font-size:14px;">🔔</span>
@@ -229,6 +235,9 @@
       <button type="button" id="topbar-export-pdf" class="topbar-export-btn" title="Export the dashboard as PDF">Export PDF</button>
     </div>
   </header>
+
+  <!-- Act As banner slot (shows sticky banner when impersonation is active) -->
+  <div id="actas-banner-slot"></div>
 
       <div class="filter-bar-wrap">
     <div id="filter-bar" class="filter-bar"></div>
@@ -355,7 +364,7 @@
 
   <!-- App-wide authentication roster & loader -->
   <script defer src="cache/auth.data.js?v=20260930_trainer"></script>
-  <script defer src="js/auth.js?v=20261012_tm"></script>
+  <script defer src="js/auth.js?v=20261012_authperf"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script defer src="js/config.js?v=20260924_buhead"></script>
@@ -366,7 +375,7 @@
 
   <!-- Enterprise semantic layer (Phase 4-lite): Line -> Business Unit crosswalk.
        Self-contained (no cache dependency) -- shared by every getBusinessSummary(). -->
-  <script defer src="js/semantic-model.js?v=20260804_tomarket_bumgr"></script>
+  <script defer src="js/semantic-model.js?v=20261012_linememo"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
   <script defer src="js/cache-loader.js?v=20261012_1309_auto"></script>
@@ -484,7 +493,7 @@
   <script defer src="js/ask-sales.js?v=20260921_askq2"></script>
   <script defer src="js/ask-sfe.js?v=20260921_askq2"></script>
   <script defer src="js/ask-executive.js?v=20260921_askq2"></script>
-  <script defer src="js/app.js?v=20261012_guard"></script>
+  <script defer src="js/app.js?v=20261012_mforecast"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

@@ -29,7 +29,7 @@
     ['Overview',    ['executive']],
     ['Field Force', ['coverage', 'listintel', 'rep360', 'coaching', 'workingdays', 'sprint', 'sfe']],
     ['Sales',       ['sales', 'tomarket']],
-    ['Market',      ['iqvia', 'territorymarket', 'marketintel', 'imsrx', 'marketnews', 'regulatory']]
+    ['Market',      ['iqvia', 'marketforecast', 'territorymarket', 'marketintel', 'imsrx', 'marketnews', 'regulatory']]
   ];
   function buildSidebar() {
     var ul = document.querySelector('.sidebar-menu');
