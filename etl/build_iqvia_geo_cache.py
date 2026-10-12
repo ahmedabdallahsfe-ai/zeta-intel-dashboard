@@ -60,6 +60,18 @@ STORE_SUBTYPES = {'Stores', 'SubAgent'}
 ANCHOR_IGNORE = ['ZETACOLEST PLUS']  # no IQVIA territory data for its market -> not shown on the page
 SALES = [('Q1_Sales.xlsx', 'SalesPerDistributor'), ('Q2_Sales.xlsx', 'SalesPerDistributor'), ('june.xlsx', 'SalesPerDistributor'), ('Q3_SALES.xlsx', 'July-Sep')]
 NATIONAL_POS = '— National (no position)'
+# ---- Zeta in-house sales vs target by position (2026-10-11, Ahmed: target contribution + achievement in the position drill-down) ----
+# Source cache/sales.data.js (read-only) with the SAME rules as the Sales page / Rep 360: actual = non-mirror rows Value;
+# target = mirror rows (mask&16) TargetValue, Shortage = mask&64, Official = mask&32, else Working, per-line fallback chain
+# from meta.scenarioCoverage. Position = sales lookups rep_positions. Geo Zeta brand -> (sales brands, product regex).
+SALES_TGT_MAP = {'BILASTIGEC (tablets)': (['BILASTIGEC'], r'TAB'), 'BILASTIGEC syrup': (['BILASTIGEC'], r'SYRUP'),
+    'COXORIZET': (['COXORIZET'], ''), 'DUXNORZET 60': (['DUXNORZET'], r'(?<![\d.])60\s?MG'), 'ELIMBOSIS 2.5 mg': (['ELIMBOSIS'], r'2\.5\s?MG'),
+    'Elimbosis 5 mg': (['ELIMBOSIS'], r'(?<![\d.])5\s?MG'), 'EMPACOMBOMET': (['EMPACOMBOMET'], ''), 'EMPACOZA': (['EMPACOZA'], ''),
+    'EMPACOZA PLUS': (['EMPACOZA PLUS'], ''), 'EMPACOZA TRIO XR': (['EMPACOZA TRIO'], ''), 'EPILOSAMIDE': (['EPILOSMIDE', 'EPILOSAMIDE'], ''),
+    'MEDIHYALO': (['MEDIHYALO'], ''), 'NEXICURE PLUS': (['NEXICURE PLUS CAP', 'NEXICURE PLUS SACHETS'], ''), 'NEXICURE Sachet': (['NEXICURE'], r'SACH'),
+    'NEXICURE Solid Oral (20;40)': (['NEXICURE'], r'TAB'), 'NEXIROZOVA': (['NEXIROZOVA'], ''), 'PRUCANETIC': (['PRUCANETIC'], ''),
+    'ULCEBISMO': (['ULCEBISMO'], ''), 'VONSECA 10;20': (['VONSECA'], ''), 'ZETACOLEST': (['ZETACOLEST'], ''), 'ZETAZOLEX': (['ZETAZOLEX'], ''),
+    'ZKARDOVAL': (['ZETAKARDOVAL'], '')}
 
 def norm(x): return ' '.join(str(x).upper().split())
 
@@ -140,6 +152,53 @@ def iq_sector():
     d = dict(out); pickle.dump({'key': key, 'd': d}, open(cp, 'wb'))
     return d
 
+def sales_targets():
+    # {'months': [...], 'b': {geo brand: {'nat': [[act, off, work, short] x month], 'pos': {sales position: [[...] x month]}}}}
+    import pickle, re as _re
+    src = os.path.join(ROOT, 'cache', 'sales.data.js')
+    key = [os.path.getsize(src), int(os.path.getmtime(src)), sorted((k, tuple(v[0]), v[1]) for k, v in SALES_TGT_MAP.items())]
+    cp = os.path.join(ROOT, 'cache', '.iqvia_geo_src', 'sales_tgt.pkl'); os.makedirs(os.path.dirname(cp), exist_ok=True)
+    if os.path.exists(cp):
+        c = pickle.load(open(cp, 'rb'))
+        if c['key'] == key: return c['d']
+    txt = open(src, encoding='utf-8').read(); m = _re.search(r'b64Data\s*:\s*"([^"]+)"', txt); del txt
+    S = json.loads(gzip.decompress(base64.b64decode(m.group(1)))); lk = S['lookups']; M = lk['months']
+    COV = S['meta'].get('scenarioCoverage') or {}
+    CHAIN = {'official': ['official', 'working'], 'working': ['working', 'official'], 'shortage': ['shortage', 'working', 'official']}
+    SCI = {'official': 1, 'working': 2, 'shortage': 3}
+    def resolved(line, req):
+        cov = COV.get(line)
+        return next((c for c in CHAIN[req] if cov.get(c)), req) if cov else req
+    RES = {(li, req): resolved(ln, req) for li, ln in enumerate(lk['lines']) for req in SCI}
+    # (brand idx, product idx) -> [geo brands]
+    bidx = {b.upper(): i for i, b in enumerate(lk['brands'])}; hit = collections.defaultdict(list)
+    for gb, (sbs, rx) in SALES_TGT_MAP.items():
+        for sb in sbs:
+            if sb.upper() not in bidx: continue
+            for pi, pn in enumerate(lk['products']):
+                pn_ = ' '.join(str(pn).replace('\xa0', ' ').upper().split())
+                if not rx or _re.search(rx, pn_):  # rows are matched on (brand, product), so the brand filter comes from the row
+                    hit[(bidx[sb.upper()], pi)].append(gb)
+    out = {gb: {'nat': [[0.0] * 4 for _ in M], 'pos': collections.defaultdict(lambda: [[0.0] * 4 for _ in M])} for gb in SALES_TGT_MAP}
+    for r in S['rows']:
+        gbs = hit.get((r[2], r[3]))
+        if not gbs: continue
+        mask = r[17]
+        if mask & 16:
+            sc = 'shortage' if mask & 64 else 'official' if mask & 32 else 'working'
+            ks = [SCI[q] for q in SCI if RES[(r[1], q)] == sc]
+            if not ks: continue
+            v = r[21]
+        else:
+            ks = [0]; v = r[19]
+        pos = lk['rep_positions'][r[4]] or ''
+        for gb in gbs:
+            a = out[gb]['nat'][r[0]]; b = out[gb]['pos'][pos][r[0]]
+            for k in ks: a[k] += v; b[k] += v
+    d = {'months': M, 'b': {gb: {'nat': o['nat'], 'pos': dict(o['pos'])} for gb, o in out.items() if any(any(x) for x in o['nat'])}}
+    pickle.dump({'key': key, 'd': d}, open(cp, 'wb'))
+    return d
+
 def fail(msg):
     print('[iqvia_geo] CHECK FAILED:', msg); sys.exit(1)
 
@@ -149,6 +208,7 @@ def main():
     # big side sources first (cached), before the territory workbook is in memory
     IQS = iq_sector() if (FORM_SPLIT or ANCHOR_NEW) else {}; gc.collect()
     IW = inhouse_weights() if (ANCHOR_NEW or STORE_SPLIT) else {}; gc.collect()
+    TG = sales_targets(); gc.collect()
     wb = CalamineWorkbook.from_path(SRC)
     dall = sheet(wb, 'Egypt Sales Territory Data')
     d = dall[dall['Data Source'] == 'IQVIA Actual'].copy()
@@ -376,7 +436,18 @@ def main():
             'ytd': f"{fm(P['ytd'][0])}–{fm(P['ytd'][1])}", 'pytd': f"{fm(P['pytd'][0])}–{fm(P['pytd'][1])}",
             'org': 'Total Organogram July 2026', 'calls': 'CRM doctor visits (Medical Reps), records cache',
             'iqviaTotal': round(total_R), 'anchored': ANC_META, 'formSplit': FS_META, 'filled': filled, 'callsMatched': matched, 'months': [pd.Timestamp(m).strftime('%Y-%m') for m in months]}
-    out = {'meta': meta, 'bricks': B, 'markets': MK, 'brands': BRD, 'facts': facts, 'pos': POS, 'alloc': alloc, 'anch': ANC, 'anchBrands': ANB, 'anchInt': ANCHOR_INTEGRATE + list(ANCHOR_NEW), 'pfacts': pfacts}
+    # sales vs target by position (geo position index); positions not in the organogram stay only in the national totals
+    TGT = {'months': TG['months'], 'cols': ['actual', 'official', 'working', 'shortage'], 'b': {}}; tg_un = 0.0
+    for gb, o in TG['b'].items():
+        bp = {}
+        for pn, arr in o['pos'].items():
+            if pn in pidx: bp[pidx[pn]] = [[round(x) for x in m_] for m_ in arr]
+            else: tg_un += sum(m_[0] for m_ in arr)
+        TGT['b'][gb] = {'nat': [[round(x) for x in m_] for m_ in o['nat']], 'pos': bp}
+        na = sum(m_[0] for m_ in o['nat']); pa = sum(m_[0] for a_ in bp.values() for m_ in a_)
+        print(f"   target {gb:28} actual {na/1e6:7.2f}M  official {sum(m_[1] for m_ in o['nat'])/1e6:7.2f}M  on organogram positions {pa/max(na,1):.1%}")
+    print(f'[iqvia_geo] sales vs target: {len(TGT["b"])} Zeta brands, months {TG["months"][0]}..{TG["months"][-1]}, actual not on an organogram position {tg_un/1e6:.2f}M (vacant / unknown / leavers)')
+    out = {'tgt': TGT, 'meta': meta, 'bricks': B, 'markets': MK, 'brands': BRD, 'facts': facts, 'pos': POS, 'alloc': alloc, 'anch': ANC, 'anchBrands': ANB, 'anchInt': ANCHOR_INTEGRATE + list(ANCHOR_NEW), 'pfacts': pfacts}
     js = json.dumps(out, separators=(',', ':'), ensure_ascii=False)
     b64 = base64.b64encode(gzip.compress(js.encode('utf-8'), compresslevel=9)).decode('ascii')
     with open(OUT, 'w', encoding='utf-8') as fh:

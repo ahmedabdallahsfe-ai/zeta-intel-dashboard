@@ -51,16 +51,16 @@
 
   <section class="card">
     <h2>Where to act — positions</h2>
-    <div class="sub">Every position grouped by the next action, using its <b>Fair Share Index</b> (Zeta share in the position ÷ Zeta share across the line × 100; 100 = in line) and whether it is vacant. <b>Click a group</b> to list its positions, <b>click a position</b> for its full profile.</div>
+    <div class="sub">Every position grouped by the next action, using its <b>Fair Share Index</b> (Zeta share in the position ÷ Zeta national share × 100; 100 = same as nationally — the same index as in the positions table below, also when a region is selected) and whether it is vacant. <b>Click a group</b> to list its positions, <b>click a position</b> for its full profile.</div>
     <table class="segtbl" id="ig-psegTbl"></table>
     <p class="foot" id="ig-psegNote"></p>
   </section>
 
   <section class="card">
     <h2>All positions — Zeta vs competitors</h2>
-    <div class="sub"><b>How to read:</b> <b>Market</b> = size and growth of the market the position covers · <b>Zeta</b> = sales, growth and share in the position · <b>Fair Share Index</b> 100 = same share as nationally, <span class="idx i-lo">below 90</span> under-performing, <span class="idx i-hi">above 110</span> over-performing · <b>Evolution Index</b> above 100 = Zeta growing faster than the market · <b>% of national</b> = part of the national total that sits in this position · competitor cells = share, Fair Share Index, points gained/lost vs last year, growth. Click ▸ for the bricks, click a row for the position profile.</div>
+    <div class="sub"><b>How to read:</b> <b>Market</b> = size and growth of the market the position covers · <b>Zeta</b> = sales, growth and share in the position · <b>Fair Share Index</b> 100 = same share as nationally, <span class="idx i-lo">below 90</span> under-performing, <span class="idx i-hi">above 110</span> over-performing · <b>Evolution Index</b> above 100 = Zeta growing faster than the market · <b>Market Geo Share %</b> = part of the national market that sits in this position (grey bar) · <b>Contribution %</b> = part of national Zeta brand sales that comes from this position (blue bar) — when the blue bar is longer than the grey tick, Zeta is over-represented here (▲), shorter = under-represented (▼) · competitor cells = share, Fair Share Index, points gained/lost vs last year, growth. Click a column header (or use <b>Sort by</b>) to sort. Click ▸ for the bricks, click a row for the position profile with its month-by-month trend.</div>
     <div class="toolbar"><div id="ig-pRegChips" style="display:flex;flex-wrap:wrap;gap:6px" role="group" aria-label="Region filter"></div></div>
-    <div class="toolbar"><input type="search" id="ig-pSearch" placeholder="Search position, rep or DM" aria-label="Search position, rep or DM"><span class="foot" id="ig-pSum"></span></div>
+    <div class="toolbar"><input type="search" id="ig-pSearch" placeholder="Search position, rep or DM" aria-label="Search position, rep or DM"><label class="sortctl">Sort by <select id="ig-pSort"></select></label><button type="button" class="sortdir" id="ig-pDir" title="Switch between highest first and lowest first"></button><span class="foot" id="ig-pSum"></span></div>
     <div class="tbl-wrap"><table class="dt" id="ig-pTbl"></table></div>
     <button class="more" id="ig-pMore" hidden>Show all positions</button>
   </section>
@@ -81,7 +81,7 @@
         <tr><td>Low base</td><td><code>brick market value &lt; EGP 250K × months in period ÷ 12</code></td><td>Share, index and segment suppressed (shown as “low base”).</td></tr>
         <tr><td>Region contribution</td><td><code>region value ÷ national value</code> (market and Zeta)</td><td>Region index = Zeta contribution ÷ market contribution × 100 (same as region share ÷ national share).</td></tr>
         <tr><td>Competitor Δ share</td><td><code>(brand ÷ tracked market) − same ratio last year</code></td><td>In percentage points. Brand colours are fixed per market selection: Zeta first, then the top 5 competitors by national value.</td></tr>
-        <tr><td>Where to act (position groups)</td><td><code>vacant → Fill vacancy · Fair Share Index &lt;90 → Close the gap · &gt;110 → Protect · 90–110 → On track</code></td><td>Fair Share Index at position level = position Zeta share ÷ Zeta share of all positions in the line × 100. Gap = sales Zeta would add at that line share.</td></tr>
+        <tr><td>Where to act (position groups)</td><td><code>vacant → Fill vacancy · Fair Share Index &lt;90 → Close the gap · &gt;110 → Protect · 90–110 → On track</code></td><td>Fair Share Index at position level = position Zeta share ÷ Zeta national share × 100 (benchmark is always national, also when a region is selected). Gap = sales Zeta would add at the national share.</td></tr>
         <tr><td>Position geo share</td><td><code>position market ÷ national market of the line · position Zeta ÷ national Zeta of the line</code></td><td>Where the line's market and Zeta business sit. Brick rows show the full brick ÷ national.</td></tr>
         <tr><td>Position potential</td><td><code>Σ brick market × Allocation % (organogram Share ÷ Σ Shares in brick-line)</code></td><td>Additive. Responsibility credit (100% each) is never totalled.</td></tr>
         <tr><td>Zeta brand allocation</td><td><code>IQVIA national Pharmacies YTD × position share of Zeta sales</code></td><td>Directional only (back-test ≈20% position error). Hatched. "Of which" brands never added to IQVIA rows. Not for incentives, ranking or targets.</td></tr>
@@ -100,7 +100,7 @@
 
 
 const $=s=>root.querySelector(s);
-const ST={segOpen:'Close the gap',segAll:'',bu:'',line:'GIT-I',mkt:'',d2:'',ptype:'mat',meas:'v',pqtr:'',pmon:'',pyr:'',pfrom:'',pto:'',sec:'0',alloc:false,anc:true,region:'ALL',bq:'',pq:'',pAll:false,bSort:'gap',bDir:-1,open:new Set()};
+const ST={segOpen:'Close the gap',segAll:'',pSort:'pot',pDir:-1,bu:'',line:'GIT-I',mkt:'',d2:'',ptype:'mat',meas:'v',pqtr:'',pmon:'',pyr:'',pfrom:'',pto:'',sec:'0',alloc:false,anc:true,region:'ALL',bq:'',pq:'',pAll:false,bSort:'gap',bDir:-1,open:new Set()};
 const SEGS=['Grow','Defend','Maintain','Develop','Monitor'];
 const SEGACT={Grow:'Raise frequency and targeting — biggest EGP gap',Defend:'Protect coverage; watch competitor launches',Maintain:'Hold call plan; track EI monthly',Develop:'Build selectively where market is accelerating',Monitor:'Low effort; review quarterly'};
 const SEGCOL={Grow:'var(--grow)',Defend:'var(--defend)',Maintain:'var(--maintain)',Develop:'var(--develop)',Monitor:'var(--monitor)'};
@@ -114,8 +114,12 @@ const grH=g=>g==null?(HASPREV?'<span class="muted">new</span>':'<span class="mut
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const idxH=i=>i==null?'<span class="muted">–</span>':`<span class="idx ${i<90?'i-lo':i>110?'i-hi':'i-mid'}">${Math.round(i)}</span>`;
 
+// 2026-10-12: user scope (Allowed BU / Allowed Lines, same helpers as the other pages)
+const AU=global.AUTH||null;
+function lineOk(L){ if(!AU||typeof AU.isLineAllowed!=='function') return true; const bu=buOfLine[L]; return AU.isLineAllowed(L)&&(typeof AU.isBuAllowed!=='function'||AU.isBuAllowed(bu)); }
+const mOk=m=>lineOk(m.line);
 function selMarkets(){
-  return D.markets.map((m,i)=>i).filter(i=>{const m=D.markets[i];
+  return D.markets.map((m,i)=>i).filter(i=>{const m=D.markets[i]; if(!mOk(m)) return false;
     if(ST.mkt!=='') return i==+ST.mkt;
     if(ST.line) return m.line===ST.line;
     if(ST.bu) return m.bu===ST.bu;
@@ -181,12 +185,12 @@ const zLab=C=>{let z=(C&&C.zBrands||[]).map(b=>zShort(D.brands[b].n));
 /* ---------- controls ---------- */
 function fillSelect(el,opts,val){el.innerHTML=opts.map(o=>`<option value="${esc(o[0])}"${o[0]==val?' selected':''}>${esc(o[1])}</option>`).join('');}
 function syncControls(){
-  const bus=[...new Set(D.markets.map(m=>m.bu))].sort();
+  const bus=[...new Set(D.markets.filter(mOk).map(m=>m.bu))].sort(); if(ST.bu&&!bus.includes(ST.bu)) ST.bu='';
   fillSelect($('#ig-fBU'),[['','All BUs'],...bus.map(b=>[b,b])],ST.bu);
-  const lines=[...new Set(D.markets.filter(m=>!ST.bu||m.bu===ST.bu).map(m=>m.line))].sort();
+  const lines=[...new Set(D.markets.filter(m=>mOk(m)&&(!ST.bu||m.bu===ST.bu)).map(m=>m.line))].sort();
   if(ST.line&&!lines.includes(ST.line)) ST.line='';
   fillSelect($('#ig-fLine'),[['','All lines'+(ST.bu?' in '+ST.bu:'')],...lines.map(l=>[l,l])],ST.line);
-  const mkts=D.markets.map((m,i)=>[String(i),m.n+(D.brands.some(b=>b.z&&!b.a&&b.m===i)?'':m.anc?'  · Zeta estimated (≈)':'  · Zeta not tracked by IQVIA'),m]).filter(x=>(!ST.bu||x[2].bu===ST.bu)&&(!ST.line||x[2].line===ST.line));
+  const mkts=D.markets.map((m,i)=>[String(i),m.n+(D.brands.some(b=>b.z&&!b.a&&b.m===i)?'':m.anc?'  · Zeta estimated (≈)':'  · Zeta not tracked by IQVIA'),m]).filter(x=>mOk(x[2])&&(!ST.bu||x[2].bu===ST.bu)&&(!ST.line||x[2].line===ST.line));
   if(ST.mkt!==''&&!mkts.some(x=>x[0]===ST.mkt)) ST.mkt='';
   fillSelect($('#ig-fMkt'),[['','All markets in selection'],...mkts.map(x=>[x[0],x[1]])],ST.mkt);
   const mset=new Set(ST.mkt!==''?[+ST.mkt]:mkts.map(x=>+x[0]));
@@ -358,10 +362,11 @@ function posModel(C){
       o.pot+=c-sc; o.potP+=pp-sp; acc.set(f[1],o);}}
   const out=[...acc.values()].filter(o=>o.pot>0).map(o=>{const P=D.pos[o.p];return {...o,name:P[0],line:P[1],rep:P[2],dm:P[3],nsm:P[4],vac:P[5],calls:P[6]};});
   const byLine={}; out.forEach(o=>{const t=byLine[o.line]??={pot:0,z:0,calls:0}; t.pot+=o.pot; t.z+=o.z; if(o.calls!=null&&o.vac==='Filled')t.calls+=o.calls;});
-  out.forEach(o=>{const t=byLine[o.line]; o.potSh=o.pot/t.pot; o.sh=o.z/o.pot; o.shp=o.potP>0?o.zp/o.potP:null; o.idx=t.z>0?o.sh/(t.z/t.pot)*100:null;
+  const natSh={}; for(const L in C.byL){const T=C.byL[L].mk.reduce((a,v)=>a+v,0), Z=C.byL[L].z.reduce((a,v)=>a+v,0); natSh[L]=T>0?Z/T:0;}
+  out.forEach(o=>{const t=byLine[o.line], ns=natSh[o.line]||0; o.potSh=o.pot/t.pot; o.sh=o.z/o.pot; o.shp=o.potP>0?o.zp/o.potP:null; o.idx=ns>0?o.sh/ns*100:null;
     o.gm=gr(o.pot,o.potP); o.gz=gr(o.z,o.zp); o.ei=(o.gz!=null&&o.gm!=null)?100*(1+o.gz)/(1+o.gm):null;
     o.callSh=(o.calls!=null&&o.vac==='Filled'&&t.calls>0)?o.calls/t.calls:null; o.eff=o.callSh!=null?o.callSh/o.potSh:null;
-    o.gap=t.z>0?Math.max(0,t.z/t.pot-o.sh)*o.pot:0;
+    o.gap=ns>0?Math.max(0,ns-o.sh)*o.pot:0;
     o.comp=new Map([...o.cb].filter(([bi])=>!D.brands[bi].z&&!isAgg(D.brands[bi])).map(([bi,v])=>[bi,v[0]]));
     const lc=[...o.comp].sort((a,b)=>b[1]-a[1])[0]; o.lead=lc?{b:lc[0],sh:lc[1]/o.pot}:null;
     if(C.ancOnly.has(o.line)){o.ei=null;o.gzNat=true;}
@@ -370,7 +375,7 @@ function posModel(C){
 }
 const PSEG=['Close the gap','Fill vacancy','Protect','On track'];
 const PCOL={'Close the gap':'var(--s2)','Fill vacancy':'var(--warn)','Protect':'var(--s3)','On track':'var(--other)','n/a':'var(--other)'};
-const PACT={'Close the gap':'Rep in place, Zeta share below 90% of the line level → focus calls on the bricks with the biggest gap; sharpen the message against the lead competitor','Fill vacancy':'No rep in place → prioritise hiring by market size and gap; cover the top bricks meanwhile','Protect':'Zeta share above 110% of the line level → keep call frequency, watch the lead competitor','On track':'Share close to the line level (90–110) → hold the plan, track the Evolution Index'};
+const PACT={'Close the gap':'Rep in place, Zeta share below 90% of the national level → focus calls on the bricks with the biggest gap; sharpen the message against the lead competitor','Fill vacancy':'No rep in place → prioritise hiring by market size and gap; cover the top bricks meanwhile','Protect':'Zeta share above 110% of the national level → keep call frequency, watch the lead competitor','On track':'Share close to the national level (90–110) → hold the plan, track the Evolution Index'};
 function renderPosSeg(C,P){
   if(!C.hasZ){$('#ig-psegTbl').innerHTML='<tr><td class="muted">No Zeta brand is tracked in this selection — position groups need a Zeta share. Turn on “Add estimated Zeta sales” if available.</td></tr>';$('#ig-psegNote').textContent='';return;}
   const zl=esc(zLab(C)), ul=UL();
@@ -378,7 +383,7 @@ function renderPosSeg(C,P){
   const tp=rows.reduce((t,r)=>t+r.pot,0)||1;
   const list=r=>{const x=r.x.slice().sort((a,b)=>b.gap-a.gap||b.pot-a.pot), lim=ST.segAll===r.s?x.length:10;
     if(!x.length) return '<tr class="segdet"><td></td><td colspan="4" class="muted">No position in this group for the current selection.</td></tr>';
-    return `<tr class="segdet"><td></td><td colspan="4"><div class="tbl-wrap" style="max-height:none"><table class="dt"><thead><tr><th>#</th><th>Position</th><th>Medical rep</th><th>District manager</th><th class="r">Market (${ul})</th><th class="r">${zl} share</th><th class="r" title="Position Zeta share ÷ line Zeta share × 100">Fair Share Index</th><th class="r" title="Sales ${zl} would add at the line share">Gap to fair share</th><th>Lead competitor here</th></tr></thead><tbody>${x.slice(0,lim).map((o,i)=>`<tr class="sp" data-p="${o.p}" title="Open the position profile"><td class="muted">${i+1}</td><td><b>${esc(o.name)}</b></td><td>${o.vac!=='Filled'?'<span class="chip s-Grow">Vacant</span>':esc(o.rep)}</td><td class="muted">${esc(o.dm)}</td><td class="r num">${fmt(o.pot)}</td><td class="r num">${pct(o.sh)}</td><td class="r">${idxH(o.idx)}</td><td class="r num">${o.gap>0?fmt(o.gap):'<span class="muted">–</span>'}</td><td>${o.lead?esc(D.brands[o.lead.b].n)+' <span class="muted num">'+pct(o.lead.sh)+'</span>':'–'}</td></tr>`).join('')}</tbody></table></div>${x.length>lim?`<button class="more" data-sa="${esc(r.s)}">Show all ${x.length} positions</button>`:''}</td></tr>`;};
+    return `<tr class="segdet"><td></td><td colspan="4"><div class="tbl-wrap" style="max-height:none"><table class="dt"><thead><tr><th>#</th><th>Position</th><th>Medical rep</th><th>District manager</th><th class="r">Market (${ul})</th><th class="r">${zl} share</th><th class="r" title="Position Zeta share ÷ Zeta national share × 100">Fair Share Index</th><th class="r" title="Sales ${zl} would add at its national share">Gap to fair share</th><th>Lead competitor here</th></tr></thead><tbody>${x.slice(0,lim).map((o,i)=>`<tr class="sp" data-p="${o.p}" title="Open the position profile"><td class="muted">${i+1}</td><td><b>${esc(o.name)}</b></td><td>${o.vac!=='Filled'?'<span class="chip s-Grow">Vacant</span>':esc(o.rep)}</td><td class="muted">${esc(o.dm)}</td><td class="r num">${fmt(o.pot)}</td><td class="r num">${pct(o.sh)}</td><td class="r">${idxH(o.idx)}</td><td class="r num">${o.gap>0?fmt(o.gap):'<span class="muted">–</span>'}</td><td>${o.lead?esc(D.brands[o.lead.b].n)+' <span class="muted num">'+pct(o.lead.sh)+'</span>':'–'}</td></tr>`).join('')}</tbody></table></div>${x.length>lim?`<button class="more" data-sa="${esc(r.s)}">Show all ${x.length} positions</button>`:''}</td></tr>`;};
   $('#ig-psegTbl').innerHTML=`<thead><tr><th></th><th>Group · what to do</th><th class="r">Positions</th><th class="r">Share of market</th><th class="r">Gap to fair share</th></tr></thead><tbody>`+rows.map(r=>{const open=ST.segOpen===r.s;
     return `<tr class="segrow${open?' open':''}" data-s="${esc(r.s)}" aria-expanded="${open}" title="Click to ${open?'hide':'list'} the positions"><td class="tog">${open?'▾':'▸'}</td><td><span class="chip" style="background:color-mix(in srgb,${PCOL[r.s]} 18%,transparent);color:var(--fg)"><i class="dot" style="background:${PCOL[r.s]}"></i>${r.s}</span><div class="act">${PACT[r.s]}</div></td><td class="r num">${r.n}<div class="act">${r.v?r.v+' vacant':'positions'}</div></td><td class="r num">${pct(r.pot/tp,0)}<div class="act">of the market</div></td><td class="r num">${r.gap>0?fmt(r.gap):'–'}<div class="act">${ul}</div></td></tr>`+(open?list(r):'');}).join('')+'</tbody>';
   const T=$('#ig-psegTbl');
@@ -404,49 +409,125 @@ function renderPosRegions(){
 }
 function renderPos(C,P){
   renderPosRegions();
-  P=P.slice().sort((a,b)=>b.pot-a.pot);
   const comps=(LASTS&&LASTS.comp?LASTS.comp:[]).slice(0,5), zbs=C.zBrands, ul=UL();
   const nat={}; for(const L in C.byL){nat[L]={mk:C.byL[L].mk.reduce((t,v)=>t+v,0),z:C.byL[L].z.reduce((t,v)=>t+v,0)};}
+  const SK={name:o=>o.name,rep:o=>o.vac!=='Filled'?'~':o.rep,pot:o=>o.pot,gm:o=>o.gm,pn:o=>nat[o.line]&&nat[o.line].mk>0?o.pot/nat[o.line].mk:null,z:o=>o.z,gz:o=>o.gzNat?null:o.gz,sh:o=>o.sh,idx:o=>o.idx,ei:o=>o.ei,zn:o=>nat[o.line]&&nat[o.line].z>0?o.z/nat[o.line].z:null,gap:o=>o.gap};
+  const SLAB=[['pot','Market size'],['gm','Market growth'],['pn','Market Geo Share %'],['z','Zeta sales'],['gz','Zeta growth'],['sh','Zeta share'],['idx','Fair Share Index'],['gap','Gap to fair share'],['ei','Evolution Index'],['zn',zLab(C)+' Contribution %'],['name','Position name'],['rep','Medical rep']];
+  const skey=ST.pSort||'pot', sval=skey[0]==='c'&&/^c\d+$/.test(skey)?(bi=>o=>{const v=o.cb.get(bi); return o.pot>0&&v?v[0]/o.pot:0;})(+skey.slice(1)):(SK[skey]||SK.pot);
+  P=P.slice().sort((a,b)=>{const x=sval(a),y=sval(b); if(x==null&&y==null)return b.pot-a.pot; if(x==null)return 1; if(y==null)return -1; return (typeof x==='string'?x.localeCompare(y):x-y)*(ST.pDir||-1)||b.pot-a.pot;});
+  {const sel=$('#ig-pSort'), extra=skey[0]==='c'&&/^c\d+$/.test(skey)?[[skey,'Share: '+D.brands[+skey.slice(1)].n]]:[];
+   fillSelect(sel,[...SLAB,...extra],skey); sel.onchange=e=>{ST.pSort=e.target.value; ST.pDir=['name','rep'].includes(ST.pSort)?1:-1; renderPos(LAST,LASTP);};
+   const dB=$('#ig-pDir'); dB.textContent=(ST.pDir||-1)<0?(['name','rep'].includes(skey)?'Z → A':'Highest first ↓'):(['name','rep'].includes(skey)?'A → Z':'Lowest first ↑'); dB.onclick=()=>{ST.pDir=-(ST.pDir||-1); renderPos(LAST,LASTP);};}
+  const ar=k=>skey===k?`<span class="sarr">${(ST.pDir||-1)<0?'▼':'▲'}</span>`:'';
   const gs=(v,L,k)=>{const d=nat[L]&&nat[L][k]; return d>0?pct(v/d):'–';};
   const NBL={}; C.bb.forEach(m=>{for(const [bi,v] of m){const L=lineOfMkt[D.brands[bi].m]; const t=NBL[L]??={T:0,b:new Map()}; t.T+=v[0]; t.b.set(bi,(t.b.get(bi)||0)+v[0]);}});
   const zIx=v=>v==null?'<span class="muted">–</span>':`<span class="idx ${v<90?'i-lo':v>110?'i-hi':'i-mid'}">${Math.round(v)}</span>`;
   $('#ig-pSum').innerHTML=`${ST.region==='ALL'?'All regions':esc(ST.region)} · ${P.length} positions · ${P.filter(o=>o.vac!=='Filled').length} vacant · click ▸ to open bricks`;
   if(ST.pq) P=P.filter(o=>(o.name+' '+o.rep+' '+o.dm).toLowerCase().includes(ST.pq));
   const lim=ST.pAll||ST.pq?P.length:40; $('#ig-pMore').hidden=P.length<=lim;
+  // % of national — mini bars on one shared scale (market grey, Zeta blue) + Zeta minus market in points
+  const rat=(v,L,k)=>{const d=nat[L]&&nat[L][k]; return d>0?v/d:null;};
+  const PNMX=Math.max(1e-9,...P.map(o=>Math.max(rat(o.pot,o.line,'mk')||0,C.hasZ?(rat(o.z,o.line,'z')||0):0)));
+  const pnMk=(v,L,sm)=>{const r=rat(v,L,'mk'); if(r==null)return `<td class="r num pnc">–</td>`; return `<td class="r num pnc${sm?' sm':''}" title="Part of the national ${esc(L)} market that sits here"><div class="pn"><span class="pnv">${pct(r)}</span><span class="pnt"><i class="pnb mk" style="width:${Math.min(100,r/PNMX*100).toFixed(1)}%"></i></span></div></td>`;};
+  const pnZ=(z,mk,L,sm)=>{if(!C.hasZ)return '<td class="r num zc">–</td>'; const r=rat(z,L,'z'), m=rat(mk,L,'mk'); if(r==null)return `<td class="r num zc pnc">–</td>`;
+    const d=m!=null?(r-m)*100:null, cl=d==null?'muted':d>=0.05?'up':d<=-0.05?'dn':'muted';
+    return `<td class="r num zc pnc${sm?' sm':''}" title="Part of national ${esc(zLab(C))} sales that sits here. Compare with the grey bar: more Zeta than market here = Zeta over-represented"><div class="pn"><span class="pnv">${pct(r)}</span><span class="pnt"><i class="pnb z" style="width:${Math.min(100,r/PNMX*100).toFixed(1)}%"></i>${m!=null?`<i class="pnm" style="left:${Math.min(100,m/PNMX*100).toFixed(1)}%" title="Market ${pct(m)}"></i>`:''}</span><small class="${cl}">${d==null?'':(d>=0?'▲ +':'▼ ')+d.toFixed(1)+' pts vs market'}</small></div></td>`;};
   const eff=e=>e==null?'<span class="muted">–</span>':`<span class="idx ${e<0.8?'i-lo':e>1.2?'i-hi':'i-mid'}">${e.toFixed(2)}</span>`;
   const segChip=s=>`<span class="chip" style="background:color-mix(in srgb,${PCOL[s]} 18%,transparent);color:var(--fg)">${s}</span>`;
   const short=n=>n.replace(/ Solid Oral.*| Oral cap.*/,'');
   const zn=esc(zName(C));
   const zl=esc(zLab(C)), one=zbs.length<=1, nComp=(one?0:zbs.length)+comps.length+1, gth='style="position:static;text-align:center;border-bottom:2px solid var(--border-strong);cursor:default"';
   const head=`<thead><tr><th colspan="3" ${gth}>Position</th><th colspan="3" ${gth}>Market · ${ul}</th><th colspan="6" class="zh" ${gth}>${zl} performance</th><th colspan="${nComp}" ${gth} title="Each cell: share of the position's market · FSI = Fair Share Index vs the brand's national share (100 = national) · pts = change vs same months last year · gr = growth">Share of this position's market — vs competitors</th></tr>
-    <tr><th></th><th>Position / brick</th><th>Medical rep / allocation</th>
-    <th class="r" title="Position market (bricks × organogram allocation)">Size</th><th class="r" title="vs same months last year">Growth</th><th class="r" title="Position market ÷ national market of the line">% of<br>national</th>
-    <th class="r zh" title="${zn}">Sales</th><th class="r zh" title="vs same months last year">Growth</th><th class="r zh" title="${zl} ÷ position market · pts = change vs same months last year">Share</th><th class="r zh" title="Fair Share Index = share here ÷ national share × 100 · 100 = national level · below 90 weak · above 110 strong">Fair Share<br>Index</th><th class="r zh" title="Evolution Index = 100 × (1 + product growth) ÷ (1 + market growth) · above 100 = growing faster than the market">Evolution<br>Index</th><th class="r zh" title="Position ${zl} ÷ national ${zl} of the line">% of<br>national</th>
-    ${one?'':zbs.map(bi=>`<th class="r zh" title="${esc(D.brands[bi].n)} share${D.brands[bi].a?' — ≈ estimated from national IQVIA (directional)':''}"><i class="sw" style="background:var(--s1)"></i>${esc(short(D.brands[bi].n))}${D.brands[bi].a?' ≈':''}</th>`).join('')}
-    ${comps.map(bi=>`<th class="r" title="${esc(D.brands[bi].n)} · ${esc(D.brands[bi].c)}"><i class="sw" style="background:${LASTS.col.get(bi)}"></i>${esc(short(D.brands[bi].n))}</th>`).join('')}
+    <tr><th></th><th data-ps="name">Position / brick${ar('name')}</th><th data-ps="rep">Medical rep / allocation${ar('rep')}</th>
+    <th class="r" title="Position market (bricks × organogram allocation)" data-ps="pot">Size${ar('pot')}</th><th class="r" title="vs same months last year" data-ps="gm">Growth${ar('gm')}</th><th class="r pnh" title="Part of the national market of the line that sits in this position (bar, shared scale)" data-ps="pn">Market Geo<br>Share %${ar('pn')}</th>
+    <th class="r zh" title="${zn}" data-ps="z">Sales${ar('z')}</th><th class="r zh" title="vs same months last year" data-ps="gz">Growth${ar('gz')}</th><th class="r zh" title="${zl} ÷ position market · pts = change vs same months last year" data-ps="sh">Share${ar('sh')}</th><th class="r zh" title="Fair Share Index = share here ÷ national share × 100 · 100 = national level · below 90 weak · above 110 strong" data-ps="idx">Fair Share<br>Index${ar('idx')}</th><th class="r zh" title="Evolution Index = 100 × (1 + product growth) ÷ (1 + market growth) · above 100 = growing faster than the market" data-ps="ei">Evolution<br>Index${ar('ei')}</th><th class="r zh pnh" title="Part of national Zeta sales that sits in this position; tick = market % of national; ▲/▼ = Zeta % minus market % in points" data-ps="zn">${zl}<br>Contribution %${ar('zn')}</th>
+    ${one?'':zbs.map(bi=>`<th class="r zh" data-ps="c${bi}" title="${esc(D.brands[bi].n)} share${D.brands[bi].a?' — ≈ estimated from national IQVIA (directional)':''}"><i class="sw" style="background:var(--s1)"></i>${esc(short(D.brands[bi].n))}${D.brands[bi].a?' ≈':''}${ar('c'+bi)}</th>`).join('')}
+    ${comps.map(bi=>`<th class="r" data-ps="c${bi}" title="${esc(D.brands[bi].n)} · ${esc(D.brands[bi].c)} — click to sort by its share"><i class="sw" style="background:${LASTS.col.get(bi)}"></i>${esc(short(D.brands[bi].n))}${ar('c'+bi)}</th>`).join('')}
     <th class="r" title="IQVIA aggregate rows + smaller brands"><i class="sw" style="background:var(--other)"></i>Others</th></tr></thead>`;
   const shCell=(z,mk,zp,mkp)=>{const s=mk>0?z/mk:null, sp=(HASPREV&&mkp>0)?zp/mkp:null, d=(s!=null&&sp!=null)?(s-sp)*100:null; return `<td class="r num zc shc"><b>${s==null?'–':pct(s)}</b><small class="${d==null?'muted':d>=0?'up':'dn'}">${d==null?'':(d>=0?'+':'')+d.toFixed(1)+' pts'}</small></td>`;};
   let rows='';
   for(const o of P.slice(0,lim)){
     const open=ST.open.has(o.p);
     rows+=`<tr class="prow" data-p="${o.p}"><td class="tog" data-t="${o.p}" title="Show bricks">${open?'▾':'▸'}</td><td><b>${esc(o.name)}</b></td><td>${o.vac!=='Filled'?'<span class="chip s-Grow">Vacant</span>':esc(o.rep)}</td>
-      <td class="r num">${fmt(o.pot)}</td><td class="r num">${grH(o.gm)}</td><td class="r num muted">${gs(o.pot,o.line,'mk')}</td>
-      <td class="r num zc">${fmt(o.z)}</td><td class="r num zc">${C.hasZ?(o.gzNat?'<span class="muted" title="≈ Estimated sales use a fixed 2026 split, so growth here equals the national trend">nat.</span>':grH(o.gz)):'–'}</td>${C.hasZ?shCell(o.z,o.pot,o.zp,o.potP):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx((nat[o.line]&&nat[o.line].z>0&&o.pot>0)?(o.z/o.pot)/(nat[o.line].z/nat[o.line].mk)*100:null):'–'}</td><td class="r num zc">${o.ei==null?'–':Math.round(o.ei)}</td><td class="r num zc muted">${C.hasZ?gs(o.z,o.line,'z'):'–'}</td>
+      <td class="r num">${fmt(o.pot)}</td><td class="r num">${grH(o.gm)}</td>${pnMk(o.pot,o.line)}
+      <td class="r num zc">${fmt(o.z)}</td><td class="r num zc">${C.hasZ?(o.gzNat?'<span class="muted" title="≈ Estimated sales use a fixed 2026 split, so growth here equals the national trend">nat.</span>':grH(o.gz)):'–'}</td>${C.hasZ?shCell(o.z,o.pot,o.zp,o.potP):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx((nat[o.line]&&nat[o.line].z>0&&o.pot>0)?(o.z/o.pot)/(nat[o.line].z/nat[o.line].mk)*100:null):'–'}</td><td class="r num zc">${o.ei==null?'–':Math.round(o.ei)}</td>${pnZ(o.z,o.pot,o.line)}
       ${shareCells(o.pot,o.potP,o.cb,zbs,comps,NBL[o.line],0,one)}</tr>`;
     if(open){
       const brs=o.br.map(([b,al])=>({b,al,...lineBrick(C,b,o.line)})).sort((a,b)=>b.mk*b.al-a.mk*a.al);
       const n=nat[o.line]||{mk:0,z:0}, natSh=n.mk>0?n.z/n.mk:0;
       for(const x of brs){const sh=x.mk>0?x.z/x.mk:null, idx=(sh!=null&&natSh>0)?sh/natSh*100:null, gm=gr(x.mk,x.mkp), gz=gr(x.z,x.zp), ei=(gz!=null&&gm!=null)?100*(1+gz)/(1+gm):null;
         rows+=`<tr class="brow" data-k="${x.b}"><td></td><td>↳ ${esc(D.bricks[x.b].n)} <span class="muted">${esc(D.bricks[x.b].t)}</span></td><td class="muted">allocation ${pct(x.al,0)}</td>
-          <td class="r num">${fmt(x.mk)}</td><td class="r num">${grH(gm)}${gm!=null&&Math.abs(gm)>0.6?' <span title="Possible IQVIA brick re-definition" style="color:var(--warn)">⚠</span>':''}</td><td class="r num muted">${gs(x.mk,o.line,'mk')}</td>
-          ${C.ancOnly.has(o.line)?'<td class="r num zc"><span class="muted" title="Estimated at position level only — no brick split">pos.</span></td>'.repeat(6):`<td class="r num zc">${fmt(x.z)}</td><td class="r num zc">${C.hasZ?grH(gz):'–'}</td>${C.hasZ?shCell(x.z,x.mk,x.zp,x.mkp):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx(idx):'–'}</td><td class="r num zc">${ei==null?'–':Math.round(ei)}</td><td class="r num zc muted">${C.hasZ?gs(x.z,o.line,'z'):'–'}</td>`}
+          <td class="r num">${fmt(x.mk)}</td><td class="r num">${grH(gm)}${gm!=null&&Math.abs(gm)>0.6?' <span title="Possible IQVIA brick re-definition" style="color:var(--warn)">⚠</span>':''}</td>${pnMk(x.mk,o.line,1)}
+          ${C.ancOnly.has(o.line)?'<td class="r num zc"><span class="muted" title="Estimated at position level only — no brick split">pos.</span></td>'.repeat(6):`<td class="r num zc">${fmt(x.z)}</td><td class="r num zc">${C.hasZ?grH(gz):'–'}</td>${C.hasZ?shCell(x.z,x.mk,x.zp,x.mkp):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx(idx):'–'}</td><td class="r num zc">${ei==null?'–':Math.round(ei)}</td>${pnZ(x.z,x.mk,o.line,1)}`}
           ${shareCells(x.mk,x.mkp,x.br,zbs,comps,NBL[o.line],1,one)}</tr>`;}
     }
   }
   $('#ig-pTbl').innerHTML=head+`<tbody>${rows}</tbody>`;
+  $('#ig-pTbl').querySelectorAll('th[data-ps]').forEach(th=>th.onclick=()=>{const k=th.dataset.ps; if(ST.pSort===k)ST.pDir=-(ST.pDir||-1); else {ST.pSort=k; ST.pDir=['name','rep'].includes(k)?1:-1;} renderPos(LAST,LASTP);});
   $('#ig-pTbl').querySelectorAll('td.tog').forEach(td=>td.onclick=e=>{e.stopPropagation();const p=+td.dataset.t; ST.open.has(p)?ST.open.delete(p):ST.open.add(p); renderPos(LAST,LASTP);});
   $('#ig-pTbl').querySelectorAll('tr.prow').forEach(tr=>tr.onclick=()=>openPos(+tr.dataset.p));
   $('#ig-pTbl').querySelectorAll('tr.brow').forEach(tr=>tr.onclick=()=>openBrick(+tr.dataset.k));
+}
+function posMonthly(C,o){ // month-by-month for one position: same bricks, allocation, filters and estimated layer as the tables
+  const L=o.line, mi=ST.meas==='v'?3:4, NM=MON.length, end=C.PI.cur[C.PI.cur.length-1], ms=[]; for(let i=Math.max(0,end-11);i<=end;i++) ms.push(i);
+  const alB=new Map(o.br.map(([b,al])=>[b,al])), mk=new Float64Array(NM), z=new Float64Array(NM), nmk=new Float64Array(NM), nz=new Float64Array(NM), agg=new Map();
+  for(const f of D.facts){ if(f[5]&&!ST.anc)continue; const b=D.brands[f[0]]; if(!C.ms.has(b.m)||!okD2(b)||lineOfMkt[b.m]!==L)continue; if(ST.sec!=='all'&&f[2]!=+ST.sec)continue;
+    const a=f[mi]; for(let i=0;i<NM;i++){nmk[i]+=a[i]; if(b.z)nz[i]+=a[i];}
+    const al=alB.get(f[1]); if(!al)continue; let t=null; if(!b.z){t=agg.get(f[0]); if(!t){t=new Float64Array(NM); agg.set(f[0],t);}}
+    for(let i=0;i<NM;i++){const v=al*a[i]; mk[i]+=v; if(b.z)z[i]+=v; else t[i]+=v;}}
+  if(ST.anc&&D.pfacts) for(const f of D.pfacts){ if(f[1]!==o.p)continue; const B=D.brands[f[0]]; if(!C.ms.has(B.m)||!okD2(B)||lineOfMkt[B.m]!==L)continue; if(ST.sec!=='all'&&f[2]!=+ST.sec)continue; if(ST.region!=='ALL'&&f[5]!==ST.region)continue;
+    const a=f[mi], t=B.of>=0?agg.get(B.of):null; for(let i=0;i<NM;i++){const c=a[i]; z[i]+=c; let sc=0; if(t){sc=Math.min(c,Math.max(0,t[i])); t[i]-=sc;} mk[i]+=c-sc;}}
+  return ms.map(i=>({i,lab:mLab(i),inP:C.PI.cur.includes(i),mk:mk[i],z:z[i],sh:mk[i]>0?z[i]/mk[i]:null,nsh:nmk[i]>0?nz[i]/nmk[i]:null,shPY:i>=12&&mk[i-12]>0?z[i-12]/mk[i-12]:null,mkPY:i>=12?mk[i-12]:null}));
+}
+function trendBlock(C,o){
+  const T=posMonthly(C,o); if(!T.length) return '';
+  const zl=esc(zLab(C)), ul=UL(), W=500, Hh=150, pl=8, pr=34, pt=10, pb=22, n=T.length, bw=(W-pl-pr)/n;
+  const mx=Math.max(1,...T.map(t=>t.mk)), smx=Math.max(0.01,...T.map(t=>Math.max(t.sh||0,t.nsh||0)))*1.15;
+  const y=v=>pt+(Hh-pt-pb)*(1-v/mx), ys=v=>pt+(Hh-pt-pb)*(1-v/smx), xc=i=>pl+bw*i+bw/2;
+  const line=(k,cls)=>{const pts=T.map((t,i)=>t[k]==null?null:[xc(i),ys(t[k])]).filter(Boolean); return pts.length>1?`<polyline class="${cls}" points="${pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}"/>`:'';};
+  const svg=`<svg class="trend" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Month-by-month market, ${zl} share and national share">
+    ${T.map((t,i)=>`<rect x="${(pl+bw*i+bw*0.15).toFixed(1)}" y="${y(t.mk).toFixed(1)}" width="${(bw*0.7).toFixed(1)}" height="${Math.max(0,Hh-pb-y(t.mk)).toFixed(1)}" class="tb${t.inP?'':' out'}"><title>${t.lab}: market ${fmt(t.mk)} ${ul} · ${zl} ${pct(t.sh)} (national ${pct(t.nsh)})</title></rect>`).join('')}
+    ${line('nsh','tn')}${line('sh','tz')}
+    ${T.map((t,i)=>t.sh==null?'':`<circle cx="${xc(i).toFixed(1)}" cy="${ys(t.sh).toFixed(1)}" r="2.6" class="tzd"/>`).join('')}
+    ${T.map((t,i)=>(n<=12||i%2===0)?`<text x="${xc(i).toFixed(1)}" y="${Hh-6}" class="tl">${t.lab.slice(0,3)}</text>`:'').join('')}
+    <text x="${W-2}" y="${(ys(smx/1.15)+4).toFixed(1)}" class="tl ta">${pct(smx/1.15,0)}</text><text x="${W-2}" y="${Hh-pb}" class="tl ta">0%</text></svg>`;
+  const mom=(a,b)=>b>0&&a!=null?a/b-1:null, momH=g=>g==null?'<span class="muted">–</span>':`<span class="${g>=0?'up':'dn'}">${g>=0?'+':''}${(g*100).toFixed(0)}%</span>`;
+  const rows=T.slice().reverse().map((t,k,arr)=>{const pv=arr[k+1]; const fsi=t.sh!=null&&t.nsh>0?t.sh/t.nsh*100:null, d=t.sh!=null&&t.shPY!=null?(t.sh-t.shPY)*100:null;
+    return `<tr class="${t.inP?'':'muted-row'}"><td>${t.lab}</td><td class="r num">${fmt(t.mk)}</td><td class="r num">${momH(pv?mom(t.mk,pv.mk):null)}</td><td class="r num">${fmt(t.z)}</td><td class="r num">${momH(pv?mom(t.z,pv.z):null)}</td><td class="r num"><b>${pct(t.sh)}</b></td><td class="r num">${d==null?'<span class="muted">–</span>':`<span class="${d>=0?'up':'dn'}">${d>=0?'+':''}${d.toFixed(1)}</span>`}</td><td class="r">${idxH(fsi)}</td></tr>`;}).join('');
+  return `<div><h2 class="dh">Month-by-month trend · last 12 months</h2>
+   <div class="legend" style="margin:0 0 4px"><span><i class="sw" style="background:var(--mkt)"></i>Position market (${ul})</span><span><i class="sw" style="background:var(--s1)"></i>${zl} share</span><span><i class="sw" style="background:var(--fg-2)"></i>${zl} national share (dashed)</span></div>${svg}
+   <div class="tbl-wrap" style="max-height:300px"><table class="dt trtbl"><thead><tr><th>Month</th><th class="r">Market</th><th class="r">MoM</th><th class="r">${zl}</th><th class="r">MoM</th><th class="r">Share</th><th class="r" title="Share change vs the same month last year, in points">vs LY</th><th class="r" title="Fair Share Index = share ÷ national share that month × 100">FSI</th></tr></thead><tbody>${rows}</tbody></table></div>
+   <p class="foot">MoM = change vs the previous month · vs LY = share points vs the same month last year · FSI = Fair Share Index. Faded months are outside the selected period.${C.ancOnly.has(o.line)?' ≈ Estimated Zeta sales use a fixed 2026 split, so their monthly pattern follows the national trend.':''}</p></div>`;
+}
+function tgtBlock(C,o){ // in-house sales vs target (cache.tgt from cache/sales.data.js) for the Zeta brand(s) of the selection
+  const T=D.tgt; if(!T) return '';
+  const zb=C.zBrands.filter(bi=>T.b[D.brands[bi].n]&&lineOfMkt[D.brands[bi].m]===o.line); // only the products of this position's line
+  const head=`<h2 class="dh">Sales vs target · in-house sales (EGP)</h2>`;
+  if(!zb.length) return `<div>${head}<p class="foot">No in-house sales target is mapped for the product(s) in this selection.</p></div>`;
+  const canTg=!AU||typeof AU.canToggleScenario!=='function'||AU.canToggleScenario(), dfl=(AU&&typeof AU.getActiveScenario==='function'?AU.getActiveScenario():'official')||'official';
+  const B=canTg?(ST.tgtB||dfl):dfl, K={official:1,working:2,shortage:3}[B]||1, BL={official:'Official target (original)',working:'Working target',shortage:'Shortage target'};
+  const per=new Set(C.PI.cur.map(i=>MON[i])), J=T.months.map((m,j)=>per.has(m)?j:-1).filter(j=>j>=0);
+  const seg=!canTg?`<div class="foot" style="margin:0 0 6px">Target basis: <b>${BL[B]}</b></div>`:`<div class="seg tgtseg" role="group" aria-label="Target basis">${['official','working','shortage'].map(x=>`<button data-tb="${x}" aria-pressed="${x===B}">${x==='official'?'Official (original)':x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div>`;
+  if(!J.length) return `<div>${head}${seg}<p class="foot">In-house sales and targets cover ${T.months[0]} to ${T.months[T.months.length-1]}; the selected period has no overlap. Choose YTD or a 2026 period.</p></div>`;
+  const L=o.line, natT=C.byL[L].mk.reduce((t,v)=>t+v,0), natB=new Map(); C.bb.forEach(m=>{for(const [bi,v] of m) natB.set(bi,(natB.get(bi)||0)+v[0]);});
+  const sum=(arr,k)=>arr?J.reduce((t,j)=>t+(arr[j]?arr[j][k]:0),0):0;
+  const R=zb.map(bi=>{const n=D.brands[bi].n, x=T.b[n], pa=x.pos[o.p]; const v=o.cb.get(bi);
+    return {n, act:sum(pa,0), tgt:sum(pa,K), nAct:sum(x.nat,0), nTgt:sum(x.nat,K), iq:(v&&natB.get(bi)>0)?v[0]/natB.get(bi):null, pa, nat:x.nat};});
+  if(R.length>1){const t={n:'Total',tot:1,act:0,tgt:0,nAct:0,nTgt:0,iq:null}; R.forEach(r=>{t.act+=r.act;t.tgt+=r.tgt;t.nAct+=r.nAct;t.nTgt+=r.nTgt;}); R.push(t);}
+  const achH=a=>a==null?'<span class="muted">–</span>':`<span class="ach ${a>=1?'a-hi':a>=0.9?'a-mid':'a-lo'}">${(a*100).toFixed(0)}%</span>`;
+  const geo=natT>0?o.pot/natT:null;
+  const rows=R.map(r=>`<tr class="${r.tot?'tot':''}"><td>${r.tot?'<b>Total</b>':esc(r.n)}</td><td class="r num">${fmt(r.act)}</td><td class="r num">${fmt(r.tgt)}</td><td class="r">${achH(r.tgt>0?r.act/r.tgt:null)}</td><td class="r num"><b>${r.nTgt>0?pct(r.tgt/r.nTgt,2):'–'}</b></td><td class="r num">${r.nAct>0?pct(r.act/r.nAct,2):'–'}</td><td class="r num">${r.iq==null?'–':pct(r.iq,2)}</td></tr>`).join('');
+  // month by month (all mapped brands of the selection together)
+  const M=J.map(j=>{let a=0,t=0,na=0,nt=0; R.filter(r=>!r.tot).forEach(r=>{if(r.pa&&r.pa[j]){a+=r.pa[j][0]; t+=r.pa[j][K];} na+=r.nat[j][0]; nt+=r.nat[j][K];}); return {m:T.months[j],a,t,na,nt};});
+  const lab=m=>{const [y,mm]=m.split('-'); return MNAME[+mm-1]+'-'+y.slice(2);};
+  const mrows=M.slice().reverse().map(x=>`<tr><td>${lab(x.m)}</td><td class="r num">${fmt(x.a)}</td><td class="r num">${fmt(x.t)}</td><td class="r">${achH(x.t>0?x.a/x.t:null)}</td><td class="r num">${x.nt>0?pct(x.t/x.nt,2):'–'}</td><td class="r num">${x.na>0?pct(x.a/x.na,2):'–'}</td></tr>`).join('');
+  const tot=R[R.length-1], tc=tot.nTgt>0?tot.tgt/tot.nTgt:null;
+  const read=tc!=null&&geo!=null?(tc>geo*1.15?`Target contribution (${pct(tc,1)}) is well above this position's Market Geo Share (${pct(geo,1)}) — a demanding target for the size of the market here.`:tc<geo*0.85?`Target contribution (${pct(tc,1)}) is well below this position's Market Geo Share (${pct(geo,1)}) — the target looks light for the size of the market here.`:`Target contribution (${pct(tc,1)}) is in line with this position's Market Geo Share (${pct(geo,1)}).`):'';
+  return `<div>${head}${seg}
+   <p class="lead">${lab(T.months[J[0]])}–${lab(T.months[J[J.length-1]])} (selected period, in-house data). ${read}</p>
+   <div class="tbl-wrap" style="max-height:none"><table class="dt trtbl"><thead><tr><th>Product</th><th class="r">Actual</th><th class="r">Target</th><th class="r">Achiev.</th><th class="r" title="This position's share of the national ${BL[B]} for the product">Target<br>contrib. %</th><th class="r" title="This position's share of national in-house sales">Sales<br>contrib. %</th><th class="r" title="This position's share of national IQVIA sales (selected measure)">IQVIA<br>contrib. %</th></tr></thead><tbody>${rows}</tbody></table></div>
+   <div class="tbl-wrap" style="max-height:260px;margin-top:8px"><table class="dt trtbl"><thead><tr><th>Month</th><th class="r">Actual</th><th class="r">Target</th><th class="r">Achiev.</th><th class="r">Target<br>contrib. %</th><th class="r">Sales<br>contrib. %</th></tr></thead><tbody>${mrows}</tbody></table></div>
+   <p class="foot">${BL[B]}: same target rules as the Sales page. Achievement = actual ÷ target. Target contribution % = this position's share of the national target; Sales contribution % = its share of national in-house sales; IQVIA contribution % = its share of national IQVIA sales; Market Geo Share = ${geo==null?'–':pct(geo,1)}. In-house sales follow the sales position (current or vacant holder).</p></div>`;
 }
 function openPos(p){
   const C=LAST, o=(LASTP||[]).find(x=>x.p===p); if(!o)return; const dr=$('#ig-drawer'), L=o.line;
@@ -467,12 +548,15 @@ function openPos(p){
    <div><div class="sub">${esc(o.line)} · DM ${esc(o.dm)} · NSM ${esc(o.nsm)}</div><h1 style="font-size:18px">${esc(o.name)}</h1><div>${o.vac!=='Filled'?'<span class="chip s-Grow">Vacant</span>':esc(o.rep)} <span class="chip" style="background:color-mix(in srgb,${PCOL[o.seg]} 18%,transparent);color:var(--fg)">${o.seg}</span></div></div>
    <div class="mini"><div><div class="l">Market size</div><div class="v">${fmt(o.pot)}</div></div><div><div class="l">${esc(zLab(C))} share</div><div class="v">${pct(o.sh)}</div></div><div><div class="l">Fair Share Index</div><div class="v">${o.idx==null?'–':Math.round(o.idx)}</div></div>
    <div><div class="l">Gap to fair share</div><div class="v">${fmt(o.gap)}</div></div><div><div class="l">Market growth</div><div class="v">${grH(o.gm)}</div></div><div><div class="l">Lead competitor</div><div class="v" style="font-size:13px">${o.lead?esc(D.brands[o.lead.b].n)+' '+pct(o.lead.sh):'–'}</div></div></div>
+   ${tgtBlock(C,o)}
+   ${trendBlock(C,o)}
    ${compBlock}
    <div><h2 class="dh">Bricks covered</h2><div class="tbl-wrap" style="max-height:280px"><table class="dt"><thead><tr><th>Brick</th><th class="r">Allocation</th><th class="r">Brick market</th><th class="r">${esc(zLab(C))} share</th><th>Lead competitor</th></tr></thead><tbody>
    ${brs.map(x=>`<tr data-k="${x.b}"><td>${esc(D.bricks[x.b].n)}</td><td class="r num">${pct(x.al,0)}</td><td class="r num">${fmt(x.mk)}</td><td class="r num">${pct(x.sh)}</td><td>${x.lb==null?'–':esc(D.brands[x.lb].n)+' <span class="muted num">'+pct(x.lsh)+'</span>'}</td></tr>`).join('')}
    </tbody></table></div></div>`;
   dr.hidden=false; dr.querySelector('.x').onclick=()=>dr.hidden=true; dr.querySelector('.x').focus();
   dr.querySelectorAll('tbody tr[data-k]').forEach(tr=>tr.onclick=()=>openBrick(+tr.dataset.k));
+  dr.querySelectorAll('.tgtseg button').forEach(b=>b.onclick=()=>{ST.tgtB=b.dataset.tb; const st=dr.scrollTop; openPos(p); dr.scrollTop=st;});
 }
 let LASTP=null;
 

@@ -316,12 +316,24 @@
 
   function canViewRep360() { return canViewLocalPages(); }
 
-  var TERRITORY_MARKET_ROLES = ["BEX", "bex", "SFE Manager", "SFE", "sfe", "Admin"];
+  // 2026-10-12 (Ahmed): Territory Market Insights is open to EVERY role, scoped to the user's
+  // Allowed BU / Allowed Lines inside the page (js/iqvia-geo.js uses isLineAllowed / isBuAllowed),
+  // EXCEPT users whose whole scope is CHC (CHC / CHC_SALES have no IQVIA territory market).
+  // Target basis in the page follows getScenarioConfig(): locked roles (e.g. DIAB Line Managers)
+  // see Working Target only. Previous rule (BEX / SFE / Admin only) kept below for reference.
+  var TERRITORY_MARKET_ROLES = ["BEX", "bex", "SFE Manager", "SFE", "sfe", "Admin"]; // pre-2026-10-12, unused
+  var TERRITORY_MARKET_CHC_LINES = ["CHC", "CHC_SALES", "CHCSALES"];
   function canViewTerritoryMarket() {
     var u = getValidSessionUser();
     if (!u) return false;
-    var r = String(u.role || "").toLowerCase();
-    return TERRITORY_MARKET_ROLES.indexOf(u.role) >= 0 || r.indexOf("sfe") >= 0 || r.indexOf("bex") >= 0;
+    var up = function (x) { return String(x || "").trim().toUpperCase().replace(/[\s\-]+/g, "_"); };
+    if (Array.isArray(u.lines) && u.lines.length) {
+      return !u.lines.every(function (l) { var k = up(l); return TERRITORY_MARKET_CHC_LINES.indexOf(k) >= 0 || TERRITORY_MARKET_CHC_LINES.indexOf(k.replace(/_/g, "")) >= 0; });
+    }
+    if (Array.isArray(u.bu) && u.bu.length) {
+      return !u.bu.every(function (b) { return normalizeBuFallback(b) === "CHC"; });
+    }
+    return true;
   }
 
   // -------------------------------------------------------------------

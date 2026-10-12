@@ -1153,7 +1153,7 @@ async function renderTerritoryMarketTab(container) {
   const allowed = window.AUTH && typeof window.AUTH.canViewTerritoryMarket === "function" ? window.AUTH.canViewTerritoryMarket() : false;
   if (!allowed) { renderLocalOnlyDenied(container, "Territory Market Insights"); return; }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Territory Market Insights…</div>';
-  await Promise.all([loadLocalAsset("css/iqvia-geo.css?v=20261010_fit"), loadLocalAsset("js/iqvia-geo.js?v=20261010_ux"),
+  await Promise.all([loadLocalAsset("css/iqvia-geo.css?v=20261011_tgt"), loadLocalAsset("js/iqvia-geo.js?v=20261012_scope"),
     window.CacheLoader ? window.CacheLoader.ensure("iqvia_geo") : Promise.resolve(false)]);
   if (currentTab !== "territorymarket") return;
   if (window.TerritoryMarketDashboard) window.TerritoryMarketDashboard.init("app-root");
