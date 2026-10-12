@@ -102,7 +102,9 @@ echo Staging...
 "%GIT_CMD%" add -f cache/teamkpis.data.js       2>nul
 "%GIT_CMD%" add -f cache/records.data.js        2>nul
 "%GIT_CMD%" add -f cache/organogram.data.js     2>nul
-"%GIT_CMD%" add -f cache/sales.json             2>nul
+REM 2026-10-12 (Ahmed): cache/sales.json is NOT published any more (95 MB, no page loads it;
+REM UPDATE_DASHBOARD removes it from GitHub). Do not add it back here.
+"%GIT_CMD%" rm --cached --quiet --ignore-unmatch cache/sales.json 2>nul
 "%GIT_CMD%" add -f cache/sales.data.js          2>nul
 "%GIT_CMD%" add -f cache/iqvia.json             2>nul
 "%GIT_CMD%" add -f cache/iqvia.data.js          2>nul

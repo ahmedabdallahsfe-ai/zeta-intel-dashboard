@@ -6,7 +6,7 @@
  * comparisonYears / growthWindow under a temporary filter state that is restored afterwards.
  *
  * Definitions (unchanged from the page):
- *   The cube is CALENDAR-YEAR (2022–2025 full, 2026 = Jan–Apr only). Value is local currency, units are units.
+ *   The cube is CALENDAR-YEAR (2022–2025 full, 2026 = Jan–Jun only). Value is local currency, units are units.
  *   Value / share of a year = the page's rankedRows() `value` / `sharePct` for that year.
  *   Growth is a CAGR: first → last FULL year in scope, annualised (Ahmed's directive 2026-08-06). Partial years are
  *   never used as a growth endpoint. YoY between two years is available as a comparison of the year values.
@@ -113,7 +113,7 @@
     if (!keys.length) Y = ys.filter(function (y) { return part.indexOf(y) < 0; }).pop();
     else {
       var MULTI = ["quarter", "relquarter", "half", "range", "rolling", "ytd", "mtd", "all"];
-      if (keys.length > 1 || MULTI.indexOf(period.kind) >= 0) return { ok: false, missing: "Total Market Intelligence is a calendar-year cube (" + ys.join(", ") + "; " + part.join(", ") + " is Jan–Apr only). There is no monthly or quarterly data, so I will not slice it into " + (period.label || keys.join(", ")) + ". Ask for a year, e.g. “2025” or “2025 vs 2024”." };
+      if (keys.length > 1 || MULTI.indexOf(period.kind) >= 0) return { ok: false, missing: "Total Market Intelligence is a calendar-year cube (" + ys.join(", ") + "; " + part.join(", ") + " is Jan–Jun only). There is no monthly or quarterly data, so I will not slice it into " + (period.label || keys.join(", ")) + ". Ask for a year, e.g. “2025” or “2025 vs 2024”." };
       Y = have[keys[0]];
       if (!Y) return { ok: false, missing: "Total Market Intelligence holds calendar years " + ys.join(", ") + "; " + (period.label || keys[0]) + " is not one of them." };
     }
@@ -190,12 +190,12 @@
     if (g === "corp" && (req.measures || []).some(function (m) { return /zeta/.test(m.id); })) {
       if (g === "corp") caveats.push("Grouped by corporation, “Zeta share / growth” shows each corporation's own share and growth (Zeta's row is Zeta's).");
     }
-    if (part.indexOf(Y) >= 0) caveats.push(Y + " is a PARTIAL year (Jan–Apr). Its value is not comparable with full years and it is never used as a growth endpoint; growth shown is the CAGR of the full years " + (w && w.ok ? w.base.y + "–" + w.end.y : "in scope") + ".");
+    if (part.indexOf(Y) >= 0) caveats.push(Y + " is a PARTIAL year (Jan–Jun). Its value is not comparable with full years and it is never used as a growth endpoint; growth shown is the CAGR of the full years " + (w && w.ok ? w.base.y + "–" + w.end.y : "in scope") + ".");
     if (g && (req.measures || []).some(function (m) { return /cagr/.test(m.id); })) caveats.push("CAGR on a very small first-year base can look extreme; read it next to the value.");
     if (!span) caveats.push("Growth needs at least two full years in scope; there is only one up to " + Y + ".");
     if (/mi_(share_delta|share_lost|cagr|zeta_cagr|delta|decline)/.test((req.measures || []).map(function (m) { return m.id; }).join(" "))) caveats.push("Growth-window measures compare the first and last full year (" + (w && w.ok ? w.base.y + " → " + w.end.y : "n/a") + "), not the previous year.");
     return { ok: true, rows: rows, total: total, caveats: caveats, asOf: String(Y),
-      basis: [["Data", "IMS 2022 to April 2026 — annual cube, calendar years " + ys.join(", ")], ["Year", String(Y) + (part.indexOf(Y) >= 0 ? " (Jan–Apr)" : "")],
+      basis: [["Data", "IMS 2022 to June 2026 — annual cube, calendar years " + ys.join(", ")], ["Year", String(Y) + (part.indexOf(Y) >= 0 ? " (Jan–Jun)" : "")],
               ["Growth", w && w.ok ? "CAGR " + w.base.y + "–" + w.end.y + " (" + w.span + " years), full years only" : "not available"]],
       formula: "Values and shares come from the page's rankedRows(); growth is the page's CAGR rule" };
   }

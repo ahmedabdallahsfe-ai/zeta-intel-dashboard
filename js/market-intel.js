@@ -29,8 +29,8 @@
  *      so those five filters cannot narrow the monthly trend charts.
  *      Both are disclosed inline where they bite.
  *
- * 2026 IS A PARTIAL YEAR (Jan-Apr). Year-on-year comparisons against it
- * are flagged, never silently annualised -- a 4-month year shown beside
+ * 2026 IS A PARTIAL YEAR (Jan-Jun). Year-on-year comparisons against it
+ * are flagged, never silently annualised -- a 6-month year shown beside
  * 12-month years is the single easiest way to mislead a board.
  * =====================================================================
  */
@@ -217,7 +217,7 @@
   // -------------------------------------------------------------------
   // PARTIAL-YEAR HANDLING
   // -------------------------------------------------------------------
-  // 2026 holds January-April only. Placed beside four full years it
+  // 2026 holds January-June only. Placed beside four full years it
   // reads as a catastrophic collapse (-64.9% "growth", every corporation
   // apparently losing two thirds of its business) when nothing of the
   // sort happened -- it is simply a third of a year.
@@ -228,7 +228,7 @@
   // extrapolation of a partial year is a forecast wearing the costume of
   // an actual.
   var PARTIAL_YEAR = 2026;
-  var PARTIAL_MONTHS = 4;
+  var PARTIAL_MONTHS = 6;   // IMS file updated 2026-10-12: 2026 = Jan-Jun
 
   function isPartialYear(y) { return y === PARTIAL_YEAR; }
 
@@ -304,7 +304,7 @@
   //     different claims, and the second is the one that survives
   //     scrutiny in a business review.
   //
-  // PARTIAL YEARS ARE EXCLUDED FROM THE WINDOW ENTIRELY. A four-month
+  // PARTIAL YEARS ARE EXCLUDED FROM THE WINDOW ENTIRELY. A six-month
   // endpoint would drag every compound rate down by roughly two thirds
   // and the error would be invisible in the output. If fewer than two
   // full years are in scope there is no window, growth reads "—", and
@@ -491,7 +491,7 @@
     //     phasing artefact. CAGR over 2022→2025 describes a trajectory.
     //   - It is comparable across entities with different starting years
     //     in scope, because it is normalised per annum.
-    // Partial years are excluded from the CAGR window entirely: a 4-month
+    // Partial years are excluded from the CAGR window entirely: a 6-month
     // endpoint would understate every compound rate by roughly two thirds.
     function cagrLeader(id, name, field, lookupKey) {
       var fullYears = activeYears().filter(function (o) { return !isPartialYear(o.y); });
@@ -665,7 +665,7 @@
    *
    * `cur` and `end` are the same year in the normal case and diverge only
    * when the user has pulled the partial year into scope. Keeping them
-   * separate is what stops a four-month endpoint from silently becoming
+   * separate is what stops a six-month endpoint from silently becoming
    * the terminal value of a compound rate. See `growthWindow`.
    *
    * `prevValue` is retained as an alias of the window base so existing
@@ -873,13 +873,13 @@
    * for this workspace (2026-08-06, Ahmed: "make trend not monthly").
    *
    * Partial years are marked so the charts can render them distinctly
-   * rather than letting a 4-month bar sit unlabelled beside 12-month ones.
+   * rather than letting a 6-month bar sit unlabelled beside 12-month ones.
    */
   function trendSeries() {
     var s = yearSeries();
     return {
       labels: s.map(function (x) {
-        return String(x.year) + (isPartialYear(x.year) ? " (Jan–Apr)" : "");
+        return String(x.year) + (isPartialYear(x.year) ? " (Jan–Jun)" : "");
       }),
       years: s.map(function (x) { return x.year; }),
       partial: s.map(function (x) { return isPartialYear(x.year); }),
@@ -979,7 +979,7 @@
         action: mktG >= 0
           ? "Confirm our own compound rate is at least matching the market — anything less is share erosion in a rising market."
           : "Protect price and mix before chasing volume in a contracting market.",
-        caveat: partial ? curY + " covers January–April only. It is shown in the value " +
+        caveat: partial ? curY + " covers January–June only. It is shown in the value " +
           "columns but excluded from every compound rate on this page." : null,
       });
     }
@@ -1376,7 +1376,7 @@
   function partialBanner() {
     if (!scopeIncludesPartial()) return "";
     return '<div class="mi-banner mi-banner-warn">' +
-      "<strong>" + PARTIAL_YEAR + " covers January–April only.</strong> " +
+      "<strong>" + PARTIAL_YEAR + " covers January–June only.</strong> " +
       "It is included in the scope you selected, so growth rates against a full " +
       "12-month year are not like-for-like. The figures are not annualised — " +
       "extrapolating a partial year would be a forecast, not an actual." +
@@ -1518,10 +1518,10 @@
     var w = growthWindow();
     return '<div class="mi-note"><strong>Trend basis:</strong> Calendar Year. ' +
       "Values are actual reported annual totals — not annualised, smoothed or " +
-      "interpolated. " + PARTIAL_YEAR + " is shown as reported (January–April) " +
+      "interpolated. " + PARTIAL_YEAR + " is shown as reported (January–June) " +
       "and is hatched in the charts; it is excluded from every CAGR calculation, " +
-      "because a four-month endpoint would understate a compound rate by roughly " +
-      "two thirds." +
+      "because a six-month endpoint would understate a compound rate by roughly " +
+      "half." +
       (w.ok
         ? " <strong>Every growth figure on this page is a compound annual rate over " +
           w.base.y + "–" + w.end.y + "</strong> — the rightmost bar in the CAGR chart " +
@@ -1535,7 +1535,7 @@
   function drawOverview() {
     var ms = trendSeries();
     var lbl = ms.labels;
-    // Partial years get a muted fill so a 4-month bar is never mistaken
+    // Partial years get a muted fill so a 6-month bar is never mistaken
     // for a completed one at a glance.
     var barColors = ms.partial.map(function (p) {
       return p ? "rgba(15,76,129,0.35)" : PALETTE[0];
@@ -3391,7 +3391,7 @@
     var out = [];
     var pi = CACHE.lookups.years.indexOf(PARTIAL_YEAR);
     if (pi >= 0 && yearSet.has(pi)) {
-      out.push(PARTIAL_YEAR + " covers January–April only. It is not comparable to a full " +
+      out.push(PARTIAL_YEAR + " covers January–June only. It is not comparable to a full " +
         "year, and the figure is not annualised — extrapolating it would be a forecast, " +
         "not an actual.");
     }

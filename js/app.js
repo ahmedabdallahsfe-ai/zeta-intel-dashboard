@@ -243,9 +243,66 @@ function startApp() {
   // the exact same code that used to run directly inside startApp().
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      startAppBody();
+      // 2026-10-12 (Ahmed): reload any large data file that arrived broken
+      // or not at all (slow line, page opened while GitHub Pages was
+      // deploying) BEFORE the first render, instead of drawing N/A cards.
+      ensureDataFiles().then(startAppBody, startAppBody);
     });
   });
+}
+
+/* ---------------------------------------------------------------------
+ * DATA-FILE GUARD (2026-10-12, Ahmed -- same idea as the IQVIA Option A+B
+ * approved 2026-10-04). The big caches are plain <script defer> tags; a
+ * truncated or failed transfer leaves their global undefined and every
+ * card fed by them shows "N/A (module_unavailable)" until a manual
+ * Ctrl+F5. Here each missing global is re-requested up to 3 times with a
+ * cache-busting suffix. IQVIA: js/iqvia.js reads IQVIA_CACHE when it
+ * loads, so after a successful IQVIA retry js/iqvia.js is executed again
+ * if IQVIADashboard is missing. Nothing changes when all files loaded.
+ * ------------------------------------------------------------------- */
+const DATA_FILE_GUARDS = [
+  { g: "DASHBOARD_CACHE",   f: "cache/dashboard.data.js" },
+  { g: "DASHBOARD_RECORDS", f: "cache/records.data.js" },
+  { g: "SALES_CACHE",       f: "cache/sales.data.js" },
+  { g: "IQVIA_CACHE",       f: "cache/iqvia.data.js", mod: "IQVIADashboard", after: "js/iqvia.js" }
+];
+function _guardSrc(f) {
+  const el = Array.prototype.find.call(document.scripts, (s) => s.getAttribute("src") && s.getAttribute("src").indexOf(f) === 0);
+  return el ? el.getAttribute("src") : f;
+}
+function _guardLoad(src) {
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+}
+async function ensureDataFiles() {
+  const report = [];
+  for (const x of DATA_FILE_GUARDS) {
+    let tries = 0;
+    while (!window[x.g] && tries < 3) {
+      tries++;
+      try { Loader.setMessage("Reloading " + x.f.split("/").pop() + " (attempt " + tries + " of 3)..."); } catch (e) {}
+      console.warn("[DataGuard] " + x.f + " did not load -- retry " + tries + "/3");
+      const src = _guardSrc(x.f);
+      await _guardLoad(src + (src.indexOf("?") >= 0 ? "&" : "?") + "retry=" + tries + "_" + Date.now());
+      if (!window[x.g]) await new Promise((r) => setTimeout(r, 800 * tries));
+    }
+    if (tries > 0 && window[x.g] && x.mod && !window[x.mod] && x.after) { // only after a real retry
+      console.warn("[DataGuard] " + x.mod + " missing after " + x.f + " loaded -- re-running " + x.after);
+      const src = _guardSrc(x.after);
+      await _guardLoad(src + (src.indexOf("?") >= 0 ? "&" : "?") + "retry=" + Date.now());
+    }
+    report.push({ file: x.f, ok: !!window[x.g] && (!x.mod || !!window[x.mod]), retries: tries });
+  }
+  window.__dataGuard = report;
+  const bad = report.filter((r) => !r.ok);
+  if (bad.length) console.error("[DataGuard] still missing after 3 retries:", bad.map((r) => r.file).join(", "));
+  return report;
 }
 
 function startAppBody() {

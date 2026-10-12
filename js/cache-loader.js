@@ -58,13 +58,13 @@
       file: "cache/customer_analytics.data.js",
       globalVar: "CUSTOMER_ANALYTICS_CACHE",
       label: "Customer analytics",
-      version: "20261002_2042_auto",
+      version: "20261012_1309_auto",
     },
     market_intel: {
       file: "cache/market_intel.data.js",
       globalVar: "MARKET_INTEL_CACHE",
       label: "Market intelligence",
-      version: "20260806_annual",
+      version: "20261012_janjun",
     },
     coaching: {
       file: "cache/coaching.data.js",
@@ -76,7 +76,7 @@
       file: "cache/business_review.data.js",
       globalVar: "BUSINESS_REVIEW_CACHE",
       label: "BU business review",
-      version: "20261012_1139_auto",
+      version: "20261012_1309_auto",
     },
     list_intel: {
       file: "cache/list_intel.data.js",
@@ -95,13 +95,13 @@
       file: "cache/iqvia_geo.data.js",
       globalVar: "IQVIA_GEO_CACHE",
       label: "Territory market insights (IQVIA geo)",
-      version: "20261012_1139_auto",
+      version: "20261012_1309_auto",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",
       globalVar: "IMS_RX_CACHE",
       label: "IMS Rx",
-      version: "20261012_1139_auto",
+      version: "20261012_1309_auto",
     },
   };
 

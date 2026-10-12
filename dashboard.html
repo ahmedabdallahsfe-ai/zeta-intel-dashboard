@@ -266,8 +266,8 @@
   <script defer src="js/perf-probe.js?v=20260808_perf2"></script>
 
   <!-- Cache (must load before any module that reads it) -->
-  <script defer src="cache/metadata.data.js?v=20260916_leavemonthly"></script>
-  <script defer src="cache/dashboard.data.js?v=20260916_proratedtgt"></script>
+  <script defer src="cache/metadata.data.js?v=20261012_1309_auto"></script>
+  <script defer src="cache/dashboard.data.js?v=20261012_1309_auto"></script>
   <script defer src="cache/teamkpis.data.js?v=20260724"></script>
   <script defer src="cache/records.data.js?v=20260916_proratedtgt"></script>
   <script defer src="cache/organogram.data.js?v=20260914_august"></script>
@@ -297,14 +297,14 @@
        these two brands' sales count toward Sales Achievement instead of being excluded by the existing
        Non-Tender convention. All other brands/products unchanged. 191,352.00 EGP moved Tender->Non-Tender;
        Total Actual Sales Value unchanged to the cent (1,426,495,032.60). -->
-  <script defer src="cache/sales.data.js?v=20261002_2042_auto"></script>
+  <script defer src="cache/sales.data.js?v=20261012_q3upd"></script>
   <!-- Zeta Sprint 2026 cache (2026-08-15): built by etl/build_sprint_cache.py from
        sprint/scaling scores.xlsx (point curves) + this page's own Coverage/Sales
        cache sources. Re-linked 2026-08-16 (Ahmed: "add zeta sprint to dashboard") --
        this script tag, the sidebar entry, and app.js's Sprint wiring were dropped
        during the same pass that added IMS Rx role-gating; the underlying cache/js/css
        files were never touched, so no rebuild was needed, only re-wiring. -->
-  <script defer src="cache/sprint.data.js?v=20261002_2042_auto"></script>
+  <script defer src="cache/sprint.data.js?v=20261012_1309_auto"></script>
   <!-- Field Working Days Intelligence cache (2026-09-05, Ahmed "implmement
        to zeta intell"): built by etl/build_working_days_cache.py from the
        Sprint KPI template's DM_DSM/ASM/NSM tabs. Separate from
@@ -369,7 +369,7 @@
   <script defer src="js/semantic-model.js?v=20260804_tomarket_bumgr"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20261012_1139_auto"></script>
+  <script defer src="js/cache-loader.js?v=20261012_1309_auto"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
@@ -458,7 +458,7 @@
        via CacheLoader.ensure("market_intel") from renderMarketIntelTab() in
        js/app.js, only when the Total Market Intelligence tab opens. See
        loading_performance_regression.md. -->
-  <script defer src="js/market-intel.js?v=20260806_cagr"></script>
+  <script defer src="js/market-intel.js?v=20261012_janjun"></script>
   <!-- Ask the Data (2026-08-07; query layer 2026-09-20). Load order matters:
        engine -> period parser -> query layer -> providers (register themselves
        with AskQuery) -> legacy per-page adapters -> app.js, which mounts them.
@@ -477,14 +477,14 @@
   <script defer src="js/ask-prov-sprint.js?v=20260921_askq2"></script>
   <script defer src="js/ask-prov-imsrx.js?v=20260921_askq2"></script>
   <script defer src="js/ask-prov-iqvia.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-marketintel.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-marketintel.js?v=20261012_janjun"></script>
   <script defer src="js/ask-prov-tomarket.js?v=20260921_askq2"></script>
   <script defer src="js/ask-pages.js?v=20260921_askq2"></script>
   <script defer src="js/ask-coverage.js?v=20260921_askq2"></script>
   <script defer src="js/ask-sales.js?v=20260921_askq2"></script>
   <script defer src="js/ask-sfe.js?v=20260921_askq2"></script>
   <script defer src="js/ask-executive.js?v=20260921_askq2"></script>
-  <script defer src="js/app.js?v=20261012_tm"></script>
+  <script defer src="js/app.js?v=20261012_guard"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">
