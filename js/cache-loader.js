@@ -76,7 +76,7 @@
       file: "cache/business_review.data.js",
       globalVar: "BUSINESS_REVIEW_CACHE",
       label: "BU business review",
-      version: "20261002_2042_auto",
+      version: "20261012_1139_auto",
     },
     list_intel: {
       file: "cache/list_intel.data.js",
@@ -95,13 +95,13 @@
       file: "cache/iqvia_geo.data.js",
       globalVar: "IQVIA_GEO_CACHE",
       label: "Territory market insights (IQVIA geo)",
-      version: "20261011_tgt",
+      version: "20261012_1139_auto",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",
       globalVar: "IMS_RX_CACHE",
       label: "IMS Rx",
-      version: "20260928_specmap",
+      version: "20261012_1139_auto",
     },
   };
 

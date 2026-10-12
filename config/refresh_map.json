@@ -66,6 +66,7 @@
     "iqvia":       "Market Intelligence (IQVIA)",
     "tomarket":    "To-Market vs In-Market",
     "marketintel": "Total Market Intelligence",
+    "territorymarket": "Territory Market Insights",
     "sprint":      "Zeta Sprint 2026",
     "workingdays": "Field Working Days",
     "imsrx":       "IMS Rx",
@@ -313,6 +314,24 @@
       "depends_on": ["sprint", "coaching"],
       "outputs": ["cache/working_days.data.js"],
       "pages": ["workingdays", "sprint"]
+    },
+    {
+      "id": "iqvia_geo",
+      "label": "Territory Market Insights (IQVIA territory)",
+      "commands": [["etl/build_iqvia_geo_cache.py"]],
+      "critical": false,
+      "sources": [
+        "IQVIA TERRIOTRY/Egypt Sales Territory.xlsx",
+        "iqvia_source/IQVIA_SOURCE.xlsx",
+        "ZETA SALES_2026/Q1_Sales.xlsx",
+        "ZETA SALES_2026/Q2_Sales.xlsx",
+        "ZETA SALES_2026/june.xlsx",
+        "ZETA SALES_2026/Q3_SALES.xlsx"
+      ],
+      "depends_on": ["coverage", "sales", "iqvia"],
+      "outputs": ["cache/iqvia_geo.data.js"],
+      "pages": ["territorymarket"],
+      "_note": "Added 2026-10-12 (Ahmed). Reads the territory workbook (IQVIA Actual + estimated Zeta layer), IQVIA_SOURCE.xlsx (sector split, cached in cache/.iqvia_geo_src/iq_sector.pkl), the 2026 in-house sales files (position weights), cache/iqvia.data.js (iqvia step), cache/sales.data.js (sales step: sales vs target by position) and cache/records.json + dashboard.json (coverage step). ~30 s when nothing heavy changed, ~2 min after IQVIA_SOURCE or sales file changes. Non-critical: on failure the previous cache is kept."
     },
     {
       "id": "business_review",
