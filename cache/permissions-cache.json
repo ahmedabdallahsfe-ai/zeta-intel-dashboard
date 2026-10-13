@@ -1,102 +1,46 @@
 {
   "permissions": {
-    "ahmed.abdelfatah@zeta-pharma.com": {
-      "bu": [
-        "GIT"
-      ],
-      "canExport": true,
-      "lines": [
-        "Derma"
-      ],
-      "role": "Line Manager"
-    },
     "ahmed.abdullah@zeta-pharma.com": {
       "bu": null,
-      "canExport": true,
       "lines": null,
-      "role": "SFE Manager"
-    },
-    "ahmed.barakat@zeta-pharma.com": {
-      "bu": [
-        "CHC"
-      ],
-      "canExport": true,
-      "lines": [
-        "CHC"
-      ],
-      "role": "Line Manager"
-    },
-    "ahmed.farag@zeta-pharma.com": {
-      "bu": [
-        "GIT"
-      ],
-      "canExport": true,
-      "lines": [
-        "GIT-I"
-      ],
-      "role": "Line Manager"
-    },
-    "ahmed.hakam@zeta-pharma.com": {
-      "bu": null,
-      "canExport": true,
-      "lines": null,
-      "role": "Marketing Consultant"
+      "role": "SFE Manager",
+      "canExport": true
     },
     "ahmed.hamid@zeta-pharma.com": {
       "bu": null,
-      "canExport": true,
       "lines": null,
-      "role": "BEX"
+      "role": "BEX",
+      "canExport": true
     },
-    "ahmed.haridy@zeta-pharma.com": {
-      "bu": [
-        "GIT"
-      ],
-      "canExport": true,
-      "lines": [
-        "GIT-III"
-      ],
-      "role": "Line Manager"
+    "mohammed.bakr@zeta-pharma.com": {
+      "bu": null,
+      "lines": null,
+      "role": "CEO",
+      "canExport": true
     },
-    "ahmed.shokry@zeta-pharma.com": {
-      "bu": [
-        "Cluster"
-      ],
-      "canExport": true,
-      "lines": [
-        "CVM-I",
-        "CVM-II",
-        "ORTHO-I",
-        "ORTHO-II",
-        "PEDIA"
-      ],
-      "role": "BU Manager"
+    "hussien.elbanna@zeta-pharma.com": {
+      "bu": null,
+      "lines": null,
+      "role": "VP",
+      "canExport": true
     },
-    "amr.aziz@zeta-pharma.com": {
+    "kamal.allam@zeta-pharma.com": {
       "bu": [
-        "Cluster"
+        "DIAB"
       ],
-      "canExport": true,
       "lines": [
-        "ORTHO-I"
+        "DIAB-I",
+        "DIAB-II",
+        "DIAB-III",
+        "DIAB-IV"
       ],
-      "role": "Line Manager"
-    },
-    "amr.khalifa@zeta-pharma.com": {
-      "bu": [
-        "CHC"
-      ],
-      "canExport": true,
-      "lines": [
-        "CHC"
-      ],
-      "role": "BU Manager"
+      "role": "BU Manager",
+      "canExport": true
     },
     "hossam.salem@zeta-pharma.com": {
       "bu": [
         "GIT"
       ],
-      "canExport": true,
       "lines": [
         "GIT-I",
         "GIT-II",
@@ -104,138 +48,360 @@
         "Derma",
         "CNS"
       ],
-      "role": "BU Manager"
+      "role": "BU Manager",
+      "canExport": true
     },
-    "hussien.elbanna@zeta-pharma.com": {
+    "ahmed.shokry@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "lines": [
+        "CVM-I",
+        "CVM-II",
+        "ORTHO-I",
+        "ORTHO-II",
+        "PEDIA"
+      ],
+      "role": "BU Manager",
+      "canExport": true
+    },
+    "amr.khalifa@zeta-pharma.com": {
+      "bu": [
+        "CHC"
+      ],
+      "lines": [
+        "CHC",
+        "CHC_SALES"
+      ],
+      "role": "BU Manager",
+      "canExport": true
+    },
+    "ahmed.hakam@zeta-pharma.com": {
       "bu": null,
-      "canExport": true,
       "lines": null,
-      "role": "VP"
+      "role": "Marketing Consultant",
+      "canExport": true
+    },
+    "youssef.bakr@zeta-pharma.com": {
+      "bu": null,
+      "lines": null,
+      "role": "Admin",
+      "canExport": true
+    },
+    "nader.khaled@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "lines": [
+        "GIT-II"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "ahmed.haridy@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "lines": [
+        "GIT-III"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "mohamed.elkerdawy@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "lines": [
+        "CVM-I"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "mohamed.shaban@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "lines": [
+        "ORTHO-II"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "mahmoud.mokhtar@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "lines": [
+        "DIAB-IV"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "mahmoud.abdelaziz@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "lines": [
+        "DIAB-III"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "mostafa.elkhateeb@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "lines": [
+        "DIAB-I"
+      ],
+      "role": "Line Manager",
+      "canExport": true
     },
     "ibrahim.ghareeb@zeta-pharma.com": {
       "bu": [
         "Cluster"
       ],
-      "canExport": true,
       "lines": [
         "PEDIA"
       ],
-      "role": "Line Manager"
+      "role": "Line Manager",
+      "canExport": true
     },
-    "kamal.allam@zeta-pharma.com": {
+    "mina.magdy@zeta-pharma.com": {
       "bu": [
         "DIAB"
       ],
-      "canExport": true,
+      "lines": [
+        "DIAB-II"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "mohamed.fekry@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "lines": [
+        "CNS"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "mohamed.taher@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "lines": [
+        "CVM-II"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "ahmed.abdelfatah@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "lines": [
+        "Derma"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "ahmed.barakat@zeta-pharma.com": {
+      "bu": [
+        "CHC"
+      ],
+      "lines": [
+        "CHC"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "amr.aziz@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "lines": [
+        "ORTHO-I"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "ahmed.farag@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "lines": [
+        "GIT-I"
+      ],
+      "role": "Line Manager",
+      "canExport": true
+    },
+    "bishoy.balamon@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "lines": [
+        "CVM-I",
+        "CVM-II",
+        "ORTHO-I",
+        "ORTHO-II",
+        "PEDIA"
+      ],
+      "role": "Group Brand Manager",
+      "canExport": true
+    },
+    "mohamed.saied@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
       "lines": [
         "DIAB-I",
         "DIAB-II",
         "DIAB-III",
         "DIAB-IV"
       ],
-      "role": "BU Manager"
+      "role": "Group Brand Manager",
+      "canExport": true
     },
-    "mahmoud.abdelaziz@zeta-pharma.com": {
-      "bu": [
-        "DIAB"
-      ],
-      "canExport": true,
-      "lines": [
-        "DIAB-III"
-      ],
-      "role": "Line Manager"
-    },
-    "mahmoud.mokhtar@zeta-pharma.com": {
-      "bu": [
-        "DIAB"
-      ],
-      "canExport": true,
-      "lines": [
-        "DIAB-IV"
-      ],
-      "role": "Line Manager"
-    },
-    "mina.magdy@zeta-pharma.com": {
-      "bu": [
-        "DIAB"
-      ],
-      "canExport": true,
-      "lines": [
-        "DIAB-II"
-      ],
-      "role": "Line Manager"
-    },
-    "mohamed.elkerdawy@zeta-pharma.com": {
-      "bu": [
-        "Cluster"
-      ],
-      "canExport": true,
-      "lines": [
-        "CVM-I"
-      ],
-      "role": "Line Manager"
-    },
-    "mohamed.fekry@zeta-pharma.com": {
-      "bu": [
-        "GIT"
-      ],
-      "canExport": true,
-      "lines": [
-        "CNS"
-      ],
-      "role": "Line Manager"
-    },
-    "mohamed.shaban@zeta-pharma.com": {
-      "bu": [
-        "Cluster"
-      ],
-      "canExport": true,
-      "lines": [
-        "ORTHO-II"
-      ],
-      "role": "Line Manager"
-    },
-    "mohamed.taher@zeta-pharma.com": {
-      "bu": [
-        "Cluster"
-      ],
-      "canExport": true,
-      "lines": [
-        "CVM-II"
-      ],
-      "role": "Line Manager"
-    },
-    "mohammed.bakr@zeta-pharma.com": {
+    "yasser.salem@zeta-pharma.com": {
       "bu": null,
-      "canExport": true,
       "lines": null,
-      "role": "CEO"
+      "role": "Commercial Manager",
+      "canExport": true
     },
-    "mostafa.elkhateeb@zeta-pharma.com": {
+    "abdelrahman.shawky@zeta-pharma.com": {
+      "bu": null,
+      "lines": null,
+      "role": "Field Intel Trainer",
+      "canExport": true
+    },
+    "mostafa.rakha@zeta-pharma.com": {
+      "bu": null,
+      "lines": null,
+      "role": "Field Intel Trainer",
+      "canExport": true
+    },
+    "elaria.ayman@zeta-pharma.com": {
       "bu": [
         "DIAB"
       ],
-      "canExport": true,
       "lines": [
         "DIAB-I"
       ],
-      "role": "Line Manager"
+      "role": "Brand Manager",
+      "canExport": true
     },
-    "nader.khaled@zeta-pharma.com": {
+    "gehad.ahmed@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "lines": [
+        "DIAB-II"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
+    },
+    "shady.ahmed@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "lines": [
+        "DIAB-III"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
+    },
+    "mina.shaher@zeta-pharma.com": {
+      "bu": [
+        "DIAB"
+      ],
+      "lines": [
+        "DIAB-IV"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
+    },
+    "asmaa.samir@zeta-pharma.com": {
       "bu": [
         "GIT"
       ],
-      "canExport": true,
       "lines": [
-        "GIT-II"
+        "GIT-I"
       ],
-      "role": "Line Manager"
+      "role": "Brand Manager",
+      "canExport": true
     },
-    "youssef.bakr@zeta-pharma.com": {
-      "bu": null,
-      "canExport": true,
-      "lines": null,
-      "role": "Admin"
+    "ahmed.mohsen@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "lines": [
+        "GIT-III"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
+    },
+    "mohamed.farmawy@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "lines": [
+        "Derma"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
+    },
+    "hossameldin.mostafa@zeta-pharma.com": {
+      "bu": [
+        "GIT"
+      ],
+      "lines": [
+        "CNS"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
+    },
+    "ahmed.salama@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "lines": [
+        "CVM-II"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
+    },
+    "mennatallah.saad@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "lines": [
+        "ORTHO-II"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
+    },
+    "rwan.ashraf@zeta-pharma.com": {
+      "bu": [
+        "Cluster"
+      ],
+      "lines": [
+        "PEDIA"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
+    },
+    "merna.michelle@zeta-pharma.com": {
+      "bu": [
+        "CHC"
+      ],
+      "lines": [
+        "CHC"
+      ],
+      "role": "Brand Manager",
+      "canExport": true
     }
   }
 }

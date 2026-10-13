@@ -1,0 +1,687 @@
+{
+ "_about": "Market Dynamics & Treatment Shift mapping (2026-10-13, approved by Ahmed, SFE Manager). Read by etl/build_market_dynamics.py. Business-owned: edit here, no code change. Classes are matched TOP TO BOTTOM; each IQVIA row lands in the FIRST class whose rules it meets, so every row is counted exactly once and every indication equals the sum of its classes. A rule can use: atc4 (code prefixes), molecules (exact IQVIA molecule names), exclude_molecules, components (number of molecules in the combination, e.g. 3 = triple).",
+ "version": "2026-10-13",
+ "thresholds": {
+  "_note": "Approved 2026-10-13. Quadrants applied top to bottom; first match wins. legacy_decline_multiple added 2026-10-13 (Phase 1 review): when the legacy class loses more than this multiple of the next-gen gain, the flag is 'Legacy Decline (not replaced)' instead of 'Class Substitution'.",
+  "anchor_min_yoy_pct": 5.0,
+  "anchor_min_accel_pts": -5.0,
+  "engine_min_yoy_pct": 10.0,
+  "engine_min_accel_pts": 5.0,
+  "substitution_min_ratio_pct": 50.0,
+  "outlook_expanding_min_pct": 5.0,
+  "outlook_contracting_max_pct": -2.0,
+  "growth_rules_file": "js/iqvia-growth-config.js",
+  "default_low_base_growth_pct": 1000.0,
+  "default_min_share_pct": 0.5,
+  "legacy_decline_multiple": 2.0
+ },
+ "indications": [
+  {
+   "id": "ACID",
+   "name": "Acid-related (GIT)"
+  },
+  {
+   "id": "GI_OTHER",
+   "name": "GI motility & other GI"
+  },
+  {
+   "id": "DIAB",
+   "name": "Diabetes"
+  },
+  {
+   "id": "LIPID",
+   "name": "Dyslipidaemia"
+  },
+  {
+   "id": "HTN",
+   "name": "Hypertension & cardio combos"
+  },
+  {
+   "id": "DIUR",
+   "name": "Diuretics"
+  },
+  {
+   "id": "VASC",
+   "name": "Cerebral & peripheral vasotherapy"
+  },
+  {
+   "id": "ANTICOAG",
+   "name": "Anticoagulants"
+  },
+  {
+   "id": "PAIN_NSAID",
+   "name": "Pain & inflammation (NSAIDs / coxibs)"
+  },
+  {
+   "id": "ANALG",
+   "name": "Analgesics (non-NSAID)"
+  },
+  {
+   "id": "MSK",
+   "name": "Musculoskeletal other"
+  },
+  {
+   "id": "ENZ",
+   "name": "Anti-inflammatory enzymes"
+  },
+  {
+   "id": "DEPR",
+   "name": "Depression"
+  },
+  {
+   "id": "PSY",
+   "name": "Psychiatry (antipsychotics & anxiolytics)"
+  },
+  {
+   "id": "EPI",
+   "name": "Epilepsy"
+  },
+  {
+   "id": "NEURO",
+   "name": "Neurology other"
+  },
+  {
+   "id": "ALLERGY",
+   "name": "Allergy (systemic antihistamines)"
+  },
+  {
+   "id": "COUGH",
+   "name": "Cough & expectorants"
+  },
+  {
+   "id": "ANTIINF",
+   "name": "Anti-infectives"
+  },
+  {
+   "id": "CHC",
+   "name": "Vitamins, minerals & supplements (CHC)"
+  },
+  {
+   "id": "WOMEN",
+   "name": "Women's health & hormones"
+  },
+  {
+   "id": "URO",
+   "name": "Urology (BPH)"
+  },
+  {
+   "id": "IMMUNO",
+   "name": "Immunology & oncology"
+  },
+  {
+   "id": "DERM",
+   "name": "Wound healing"
+  }
+ ],
+ "classes": [
+  {
+   "id": "PCAB",
+   "name": "P-CAB (vonoprazan)",
+   "indication": "ACID",
+   "atc4": [
+    "A02B2"
+   ],
+   "molecules": [
+    "VONOPRAZAN"
+   ]
+  },
+  {
+   "id": "PPI",
+   "name": "PPIs (all other A02B2 molecules)",
+   "indication": "ACID",
+   "atc4": [
+    "A02B2"
+   ]
+  },
+  {
+   "id": "BISMUTH",
+   "name": "Bismuth antiulcerants",
+   "indication": "ACID",
+   "atc4": [
+    "A02B4"
+   ]
+  },
+  {
+   "id": "PROKIN",
+   "name": "Gastroprokinetics",
+   "indication": "GI_OTHER",
+   "atc4": [
+    "A03F0"
+   ]
+  },
+  {
+   "id": "EMETIC",
+   "name": "Anti-emetics & anti-nausea",
+   "indication": "GI_OTHER",
+   "atc4": [
+    "A04A9"
+   ]
+  },
+  {
+   "id": "CONSTIP",
+   "name": "Drugs for constipation",
+   "indication": "GI_OTHER",
+   "atc4": [
+    "A06A9"
+   ]
+  },
+  {
+   "id": "INTINF",
+   "name": "Intestinal anti-infectives",
+   "indication": "GI_OTHER",
+   "atc4": [
+    "A07A0"
+   ]
+  },
+  {
+   "id": "DPP4",
+   "name": "DPP-IV inhibitors (plain + metformin combos)",
+   "indication": "DIAB",
+   "atc4": [
+    "A10N1",
+    "A10N3"
+   ]
+  },
+  {
+   "id": "SGLT2",
+   "name": "SGLT2 inhibitors (plain + combos)",
+   "indication": "DIAB",
+   "atc4": [
+    "A10P1",
+    "A10P3",
+    "A10P5",
+    "A10P9"
+   ]
+  },
+  {
+   "id": "GLP1",
+   "name": "GLP-1 agonists",
+   "indication": "DIAB",
+   "atc4": [
+    "A10S0"
+   ]
+  },
+  {
+   "id": "DIAB_OTH",
+   "name": "Other diabetes products (mainly neuropathy supplements)",
+   "indication": "DIAB",
+   "atc4": [
+    "A10X9"
+   ]
+  },
+  {
+   "id": "LIPCOMB",
+   "name": "Lipid combos (statin + ezetimibe, bempedoic + ezetimibe)",
+   "indication": "LIPID",
+   "atc4": [
+    "C10C0"
+   ]
+  },
+  {
+   "id": "LIPOTH",
+   "name": "Other lipid regulators (incl. bempedoic acid)",
+   "indication": "LIPID",
+   "atc4": [
+    "C10A9"
+   ]
+  },
+  {
+   "id": "STATIN",
+   "name": "Statins alone",
+   "indication": "LIPID",
+   "atc4": [
+    "C10A1"
+   ]
+  },
+  {
+   "id": "ARB_TRIPLE",
+   "name": "Triple combos (ARB + CCB + diuretic)",
+   "indication": "HTN",
+   "atc4": [
+    "C09D3",
+    "C09D1"
+   ],
+   "components": 3
+  },
+  {
+   "id": "ARB_CCB",
+   "name": "ARB + CCB (dual)",
+   "indication": "HTN",
+   "atc4": [
+    "C09D3"
+   ]
+  },
+  {
+   "id": "ARB_DIUR",
+   "name": "ARB + diuretic (dual)",
+   "indication": "HTN",
+   "atc4": [
+    "C09D1"
+   ]
+  },
+  {
+   "id": "ARNI",
+   "name": "ARB + other (sacubitril / valsartan)",
+   "indication": "HTN",
+   "atc4": [
+    "C09D9"
+   ]
+  },
+  {
+   "id": "BETA",
+   "name": "Beta blockers",
+   "indication": "HTN",
+   "atc4": [
+    "C07A0"
+   ]
+  },
+  {
+   "id": "DIUR_K",
+   "name": "Potassium-sparing diuretics",
+   "indication": "DIUR",
+   "atc4": [
+    "C03A1"
+   ]
+  },
+  {
+   "id": "DIUR_LOOP",
+   "name": "Loop diuretics",
+   "indication": "DIUR",
+   "atc4": [
+    "C03A2"
+   ]
+  },
+  {
+   "id": "VASO",
+   "name": "Cerebral / peripheral vasotherapeutics",
+   "indication": "VASC",
+   "atc4": [
+    "C04A1"
+   ]
+  },
+  {
+   "id": "FXA",
+   "name": "Direct factor Xa inhibitors",
+   "indication": "ANTICOAG",
+   "atc4": [
+    "B01F0"
+   ]
+  },
+  {
+   "id": "COXIB",
+   "name": "Coxibs",
+   "indication": "PAIN_NSAID",
+   "atc4": [
+    "M01A3"
+   ]
+  },
+  {
+   "id": "NSAID",
+   "name": "NSAIDs plain",
+   "indication": "PAIN_NSAID",
+   "atc4": [
+    "M01A1"
+   ]
+  },
+  {
+   "id": "ANTIRHEUM",
+   "name": "Specific antirheumatic agents",
+   "indication": "PAIN_NSAID",
+   "atc4": [
+    "M01C0"
+   ]
+  },
+  {
+   "id": "NONNARC",
+   "name": "Non-narcotic analgesics",
+   "indication": "ANALG",
+   "atc4": [
+    "N02B0"
+   ]
+  },
+  {
+   "id": "NARC",
+   "name": "Narcotic analgesics",
+   "indication": "ANALG",
+   "atc4": [
+    "N02A0"
+   ]
+  },
+  {
+   "id": "MSK_OTH",
+   "name": "Other musculoskeletal products",
+   "indication": "MSK",
+   "atc4": [
+    "M05X0"
+   ]
+  },
+  {
+   "id": "ENZYME",
+   "name": "Anti-inflammatory enzymes",
+   "indication": "ENZ",
+   "atc4": [
+    "V03H0"
+   ]
+  },
+  {
+   "id": "VORTIOX",
+   "name": "Vortioxetine",
+   "indication": "DEPR",
+   "atc4": [
+    "N06A9"
+   ],
+   "molecules": [
+    "VORTIOXETINE"
+   ]
+  },
+  {
+   "id": "TCA",
+   "name": "Tricyclics",
+   "indication": "DEPR",
+   "atc4": [
+    "N06A9"
+   ],
+   "molecules": [
+    "AMITRIPTYLINE",
+    "CLOMIPRAMINE",
+    "IMIPRAMINE",
+    "NORTRIPTYLINE",
+    "DOXEPIN",
+    "TRIMIPRAMINE",
+    "DESIPRAMINE",
+    "DOSULEPIN"
+   ]
+  },
+  {
+   "id": "AD_OTH",
+   "name": "Other antidepressants",
+   "indication": "DEPR",
+   "atc4": [
+    "N06A9"
+   ]
+  },
+  {
+   "id": "SSRI",
+   "name": "SSRIs",
+   "indication": "DEPR",
+   "atc4": [
+    "N06A4"
+   ]
+  },
+  {
+   "id": "SNRI",
+   "name": "SNRIs",
+   "indication": "DEPR",
+   "atc4": [
+    "N06A5"
+   ]
+  },
+  {
+   "id": "ANTIPSY",
+   "name": "Atypical antipsychotics",
+   "indication": "PSY",
+   "atc4": [
+    "N05A1"
+   ]
+  },
+  {
+   "id": "ANXIO",
+   "name": "Non-barbiturate anxiolytics / hypnotics",
+   "indication": "PSY",
+   "atc4": [
+    "N05B1"
+   ]
+  },
+  {
+   "id": "AED",
+   "name": "Anti-epileptics",
+   "indication": "EPI",
+   "atc4": [
+    "N03A0"
+   ]
+  },
+  {
+   "id": "ALZ",
+   "name": "Other anti-Alzheimer products",
+   "indication": "NEURO",
+   "atc4": [
+    "N07D9"
+   ]
+  },
+  {
+   "id": "CNS_OTH",
+   "name": "All other CNS drugs",
+   "indication": "NEURO",
+   "atc4": [
+    "N07X0"
+   ]
+  },
+  {
+   "id": "AH",
+   "name": "Systemic antihistamines",
+   "indication": "ALLERGY",
+   "atc4": [
+    "R06A0"
+   ]
+  },
+  {
+   "id": "EXPECT",
+   "name": "Expectorants",
+   "indication": "COUGH",
+   "atc4": [
+    "R05C0"
+   ]
+  },
+  {
+   "id": "MACRO",
+   "name": "Macrolides",
+   "indication": "ANTIINF",
+   "atc4": [
+    "J01F0"
+   ]
+  },
+  {
+   "id": "FQ",
+   "name": "Oral fluoroquinolones",
+   "indication": "ANTIINF",
+   "atc4": [
+    "J01G1"
+   ]
+  },
+  {
+   "id": "ABX_OTH",
+   "name": "All other antibacterials",
+   "indication": "ANTIINF",
+   "atc4": [
+    "J01X9"
+   ]
+  },
+  {
+   "id": "FLU",
+   "name": "Influenza antivirals",
+   "indication": "ANTIINF",
+   "atc4": [
+    "J05B4"
+   ]
+  },
+  {
+   "id": "MVIT_PAED",
+   "name": "Multivitamins + minerals, paediatric",
+   "indication": "CHC",
+   "atc4": [
+    "A11A2"
+   ]
+  },
+  {
+   "id": "MVIT",
+   "name": "Multivitamins + minerals, other",
+   "indication": "CHC",
+   "atc4": [
+    "A11A4"
+   ]
+  },
+  {
+   "id": "VITB1",
+   "name": "Vitamin B1 combos",
+   "indication": "CHC",
+   "atc4": [
+    "A11D9"
+   ]
+  },
+  {
+   "id": "VIT_OTH",
+   "name": "All other vitamins",
+   "indication": "CHC",
+   "atc4": [
+    "A11X9"
+   ]
+  },
+  {
+   "id": "IRON",
+   "name": "Iron plain",
+   "indication": "CHC",
+   "atc4": [
+    "B03A1"
+   ]
+  },
+  {
+   "id": "THER_OTH",
+   "name": "All other therapeutic products (CoQ10, ashwagandha, …)",
+   "indication": "CHC",
+   "atc4": [
+    "V03X0"
+   ]
+  },
+  {
+   "id": "HORM_OTH",
+   "name": "Other hormones (melatonin)",
+   "indication": "CHC",
+   "atc4": [
+    "H04X0"
+   ]
+  },
+  {
+   "id": "OC",
+   "name": "Monophasic oral contraceptives",
+   "indication": "WOMEN",
+   "atc4": [
+    "G03A1"
+   ]
+  },
+  {
+   "id": "GNRH",
+   "name": "Gonadotropin-releasing hormones",
+   "indication": "WOMEN",
+   "atc4": [
+    "H01C1"
+   ]
+  },
+  {
+   "id": "BPH",
+   "name": "BPH alpha-adrenergic antagonists",
+   "indication": "URO",
+   "atc4": [
+    "G04C2"
+   ]
+  },
+  {
+   "id": "JAK",
+   "name": "JAK inhibitors",
+   "indication": "IMMUNO",
+   "atc4": [
+    "L04D0"
+   ]
+  },
+  {
+   "id": "CYTO_HORM",
+   "name": "Cytostatic gonadal hormone analogues",
+   "indication": "IMMUNO",
+   "atc4": [
+    "L02A3"
+   ]
+  },
+  {
+   "id": "WOUND",
+   "name": "Other wound healing agents",
+   "indication": "DERM",
+   "atc4": [
+    "D03A9"
+   ]
+  }
+ ],
+ "pairs": [
+  {
+   "id": "ACID_PCAB",
+   "indication": "ACID",
+   "name": "PPIs → P-CAB",
+   "legacy": [
+    "PPI"
+   ],
+   "next_gen": [
+    "PCAB"
+   ]
+  },
+  {
+   "id": "DIAB_SGLT2",
+   "indication": "DIAB",
+   "name": "DPP-IV → SGLT2 & GLP-1",
+   "legacy": [
+    "DPP4"
+   ],
+   "next_gen": [
+    "SGLT2",
+    "GLP1"
+   ],
+   "_gap": "Metformin alone, sulfonylureas and insulin are not in the IQVIA extract, so the oldest therapies cannot be measured."
+  },
+  {
+   "id": "LIPID_COMBO",
+   "indication": "LIPID",
+   "name": "Statin alone → combos & bempedoic",
+   "legacy": [
+    "STATIN"
+   ],
+   "next_gen": [
+    "LIPCOMB",
+    "LIPOTH"
+   ]
+  },
+  {
+   "id": "PAIN_COXIB",
+   "indication": "PAIN_NSAID",
+   "name": "Plain NSAIDs → coxibs",
+   "legacy": [
+    "NSAID"
+   ],
+   "next_gen": [
+    "COXIB"
+   ]
+  },
+  {
+   "id": "HTN_CCB",
+   "indication": "HTN",
+   "name": "ARB + diuretic → ARB + CCB & triple",
+   "legacy": [
+    "ARB_DIUR"
+   ],
+   "next_gen": [
+    "ARB_CCB",
+    "ARB_TRIPLE"
+   ],
+   "_gap": "Plain ARBs and ACE inhibitors are not in the extract."
+  },
+  {
+   "id": "DEPR_SNRI",
+   "indication": "DEPR",
+   "name": "SSRIs & tricyclics → SNRIs & vortioxetine",
+   "legacy": [
+    "SSRI",
+    "TCA"
+   ],
+   "next_gen": [
+    "SNRI",
+    "VORTIOX"
+   ]
+  }
+ ]
+}

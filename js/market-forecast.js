@@ -1,3 +1,6 @@
+/* 2026-10-13: champion engine -- v1 and v2 methods compete per market (etl/build_market_forecast_v2.py --publish).
+   Reads the same cache contract; extra fields (engine, method_plain, why.headline / watch_outs, forecast_type
+   'launch_curve' | 'intermittent' | 'safeguard') are optional, so an older v1 cache still renders. */
 /* market-forecast.js — Market Growth Forecast (FY next year, IQVIA Standard Units). Added 2026-10-12 (Ahmed).
    Data: window.MARKET_FORECAST_CACHE (cache/market_forecast.data.js, built by `etl/build_market_forecast.py --cache`
    from cache/iqvia.json). Opened from the sidebar (app.js renderMarketForecastTab). Ids prefixed "mf-", CSS scoped to
@@ -94,6 +97,16 @@
     sel.disabled = list.length < 2;
   }
 
+  function methodShort(r, k) {
+    var m = (D.meta.models || {});
+    return m[k] || MODEL_SHORT[k] || k;
+  }
+  function engineChip(e) {
+    if (!e) return '';
+    var lbl = e === 'v1' ? 'classic' : e === 'v2' ? 'advanced' : e === 'benchmark' ? 'benchmark' : e === 'safeguard' ? 'safeguard' : e;
+    return ' <span class="eng eng-' + esc(e) + '">' + esc(lbl) + '</span>';
+  }
+
   function badge(r) { return '<span class="conf ' + confCls(r.confidence) + '">' + esc(r.confidence) + ' confidence</span>'; }
 
   function kpis(r) {
@@ -103,7 +116,7 @@
     var cards = [
       ['FY' + ly + ' actual', fmtSU(r.history[ly].su), 'Latest complete year (SU)'],
       ['FY' + m.partial_year + ' landing estimate', f ? fmtSU(f.fy_le) : '—', MON[0] + '–' + MON[m.partial_months - 1] + ' actual ' + fmtSU(r.ytd.cur) + ' + ' + MON[m.partial_months % 12] + '–Dec forecast'],
-      ['FY' + m.target_year + (rr ? ' run-rate floor' : ' forecast'), f ? fmtSU(f.fy_target) : '—', f ? esc(MODEL_SHORT[r.selected_model] || r.selected_model) : 'No forecast'],
+      ['FY' + m.target_year + (rr ? ' run-rate floor' : ' forecast'), f ? fmtSU(f.fy_target) : '—', f ? esc(methodShort(r, r.selected_model)) + engineChip(r.engine) : 'No forecast'],
       [(rr ? 'Floor vs FY' : 'FY' + m.target_year + ' growth vs FY') + m.partial_year + ' LE', f ? fmtP(f.growth_vs_le_pct) : '—',
         sc ? 'Range ' + fmtP(sc.low_growth_pct) + ' to ' + fmtP(sc.high_growth_pct) : (rr ? 'Not a growth forecast; no range' : 'No statistically supportable range')],
       ['Confidence', '<span class="conf big ' + confCls(r.confidence) + '">' + esc(r.confidence) + '</span>', esc((r.confidence_reasons || [])[0] || '')]
@@ -122,6 +135,13 @@
       h += '<div class="banner warn"><b>Not statistically forecastable.</b> ' + esc(why_) +
         ' A credible launch-type forecast needs analog uptake curves or brand-team input. The figure shown is a <b>run-rate floor</b> (last 3 months average × 12): a minimum to plan from, not a growth forecast and not a target.</div>';
     }
+    if (r.forecast_type === 'launch_curve') {
+      h += '<div class="banner info"><b>New market.</b> ' + esc(r.selection_rationale || '') + ' Treat the peak as an estimate until brand-team patient potential is available.</div>';
+    }
+    if (r.forecast_type === 'safeguard') {
+      h += '<div class="banner warn"><b>Safeguard applied.</b> ' + esc(r.selection_rationale || '') + ' Read this figure as directional.</div>';
+    }
+    if (r.type === 'DM2') h += '<div class="banner info">DM2 markets cut across the DM1 market tree, so they are forecast on their own and are not part of the aligned BU and national totals.</div>';
     if (r.same_as && r.same_as.length) h += '<div class="banner info">Same market (identical products) as ' + esc(r.same_as.join(', ')) + '.</div>';
     if (r.residual_market) h += '<div class="banner info">Includes <b>OTHER MARKET</b>, the residual of everything outside Zeta\'s defined markets. Read it as the background market, not a promoted market.</div>';
     return h;
@@ -185,30 +205,37 @@
   }
 
   function candTable(r) {
-    var order = ['NAIVE', 'A', 'B', 'C1', 'C2', 'MED', 'RUNRATE'], met = r.backtest.metrics || {};
-    var rr = r.forecast_type === 'run_rate_floor';
+    var met = r.backtest.metrics || {}, rr = r.forecast_type === 'run_rate_floor';
+    var keys = Object.keys(r.candidates || {});
+    keys.sort(function (a, b) {
+      var wa = (met[a] || {}).wape, wb = (met[b] || {}).wape;
+      if (a === r.selected_model) return -1; if (b === r.selected_model) return 1;
+      return (fin(wa) ? wa : 9) - (fin(wb) ? wb : 9);
+    });
     var h = '<table class="tbl"><thead><tr><th>Method</th><th class="r">FY' + D.meta.target_year + ' SU</th><th class="r">Growth vs LE</th><th class="r">Tests</th><th class="r">Error (WAPE)</th><th class="r">Bias</th><th class="r">vs benchmark</th><th></th></tr></thead><tbody>';
-    order.forEach(function (k) {
-      var c = r.candidates[k]; if (!c) return;
-      var mt = met[k] || {}, sel = k === r.selected_model;
-      var rel = fin(mt.rel_to_naive) && k !== 'NAIVE' ? ((1 - mt.rel_to_naive) * 100) : null;
-      h += '<tr class="' + (sel ? 'sel' : '') + '"><td>' + esc(MODEL_SHORT[k] || k) + '</td><td class="num r">' + fmtSU(c.fy_target) + '</td><td class="num r">' + fmtP(c.growth_vs_le_pct) + '</td>' +
+    keys.forEach(function (k) {
+      var c = r.candidates[k], mt = met[k] || {}, sel = k === r.selected_model;
+      var rel = fin(mt.rel_to_naive) && k !== 'NAIVE' && k !== 'SeasonalNaive' ? ((1 - mt.rel_to_naive) * 100) : null;
+      h += '<tr class="' + (sel ? 'sel' : '') + '"><td title="' + esc(c.plain || '') + '">' + esc(c.label || methodShort(r, k)) + engineChip(c.engine) + '</td><td class="num r">' + fmtSU(c.fy_target) + '</td><td class="num r">' + fmtP(c.growth_vs_le_pct) + '</td>' +
         '<td class="num r">' + (mt.n || '—') + '</td><td class="num r">' + (fin(mt.wape) ? (mt.wape * 100).toFixed(1) + '%' : '—') + '</td><td class="num r">' + fmtF(mt.bias) + '</td>' +
         '<td class="num r">' + (rel == null ? '—' : (rel >= 0 ? rel.toFixed(0) + '% better' : (-rel).toFixed(0) + '% worse')) + '</td><td>' + (sel ? '<span class="chip">Selected</span>' : '') + '</td></tr>';
     });
     h += '</tbody></table>';
     var bt = r.backtest;
     h += '<p class="note"><b>Why this method:</b> ' + esc(r.selection_rationale) + '</p>';
-    h += '<p class="note mut">Tests: forecast the next 12 months from each month-end ' + (bt.origins ? '(' + esc(bt.origins.replace('..', ' to ')) + ', ' + bt.n_common + ' starting points)' : '') +
-      ' using only the data available at that time, then compare with what IQVIA actually reported. WAPE = total absolute error ÷ total actual. Bias: negative = the method under-forecast. Starting points overlap, so small differences between methods are not meaningful.' +
+    h += '<p class="note mut">"Classic" = the original engine\'s growth-rate methods; "advanced" = the newer statistical methods. Tests: forecast the next 12 months from past month-ends ' + (bt.origins ? '(' + esc(bt.origins.replace('..', ' to ')) + ')' : '') +
+      ' using only the data available at that time, then compare with what IQVIA actually reported. WAPE = total absolute error ÷ total actual. Bias: negative = the method under-forecast. Methods\' figures are shown before the BU/national alignment; the selected forecast above is after it.' +
       (rr ? ' Model results are listed for reference only: none could be validated for this market.' : '') + '</p>';
     return h;
   }
 
   function why(r) {
     var w = r.why || { facts: [], assumptions: [] };
-    return '<div class="why"><div><h3>Calculated from the data</h3><ul>' + w.facts.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' +
-      '<div><h3>Assumptions</h3><ul>' + w.assumptions.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div></div>';
+    var li = function (arr) { return (arr || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join(''); };
+    return (w.headline ? '<p class="whyh">' + esc(w.headline) + '</p>' : '') +
+      '<div class="why"><div><h3>Calculated from the data</h3><ul>' + li(w.facts) + '</ul></div>' +
+      '<div><h3>Assumptions</h3><ul>' + li(w.assumptions) + '</ul>' +
+      ((w.watch_outs || []).length ? '<h3 class="mt">Watch-outs</h3><ul class="watch">' + li(w.watch_outs) + '</ul>' : '') + '</div></div>';
   }
 
   function scen(r) {
@@ -252,12 +279,31 @@
       h += '<tr data-n="' + esc(r.name) + '" class="' + (c && r.name === c.name ? 'sel' : '') + '"><td class="mk">' + esc(r.name) + (r.same_as && r.same_as.length ? ' <span class="mut" title="' + esc(r.same_as.join(', ')) + '">(=)</span>' : '') + '</td>' +
         '<td>' + esc(r.lifecycle) + '</td><td class="num r">' + fmtSU(r.history[String(m.full_years[m.full_years.length - 1])].su) + '</td><td class="num r">' + fmtSU(f.fy_le) + '</td><td class="num r">' + fmtSU(f.fy_target) + '</td>' +
         '<td class="num r">' + (rr ? '<span class="mut">floor</span>' : fmtP(f.growth_vs_le_pct)) + '</td><td class="num r mut">' + (sc ? fmtP(sc.low_growth_pct, 0) + ' / ' + fmtP(sc.high_growth_pct, 0) : '—') + '</td>' +
-        '<td><span class="conf ' + confCls(r.confidence) + '">' + esc(r.confidence) + '</span></td><td class="mut">' + esc(rr ? 'Run-rate floor' : (r.selected_model || '—')) + '</td></tr>';
+        '<td><span class="conf ' + confCls(r.confidence) + '">' + esc(r.confidence) + '</span></td><td class="mut">' + esc(rr ? 'Run-rate floor' : methodShort(r, r.selected_model || '—')) + engineChip(r.engine) + '</td></tr>';
     });
     ROOT.querySelector('#mf-ov').innerHTML = h + '</tbody></table>';
   }
 
   function methodology() {
+    var m = D.meta, c = m.config, g = m.global_checks || {}, bc = g.backfill_unit_check || {};
+    var li;
+    if (!m.engine) { return methodologyV1(); }
+    li = [
+      'Source: IQVIA monthly Standard Units from the Market Intelligence cache (' + esc(g.periods || '') + '), with the approved ownership restatements and market overrides already applied. Market definitions match the Market Intelligence page; a BU or Line market = the DM1 markets where Zeta has products of that BU or Line.',
+      'FY' + m.partial_year + ' has ' + m.partial_months + ' actual months and is completed with a forecast (Landing Estimate, LE). FY' + m.target_year + ' growth = FY' + m.target_year + ' forecast ÷ FY' + m.partial_year + ' LE − 1, always derived from the Standard Units forecast.',
+      'Cleaning: each market\'s trend and seasonal pattern are separated from its irregular movements; only irregular spikes or dips beyond ±' + (c.winsor_pct || 40) + '% are capped (seasonal peaks are kept). The page always shows the reported IQVIA data.',
+      'Routing: Launch = under ' + c.launch_months + ' months of sales → launch adoption curve toward an estimated peak monthly volume (never below today\'s rate while sales are still rising). Irregular buying → averaged order rate. All other markets → a competition between ' + 'classic growth-rate methods (historical and recent growth rate, straight-line trend, flattening monthly trend) and advanced methods (trend since the last shift in growth, recent level & trend, long-term + recent blend), plus a benchmark that repeats the last 12 months.',
+      'Selection: each method forecasts the next 12 months from past month-ends using only the data available then; the lowest total error wins that market. An advanced method keeps a near-tie (within ' + Math.round((c.tie_margin || 0.05) * 100) + '%). Safeguard: if even the most accurate method missed by more than ' + Math.round((c.volatile_wape || 0.15) * 100) + '%, the middle of all methods is used and held to the market\'s current 12-month growth.',
+      'Alignment: DM1 markets, BUs and the Egypt total are aligned so every BU and the national total equal the exact sum of their DM1s; Lines are then the sum of their aligned DM1s. Launch and irregular markets keep their own forecast. DM2 markets are forecast on their own. A DM1 that belongs to two BUs (e.g. PPI oral solid in GIT and Non-Promoted) counts fully in both, so BU totals do not add up to Egypt.',
+      'Low/High (80%): advanced methods use their own probability range, widened to match how often the market surprised past forecasts and never narrower than its typical miss; classic methods use their own past misses (8 in 10 past tests landed inside).',
+      'Confidence: Higher = Established, 10+ tests, error ≤ 6%, |bias| ≤ 3%, top three methods within 6 pts. Moderate = error ≤ 12%, |bias| ≤ 6%. Otherwise Lower; launch and safeguard markets are always Lower.',
+      'Data checks this build: ' + (g.negative_su_rows === 0 ? 'no negative units' : g.negative_su_rows + ' negative-unit rows') + '; ' + (g.exact_duplicate_rows || 0) + ' exact duplicate rows (' + ((g.exact_duplicate_su_share || 0) * 100).toFixed(4) + '% of units); backfilled ATC4 history: ' + esc(bc.verdict || 'n/a') + '.',
+      'Not modelled: launches, withdrawals, shortages, price changes, tenders, and IQVIA panel or mapping revisions after the data period. IQVIA can restate history; every refresh re-runs the competition.'
+    ];
+    ROOT.querySelector('#mf-methodbody').innerHTML = '<ol class="ml">' + li.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ol>';
+  }
+
+  function methodologyV1() {
     var m = D.meta, c = m.config, g = m.global_checks || {}, bc = g.backfill_unit_check || {};
     var li = [
       'Source: IQVIA monthly Standard Units from the Market Intelligence cache (' + esc(g.periods || '') + '), with the approved ownership restatements and market overrides already applied. Market definitions are the same as on the Market Intelligence page. BU and Line markets = the DM1 markets where Zeta has products of that BU or Line.',

@@ -286,6 +286,7 @@
     "Group Brand Manager":  { canToggleScenario: true,  defaultScenario: "official" },
     "Commercial Manager":   { canToggleScenario: true,  defaultScenario: "official" },
     "Line Manager":         { canToggleScenario: false, defaultScenario: "working" },
+    "Brand Manager":        { canToggleScenario: false, defaultScenario: "working" },
     // Not explicitly covered by Ahmed's 2026-08-04 decision list (which
     // named CEO/VP/Commercial Director/BEX/SFE Manager/Admin/BU
     // Manager/Line Manager) but IS a real, currently-active role in the
@@ -325,7 +326,7 @@
   // -------------------------------------------------------------------
   // "make it exclusive to ceo admin vp sfe bex" + 2026-08-16: "let rx and
   // Total Market Intelligence appear to Marketing Consultant".
-  var MARKET_INTEL_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "Group Brand Manager", "BU Manager", "Commercial Manager", "Commercial Director", "Line Manager"];
+  var MARKET_INTEL_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "Group Brand Manager", "BU Manager", "Commercial Manager", "Commercial Director", "Line Manager", "Brand Manager"];
 
   function canViewMarketIntel() {
     var u = getValidSessionUser();
@@ -394,7 +395,7 @@
   // "show IMS Rx for only sfe vp ceo admin and bex" + 2026-08-16: "let rx and
   // Total Market Intelligence appear to Marketing Consultant".
   // Gated to CEO, VP, BEX, Admin, SFE Manager, Marketing Consultant, and BU Manager.
-  var IMS_RX_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "BU Manager", "Group Brand Manager", "Line Manager"];
+  var IMS_RX_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "Marketing Consultant", "BU Manager", "Group Brand Manager", "Line Manager", "Brand Manager"];
 
   function canViewImsRx() {
     var u = getValidSessionUser();
@@ -482,6 +483,12 @@
     return MARKET_FORECAST_ROLES.indexOf(u.role) >= 0 || (u.role && String(u.role).toLowerCase().indexOf("sfe") >= 0);
   }
 
+  // MARKET DYNAMICS & TREATMENT SHIFT (2026-10-13, Ahmed): same audience as the
+  // Market Growth Forecast -- SFE and BEX roles only (+ Admin). js/market-dynamics.js.
+  function canViewMarketDynamics() {
+    return canViewMarketForecast();
+  }
+
   // -------------------------------------------------------------------
   // COACHING INTELLIGENCE ACCESS (2026-08-31, Ahmed)
   // -------------------------------------------------------------------
@@ -508,7 +515,7 @@
   // here. This function only answers "can this person open the tab at
   // all".
   var COACHING_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "BU Manager",
-                         "Commercial Director", "Marketing Consultant", "Line Manager", "NSM", "National Sales Manager"];
+                         "Commercial Director", "Marketing Consultant", "Line Manager", "Brand Manager", "NSM", "National Sales Manager"];
 
   function canViewCoaching() {
     var u = getValidSessionUser();
@@ -521,7 +528,7 @@
   // -------------------------------------------------------------------
   // Visible to management-tier roles, Line Managers, and NSMs.
   var WORKING_DAYS_ROLES = ["CEO", "VP", "BEX", "Admin", "SFE Manager", "BU Manager",
-                             "Commercial Director", "Marketing Consultant", "Line Manager", "NSM", "National Sales Manager"];
+                             "Commercial Director", "Marketing Consultant", "Line Manager", "Brand Manager", "NSM", "National Sales Manager"];
 
   // -------------------------------------------------------------------
   // LIST INTELLIGENCE ACCESS (2026-09-25, Ahmed)
@@ -540,7 +547,7 @@
   // ORIGINAL CRM line, so CHC and CHC_Sales stay separate for access even
   // though CHC_Sales is merged into CHC for reporting.
   var LIST_INTEL_ROLES = ["CEO", "VP", "Commercial Director", "Commercial Manager", "SFE Manager", "BEX", "Admin", "Field Intel Trainer"];
-  var LIST_INTEL_SCOPED_ROLES = ["BU Manager", "Group Brand Manager", "Line Manager"];
+  var LIST_INTEL_SCOPED_ROLES = ["BU Manager", "Group Brand Manager", "Line Manager", "Brand Manager"];
   // Login line name (upper-cased) -> CRM list line(s) (upper-cased). Any name
   // not listed maps to itself. Approved by Ahmed 2026-09-25.
   var LIST_INTEL_LINE_MAP = {
@@ -576,7 +583,7 @@
     var loginLines = (u.lines || []).map(up).filter(Boolean);
     var bus = (u.bu || []).map(up).filter(Boolean);
     var basis = "line";
-    if (!loginLines.length && u.role !== "Line Manager") {
+    if (!loginLines.length && u.role !== "Line Manager" && u.role !== "Brand Manager") {
       if (!bus.length) return { all: true };            // login says ALL / ALL
       basis = "bu";
       bus.forEach(function (b) { (LIST_INTEL_BU_LINES[b] || []).forEach(function (l) { loginLines.push(l); }); });
@@ -729,7 +736,7 @@
     // the generic role table so it can grant toggle rights without
     // touching the locked-Working default every other Line Manager
     // keeps. See SCENARIO_TOGGLE_LINE_MANAGER_BUS above.
-    if (u.role === "Line Manager" && Array.isArray(u.bu) &&
+    if ((u.role === "Line Manager" || u.role === "Brand Manager") && Array.isArray(u.bu) &&
         u.bu.some(function (b) { return SCENARIO_TOGGLE_LINE_MANAGER_BUS.indexOf(b) !== -1; })) {
       return { canToggleScenario: true, defaultScenario: "official" };
     }
@@ -896,6 +903,7 @@
     canViewRep360: canViewRep360,
     canViewTerritoryMarket: canViewTerritoryMarket,
     canViewMarketForecast: canViewMarketForecast,
+    canViewMarketDynamics: canViewMarketDynamics,
     TERRITORY_MARKET_ROLES: TERRITORY_MARKET_ROLES,
     LOCAL_PAGE_ROLES: LOCAL_PAGE_ROLES,
     canViewListIntel: canViewListIntel,

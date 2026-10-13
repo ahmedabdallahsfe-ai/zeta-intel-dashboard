@@ -97,12 +97,19 @@
       label: "Territory market insights (IQVIA geo)",
       version: "20261012_1309_auto",
     },
-    // Market Growth Forecast (2026-10-12) -- etl/build_market_forecast.py --cache
+    // Market Growth Forecast (2026-10-12) -- etl/build_market_forecast_v2.py --publish (champion, 2026-10-13)
     market_forecast: {
       file: "cache/market_forecast.data.js",
       globalVar: "MARKET_FORECAST_CACHE",
       label: "Market growth forecast",
-      version: "20261012_mforecast",
+      version: "20261013_champ2",
+    },
+    // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache
+    market_dynamics: {
+      file: "cache/market_dynamics.data.js",
+      globalVar: "MARKET_DYNAMICS_CACHE",
+      label: "Market dynamics & treatment shift",
+      version: "20261013_mdyn",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",

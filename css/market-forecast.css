@@ -101,3 +101,9 @@
 @media (max-width:560px){.mfc .kpis,.mfc .scn{grid-template-columns:1fr}}
 body.mfc-mode #filter-bar-container,body.mfc-mode .filter-bar-wrap,body.mfc-mode #topbar-export-pdf{display:none!important}
 body.mfc-mode #ask-panel-slot:empty{display:none}
+.mfc .eng{display:inline-block;font-size:10px;font-weight:700;padding:0 6px;border-radius:999px;margin-left:4px;vertical-align:1px;background:var(--surface-alt);color:var(--fg-2);border:1px solid var(--border)}
+.mfc .eng-v1{background:var(--primary-light);color:var(--primary);border-color:transparent}
+.mfc .eng-v2{background:var(--hi-bg);color:var(--hi);border-color:transparent}
+.mfc .eng-safeguard{background:var(--mo-bg);color:var(--mo);border-color:transparent}
+.mfc .whyh{font-weight:600;margin:0 0 10px}
+.mfc ul.watch li{color:var(--mo)}

@@ -250,6 +250,7 @@ function renderActAsControls() {
   const roleOrder = [
     "BU Manager",
     "Line Manager",
+    "Brand Manager",
     "Group Brand Manager",
     "Commercial Manager",
     "Marketing Consultant",
@@ -700,6 +701,8 @@ function startAppBody() {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Territory Market Insights";
     } else if (tab === "marketforecast") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - Market Growth Forecast";
+    } else if (tab === "marketdynamics") {
+      titleEl.textContent = "Zeta Commercial Excellence Dashboard - Market Dynamics & Treatment Shift";
     } else if (tab === "bureview") {
       titleEl.textContent = "Zeta Commercial Excellence Dashboard - BU Business Review";
     } else if (tab === "workingdays") {
@@ -834,7 +837,7 @@ function startAppBody() {
   }
 
   // LOCAL-ONLY pages (2026-10-08) -- see renderRep360Tab / renderTerritoryMarketTab.
-  [["menu-item-rep360", "canViewRep360"], ["menu-item-territorymarket", "canViewTerritoryMarket"], ["menu-item-marketforecast", "canViewMarketForecast"]].forEach(([id, fn]) => {
+  [["menu-item-rep360", "canViewRep360"], ["menu-item-territorymarket", "canViewTerritoryMarket"], ["menu-item-marketforecast", "canViewMarketForecast"], ["menu-item-marketdynamics", "canViewMarketDynamics"]].forEach(([id, fn]) => {
     const el = document.getElementById(id);
     if (el) el.style.display = (window.AUTH && typeof window.AUTH[fn] === "function" && window.AUTH[fn]()) ? "" : "none";
   });
@@ -982,6 +985,9 @@ function startAppBody() {
       }
       if (currentTab === "marketforecast" && window.MarketForecastDashboard) {
         window.MarketForecastDashboard.destroy();
+      }
+      if (currentTab === "marketdynamics" && window.MarketDynamicsDashboard) {
+        window.MarketDynamicsDashboard.destroy();
       }
       if (currentTab === "bureview" && window.BuReviewDashboard) {
         window.BuReviewDashboard.destroy();
@@ -1139,6 +1145,11 @@ function startAppBody() {
               window.SFEDashboard.destroy();
             }
             await renderMarketForecastTab(document.getElementById("app-root"));
+          } else if (tab === "marketdynamics") {
+            if (window.SFEDashboard) {
+              window.SFEDashboard.destroy();
+            }
+            await renderMarketDynamicsTab(document.getElementById("app-root"));
           } else if (tab === "bureview") {
             if (window.SFEDashboard) {
               window.SFEDashboard.destroy();
@@ -1528,11 +1539,35 @@ async function renderMarketForecastTab(container) {
     return;
   }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Growth Forecast…</div>';
-  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261012_mf1"), loadLocalAsset("js/market-forecast.js?v=20261012_mf1"),
+  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261013_champ"), loadLocalAsset("js/market-forecast.js?v=20261013_champ"),
     window.CacheLoader ? window.CacheLoader.ensure("market_forecast") : Promise.resolve(false)]);
   if (currentTab !== "marketforecast") return;
   if (window.MarketForecastDashboard) window.MarketForecastDashboard.init("app-root");
   else container.innerHTML = "<p style=\"padding:24px\">js/market-forecast.js not found in the dashboard folder.</p>";
+}
+
+// Market Dynamics & Treatment Shift (2026-10-13): indication growth, class / market benchmarking,
+// legacy -> next-gen treatment shift and the champion FY2027 outlook, IQVIA SU. SFE / BEX only
+// (auth.js canViewMarketDynamics). JS, CSS and cache load only when the tab is opened.
+async function renderMarketDynamicsTab(container) {
+  if (!container) return;
+  const allowed = window.AUTH && typeof window.AUTH.canViewMarketDynamics === "function" ? window.AUTH.canViewMarketDynamics() : false;
+  if (!allowed) {
+    container.innerHTML = window.DS
+      ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
+          icon: "\u{1F512}",
+          title: "Access restricted",
+          hint: "Market Dynamics & Treatment Shift is available to SFE and BEX roles only.",
+        })}</div></div>`
+      : "<p>Access restricted.</p>";
+    return;
+  }
+  container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Dynamics…</div>';
+  await Promise.all([loadLocalAsset("css/market-dynamics.css?v=20261013_mdyn"), loadLocalAsset("js/market-dynamics.js?v=20261013_mdyn"),
+    window.CacheLoader ? window.CacheLoader.ensure("market_dynamics") : Promise.resolve(false)]);
+  if (currentTab !== "marketdynamics") return;
+  if (window.MarketDynamicsDashboard) window.MarketDynamicsDashboard.init("app-root");
+  else container.innerHTML = "<p style=\"padding:24px\">js/market-dynamics.js not found in the dashboard folder.</p>";
 }
 
 /**

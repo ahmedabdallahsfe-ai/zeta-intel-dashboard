@@ -31,7 +31,7 @@
   <link rel="stylesheet" href="css/regulatory-pipeline.css?v=20260910_v1" />
   <!-- Night mode + grouped sidebar (2026-09-25). Loaded last so it sits above every module stylesheet; the script runs in <head> so the saved theme applies before first paint. -->
   <link rel="stylesheet" href="css/zeta-theme.css?v=20260925_theme" />
-  <script src="js/zeta-theme.js?v=20261008_local"></script>
+  <script src="js/zeta-theme.js?v=20261013_mdyn"></script>
 </head>
 <body>
 
@@ -169,6 +169,10 @@
         <li class="menu-item" data-tab="marketforecast" id="menu-item-marketforecast" style="display:none;">
           <span class="menu-icon">📈</span>
           <span class="menu-label">Market Growth Forecast</span>
+        </li>
+        <li class="menu-item" data-tab="marketdynamics" id="menu-item-marketdynamics" style="display:none;">
+          <span class="menu-icon">🔀</span>
+          <span class="menu-label">Market Dynamics &amp; Treatment Shift</span>
         </li>
         <li class="menu-item" data-tab="territorymarket" id="menu-item-territorymarket" style="display:none;">
           <span class="menu-icon">🗺️</span>
@@ -364,7 +368,7 @@
 
   <!-- App-wide authentication roster & loader -->
   <script defer src="cache/auth.data.js?v=20260930_trainer"></script>
-  <script defer src="js/auth.js?v=20261012_authperf"></script>
+  <script defer src="js/auth.js?v=20261013_mdyn"></script>
 
   <!-- Configuration (no hardcoded values below this point) -->
   <script defer src="js/config.js?v=20260924_buhead"></script>
@@ -378,7 +382,7 @@
   <script defer src="js/semantic-model.js?v=20261012_linememo"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20261012_1309_auto"></script>
+  <script defer src="js/cache-loader.js?v=20261013_mdyn"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
@@ -493,7 +497,7 @@
   <script defer src="js/ask-sales.js?v=20260921_askq2"></script>
   <script defer src="js/ask-sfe.js?v=20260921_askq2"></script>
   <script defer src="js/ask-executive.js?v=20260921_askq2"></script>
-  <script defer src="js/app.js?v=20261012_mforecast"></script>
+  <script defer src="js/app.js?v=20261013_mdyn"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">
