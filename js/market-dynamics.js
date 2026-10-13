@@ -1,8 +1,10 @@
-/* market-dynamics.js — Market Dynamics & Treatment Shift (IQVIA Standard Units). Added 2026-10-13 (Ahmed, Phase 2).
-   Data: window.MARKET_DYNAMICS_CACHE (cache/market_dynamics.data.js, built by `etl/build_market_dynamics.py --cache`
-   from cache/iqvia.json + cache/market_forecast.data.js + config/market_dynamics_map.json).
+/* market-dynamics.js — Market Dynamics & Treatment Shift. Added 2026-10-13 (Ahmed).
+   2026-10-13 (Ahmed): SOURCE = TOTAL MARKET INTELLIGENCE (same IMS cube as that page): every ATC4 and therapeutic area,
+   annual 2022–2025 + H1 2026, measured in packs (IMS units) with a switch to LC Value. The FY2027 outlook stays in its own
+   panel in IQVIA Standard Units (champion forecast, unchanged).
+   Data: window.MARKET_DYNAMICS_CACHE (cache/market_dynamics.data.js, `etl/build_market_dynamics.py --cache`).
    Opened from the sidebar (app.js renderMarketDynamicsTab), SFE / BEX roles only (auth.js canViewMarketDynamics).
-   Every number on this page is computed in the ETL; this file only displays it. Ids prefixed "md-", CSS scoped to .mdx. */
+   Every number is computed in the ETL; this file only displays it. Ids prefixed "md-", CSS scoped to .mdx. */
 (function (global) {
   'use strict';
 
@@ -15,9 +17,9 @@
   }
 
   var D = null, HOST = null, ROOT = null, TIP = null;
-  var ST = { ind: null, level: 'classes', sort: 'su' };
-  var KEY = 'zeta_md_state';
-  var Y = ['2021', '2022', '2023', '2024', '2025'];
+  var ST = { ind: null, level: 'classes', sort: 'su', meas: 'units' };
+  var KEY = 'zeta_md_state_v2';
+  var Y = ['2022', '2023', '2024', '2025'];
   var QUADS = ['Volume Anchor', 'Growth Engine', 'Mature / Plateauing', 'Niche / Stable', 'Contracting / At-Risk'];
   var QCLS = { 'Volume Anchor': 'qa', 'Growth Engine': 'qe', 'Mature / Plateauing': 'qm', 'Niche / Stable': 'qn', 'Contracting / At-Risk': 'qc' };
   var FCLS = { 'Class Substitution': 'fs', 'Segment Deepening': 'fd', 'Mixed': 'fx', 'No next-gen gain': 'fn', 'Legacy Decline (not replaced)': 'fl' };
@@ -25,32 +27,30 @@
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fin(v) { return v != null && isFinite(v); }
-  function fmtSU(v) {
-    if (!fin(v)) return '—';
+  function big(v) {
     var a = Math.abs(v);
     if (a >= 1e9) return (v / 1e9).toFixed(2) + ' B';
     if (a >= 1e6) return (v / 1e6).toFixed(a >= 1e8 ? 0 : 1) + ' M';
     if (a >= 1e3) return (v / 1e3).toFixed(0) + ' K';
     return Math.round(v).toLocaleString();
   }
-  function fmtD(v) { return fin(v) ? (v > 0 ? '+' : v < 0 ? '−' : '') + fmtSU(Math.abs(v)) : '—'; }
+  function fmtV(v) { if (!fin(v)) return '—'; return (ST.meas === 'value' ? 'EGP ' : '') + big(v); }
+  function fmtD(v) { return fin(v) ? (v > 0 ? '+' : v < 0 ? '−' : '') + (ST.meas === 'value' ? 'EGP ' : '') + big(Math.abs(v)) : '—'; }
   function fmtP(p, d) { if (!fin(p)) return '—'; return (p > 0 ? '+' : p < 0 ? '−' : '') + Math.abs(p).toFixed(d == null ? 1 : d) + '%'; }
   function fmtS(p) { return fin(p) ? p.toFixed(p < 10 ? 1 : 0) + '%' : '—'; }
   function fmtPts(p) { return fin(p) ? (p > 0 ? '+' : p < 0 ? '−' : '') + Math.abs(p).toFixed(1) + ' pts' : '—'; }
-  function yoy(o, y) {                                        // growth cell honouring the ETL labels
-    var v = o.yoy && o.yoy[y], l = o.yoy_label && o.yoy_label[y];
+  function M(o) { return o.m[ST.meas]; }
+  function unitWord() { return ST.meas === 'value' ? 'LC Value (EGP)' : 'packs'; }
+  function yoy(o, y) {
+    var m = M(o), v = m.yoy[y], l = m.yoy_label[y];
     if (fin(v)) return '<span class="num' + (v < 0 ? ' neg' : '') + '" title="' + esc(l || '') + '">' + fmtP(v) + (l ? '<sup>' + (l === 'Low base' ? 'LB' : '†') + '</sup>' : '') + '</span>';
     return '<span class="mut">' + esc(l || '—') + '</span>';
   }
   function chip(map, v, cls) { return v ? '<span class="' + (cls || 'qchip') + ' ' + (map[v] || '') + '">' + esc(v) + '</span>' : '<span class="mut">—</span>'; }
-  function ytdLabel() { var y = D.indications[0].ytd; return y.months + ' ' + y.year; }
-  function inds() { return D.indications.slice().sort(function (a, b) { return (b.su['2025'] || 0) - (a.su['2025'] || 0); }); }
+  function inds() { return D.indications.slice().sort(function (a, b) { return (M(b).su['2025'] || 0) - (M(a).su['2025'] || 0); }); }
   function ind() { return D.indications.find(function (i) { return i.id === ST.ind; }) || inds()[0]; }
-  function members(i) {
-    if (ST.level === 'classes') return D.classes.filter(function (c) { return c.indication === i.id; });
-    var t = ST.level === 'dm1' ? 'DM1' : 'DM2';
-    return D.markets.filter(function (m) { return m.indication === i.id && m.type === t; });
-  }
+  function members(i) { return (ST.level === 'molecules' ? D.molecules : D.classes).filter(function (c) { return c.indication === i.id; }); }
+  function marketTotal(meas) { var t = 0; D.indications.forEach(function (i) { t += i.m[meas].su['2025'] || 0; }); return t; }
   function spark(arr, w, h) {
     var v = arr.filter(fin); if (v.length < 2) return '';
     var mx = Math.max.apply(null, v), mn = Math.min(0, Math.min.apply(null, v)), n = arr.length;
@@ -60,249 +60,247 @@
 
   // ---------------------------------------------------------------- shell
   function shell() {
-    var m = D.meta, opts = inds().map(function (i) { return '<option value="' + esc(i.id) + '">' + esc(i.name) + '</option>'; }).join('');
+    var m = D.meta;
     return '<div class="wrap">' +
       '<header class="top"><div><h1>Market Dynamics &amp; Treatment Shift</h1>' +
-      '<div class="sub">How each therapeutic indication is growing in IQVIA Standard Units, where every class and market sits within it, ' +
-      'and whether newer therapies are replacing older ones or adding new volume. FY2027 figures come unchanged from the Market Growth Forecast.</div></div>' +
-      '<div class="mut small">Actuals to <b>' + esc(m.data_period) + '</b> · built ' + esc(m.generated_at) + '</div></header>' +
-      '<section class="card"><div class="h2row"><h2>All indications</h2><span class="mut small">Click a row to open it below. Sorted by 2025 volume. SU = Standard Units.</span></div>' +
-      '<div class="tblwrap"><table class="tbl ov" id="md-ov"></table></div>' +
-      '<div class="note mut">Scope: the IQVIA extract holds 59 classes, not the whole Egypt market. An indication total is the sum of its classes in the extract.</div></section>' +
+      '<div class="sub">How each therapeutic area of the Egyptian market is growing, where every class and molecule sits within it, and whether newer therapies ' +
+      'are replacing older ones or adding new volume. Source: <b>Total Market Intelligence</b> (IMS, all ' + esc(m.n_atc4) + ' ATC4 classes), full years 2022–2025 plus ' + esc(m.partial_label) + '.</div></div>' +
+      '<div class="mut small">' + esc(m.source_file || '') + ' · built ' + esc(m.generated_at) + '</div></header>' +
       '<section class="card controls">' +
-      '<div class="ctl grow"><label for="md-ind">Indication</label><select id="md-ind">' + opts + '</select></div>' +
-      '<div class="ctl"><label>Compare</label><div class="seg" id="md-lvl">' +
-      [['classes', 'Classes'], ['dm1', 'Our DM1 markets'], ['dm2', 'Our DM2 markets']].map(function (l) {
-        return '<button type="button" data-v="' + l[0] + '">' + l[1] + '</button>';
-      }).join('') + '</div></div></section>' +
+      '<div class="ctl"><label>Measure</label><div class="seg" id="md-meas"><button type="button" data-v="units">Packs</button><button type="button" data-v="value">LC Value</button></div></div>' +
+      '<div class="ctl grow"><label for="md-ind">Therapeutic area</label><select id="md-ind"></select></div>' +
+      '<div class="ctl"><label>Compare</label><div class="seg" id="md-lvl"><button type="button" data-v="classes">Classes</button><button type="button" data-v="molecules">Molecules</button></div></div>' +
+      '</section>' +
+      '<div id="md-valnote"></div>' +
+      '<section class="card"><div class="h2row"><h2>All therapeutic areas</h2><span class="mut small">Click a row to open it below. Sorted by 2025 volume.</span></div>' +
+      '<div class="tblwrap"><table class="tbl ov" id="md-ov"></table></div>' +
+      '<div class="note mut">2026 is January–June only and the source has no month split, so it is shown as volume and share, never as growth.</div></section>' +
       '<div id="md-detail"></div>' +
       '<details class="card method" id="md-method"><summary><h2>Methodology &amp; data checks</h2></summary><div id="md-method-body"></div></details>' +
       '</div>';
   }
 
+  function controls() {
+    ROOT.querySelector('#md-ind').innerHTML = inds().map(function (i) { return '<option value="' + esc(i.id) + '">' + esc(i.name) + '</option>'; }).join('');
+    ROOT.querySelector('#md-ind').value = ind().id;
+    ROOT.querySelectorAll('#md-meas button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === ST.meas ? 'true' : 'false'); });
+    ROOT.querySelectorAll('#md-lvl button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === ST.level ? 'true' : 'false'); });
+    ROOT.querySelector('#md-valnote').innerHTML = ST.meas === 'value'
+      ? '<div class="banner warn"><b>Value includes price.</b> The whole market grew from ' + fmtV(D.indications.reduce(function (t, i) { return t + (i.m.value.su['2023'] || 0); }, 0)) +
+        ' in 2023 to ' + fmtV(marketTotal('value')) + ' in 2025, mostly through price increases. Read value growth as price + volume; packs show real demand.</div>' : '';
+  }
+
   function overview() {
-    var yl = ytdLabel();
-    var h = '<thead><tr><th>Indication</th><th class="r">SU 2025</th><th class="r">ΔSU 2025</th><th class="r">YoY 2025</th><th class="r">YoY 2024</th>' +
-      '<th class="r">Acceleration</th><th class="r">YTD ' + esc(yl) + '</th><th class="r">Zeta share 2025</th><th>Trend 2021–25</th><th>Outlook (provisional)</th></tr></thead><tbody>';
+    var h = '<thead><tr><th>Therapeutic area</th><th class="r">2025</th><th class="r">Δ 2025</th><th class="r">YoY 2025</th><th class="r">YoY 2024</th>' +
+      '<th class="r">Acceleration</th><th class="r">CAGR</th><th class="r">H1 2026</th><th class="r">Zeta share 2025</th><th>Trend 2022–25</th><th>Outlook (provisional)</th></tr></thead><tbody>';
     inds().forEach(function (i) {
-      h += '<tr data-id="' + esc(i.id) + '"' + (i.id === ST.ind ? ' class="sel"' : '') + '><td>' + esc(i.name) + '</td>' +
-        '<td class="r num">' + fmtSU(i.su['2025']) + '</td><td class="r num">' + fmtD(i.delta['2025']) + '</td>' +
+      var m = M(i);
+      h += '<tr data-id="' + esc(i.id) + '"' + (i.id === ST.ind ? ' class="sel"' : '') + '><td>' + esc(i.name) + '<div class="mut tiny">' + i.n_classes + ' classes · ' + i.n_molecules + ' molecules</div></td>' +
+        '<td class="r num">' + fmtV(m.su['2025']) + '</td><td class="r num">' + fmtD(m.delta['2025']) + '</td>' +
         '<td class="r">' + yoy(i, '2025') + '</td><td class="r">' + yoy(i, '2024') + '</td>' +
-        '<td class="r num' + (i.accel < 0 ? ' neg' : '') + '">' + fmtPts(i.accel) + '</td>' +
-        '<td class="r num' + (i.ytd.growth < 0 ? ' neg' : '') + '">' + (fin(i.ytd.growth) ? fmtP(i.ytd.growth) : esc(i.ytd.label || '—')) + '</td>' +
-        '<td class="r num">' + fmtS(i.zeta_share2025) + '</td>' +
-        '<td>' + spark(Y.map(function (y) { return i.su[y]; }), 72, 20) + '</td>' +
-        '<td>' + chip(BCLS, i.outlook_badge, 'badge') + '</td></tr>';
+        '<td class="r num' + (m.accel < 0 ? ' neg' : '') + '">' + fmtPts(m.accel) + '</td>' +
+        '<td class="r num">' + (fin(m.cagr) ? fmtP(m.cagr) + '<div class="mut tiny">' + esc(m.window) + '</div>' : '—') + '</td>' +
+        '<td class="r num">' + fmtV(m.h1) + '</td><td class="r num">' + fmtS(m.zeta_share2025) + '</td>' +
+        '<td>' + spark(Y.map(function (y) { return m.su[y]; }), 72, 20) + '</td><td>' + chip(BCLS, i.badge[ST.meas], 'badge') + '</td></tr>';
     });
     ROOT.querySelector('#md-ov').innerHTML = h + '</tbody>';
   }
 
   // ---------------------------------------------------------------- detail
   function detail() {
-    var i = ind(), pairs = D.pairs.filter(function (p) { return p.indication === i.id; });
-    ROOT.querySelector('#md-ind').value = i.id;
-    ROOT.querySelectorAll('#md-lvl button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === ST.level ? 'true' : 'false'); });
-    var mem = members(i);
+    var i = ind(), pairs = D.pairs.filter(function (p) { return p.indication === i.id; }), mem = members(i);
     var h = cards(i, pairs) +
-      '<section class="card"><div class="h2row"><h2>A · Growth &amp; metric grid — ' + esc(levelName()) + ' in ' + esc(i.name) + '</h2>' +
-      '<span class="mut small">Ranked within the indication. ● = Zeta sells here. † = special base (hover). Click a column title to sort.</span></div>' +
-      grid(i, mem) + '</section>' +
-      '<div class="g2"><section class="card"><h2>B · Portfolio matrix</h2>' + matrix(i, mem) + '</section>' +
+      '<section class="card"><div class="h2row"><h2>A · Growth &amp; metric grid — ' + (ST.level === 'molecules' ? 'molecules' : 'classes') + ' in ' + esc(i.name) + ' (' + unitWord() + ')</h2>' +
+      '<span class="mut small">Ranked within the area. ● = Zeta sells here. † = special base (hover). Click a blue column title to sort.</span></div>' + grid(i, mem) + '</section>' +
+      '<div class="g2"><section class="card"><h2>B · Portfolio matrix</h2>' + matrix(mem) + '</section>' +
       '<section class="card"><h2>C · Treatment shift</h2>' + (pairs.length ? pairs.map(shift).join('') :
-        '<p class="mut">No legacy → next-gen pair is defined for this indication. Pairs are set in <code>config/market_dynamics_map.json</code>.</p>') + '</section></div>' +
-      outlook(i, pairs);
+        '<p class="mut">No legacy → next-gen pair is defined for this area. Pairs are set in <code>config/market_dynamics_map.json</code>.</p>') + '</section></div>' +
+      outlook(i);
     ROOT.querySelector('#md-detail').innerHTML = h;
     ROOT.querySelectorAll('#md-ov tr[data-id]').forEach(function (tr) { tr.classList.toggle('sel', tr.getAttribute('data-id') === i.id); });
   }
-  function levelName() { return ST.level === 'classes' ? 'classes' : ST.level === 'dm1' ? 'our DM1 markets' : 'our DM2 markets'; }
 
   function cards(i, pairs) {
-    var p = pairs[0], last = p ? p.rows.filter(function (r) { return r.flag; }).slice(-2) : [];
-    var share = last.length ? last[last.length - 1].next_share_ind : null, prevShare = last.length > 1 ? last[0].next_share_ind : null;
-    function card(l, v, s, extra) { return '<div class="kpi"><div class="kl">' + l + '</div><div class="kv num">' + v + '</div><div class="ks">' + s + '</div>' + (extra || '') + '</div>'; }
+    var m = M(i), p = pairs[0];
+    var share = m.su['2025'] / (marketTotal(ST.meas) || 1) * 100;
+    function card(l, v, s) { return '<div class="kpi"><div class="kl">' + l + '</div><div class="kv num">' + v + '</div><div class="ks">' + s + '</div></div>'; }
+    var pc = '';
+    if (p) {
+      var rows = p.m[ST.meas].rows, last = rows.filter(function (r) { return r.flag; }).slice(-1)[0], h1 = rows.filter(function (r) { return r.h1; })[0];
+      pc = card('Next-gen share — ' + esc(p.name.split('→')[1] ? p.name.split('→')[1].trim() : ''), fmtS(h1 && h1.next_share_ind),
+        'of the area in H1 2026 · ' + fmtS(last && last.next_share_ind) + ' in 2025' + (h1 && fin(h1.share_chg_pts) ? ' (' + fmtPts(h1.share_chg_pts) + ')' : ''));
+    } else pc = card('Zeta share 2025', fmtS(m.zeta_share2025), 'H1 2026: ' + fmtS(m.zeta_share_h1));
     return '<div class="kpis">' +
-      card('Indication SU 2025', fmtSU(i.su['2025']), fmtP(i.yoy['2025']) + ' · ' + fmtD(i.delta['2025']) + ' SU vs 2024') +
-      card('Acceleration', fmtPts(i.accel), 'YoY ' + fmtP(i.yoy['2024']) + ' → ' + fmtP(i.yoy['2025'])) +
-      card('YTD ' + esc(ytdLabel()), fin(i.ytd.growth) ? fmtP(i.ytd.growth) : '—', fmtSU(i.ytd.cur) + ' vs ' + fmtSU(i.ytd.py) + ' SU') +
-      (p ? card('Next-gen share (' + esc(p.name.split('→')[1] || '').trim() + ')', fmtS(share),
-        'of the indication · ' + esc(last[last.length - 1].period) + (fin(prevShare) ? ' (was ' + fmtS(prevShare) + ')' : ''))
-         : card('Zeta share 2025', fmtS(i.zeta_share2025), fmtSU(i.zeta_su2025) + ' SU of the indication')) +
-      '<div class="kpi"><div class="kl">Outlook (provisional)</div><div class="kv">' + chip(BCLS, i.outlook_badge, 'badge big') + '</div>' +
-      '<div class="ks">' + (p ? 'Latest shift: ' + esc(p.latest_flag || '—') : 'From 2025 and YTD growth') + '</div></div></div>';
+      card('Area 2025 (' + unitWord() + ')', fmtV(m.su['2025']), fmtP(m.yoy['2025']) + ' · ' + fmtD(m.delta['2025']) + ' vs 2024 · ' + fmtS(share) + ' of the market') +
+      card('Acceleration', fmtPts(m.accel), 'YoY ' + fmtP(m.yoy['2024']) + ' → ' + fmtP(m.yoy['2025'])) +
+      card('H1 2026 (Jan–Jun)', fmtV(m.h1), 'shown as volume only: no comparable H1 2025 in the source') + pc +
+      '<div class="kpi"><div class="kl">Outlook (provisional)</div><div class="kv">' + chip(BCLS, i.badge[ST.meas], 'badge big') + '</div>' +
+      '<div class="ks">' + (p ? 'Latest shift: ' + esc(p.m[ST.meas].latest_flag) : 'From 2025 and 2024 growth') + '</div></div></div>';
   }
 
   function grid(i, mem) {
-    var keyf = { su: function (o) { return o.su['2025'] || 0; }, yoy: function (o) { return fin(o.yoy['2025']) ? o.yoy['2025'] : -1e9; },
-      accel: function (o) { return fin(o.accel) ? o.accel : -1e9; }, share: function (o) { return o.share2025 || 0; }, cagr: function (o) { return fin(o.cagr) ? o.cagr : -1e9; } }[ST.sort] || function (o) { return o.su['2025'] || 0; };
-    var rows = mem.slice().sort(function (a, b) { return keyf(b) - keyf(a); });
-    var isCls = ST.level === 'classes';
-    function th(k, t, r) { return '<th' + (r ? ' class="r"' : '') + (k ? ' data-sort="' + k + '"' + (ST.sort === k ? ' aria-sort="descending"' : '') : '') + '>' + t + (ST.sort === k ? ' ▾' : '') + '</th>'; }
-    var h = '<div class="tblwrap"><table class="tbl" id="md-grid"><thead><tr>' + th(null, isCls ? 'Class' : 'Market') +
-      Y.map(function (y) { return th(y === '2025' ? 'su' : null, 'SU ' + y, 1); }).join('') +
-      th(null, 'ΔSU 2025', 1) + th('yoy', 'YoY 2025', 1) + th(null, 'YoY 2024', 1) + th('accel', 'Accel.', 1) +
-      th(null, 'YTD ' + esc(ytdLabel()), 1) + th('cagr', 'CAGR', 1) + th('share', 'Share 2025', 1) + th(null, 'Rank vol / growth', 1) + th(null, 'Quadrant') +
-      (isCls ? '' : th(null, 'FY2027 (champion)', 1)) + '</tr></thead><tbody>';
-    if (!rows.length) h += '<tr><td colspan="16" class="mut">None of our ' + esc(levelName()) + ' sit in this indication. Switch to Classes.</td></tr>';
+    var keyf = { su: function (o) { return M(o).su['2025'] || 0; }, yoy: function (o) { return fin(M(o).yoy['2025']) ? M(o).yoy['2025'] : -1e9; },
+      accel: function (o) { return fin(M(o).accel) ? M(o).accel : -1e9; }, share: function (o) { return M(o).share2025 || 0; },
+      cagr: function (o) { return fin(M(o).cagr) ? M(o).cagr : -1e9; }, chg: function (o) { return fin(M(o).share_chg_pts) ? M(o).share_chg_pts : -1e9; } }[ST.sort] || function (o) { return M(o).su['2025'] || 0; };
+    var rows = mem.slice().sort(function (a, b) { if (a.other) return 1; if (b.other) return -1; return keyf(b) - keyf(a); });
+    function th(k, t) { return '<th class="r"' + (k ? ' data-sort="' + k + '"' : '') + '>' + t + (ST.sort === k ? ' ▾' : '') + '</th>'; }
+    var h = '<div class="tblwrap"><table class="tbl" id="md-grid"><thead><tr><th>' + (ST.level === 'molecules' ? 'Molecule' : 'Class') + '</th>' +
+      Y.map(function (y) { return th(y === '2025' ? 'su' : null, y); }).join('') + th(null, 'H1 2026') + th(null, 'Δ 2025') + th('yoy', 'YoY 2025') + th(null, 'YoY 2024') +
+      th('accel', 'Accel.') + th('cagr', 'CAGR') + th('share', 'Share 2025') + th('chg', 'Share H1-26') + th(null, 'Rank vol / growth') + '<th>Quadrant</th>' + th(null, 'Zeta share') + '</tr></thead><tbody>';
     rows.forEach(function (o) {
-      var zeta = isCls ? o.zeta_active : true, f = o.forecast;
-      var nm = isCls ? esc(o.name) + (zeta ? ' <span class="dot" title="Zeta sells in this class">●</span>' : '') +
-        '<div class="mut tiny">' + esc((o.atc4 || []).map(function (a) { return a.split(' ')[0]; }).join(', ')) + (o.rule && o.rule.molecules ? ' · molecule rule' : '') + (o.rule && o.rule.components ? ' · ' + o.rule.components + '-molecule combos' : '') + '</div>'
-        : esc(o.name) + '<div class="mut tiny">' + esc(o.class_relation) + '</div>';
-      h += '<tr' + (isCls ? '' : ' class="link" data-mk="' + esc(o.type + '|' + o.name) + '"') + '><td class="mk">' + nm + '</td>' +
-        Y.map(function (y) { return '<td class="r num' + ((o.incomplete_years || []).indexOf(+y) >= 0 ? ' inc" title="Incomplete year in the IQVIA extract (coverage starts mid-2021)' : '') + '">' + fmtSU(o.su[y]) + '</td>'; }).join('') +
-        '<td class="r num">' + fmtD(o.delta['2025']) + '</td><td class="r">' + yoy(o, '2025') + '</td><td class="r">' + yoy(o, '2024') + '</td>' +
-        '<td class="r num' + (o.accel < 0 ? ' neg' : '') + '">' + fmtPts(o.accel) + '</td>' +
-        '<td class="r num' + (o.ytd.growth < 0 ? ' neg' : '') + '">' + (fin(o.ytd.growth) ? fmtP(o.ytd.growth) : esc(o.ytd.label || '—')) + '</td>' +
-        '<td class="r num" title="' + esc(o.window ? 'CAGR ' + o.window : 'Not enough complete years') + '">' + (fin(o.cagr) ? fmtP(o.cagr) + '<div class="mut tiny">' + esc(o.window) + '</div>' : '—') + '</td>' +
-        '<td class="r num">' + fmtS(o.share2025) + '<div class="mut tiny">fair ' + fmtS(o.fair_share) + '</div></td>' +
-        '<td class="r num">' + (o.rank_volume || '—') + ' / ' + (o.rank_growth || '—') + '</td><td>' + chip(QCLS, o.quadrant) + '</td>' +
-        (isCls ? '' : '<td class="r num">' + (f ? fmtSU(f.fy27) + '<div class="tiny ' + (f.growth < 0 ? 'neg' : 'mut') + '">' + fmtP(f.growth) + ' · ' + esc(f.confidence || '') + '</div>' : '—') + '</td>') + '</tr>';
+      var m = M(o);
+      var nm = esc(o.name) + (o.zeta_active ? ' <span class="dot" title="Zeta sells here">●</span>' : '') +
+        '<div class="mut tiny">' + esc((o.atc4 || []).slice(0, 4).join(', ')) + ((o.atc4 || []).length > 4 ? '…' : '') +
+        (o.rule && o.rule.molecules ? ' · molecule rule' : '') + (o.rule && o.rule.components ? ' · ' + o.rule.components + '-molecule combos' : '') + '</div>';
+      h += '<tr' + (o.other ? ' class="oth"' : '') + '><td class="mk">' + nm + '</td>' + Y.map(function (y) { return '<td class="r num">' + fmtV(m.su[y]) + '</td>'; }).join('') +
+        '<td class="r num">' + fmtV(m.h1) + '</td><td class="r num">' + fmtD(m.delta['2025']) + '</td><td class="r">' + yoy(o, '2025') + '</td><td class="r">' + yoy(o, '2024') + '</td>' +
+        '<td class="r num' + (m.accel < 0 ? ' neg' : '') + '">' + fmtPts(m.accel) + '</td>' +
+        '<td class="r num">' + (fin(m.cagr) ? fmtP(m.cagr) + '<div class="mut tiny">' + esc(m.window) + '</div>' : '—') + '</td>' +
+        '<td class="r num">' + fmtS(m.share2025) + '<div class="mut tiny">fair ' + fmtS(m.fair_share) + '</div></td>' +
+        '<td class="r num">' + fmtS(m.share_h1) + '<div class="tiny ' + (m.share_chg_pts < 0 ? 'neg' : 'mut') + '">' + fmtPts(m.share_chg_pts) + '</div></td>' +
+        '<td class="r num">' + (m.rank_volume || '—') + ' / ' + (m.rank_growth || '—') + '</td><td>' + (o.other ? '<span class="mut small">not ranked</span>' : chip(QCLS, m.quadrant)) + '</td>' +
+        '<td class="r num">' + fmtS(m.zeta_share2025) + '</td></tr>';
     });
-    h += '<tr class="tot"><td>Indication total</td>' + Y.map(function (y) { return '<td class="r num">' + fmtSU(i.su[y]) + '</td>'; }).join('') +
-      '<td class="r num">' + fmtD(i.delta['2025']) + '</td><td class="r">' + yoy(i, '2025') + '</td><td class="r">' + yoy(i, '2024') + '</td>' +
-      '<td class="r num">' + fmtPts(i.accel) + '</td><td class="r num">' + fmtP(i.ytd.growth) + '</td><td class="r num">' + (fin(i.cagr) ? fmtP(i.cagr) : '—') + '</td>' +
-      '<td class="r num">100%</td><td></td><td></td>' + (isCls ? '' : '<td></td>') + '</tr>';
-    return h + '</tbody></table></div>' + (isCls ? '' : '<div class="note mut">Click a market to open it on the Market Growth Forecast tab. Markets do not add up to the indication: the rest of the indication is other companies\' or non-defined volume.</div>');
+    var im = M(i);
+    h += '<tr class="tot"><td>Area total</td>' + Y.map(function (y) { return '<td class="r num">' + fmtV(im.su[y]) + '</td>'; }).join('') +
+      '<td class="r num">' + fmtV(im.h1) + '</td><td class="r num">' + fmtD(im.delta['2025']) + '</td><td class="r">' + yoy(i, '2025') + '</td><td class="r">' + yoy(i, '2024') + '</td>' +
+      '<td class="r num">' + fmtPts(im.accel) + '</td><td class="r num">' + (fin(im.cagr) ? fmtP(im.cagr) : '—') + '</td><td class="r num">100%</td><td class="r num">100%</td><td></td><td></td>' +
+      '<td class="r num">' + fmtS(im.zeta_share2025) + '</td></tr>';
+    return h + '</tbody></table></div>' + (ST.level === 'molecules' ? '<div class="note mut">Top ' + D.meta.n_molecules_top + ' molecules by packs in this area; the rest are grouped and not ranked. Combinations count as their own molecule.</div>' :
+      '<div class="note mut">"Share H1-26" = share of the area in January–June 2026 and its change against the full-year 2025 share (a like-for-like share, not growth).</div>');
   }
 
-  // B: x = share of indication (sqrt scale), y = YoY 2025 (clipped), size = SU 2025, colour = quadrant
-  function matrix(i, mem) {
-    var pts = mem.filter(function (o) { return fin(o.share2025) && o.su['2025'] > 0; });
+  function matrix(mem) {
+    var pts = mem.filter(function (o) { return !o.other && fin(M(o).share2025) && M(o).su['2025'] > 0; });
     if (!pts.length) return '<p class="mut">Nothing to plot for this selection.</p>';
     var W = 560, H = 380, L = 52, R = 16, T = 20, B = 44, pw = W - L - R, ph = H - T - B;
-    var ys = pts.map(function (o) { return fin(o.yoy['2025']) ? o.yoy['2025'] : 0; });
-    var ymin = Math.min(-10, Math.floor(Math.min.apply(null, ys) / 10) * 10), ymax = Math.max(30, Math.ceil(Math.min(150, Math.max.apply(null, ys)) / 10) * 10);
-    ymin = Math.max(ymin, -60);
+    var ys = pts.map(function (o) { return fin(M(o).yoy['2025']) ? M(o).yoy['2025'] : 0; });
+    var ymin = Math.max(-60, Math.min(-10, Math.floor(Math.min.apply(null, ys) / 10) * 10)), ymax = Math.max(30, Math.ceil(Math.min(150, Math.max.apply(null, ys)) / 10) * 10);
     var X = function (s) { return L + Math.sqrt(Math.max(0, s) / 100) * pw; };
     var Yp = function (v) { return T + (ymax - Math.max(ymin, Math.min(ymax, v))) / (ymax - ymin) * ph; };
-    var smax = Math.max.apply(null, pts.map(function (o) { return o.su['2025']; }));
-    var rad = function (su) { return 4 + 10 * Math.sqrt(su / smax); };
-    var fair = pts[0].fair_share;
-    var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Portfolio matrix: share of indication against 2025 growth">';
-    var ticks = []; for (var t = Math.ceil(ymin / 20) * 20; t <= ymax; t += 20) ticks.push(t);
-    ticks.forEach(function (t) { s += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Yp(t) + '" y2="' + Yp(t) + '"/><text class="ax" x="' + (L - 6) + '" y="' + (Yp(t) + 3.5) + '" text-anchor="end">' + t + '%</text>'; });
+    var smax = Math.max.apply(null, pts.map(function (o) { return M(o).su['2025']; }));
+    var rad = function (v) { return 4 + 10 * Math.sqrt(v / smax); };
+    var fair = M(pts[0]).fair_share, th = D.meta.thresholds;
+    var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Portfolio matrix: share of the area against 2025 growth">';
+    for (var t = Math.ceil(ymin / 20) * 20; t <= ymax; t += 20) s += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Yp(t) + '" y2="' + Yp(t) + '"/><text class="ax" x="' + (L - 6) + '" y="' + (Yp(t) + 3.5) + '" text-anchor="end">' + t + '%</text>';
     [1, 5, 10, 25, 50, 100].forEach(function (x) { s += '<text class="ax" x="' + X(x) + '" y="' + (H - B + 16) + '" text-anchor="middle">' + x + '%</text>'; });
     s += '<line class="zero" x1="' + L + '" x2="' + (W - R) + '" y1="' + Yp(0) + '" y2="' + Yp(0) + '"/>';
-    var th = D.meta.thresholds;
-    s += '<line class="ref" x1="' + X(fair) + '" x2="' + X(fair) + '" y1="' + T + '" y2="' + (H - B) + '"/><text class="ax" x="' + (X(fair) + 4) + '" y="' + (T + 10) + '">fair share ' + fmtS(fair) + '</text>';
+    s += '<line class="ref" x1="' + X(fair) + '" x2="' + X(fair) + '" y1="' + T + '" y2="' + (H - B) + '"/><text class="ax" x="' + (X(fair) + 4) + '" y="' + (H - B - 24) + '">fair share ' + fmtS(fair) + '</text>';
     s += '<line class="ref" x1="' + L + '" x2="' + X(fair) + '" y1="' + Yp(th.engine_min_yoy_pct) + '" y2="' + Yp(th.engine_min_yoy_pct) + '"/>';
     s += '<line class="ref" x1="' + X(fair) + '" x2="' + (W - R) + '" y1="' + Yp(th.anchor_min_yoy_pct) + '" y2="' + Yp(th.anchor_min_yoy_pct) + '"/>';
-    s += '<text class="qz" x="' + (L + 6) + '" y="' + (T + 24) + '">Growth Engines</text><text class="qz" x="' + (W - R - 6) + '" y="' + (T + 24) + '" text-anchor="end">Volume Anchors</text>' +
+    s += '<text class="qz" x="' + (L + 6) + '" y="' + (T + 14) + '">Growth Engines</text><text class="qz" x="' + (W - R - 6) + '" y="' + (T + 14) + '" text-anchor="end">Volume Anchors</text>' +
       '<text class="qz" x="' + (L + 6) + '" y="' + (H - B - 8) + '">Niche / Stable</text><text class="qz" x="' + (W - R - 6) + '" y="' + (H - B - 8) + '" text-anchor="end">Mature / Plateauing</text>';
-    s += '<text class="ax" x="' + (L + pw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">Share of the indication, SU 2025 (square-root scale)</text>' +
+    s += '<text class="ax" x="' + (L + pw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">Share of the area, 2025 ' + esc(unitWord()) + ' (square-root scale)</text>' +
       '<text class="ax" transform="rotate(-90 14 ' + (T + ph / 2) + ')" x="14" y="' + (T + ph / 2) + '" text-anchor="middle">YoY growth 2025</text>';
-    var order = pts.slice().sort(function (a, b) { return b.su['2025'] - a.su['2025']; });
-    var labelled = order.slice(0, 8).map(function (o) { return o.id; });
+    var order = pts.slice().sort(function (a, b) { return M(b).su['2025'] - M(a).su['2025']; });
+    var labelled = order.slice(0, 8).map(function (o) { return o.id; }), placed = [];
+    function labelY(x, y, w) {                                   // nudge a label down/up until it clears earlier ones
+      for (var k = 0; k < 8; k++) {
+        var yy = y + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 13, hit = placed.some(function (b) { return x < b.x + b.w && b.x < x + w && Math.abs(yy - b.y) < 12; });
+        if (!hit) { placed.push({ x: x, y: yy, w: w }); return yy; }
+      }
+      placed.push({ x: x, y: y, w: w }); return y;
+    }
     order.forEach(function (o) {
-      var v = fin(o.yoy['2025']) ? o.yoy['2025'] : 0, cx = X(o.share2025), cy = Yp(v), clipped = v > ymax || v < ymin;
-      var tip = esc(o.name) + '|Share ' + fmtS(o.share2025) + ' · SU 2025 ' + fmtSU(o.su['2025']) + '|YoY 2025 ' + (fin(o.yoy['2025']) ? fmtP(o.yoy['2025']) : (o.yoy_label['2025'] || '—')) + ' · accel. ' + fmtPts(o.accel) + '|' + o.quadrant;
-      s += '<circle class="pt ' + (QCLS[o.quadrant] || '') + '" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + rad(o.su['2025']).toFixed(1) + '" data-tip="' + tip + '"/>';
-      if (clipped) s += '<text class="ax" x="' + cx + '" y="' + (cy + (v > ymax ? -14 : 22)) + '" text-anchor="middle">' + (v > ymax ? '▲ ' : '▼ ') + fmtP(v, 0) + '</text>';
-      if (labelled.indexOf(o.id) >= 0) s += '<text class="lbl" x="' + (cx + rad(o.su['2025']) + 4).toFixed(1) + '" y="' + (cy + 4).toFixed(1) + '">' + esc(short(o.name)) + '</text>';
+      if (labelled.indexOf(o.id) < 0) return;
+      var m = M(o), v = fin(m.yoy['2025']) ? m.yoy['2025'] : 0, nm = short(o.name);
+      o._lx = X(m.share2025) + rad(m.su['2025']) + 4; o._ly = labelY(o._lx, Yp(v) + 4, nm.length * 6);
+    });
+    order.slice().reverse().forEach(function (o) {
+      var m = M(o), v = fin(m.yoy['2025']) ? m.yoy['2025'] : 0, cx = X(m.share2025), cy = Yp(v), clipped = v > ymax || v < ymin;
+      var tip = esc(o.name) + '|Share ' + fmtS(m.share2025) + ' · 2025 ' + fmtV(m.su['2025']) + '|YoY 2025 ' + (fin(m.yoy['2025']) ? fmtP(m.yoy['2025']) : (m.yoy_label['2025'] || '—')) + ' · accel. ' + fmtPts(m.accel) + '|' + m.quadrant;
+      s += '<circle class="pt ' + (QCLS[m.quadrant] || '') + '" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + rad(m.su['2025']).toFixed(1) + '" data-tip="' + tip + '"/>';
+      if (clipped && labelled.indexOf(o.id) >= 0) s += '<text class="ax" x="' + cx + '" y="' + (cy + (v > ymax ? -14 : 22)) + '" text-anchor="middle">' + (v > ymax ? '▲ ' : '▼ ') + fmtP(v, 0) + '</text>';
+      if (labelled.indexOf(o.id) >= 0) s += '<text class="lbl" x="' + o._lx.toFixed(1) + '" y="' + o._ly.toFixed(1) + '">' + esc(short(o.name)) + '</text>';
     });
     s += '</svg>';
-    var lg = '<div class="legend">' + QUADS.map(function (q) { return '<span><i class="sw ' + QCLS[q] + '"></i>' + esc(q) + '</span>'; }).join('') + '<span class="mut">Dot size = SU 2025 · hover for detail</span></div>';
-    return s + lg;
+    return s + '<div class="legend">' + QUADS.map(function (q) { return '<span><i class="sw ' + QCLS[q] + '"></i>' + esc(q) + '</span>'; }).join('') +
+      '<span class="mut">Dot size = 2025 volume · largest 8 labelled · hover for detail</span></div>';
   }
   function short(n) { n = String(n).replace(/\s*\(.*?\)\s*/g, ' ').trim(); return n.length > 26 ? n.slice(0, 25) + '…' : n; }
 
-  // C: per period, Δ legacy / Δ next-gen / Δ indication on one zero axis + flag
   function shift(p) {
-    var rows = p.rows.filter(function (r) { return r.flag; });
-    var all = [0];
-    rows.forEach(function (r) { all.push(r.legacy_delta, r.next_delta, r.ind_delta); });
-    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
-    var W = 560, L = 132, R = 150, LAB = 54, rowH = 50, T = 26, H = T + rows.length * rowH + 8;
-    var padL = lo < 0 ? LAB : 0, pw = W - L - R - LAB - padL;                    // room for value labels on both sides
-    var span = (hi - lo) || 1, x0 = L + padL + (-lo / span) * pw;
+    var all = p.m[ST.meas].rows, rows = all.filter(function (r) { return r.flag; }), h1 = all.filter(function (r) { return r.h1; })[0];
+    var vals = [0]; rows.forEach(function (r) { vals.push(r.legacy_delta, r.next_delta, r.ind_delta); });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    var W = 560, L = 92, R = 150, LAB = 70, rowH = 50, T = 26, H = T + rows.length * rowH + 8;
+    var padL = lo < 0 ? LAB : 0, pw = W - L - R - LAB - padL, span = (hi - lo) || 1, x0 = L + padL + (-lo / span) * pw;
     var X = function (v) { return x0 + v / span * pw; };
     var s = '<div class="pairhd"><b>' + esc(p.name) + '</b>' + (p.gap ? '<span class="mut small"> · ' + esc(p.gap) + '</span>' : '') + '</div>' +
-      '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(p.name) + ': change in SU per period">';
-    s += '<text class="ax" x="' + x0 + '" y="14" text-anchor="middle">ΔSU vs previous period (0 = no change)</text>';
-    s += '<line class="zero" x1="' + x0 + '" x2="' + x0 + '" y1="' + (T - 6) + '" y2="' + (H - 4) + '"/>';
+      '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(p.name) + ': change per year">' +
+      '<text class="ax" x="' + x0 + '" y="14" text-anchor="middle">Change vs previous year, ' + esc(unitWord()) + '</text>' +
+      '<line class="zero" x1="' + x0 + '" x2="' + x0 + '" y1="' + (T - 6) + '" y2="' + (H - 4) + '"/>';
     rows.forEach(function (r, k) {
       var y = T + k * rowH;
-      s += '<text class="lbl" x="0" y="' + (y + 24) + '">' + esc(r.period.replace(' vs ', ' vs ')) + '</text>';
-      [['legacy_delta', 'bl', 'Legacy'], ['next_delta', 'bn', 'Next-gen'], ['ind_delta', 'bi', 'Indication']].forEach(function (b, j) {
+      s += '<text class="lbl" x="0" y="' + (y + 24) + '">' + esc(r.period) + '</text>';
+      [['legacy_delta', 'bl', 'Legacy', 'legacy_growth'], ['next_delta', 'bn', 'Next-gen', 'next_growth'], ['ind_delta', 'bi', 'Area', 'ind_growth']].forEach(function (b, j) {
         var v = r[b[0]], a = X(Math.min(0, v)), w = Math.max(1, Math.abs(X(v) - x0)), by = y + 4 + j * 13;
-        s += '<rect class="' + b[1] + '" x="' + a.toFixed(1) + '" y="' + by + '" width="' + w.toFixed(1) + '" height="10" rx="2" data-tip="' + esc(r.period) + '|' + b[2] + ' ' + fmtD(v) + ' SU' +
-          (b[0] === 'legacy_delta' ? ' (' + fmtP(r.legacy_growth) + ')' : b[0] === 'next_delta' ? ' (' + (fin(r.next_growth) ? fmtP(r.next_growth) : 'new') + ')' : ' (' + fmtP(r.ind_growth) + ')') + '"/>';
+        s += '<rect class="' + b[1] + '" x="' + a.toFixed(1) + '" y="' + by + '" width="' + w.toFixed(1) + '" height="10" rx="2" data-tip="' + esc(r.period) + '|' + b[2] + ' ' + fmtD(v) + ' (' + (fin(r[b[3]]) ? fmtP(r[b[3]]) : 'new') + ')"/>';
         s += '<text class="val" x="' + (v >= 0 ? X(v) + 4 : X(v) - 4).toFixed(1) + '" y="' + (by + 9) + '"' + (v < 0 ? ' text-anchor="end"' : '') + '>' + fmtD(v) + '</text>';
       });
-      s += '<foreignObject x="' + (W - R + 8) + '" y="' + (y + 2) + '" width="' + (R - 8) + '" height="44"><div xmlns="http://www.w3.org/1999/xhtml" class="fo">' +
-        chip(FCLS, r.flag, 'flag') + '<div class="tiny mut">next-gen ' + fmtS(r.next_share_ind) + ' of indication' + (fin(r.substitution_ratio) && r.substitution_ratio > 0 ? ' · ratio ' + Math.round(r.substitution_ratio) + '%' : '') + '</div></div></foreignObject>';
+      s += '<foreignObject x="' + (W - R + 8) + '" y="' + (y + 2) + '" width="' + (R - 8) + '" height="46"><div xmlns="http://www.w3.org/1999/xhtml" class="fo">' + chip(FCLS, r.flag, 'flag') +
+        '<div class="tiny mut">next-gen ' + fmtS(r.next_share_ind) + ' of area' + (fin(r.substitution_ratio) && r.substitution_ratio > 0 ? ' · ratio ' + Math.round(r.substitution_ratio) + '%' : '') + '</div></div></foreignObject>';
     });
-    s += '</svg><div class="legend"><span><i class="sw bl"></i>Legacy (' + esc(p.legacy.join(' + ')) + ')</span><span><i class="sw bn"></i>Next-gen (' + esc(p.next_gen.join(' + ')) + ')</span><span><i class="sw bi"></i>Indication net</span></div>';
+    s += '</svg><div class="legend"><span><i class="sw bl"></i>Legacy: ' + esc(p.legacy_names.join(' + ')) + '</span><span><i class="sw bn"></i>Next-gen: ' + esc(p.next_names.join(' + ')) + '</span><span><i class="sw bi"></i>Area net</span></div>';
     var last = rows[rows.length - 1];
     if (last) s += '<p class="note">' + explain(p, last) + '</p>';
+    if (h1) s += '<p class="note mut"><b>H1 2026:</b> next-gen holds ' + fmtS(h1.next_share_ind) + ' of the area (' + fmtPts(h1.share_chg_pts) + ' vs full-year 2025) and ' + fmtS(h1.next_share_pair) + ' of the pair. Share only; no growth for a half year.</p>';
     return '<div class="pair">' + s + '</div>';
   }
   function explain(p, r) {
     var nx = p.name.split('→')[1] ? p.name.split('→')[1].trim() : 'next-gen', lg = p.name.split('→')[0].trim();
-    var base = '<b>' + esc(r.period) + ':</b> ' + esc(nx) + ' ' + fmtD(r.next_delta) + ' SU, ' + esc(lg) + ' ' + fmtD(r.legacy_delta) + ' SU, indication ' + fmtD(r.ind_delta) + ' SU. ';
-    var t = {
-      'Segment Deepening': 'The older therapy is still growing, so the newer one is adding treated volume rather than taking it.',
+    var t = { 'Segment Deepening': 'The older therapy is still growing, so the newer one is adding treated volume rather than taking it.',
       'Class Substitution': 'The older therapy is losing volume and that loss explains at least half of the newer therapy\'s gain: patients are switching.',
       'Legacy Decline (not replaced)': 'The older therapy lost more than twice what the newer one gained: most of that volume left the market rather than switching.',
       'Mixed': 'The older therapy is slowing or falling, but only part of the newer therapy\'s gain can be explained by it.',
       'No next-gen gain': 'The newer therapy did not grow in this period.' }[r.flag] || '';
-    return base + t;
+    return '<b>' + esc(r.period) + ':</b> ' + esc(nx) + ' ' + fmtD(r.next_delta) + ', ' + esc(lg) + ' ' + fmtD(r.legacy_delta) + ', area ' + fmtD(r.ind_delta) + '. ' + t;
   }
 
-  // D: FY2027 outlook from the champion forecast (DM1 + DM2 in this indication)
-  function outlook(i, pairs) {
-    var mk = D.markets.filter(function (m) { return m.indication === i.id && m.forecast; })
-      .sort(function (a, b) { return a.type === b.type ? (b.forecast.le || 0) - (a.forecast.le || 0) : (a.type < b.type ? -1 : 1); });
-    var h = '<section class="card"><div class="h2row"><h2>D · FY2027 outlook — champion forecast (same figures as the Market Growth Forecast tab)</h2>' +
-      chip(BCLS, i.outlook_badge, 'badge') + '</div>';
-    if (!mk.length) return h + '<p class="mut">None of our markets sit in this indication, so there is no champion forecast to show yet. The indication-level FY2027 forecast is added in Phase 3.</p></section>';
-    h += '<div class="tblwrap"><table class="tbl"><thead><tr><th>Type</th><th>Market</th><th>Relation to classes</th><th class="r">2026 LE</th><th class="r">FY2027</th>' +
-      '<th class="r">Growth</th><th class="r">Range</th><th>Confidence</th><th>Method</th><th class="r">Share of indication 2025</th></tr></thead><tbody>';
+  function outlook(i) {
+    var mk = (D.forecast || []).filter(function (m) { return m.indication === i.id; })
+      .sort(function (a, b) { return a.type === b.type ? (b.le || 0) - (a.le || 0) : (a.type < b.type ? -1 : 1); });
+    var h = '<section class="card"><div class="h2row"><h2>D · FY2027 outlook — our markets, champion forecast</h2><span class="unitchip">IQVIA Standard Units — a different measure from A–C</span></div>';
+    if (!mk.length) return h + '<p class="mut">None of our forecast markets (DM1 / DM2) sit in this area.</p></section>';
+    h += '<div class="tblwrap"><table class="tbl"><thead><tr><th>Type</th><th>Market</th><th>Main ATC4</th><th class="r">SU 2026 LE</th><th class="r">SU FY2027</th>' +
+      '<th class="r">Growth</th><th class="r">Range</th><th>Confidence</th><th>Method</th></tr></thead><tbody>';
     mk.forEach(function (m) {
-      var f = m.forecast;
-      h += '<tr class="link" data-mk="' + esc(m.type + '|' + m.name) + '"><td>' + m.type + '</td><td>' + esc(m.name) + '</td><td class="mut small">' + esc(m.class_relation) + '</td>' +
-        '<td class="r num">' + fmtSU(f.le) + '</td><td class="r num">' + fmtSU(f.fy27) + '</td><td class="r num' + (f.growth < 0 ? ' neg' : '') + '">' + fmtP(f.growth) + '</td>' +
-        '<td class="r num">' + fmtP(f.low_pct, 0) + ' to ' + fmtP(f.high_pct, 0) + '</td><td>' + esc(f.confidence || '—') + (f.engine === 'safeguard' ? ' <span class="qchip qm">safeguard</span>' : '') + '</td>' +
-        '<td class="small">' + esc(f.method || '—') + '</td><td class="r num">' + fmtS(m.share2025) + '</td></tr>';
+      h += '<tr class="link" data-mk="' + esc(m.type + '|' + m.name) + '"><td>' + m.type + '</td><td>' + esc(m.name) + '</td><td class="mut small">' + esc(m.atc4 || '') + '</td>' +
+        '<td class="r num">' + (fin(m.le) ? big(m.le) : '—') + '</td><td class="r num">' + (fin(m.fy27) ? big(m.fy27) : '—') + '</td><td class="r num' + (m.growth < 0 ? ' neg' : '') + '">' + fmtP(m.growth) + '</td>' +
+        '<td class="r num">' + fmtP(m.low_pct, 0) + ' to ' + fmtP(m.high_pct, 0) + '</td><td>' + esc(m.confidence || '—') + (m.engine === 'safeguard' ? ' <span class="qchip qm">safeguard</span>' : '') + '</td>' +
+        '<td class="small">' + esc(m.method || '—') + '</td></tr>';
     });
-    h += '</tbody></table></div><div class="note mut">The badge is provisional (2025 and YTD growth plus the treatment-shift flag). ' +
-      'Indication totals for 2026 LE / FY2027 and class-share evolution to FY2027 join in Phase 3, when indications and classes get their own champion forecast. Click a row to open it on the forecast tab.</div></section>';
-    return h;
+    return h + '</tbody></table></div><div class="note mut">Same figures as the Market Growth Forecast tab (click a row to open it there). The outlook badge above is provisional: it comes from 2024–2025 growth and the treatment-shift flag, not from a forecast of the whole area.</div></section>';
   }
 
   function methodology() {
-    var m = D.meta, th = m.thresholds, gaps = Object.keys(m.coverage_gaps || {}).map(function (a) { return a.split(' ')[0]; }).join(', ');
-    var ck = (D.checks || []).map(function (c) { return '<li><span class="sev ' + (c[3] ? 'ok' : 'bad') + '">' + (c[3] ? 'PASS' : 'CHECK') + '</span> ' + esc(c[0]) + ': ' + esc(c[1]) + ' ' + esc(c[2]) + '</li>'; }).join('');
+    var m = D.meta, th = m.thresholds;
+    var ck = (D.checks || []).map(function (c) { var st = c[3] === null ? 'INFO' : c[3] ? 'PASS' : 'CHECK'; return '<li><span class="sev ' + (st === 'PASS' ? 'ok' : st === 'INFO' ? 'inf' : 'bad') + '">' + st + '</span> ' + esc(c[0]) + ': ' + esc(c[1]) + ' ' + esc(c[2]) + '</li>'; }).join('');
     ROOT.querySelector('#md-method-body').innerHTML = '<ol class="ml">' +
-      '<li><b>Measure.</b> IQVIA Standard Units only. Volumes are summed first; an indication\'s growth is never an average of its classes\' growth rates.</li>' +
-      '<li><b>Growth.</b> YoY % = SU year ÷ SU previous year − 1. ΔSU = SU year − SU previous year. Acceleration = YoY 2025 − YoY 2024, in percentage points. ' +
-      '"New" = no sales the year before; "Low base" (LB) = growth above +' + (m.growth_rules.low_base_growth_pct || 1000).toLocaleString() + '% (same rule as Market Intelligence); † = growth against a partial launch year.</li>' +
-      '<li><b>Incomplete years.</b> These ATC4s are first reported mid-2021 in the extract, so their 2021 is shown greyed and never used as a growth base: ' + esc(gaps || 'none') + '.</li>' +
-      '<li><b>Ranks.</b> Within the indication; growth rank only for items with at least ' + m.growth_rules.min_share_pct + '% share and a valid, non-low-base growth.</li>' +
-      '<li><b>Quadrants</b> (first match wins): Contracting / At-Risk = YoY below 0 two years running, or 2025 and YTD both below 0 → at or above fair share: Volume Anchor if YoY ≥ ' + th.anchor_min_yoy_pct + '% and acceleration ≥ ' + th.anchor_min_accel_pts + ' pts, otherwise Mature / Plateauing → below fair share: Growth Engine if YoY ≥ ' + th.engine_min_yoy_pct + '% or acceleration ≥ +' + th.engine_min_accel_pts + ' pts, otherwise Niche / Stable. ' +
-      'Fair share for classes = 1 ÷ number of classes in the indication; for markets = 1 ÷ number of our markets in the indication, plus the rest of the indication as one more competitor.</li>' +
-      '<li><b>Treatment shift.</b> Substitution ratio = share of the next-gen SU gain that legacy SU losses can explain (capped at 100%). Flags, first match wins: Legacy Decline (not replaced) = legacy lost more than ' + (th.legacy_decline_multiple || 2) + '× the next-gen gain; Class Substitution = legacy falling and ratio ≥ ' + th.substitution_min_ratio_pct + '%; Segment Deepening = legacy stable or growing and its shortfall versus its own trend explains less than ' + th.substitution_min_ratio_pct + '% of the gain; otherwise Mixed.</li>' +
-      '<li><b>FY2027.</b> Read unchanged from the champion forecast (built ' + esc(m.forecast_generated_at || '—') + '). Business rules: <code>config/market_dynamics_map.json</code> (version ' + esc(m.map_version) + ').</li>' +
-      '</ol><h3>Data checks at build time</h3><ul class="dql">' + ck + '</ul>';
+      '<li><b>Source.</b> Total Market Intelligence — ' + esc(m.source_file) + ' (built ' + esc(m.source_built) + '): every ATC4 and therapeutic area of the Egyptian market, annual 2022–2025 plus January–June 2026. Measures: packs (IMS units) and LC Value (EGP). Standard Units are not in this source.</li>' +
+      '<li><b>Areas and classes.</b> The therapeutic area is the IMS area on each row, as on the Total Market Intelligence page. A class is an ATC4, or a molecule-level split set in <code>config/market_dynamics_map.json</code> (e.g. vonoprazan out of the PPIs). A class filed under two areas appears in each.</li>' +
+      '<li><b>Growth.</b> Volumes are summed first. YoY % = year ÷ previous year − 1; acceleration = YoY 2025 − YoY 2024 in percentage points. "New" = no sales the year before; LB = growth above +' + (m.growth_rules.low_base_growth_pct || 1000).toLocaleString() + '%; † = against a launch year (treated as partial).</li>' +
+      '<li><b>2026.</b> January–June only with no month split, so there is no comparable H1 2025: 2026 is shown as volume and as share of the area, compared with the full-year 2025 share.</li>' +
+      '<li><b>Quadrants</b> (first match): Contracting / At-Risk = YoY below 0 in 2025 and 2024 → at or above fair share: Volume Anchor if YoY ≥ ' + th.anchor_min_yoy_pct + '% and acceleration ≥ ' + th.anchor_min_accel_pts + ' pts, else Mature / Plateauing → below fair share: Growth Engine if YoY ≥ ' + th.engine_min_yoy_pct + '% or acceleration ≥ +' + th.engine_min_accel_pts + ' pts, else Niche / Stable. Fair share = 1 ÷ number of classes (or listed molecules) in the area.</li>' +
+      '<li><b>Treatment shift.</b> Within the pair\'s area. Substitution ratio = share of the next-gen gain that legacy losses explain (capped at 100%). Legacy Decline (not replaced) = legacy lost more than ' + (th.legacy_decline_multiple || 2) + '× the next-gen gain; Class Substitution = legacy falling and ratio ≥ ' + th.substitution_min_ratio_pct + '%; Segment Deepening = legacy stable or growing; otherwise Mixed.</li>' +
+      '<li><b>FY2027.</b> Section D shows our markets\' champion forecast in IQVIA Standard Units, unchanged (built ' + esc(m.forecast_generated_at || '—') + '). Each market is placed in the area of its main ATC4.</li></ol>' +
+      '<h3>Data checks at build time</h3><ul class="dql">' + ck + '</ul>';
   }
 
   // ---------------------------------------------------------------- events
   function openForecast(key) {
     var p = key.split('|'), lv = p[0], nm = p.slice(1).join('|');
-    try {
-      var s = JSON.parse(sessionStorage.getItem('zeta_mf_state') || '{}');
-      s.level = lv; s.seg = s.seg || {}; s.seg[lv] = nm;
-      sessionStorage.setItem('zeta_mf_state', JSON.stringify(s));
-    } catch (e) { }
-    var mi = document.querySelector('[data-tab="marketforecast"]');
-    if (mi) mi.click();
+    try { var s = JSON.parse(sessionStorage.getItem('zeta_mf_state') || '{}'); s.level = lv; s.seg = s.seg || {}; s.seg[lv] = nm; sessionStorage.setItem('zeta_mf_state', JSON.stringify(s)); } catch (e) { }
+    var mi = document.querySelector('[data-tab="marketforecast"]'); if (mi) mi.click();
   }
+  function rerender() { controls(); overview(); detail(); }
   function wire() {
     ROOT.querySelector('#md-ind').addEventListener('change', function (e) { ST.ind = e.target.value; detail(); });
-    ROOT.querySelector('#md-lvl').addEventListener('click', function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST.level = b.getAttribute('data-v'); detail(); });
+    ROOT.querySelector('#md-meas').addEventListener('click', function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST.meas = b.getAttribute('data-v'); rerender(); });
+    ROOT.querySelector('#md-lvl').addEventListener('click', function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST.level = b.getAttribute('data-v'); controls(); detail(); });
     ROOT.querySelector('#md-ov').addEventListener('click', function (e) {
-      var tr = e.target.closest('tr[data-id]'); if (!tr) return; ST.ind = tr.getAttribute('data-id'); detail();
-      var d = ROOT.querySelector('.controls'); if (d && d.scrollIntoView) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var tr = e.target.closest('tr[data-id]'); if (!tr) return; ST.ind = tr.getAttribute('data-id'); controls(); detail();
+      var d = ROOT.querySelector('#md-detail'); if (d && d.scrollIntoView) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     ROOT.querySelector('#md-detail').addEventListener('click', function (e) {
       var th = e.target.closest('th[data-sort]'); if (th) { ST.sort = th.getAttribute('data-sort'); detail(); return; }
@@ -311,8 +309,7 @@
     ROOT.addEventListener('mouseover', function (e) {
       var t = e.target.closest('[data-tip]'); if (!t) { TIP.style.display = 'none'; return; }
       var parts = t.getAttribute('data-tip').split('|');
-      TIP.innerHTML = '<b>' + esc(parts[0]) + '</b>' + parts.slice(1).map(function (x) { return '<div>' + esc(x) + '</div>'; }).join('');
-      TIP.style.display = 'block';
+      TIP.innerHTML = '<b>' + esc(parts[0]) + '</b>' + parts.slice(1).map(function (x) { return '<div>' + esc(x) + '</div>'; }).join(''); TIP.style.display = 'block';
     });
     ROOT.addEventListener('mousemove', function (e) {
       if (TIP.style.display !== 'block') return;
@@ -322,7 +319,6 @@
     });
     ROOT.addEventListener('mouseleave', function () { TIP.style.display = 'none'; });
   }
-
   function loadState() { try { var s = sessionStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
   function saveState() { try { sessionStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } }
 
@@ -332,12 +328,12 @@
     c.innerHTML = '<div class="mdx" id="mdx-host"></div>'; HOST = ROOT = document.getElementById('mdx-host');
     try {
       D = D || decode();
-      if (!D) { ROOT.innerHTML = '<div style="padding:24px">Market dynamics data not loaded (cache/market_dynamics.data.js). Run UPDATE_DASHBOARD.bat or <code>python etl/build_market_dynamics.py --cache</code>.</div>'; return; }
-      var sv = loadState(); if (sv) { ST.ind = sv.ind || null; ST.level = sv.level || 'classes'; ST.sort = sv.sort || 'su'; }
-      if (!ST.ind || !D.indications.some(function (i) { return i.id === ST.ind; })) ST.ind = inds()[0].id;
+      if (!D || !D.molecules) { ROOT.innerHTML = '<div style="padding:24px">Market dynamics data not loaded (cache/market_dynamics.data.js). Run UPDATE_DASHBOARD.bat or <code>python etl/build_market_dynamics.py --cache</code>.</div>'; return; }
+      var sv = loadState(); if (sv) { ST.ind = sv.ind || null; ST.level = sv.level === 'molecules' ? 'molecules' : 'classes'; ST.sort = sv.sort || 'su'; ST.meas = sv.meas === 'value' ? 'value' : 'units'; }
+      if (!ST.ind || !D.indications.some(function (i) { return i.id === ST.ind; })) ST.ind = (D.indications.find(function (i) { return i.id === 'Gastroenterology'; }) || inds()[0]).id;
       ROOT.innerHTML = shell();
       TIP = document.createElement('div'); TIP.className = 'mdx-tip'; ROOT.appendChild(TIP);
-      wire(); methodology(); overview(); detail();
+      wire(); methodology(); rerender();
     } catch (e) {
       console.error('[MarketDynamics]', e);
       ROOT.innerHTML = '<div style="padding:24px">Market Dynamics could not render: ' + esc(e && e.message || e) + '</div>';

@@ -176,17 +176,6 @@
       "_note": "Added 2026-10-12 (Ahmed); champion engine 2026-10-13. Runs v1 (etl/build_market_forecast.py --cache) first, then the champion tournament (v1 + v2 methods per market) overlays it. Needs pip install -r requirements-forecast-v2.txt; without those libraries the champion cache is kept while IQVIA is unchanged, otherwise v1 is published. Several minutes per run. Non-critical: on failure the previous / v1 cache is kept. Review JSON: python etl/build_market_forecast_v2.py -> Claude outputs/Market Forecast v2/."
     },
     {
-      "id": "market_dynamics",
-      "label": "Market Dynamics & Treatment Shift (IQVIA SU)",
-      "commands": [["etl/build_market_dynamics.py", "--cache"]],
-      "critical": false,
-      "sources": ["config/market_dynamics_map.json"],
-      "depends_on": ["iqvia", "market_forecast"],
-      "outputs": ["cache/market_dynamics.data.js"],
-      "pages": ["marketdynamics"],
-      "_note": "Added 2026-10-13 (Ahmed). Reads cache/iqvia.json, cache/market_forecast.data.js and config/market_dynamics_map.json (numpy + openpyxl only, ~5 s). Runs after market_forecast so the FY2027 outlook matches the forecast tab. Non-critical: on failure the previous cache is kept. Also writes the review workbook to Claude outputs/Market Dynamics/."
-    },
-    {
       "id": "auth",
       "label": "Sign-in roster",
       "commands": [["etl/build_auth_cache.py"]],
@@ -257,6 +246,17 @@
       "depends_on": [],
       "outputs": ["cache/market_intel.data.js"],
       "pages": ["marketintel"]
+    },
+    {
+      "id": "market_dynamics",
+      "label": "Market Dynamics & Treatment Shift (Total Market Intelligence)",
+      "commands": [["etl/build_market_dynamics.py", "--cache"]],
+      "critical": false,
+      "sources": ["config/market_dynamics_map.json"],
+      "depends_on": ["iqvia", "market_forecast", "market_intel"],
+      "outputs": ["cache/market_dynamics.data.js"],
+      "pages": ["marketdynamics"],
+      "_note": "Added 2026-10-13 (Ahmed); source switched the same day to Total Market Intelligence. Reads cache/market_intel.json (market_intel step, IMS 2022 to April 2026.xlsx), cache/market_forecast.data.js (FY2027 SU panel) and config/market_dynamics_map.json; numpy + openpyxl only, about 10 s. Non-critical: on failure the previous cache is kept. Also writes the review workbook to Claude outputs/Market Dynamics/."
     },
     {
       "id": "list_intel",

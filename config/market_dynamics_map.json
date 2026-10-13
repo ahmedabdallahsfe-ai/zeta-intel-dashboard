@@ -1,8 +1,8 @@
 {
- "_about": "Market Dynamics & Treatment Shift mapping (2026-10-13, approved by Ahmed, SFE Manager). Read by etl/build_market_dynamics.py. Business-owned: edit here, no code change. Classes are matched TOP TO BOTTOM; each IQVIA row lands in the FIRST class whose rules it meets, so every row is counted exactly once and every indication equals the sum of its classes. A rule can use: atc4 (code prefixes), molecules (exact IQVIA molecule names), exclude_molecules, components (number of molecules in the combination, e.g. 3 = triple).",
- "version": "2026-10-13",
+ "_about": "Market Dynamics & Treatment Shift mapping. Source since 2026-10-13 (Ahmed): Total Market Intelligence = cache/market_intel.json (IMS 2022 to April 2026.xlsx, every ATC4, annual 2022-2025 + 2026 Jan-Jun, Units = packs + LC Value). INDICATION = the IMS Therapeutic Area on each row (the same 29 areas as the Total Market Intelligence page). CLASS = the first rule below whose atc4 / molecules / components match the row; every ATC4 not named here is its own class. The 'indication' field on classes is kept for reference only; the row's Therapeutic Area decides. Molecules match the IMS molecule name exactly (combinations use ' + '). components = number of molecules in the combination.",
+ "version": "2026-10-13-tm",
  "thresholds": {
-  "_note": "Approved 2026-10-13. Quadrants applied top to bottom; first match wins. legacy_decline_multiple added 2026-10-13 (Phase 1 review): when the legacy class loses more than this multiple of the next-gen gain, the flag is 'Legacy Decline (not replaced)' instead of 'Class Substitution'.",
+  "_note": "Approved 2026-10-13. Quadrants top to bottom, first match wins. Contracting / At-Risk = YoY below 0 in both 2025 and 2024 (the full-market data has no 2026 year-to-date, so the YTD leg of the earlier rule cannot apply). legacy_decline_multiple: legacy loss above this multiple of the next-gen gain -> 'Legacy Decline (not replaced)'.",
   "anchor_min_yoy_pct": 5.0,
   "anchor_min_accel_pts": -5.0,
   "engine_min_yoy_pct": 10.0,
@@ -114,6 +114,25 @@
   }
  ],
  "classes": [
+  {
+   "id": "OLDORAL",
+   "name": "Older oral antidiabetics (metformin, sulfonylureas, glitazones, glinides + their combos)",
+   "indication": "DIAB",
+   "atc4": [
+    "A10H",
+    "A10J",
+    "A10K",
+    "A10M"
+   ]
+  },
+  {
+   "id": "INSULIN",
+   "name": "Insulins & analogues",
+   "indication": "DIAB",
+   "atc4": [
+    "A10C"
+   ]
+  },
   {
    "id": "PCAB",
    "name": "P-CAB (vonoprazan)",
@@ -619,7 +638,23 @@
    ],
    "next_gen": [
     "PCAB"
-   ]
+   ],
+   "ta": "Gastroenterology"
+  },
+  {
+   "id": "DIAB_ORALS",
+   "indication": "DIAB",
+   "ta": "Diabetes",
+   "name": "Older oral antidiabetics → DPP-IV, SGLT2 & GLP-1",
+   "legacy": [
+    "OLDORAL"
+   ],
+   "next_gen": [
+    "DPP4",
+    "SGLT2",
+    "GLP1"
+   ],
+   "_note": "Added 2026-10-13 with the switch to the total market: this is the pair in Ahmed's original spec; the DPP-IV -> SGLT2 pair stays as approved."
   },
   {
    "id": "DIAB_SGLT2",
@@ -632,7 +667,7 @@
     "SGLT2",
     "GLP1"
    ],
-   "_gap": "Metformin alone, sulfonylureas and insulin are not in the IQVIA extract, so the oldest therapies cannot be measured."
+   "ta": "Diabetes"
   },
   {
    "id": "LIPID_COMBO",
@@ -644,7 +679,8 @@
    "next_gen": [
     "LIPCOMB",
     "LIPOTH"
-   ]
+   ],
+   "ta": "Cardiovascular"
   },
   {
    "id": "PAIN_COXIB",
@@ -655,7 +691,8 @@
    ],
    "next_gen": [
     "COXIB"
-   ]
+   ],
+   "ta": "Pain Management"
   },
   {
    "id": "HTN_CCB",
@@ -668,7 +705,8 @@
     "ARB_CCB",
     "ARB_TRIPLE"
    ],
-   "_gap": "Plain ARBs and ACE inhibitors are not in the extract."
+   "ta": "Cardiovascular",
+   "_gap": "Plain ARBs and ACE inhibitors are their own classes in this view and are not part of this pair."
   },
   {
    "id": "DEPR_SNRI",
@@ -681,7 +719,28 @@
    "next_gen": [
     "SNRI",
     "VORTIOX"
-   ]
+   ],
+   "ta": "Psychiatry"
   }
- ]
+ ],
+ "source": {
+  "file": "cache/market_intel.json",
+  "zeta_corp": "ZETA PHARM*",
+  "measures": [
+   "units",
+   "value"
+  ],
+  "measure_labels": {
+   "units": "Packs (IMS units)",
+   "value": "LC Value (EGP)"
+  },
+  "full_years": [
+   2022,
+   2023,
+   2024,
+   2025
+  ],
+  "partial_year": 2026,
+  "partial_label": "H1 2026 (Jan-Jun)"
+ }
 }

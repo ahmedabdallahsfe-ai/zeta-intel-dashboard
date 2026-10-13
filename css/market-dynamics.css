@@ -108,3 +108,9 @@ body.mdx-mode #filter-bar-container,body.mdx-mode .filter-bar-wrap,body.mdx-mode
 body.mdx-mode #ask-panel-slot:empty{display:none}
 .mdx .fo .flag{white-space:normal;line-height:1.25}
 .mdx .tbl td.num,.mdx .tbl td .num{white-space:nowrap}
+/* 2026-10-13: total-market source (measure switch, value-price banner, SU unit chip, residual rows) */
+.mdx .banner{padding:8px 12px;border-radius:6px;border-left:4px solid;font-size:12.5px}
+.mdx .banner.warn{background:var(--qm-bg);border-color:var(--qm)}
+.mdx .unitchip{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--fl-bg);color:var(--fl)}
+.mdx .tbl tr.oth td{color:var(--fg-2);font-style:italic}
+.mdx .sev.inf{background:var(--qa-bg);color:var(--qa)}

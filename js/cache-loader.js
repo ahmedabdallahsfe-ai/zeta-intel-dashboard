@@ -104,12 +104,12 @@
       label: "Market growth forecast",
       version: "20261013_champ2",
     },
-    // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache
+    // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache (source: Total Market Intelligence)
     market_dynamics: {
       file: "cache/market_dynamics.data.js",
       globalVar: "MARKET_DYNAMICS_CACHE",
       label: "Market dynamics & treatment shift",
-      version: "20261013_mdyn",
+      version: "20261013_tm",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",
