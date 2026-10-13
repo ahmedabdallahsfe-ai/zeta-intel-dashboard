@@ -3653,7 +3653,7 @@
      * returned scope's total Non-Tender VALUE), and accepts an optional
      * `line` param exactly like getBrandAchievement()'s.
      */
-    getItemAchievement(bu, brandName, line, scenario, maxMonth) {
+    getItemAchievement(bu, brandName, line, scenario, maxMonth, ignoreLineAuth) {
       // GUARD RELAXED 2026-08-09 (Ahmed: "DEFINE ELIMBOSIS AS 2.5 AND 5").
       //
       // This used to hard-refuse anything but CHC. The refusal was a SCOPING
@@ -3707,6 +3707,7 @@
         const r = decodedRows[i];
         if (maxMonthIdx >= 0 && r[MONTH] > maxMonthIdx) continue;
         const rawLine = lines[r[LINE]];
+        if (!ignoreLineAuth && window.AUTH && !window.AUTH.isLineAllowed(rawLine)) continue;
         if (window.SEMANTIC.lineToBU(rawLine) !== bu) continue;
         if (line && line !== 'All' && window.SEMANTIC.normalizeLine(rawLine) !== line) continue;
         // BU rollup exclusion (2026-08-04): only when NO specific line was
@@ -3786,8 +3787,8 @@
      * Executive "by Brand" modals, against the whole BU) recompute it
      * themselves, exactly as they already do for ungrouped item rows.
      */
-    getItemStrengthGroups(bu, brandName, line, scenario) {
-      const data = this.getItemAchievement(bu, brandName, line, scenario);
+    getItemStrengthGroups(bu, brandName, line, scenario, ignoreLineAuth) {
+      const data = this.getItemAchievement(bu, brandName, line, scenario, undefined, ignoreLineAuth);
       if (!data || !data.ok) return data;
       const groups = new Map(); // strengthLabel -> { val, tgtVal, qty, tgtQty }
       const order = []; // preserve first-seen order for stable output before the final sort
@@ -3868,7 +3869,7 @@
 
       if (bu === 'CHC') {
         grain = 'item';
-        const data = this.getItemAchievement(bu, null, line, scenario);
+        const data = this.getItemAchievement(bu, null, line, scenario, undefined, ignoreLineAuth);
         if (!data || !data.ok) {
           return { ok: false, status: data ? data.status : 'error', asOfDate: null, source: 'sales', bu: bu, line: line || 'All', entities: [] };
         }
@@ -3888,7 +3889,7 @@
           if (BP_HEALTH_ITEM_SPLIT_BRANDS.has(b.name)) {
             // Grouped by STRENGTH (2.5MG/5MG), not raw SKU -- see
             // getItemStrengthGroups() (2026-08-15 refinement).
-            const groupData = this.getItemStrengthGroups(bu, b.name, line, resolvedScenario);
+            const groupData = this.getItemStrengthGroups(bu, b.name, line, resolvedScenario, ignoreLineAuth);
             if (groupData && groupData.ok && groupData.items.length) {
               groupData.items.forEach(it => entities.push({ name: it.name, actualValue: it.actualValue, targetValue: it.targetValue, achievementPct: it.achievementPct, grain: 'item' }));
               return;

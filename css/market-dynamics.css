@@ -114,3 +114,26 @@ body.mdx-mode #ask-panel-slot:empty{display:none}
 .mdx .unitchip{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--fl-bg);color:var(--fl)}
 .mdx .tbl tr.oth td{color:var(--fg-2);font-style:italic}
 .mdx .sev.inf{background:var(--qa-bg);color:var(--qa)}
+/* 2026-10-13 step 1: SU (est.), Zeta areas, segment views, class split panel */
+.mdx .banner.info{background:var(--qa-bg);border-color:var(--qa)}
+.mdx label.chk{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--fg);padding:6px 0;cursor:pointer}
+.mdx .tbl tr.drillable{cursor:pointer}
+.mdx .tbl tr.drillable:hover td{background:var(--surface-alt)}
+.mdx .caret{color:var(--primary);font-size:11px}
+.mdx .drill{margin-top:12px;border:1px solid var(--border-strong);border-radius:var(--r);padding:12px 14px;background:var(--surface-alt)}
+.mdx .drill h3{margin:0;font-size:12.5px;text-transform:none;letter-spacing:0;color:var(--fg)}
+.mdx .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}
+.mdx .dcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;min-width:0}
+.mdx .dh{font-size:11.5px;font-weight:700;color:var(--fg-2);margin-bottom:6px}
+.mdx .chart .sv{fill:#fff;font-size:10px;font-weight:700;font-family:var(--f-ui);pointer-events:none}
+.mdx .tbl.mini{font-size:11.5px;margin-top:6px}
+.mdx .tbl.mini td,.mdx .tbl.mini th{padding:4px 6px}
+.mdx .tbl.mini .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.mdx .lnk{font:inherit;font-size:11.5px;border:0;background:none;color:var(--primary);cursor:pointer;margin-left:8px}
+@media (max-width:1100px){.mdx .g3{grid-template-columns:1fr}}
+/* 2026-10-13: ATC4 / DM1 / DM2 filters */
+.mdx .frow{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;flex-basis:100%;padding-top:10px;border-top:1px dashed var(--border)}
+.mdx .frow select{width:100%}
+.mdx .btn{font:inherit;font-size:12px;border:1px solid var(--border-strong);background:var(--surface);color:var(--fg);border-radius:6px;padding:6px 10px;cursor:pointer}
+.mdx .btn:disabled{opacity:.45;cursor:default}
+.mdx .banner .lnk{margin-left:6px}

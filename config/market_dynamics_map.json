@@ -727,10 +727,12 @@
   "file": "cache/market_intel.json",
   "zeta_corp": "ZETA PHARM*",
   "measures": [
+   "su",
    "units",
    "value"
   ],
   "measure_labels": {
+   "su": "Standard units (est.)",
    "units": "Packs (IMS units)",
    "value": "LC Value (EGP)"
   },

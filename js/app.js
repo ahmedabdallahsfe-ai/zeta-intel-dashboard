@@ -1563,7 +1563,7 @@ async function renderMarketDynamicsTab(container) {
     return;
   }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Dynamics…</div>';
-  await Promise.all([loadLocalAsset("css/market-dynamics.css?v=20261013_tm"), loadLocalAsset("js/market-dynamics.js?v=20261013_tm"),
+  await Promise.all([loadLocalAsset("css/market-dynamics.css?v=20261013_s3"), loadLocalAsset("js/market-dynamics.js?v=20261013_s3"),
     window.CacheLoader ? window.CacheLoader.ensure("market_dynamics") : Promise.resolve(false)]);
   if (currentTab !== "marketdynamics") return;
   if (window.MarketDynamicsDashboard) window.MarketDynamicsDashboard.init("app-root");

@@ -580,7 +580,9 @@
    * on their own (first) allowed BU instead of the hardcoded "CHC". */
   function defaultFilters() {
     const allowed = getAllowedBUList();
-    return { bu: allowed.length > 0 ? allowed[0] : "CHC", line: "All", dm: "All" };
+    const defaultBu = allowed.length > 0 ? allowed[0] : "CHC";
+    const lines = getAllowedLinesForBU(defaultBu);
+    return { bu: defaultBu, line: lines.length === 1 ? lines[0] : "All", dm: "All" };
   }
 
   /** Re-clamp module-level filter state to the current user's scope.
@@ -611,7 +613,8 @@
     // continuing to see company-wide totals.
     if (isAllBU(_filters.bu) && !canSelectAllBUs()) {
       _filters.bu = allowedBUs[0];
-      _filters.line = "All";
+      const lines = getAllowedLinesForBU(_filters.bu);
+      _filters.line = lines.length === 1 ? lines[0] : "All";
     }
     if (isAllBU(_filters.bu)) {
       _filters.line = "All"; // Line has no meaning across BUs
@@ -620,8 +623,10 @@
         _filters.bu = allowedBUs[0];
         _filters.line = "All";
       }
-      if (_filters.line !== "All") {
-        const allowedLines = getAllowedLinesForBU(_filters.bu);
+      const allowedLines = getAllowedLinesForBU(_filters.bu);
+      if (allowedLines.length === 1) {
+        _filters.line = allowedLines[0];
+      } else if (_filters.line !== "All") {
         if (allowedLines.indexOf(_filters.line) < 0) _filters.line = "All";
       }
     }
@@ -3039,7 +3044,9 @@
   }
 
   function openBrandAchievementModal(bu, line) {
-    const scopedLine = line && line !== "All" ? line : null;
+    const userScopeLines = (global.AUTH && global.AUTH.getScope().lines) || [];
+    const defaultSingleLine = userScopeLines.length === 1 ? userScopeLines[0] : null;
+    const scopedLine = (line && line !== "All") ? line : defaultSingleLine;
     const scenario = activeScenario();
     const allBu = isAllBU(bu);
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
@@ -3074,7 +3081,7 @@
     } else {
       const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine, undefined, scenario);
       if (!data || !data.ok || !data.brands.length) {
-        global.DS.openModal({ title: bu + " — Brand Achievement", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
+        global.DS.openModal({ title: (scopedLine || bu) + " — Brand Achievement", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
         return;
       }
       const displayBrands = bu === "CHC" ? data.brands : expandItemSplitBrandsForModal(bu, scopedLine, scenario, data);
@@ -3092,10 +3099,10 @@
       ],
       rows: rows,
     });
-    const titleScope = allBu ? "All Business Units" : bu;
+    const titleScope = allBu ? "All Business Units" : (scopedLine || bu);
     const note = (!allBu && bu === "CHC")
-      ? `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}. Click a brand row for Item-level detail (CHC only).${escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>`
-      : `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}.${allBu ? "" : escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>`;
+      ? `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}. Click a brand row for Item-level detail (CHC only).${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>`
+      : `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}.${allBu ? "" : escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>`;
     global.DS.openModal({ title: titleScope + " — Brand Achievement", bodyHtml: note + table });
 
     if (!allBu && bu === "CHC") {
@@ -3140,7 +3147,9 @@
   // contributionPct -- no separate share calculation here.
   function openSalesValueModal(bu, line) {
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
-    const scopedLine = line && line !== "All" ? line : null;
+    const userScopeLines = (global.AUTH && global.AUTH.getScope().lines) || [];
+    const defaultSingleLine = userScopeLines.length === 1 ? userScopeLines[0] : null;
+    const scopedLine = (line && line !== "All") ? line : defaultSingleLine;
     const allBu = isAllBU(bu);
     const columns = [
       { key: "name", label: null }, // label filled in per-mode below
@@ -3190,23 +3199,23 @@
       const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, null, scopedLine, scenario);
       columns[0].label = "Item (SKU)";
       if (!data || !data.ok || !data.items.length) {
-        global.DS.openModal({ title: bu + " — Sales Value by Item", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No item-level data available.</div>" });
+        global.DS.openModal({ title: (scopedLine || bu) + " — Sales Value by Item", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No item-level data available.</div>" });
         return;
       }
       const table = global.DS.table({ columns: columns, rows: data.items });
-      global.DS.openModal({ title: bu + " — Sales Value by Item", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. CHC shows items directly (no brand grouping).${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
+      global.DS.openModal({ title: (scopedLine || bu) + " — Sales Value by Item", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. CHC shows items directly (no brand grouping).${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
       return;
     }
 
     const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine, undefined, scenario);
     columns[0].label = "Brand";
     if (!data || !data.ok || !data.brands.length) {
-      global.DS.openModal({ title: bu + " — Sales Value by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
+      global.DS.openModal({ title: (scopedLine || bu) + " — Sales Value by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
       return;
     }
     const displayBrands = expandItemSplitBrandsForModal(bu, scopedLine, scenario, data);
     const table = global.DS.table({ columns: columns, rows: displayBrands });
-    global.DS.openModal({ title: bu + " — Sales Value by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
+    global.DS.openModal({ title: (scopedLine || bu) + " — Sales Value by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}.${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
   }
 
   // Sales Units Achievement card's popup (2026-08-02, "popup show brand
@@ -3225,7 +3234,9 @@
   // of "contribution" existing side by side with the established one.
   function openSalesUnitsModal(bu, line) {
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
-    const scopedLine = line && line !== "All" ? line : null;
+    const userScopeLines = (global.AUTH && global.AUTH.getScope().lines) || [];
+    const defaultSingleLine = userScopeLines.length === 1 ? userScopeLines[0] : null;
+    const scopedLine = (line && line !== "All") ? line : defaultSingleLine;
     const allBu = isAllBU(bu);
     const columns = [
       { key: "name", label: null }, // label filled in per-mode below
@@ -3276,23 +3287,23 @@
       const data = safeCall("sales", "SalesDashboard", "getItemAchievement", bu, null, scopedLine, scenario);
       columns[0].label = "Item (SKU)";
       if (!data || !data.ok || !data.items.length) {
-        global.DS.openModal({ title: bu + " — Sales Units by Item", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No item-level data available.</div>" });
+        global.DS.openModal({ title: (scopedLine || bu) + " — Sales Units by Item", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No item-level data available.</div>" });
         return;
       }
       const table = global.DS.table({ columns: columns, rows: withUnitsAchievement(data.items) });
-      global.DS.openModal({ title: bu + " — Sales Units by Item", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis. CHC shows items directly (no brand grouping).${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
+      global.DS.openModal({ title: (scopedLine || bu) + " — Sales Units by Item", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis. CHC shows items directly (no brand grouping).${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
       return;
     }
 
     const data = safeCall("sales", "SalesDashboard", "getBrandAchievement", bu, scopedLine, undefined, scenario);
     columns[0].label = "Brand";
     if (!data || !data.ok || !data.brands.length) {
-      global.DS.openModal({ title: bu + " — Sales Units by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
+      global.DS.openModal({ title: (scopedLine || bu) + " — Sales Units by Brand", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No brand-level data available.</div>" });
       return;
     }
     const displayBrands = expandItemSplitBrandsForModal(bu, scopedLine, scenario, data);
     const table = global.DS.table({ columns: columns, rows: withUnitsAchievement(displayBrands) });
-    global.DS.openModal({ title: bu + " — Sales Units by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis.${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
+    global.DS.openModal({ title: (scopedLine || bu) + " — Sales Units by Brand", bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${data.scope}, as of ${escapeAttr(data.asOfDate)}. Achievement % is Units basis (Actual/Target quantity); Contribution % is Value basis.${escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table });
   }
 
   // Customer Channel Mix modal (2026-07-28) -- cluster-level table,
@@ -3376,7 +3387,9 @@
     if (typeof global.DS === "undefined" || typeof global.DS.openModal !== "function") return;
     const allBu = isAllBU(bu);
     const scenario = activeScenario();
-    const scopedLine = line && line !== "All" ? line : null;
+    const userScopeLines = (global.AUTH && global.AUTH.getScope().lines) || [];
+    const defaultSingleLine = userScopeLines.length === 1 ? userScopeLines[0] : null;
+    const scopedLine = (line && line !== "All") ? line : defaultSingleLine;
 
     let rows, scopeText, asOfDate, threshold, grainNote, nameLabel;
 
@@ -3404,7 +3417,7 @@
     } else {
       const data = safeCall("sales", "SalesDashboard", "getBrandPortfolioHealth", bu, scopedLine, undefined, scenario);
       if (!data || !data.ok || !data.entities.length) {
-        global.DS.openModal({ title: bu + " — Brand Portfolio Health", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No portfolio-health data available.</div>" });
+        global.DS.openModal({ title: (scopedLine || bu) + " — Brand Portfolio Health", bodyHtml: "<div style='font-size:13px;color:var(--color-text-tertiary,#94A3B8);'>No portfolio-health data available.</div>" });
         return;
       }
       rows = data.entities.map(e => ({ name: e.name, actualValue: e.actualValue, targetValue: e.targetValue, achievementPct: e.achievementPct, healthy: e.achievementPct !== null && e.achievementPct >= data.threshold ? "Yes" : "No" }));
@@ -3427,10 +3440,10 @@
       ],
       rows: rows,
     });
-    const titleScope = allBu ? "All Business Units" : bu;
+    const titleScope = allBu ? "All Business Units" : (scopedLine || bu);
     global.DS.openModal({
       title: titleScope + " — Brand Portfolio Health",
-      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}. ${grainNote}${allBu ? "" : escapeAttr(scenarioFallbackNote(line && line !== "All" ? line : bu))}</div>` + table,
+      bodyHtml: `<div style="font-size:12px;color:var(--color-text-tertiary,#94A3B8);margin-bottom:10px;">${scopeText}, as of ${escapeAttr(asOfDate)}. ${grainNote}${allBu ? "" : escapeAttr(scenarioFallbackNote(scopedLine || bu))}</div>` + table,
     });
   }
 
@@ -3968,9 +3981,12 @@
     // so it locks to "All Lines" while the company view is active rather
     // than offering a choice that cannot be honored.
     const allBuActive = isAllBU(ctx.filters.bu);
+    const allowedLines = getAllowedLinesForBU(ctx.filters.bu);
     const lineOptions = allBuActive
       ? [{ value: "All", label: "All Lines" }]
-      : [{ value: "All", label: "All Lines" }].concat(getAllowedLinesForBU(ctx.filters.bu).map(l => ({ value: l, label: l })));
+      : (allowedLines.length === 1
+          ? [{ value: allowedLines[0], label: allowedLines[0] }]
+          : [{ value: "All", label: "All Lines" }].concat(allowedLines.map(l => ({ value: l, label: l }))));
 
     // DM options filtered by selected BU / Line:
     const dms = getDMsForFilters(ctx.filters.bu, ctx.filters.line);
@@ -3988,7 +4004,7 @@
     wrap.className = "ds-exec-filterbar";
 
     const buSelect = global.DS.select({ id: "exec-filter-bu", label: "Business Unit", options: buOptions, value: ctx.filters.bu, disabled: buOptions.length <= 1 });
-    const lineSelect = global.DS.select({ id: "exec-filter-line", label: "Line", options: lineOptions, value: allBuActive ? "All" : ctx.filters.line, disabled: allBuActive });
+    const lineSelect = global.DS.select({ id: "exec-filter-line", label: "Line", options: lineOptions, value: allBuActive ? "All" : ctx.filters.line, disabled: allBuActive || lineOptions.length <= 1 });
     
     let dmSelect = null;
     if (isDmFilterAllowed) {

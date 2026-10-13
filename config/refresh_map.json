@@ -254,7 +254,7 @@
       "critical": false,
       "sources": ["config/market_dynamics_map.json"],
       "depends_on": ["iqvia", "market_forecast", "market_intel"],
-      "outputs": ["cache/market_dynamics.data.js"],
+      "outputs": ["cache/market_dynamics.data.js", "cache/market_dynamics_scopes.data.js"],
       "pages": ["marketdynamics"],
       "_note": "Added 2026-10-13 (Ahmed); source switched the same day to Total Market Intelligence. Reads cache/market_intel.json (market_intel step, IMS 2022 to April 2026.xlsx), cache/market_forecast.data.js (FY2027 SU panel) and config/market_dynamics_map.json; numpy + openpyxl only, about 10 s. Non-critical: on failure the previous cache is kept. Also writes the review workbook to Claude outputs/Market Dynamics/."
     },

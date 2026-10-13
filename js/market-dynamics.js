@@ -8,17 +8,34 @@
 (function (global) {
   'use strict';
 
-  function decode() {
-    var c = global.MARKET_DYNAMICS_CACHE;
+  function decode(name) {
+    var c = global[name || 'MARKET_DYNAMICS_CACHE'];
     if (!c || !c.b64Data || typeof pako === 'undefined') return null;
     var bin = atob(c.b64Data), bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return JSON.parse(pako.ungzip(bytes, { to: 'string' }));
   }
 
-  var D = null, HOST = null, ROOT = null, TIP = null;
-  var ST = { ind: null, level: 'classes', sort: 'su', meas: 'units' };
-  var KEY = 'zeta_md_state_v2';
+  var D = null, SC = null, SC_LOADING = false, HOST = null, ROOT = null, TIP = null;
+  var ST = { ind: null, level: 'classes', sort: 'su', meas: 'su', zeta: false, drill: null, ovAll: false, scope: null };
+  var KEY = 'zeta_md_state_v3';
+  var SEGCOL = ['#2a78d6', '#15803D', '#D97706', '#7C3AED', '#0891B2', '#DB2777', '#64748B', '#A16207'];
+  var LEVELS = [['classes', 'Classes'], ['molecules', 'Molecules'], ['combo', 'Plain vs combination'], ['form', 'Form']];
+  // 2026-10-13: ATC4 / DM1 / DM2 filters. A "scope" is one ATC4 inside the selected area, or one of our defined markets
+  // (DM1 / DM2 from the IQVIA extract, mapped onto Total Market packs in the ETL). Scopes live in a second, lazy cache file.
+  var SLEVELS = [['molecules', 'Molecules'], ['brands', 'Brands'], ['corps', 'Companies'], ['combo', 'Plain vs combination'], ['form', 'Form']];
+  function levels() { return ST.scope ? SLEVELS : LEVELS; }
+  function scope() { return ST.scope && SC ? SC[ST.scope] || null : null; }
+  function ensureScopes(cb) {
+    if (SC) return cb();
+    if (!global.MARKET_DYNAMICS_SCOPES_CACHE && global.CacheLoader && global.CacheLoader.ensure) {
+      if (SC_LOADING) return; SC_LOADING = true;
+      var d = ROOT.querySelector('#md-detail'); if (d) d.innerHTML = '<section class="card"><p class="mut">Loading ATC4 / DM1 / DM2 views…</p></section>';
+      global.CacheLoader.ensure('market_dynamics_scopes').then(function () { SC_LOADING = false; SC = decode('MARKET_DYNAMICS_SCOPES_CACHE'); if (!SC) ST.scope = null; if (ROOT) cb(); });
+      return;
+    }
+    SC = decode('MARKET_DYNAMICS_SCOPES_CACHE'); if (!SC) ST.scope = null; cb();
+  }
   var Y = ['2022', '2023', '2024', '2025'];
   var QUADS = ['Volume Anchor', 'Growth Engine', 'Mature / Plateauing', 'Niche / Stable', 'Contracting / At-Risk'];
   var QCLS = { 'Volume Anchor': 'qa', 'Growth Engine': 'qe', 'Mature / Plateauing': 'qm', 'Niche / Stable': 'qn', 'Contracting / At-Risk': 'qc' };
@@ -40,16 +57,22 @@
   function fmtS(p) { return fin(p) ? p.toFixed(p < 10 ? 1 : 0) + '%' : '—'; }
   function fmtPts(p) { return fin(p) ? (p > 0 ? '+' : p < 0 ? '−' : '') + Math.abs(p).toFixed(1) + ' pts' : '—'; }
   function M(o) { return o.m[ST.meas]; }
-  function unitWord() { return ST.meas === 'value' ? 'LC Value (EGP)' : 'packs'; }
+  function unitWord() { return ST.meas === 'value' ? 'LC Value (EGP)' : ST.meas === 'su' ? 'SU (est.)' : 'packs'; }
   function yoy(o, y) {
     var m = M(o), v = m.yoy[y], l = m.yoy_label[y];
     if (fin(v)) return '<span class="num' + (v < 0 ? ' neg' : '') + '" title="' + esc(l || '') + '">' + fmtP(v) + (l ? '<sup>' + (l === 'Low base' ? 'LB' : '†') + '</sup>' : '') + '</span>';
     return '<span class="mut">' + esc(l || '—') + '</span>';
   }
   function chip(map, v, cls) { return v ? '<span class="' + (cls || 'qchip') + ' ' + (map[v] || '') + '">' + esc(v) + '</span>' : '<span class="mut">—</span>'; }
-  function inds() { return D.indications.slice().sort(function (a, b) { return (M(b).su['2025'] || 0) - (M(a).su['2025'] || 0); }); }
+  function inds() { var za = D.meta.zeta_areas || []; return D.indications.filter(function (i) { return !ST.zeta || za.indexOf(i.id) >= 0; }).sort(function (a, b) { return (M(b).su['2025'] || 0) - (M(a).su['2025'] || 0); }); }
   function ind() { return D.indications.find(function (i) { return i.id === ST.ind; }) || inds()[0]; }
-  function members(i) { return (ST.level === 'molecules' ? D.molecules : D.classes).filter(function (c) { return c.indication === i.id; }); }
+  function members(i) {
+    var sc = scope(); if (sc) return sc.members[ST.level] || [];
+    if (ST.level === 'combo' || ST.level === 'form') return (i.splits && i.splits[ST.level]) || [];
+    return (ST.level === 'molecules' ? D.molecules : D.classes).filter(function (c) { return c.indication === i.id; });
+  }
+  function levelWord() { return { classes: 'classes', molecules: 'molecules', brands: 'brands', corps: 'companies', combo: 'plain vs combination', form: 'pharmaceutical forms' }[ST.level]; }
+  function scopeLabel(sc) { return sc.kind === 'atc4' ? 'ATC4 ' + sc.name : sc.kind.toUpperCase() + ' market ' + sc.name; }
   function marketTotal(meas) { var t = 0; D.indications.forEach(function (i) { t += i.m[meas].su['2025'] || 0; }); return t; }
   function spark(arr, w, h) {
     var v = arr.filter(fin); if (v.length < 2) return '';
@@ -67,12 +90,17 @@
       'are replacing older ones or adding new volume. Source: <b>Total Market Intelligence</b> (IMS, all ' + esc(m.n_atc4) + ' ATC4 classes), full years 2022–2025 plus ' + esc(m.partial_label) + '.</div></div>' +
       '<div class="mut small">' + esc(m.source_file || '') + ' · built ' + esc(m.generated_at) + '</div></header>' +
       '<section class="card controls">' +
-      '<div class="ctl"><label>Measure</label><div class="seg" id="md-meas"><button type="button" data-v="units">Packs</button><button type="button" data-v="value">LC Value</button></div></div>' +
+      '<div class="ctl"><label>Measure</label><div class="seg" id="md-meas"><button type="button" data-v="su" title="Packs x pack count (tablets, capsules, sachets, vials); other forms count 1 per pack">SU (est.)</button><button type="button" data-v="units">Packs</button><button type="button" data-v="value">LC Value</button></div></div>' +
       '<div class="ctl grow"><label for="md-ind">Therapeutic area</label><select id="md-ind"></select></div>' +
-      '<div class="ctl"><label>Compare</label><div class="seg" id="md-lvl"><button type="button" data-v="classes">Classes</button><button type="button" data-v="molecules">Molecules</button></div></div>' +
+      '<div class="ctl"><label>&nbsp;</label><label class="chk"><input type="checkbox" id="md-zeta"> Zeta areas only</label></div>' +
+      '<div class="ctl"><label>Compare</label><div class="seg" id="md-lvl"></div></div>' +
+      '<div class="frow"><div class="ctl grow"><label for="md-atc">ATC4 (in this area)</label><select id="md-atc"></select></div>' +
+      '<div class="ctl grow"><label for="md-dm1">DM1 market</label><select id="md-dm1"></select></div>' +
+      '<div class="ctl grow"><label for="md-dm2">DM2 market</label><select id="md-dm2"></select></div>' +
+      '<div class="ctl"><label>&nbsp;</label><button type="button" class="btn" id="md-clr">Clear filter</button></div></div>' +
       '</section>' +
       '<div id="md-valnote"></div>' +
-      '<section class="card"><div class="h2row"><h2>All therapeutic areas</h2><span class="mut small">Click a row to open it below. Sorted by 2025 volume.</span></div>' +
+      '<section class="card"><div class="h2row"><h2 id="md-ov-title">All therapeutic areas</h2><span class="mut small"><span id="md-ov-hint"></span> <button type="button" class="lnk" id="md-ov-all"></button></span></div>' +
       '<div class="tblwrap"><table class="tbl ov" id="md-ov"></table></div>' +
       '<div class="note mut">2026 is January–June only and the source has no month split, so it is shown as volume and share, never as growth.</div></section>' +
       '<div id="md-detail"></div>' +
@@ -82,18 +110,41 @@
 
   function controls() {
     ROOT.querySelector('#md-ind').innerHTML = inds().map(function (i) { return '<option value="' + esc(i.id) + '">' + esc(i.name) + '</option>'; }).join('');
+    if (!inds().some(function (x) { return x.id === ST.ind; })) ST.ind = inds()[0].id;
     ROOT.querySelector('#md-ind').value = ind().id;
+    ROOT.querySelector('#md-zeta').checked = !!ST.zeta;
     ROOT.querySelectorAll('#md-meas button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === ST.meas ? 'true' : 'false'); });
+    ROOT.querySelector('#md-lvl').innerHTML = levels().map(function (l) { return '<button type="button" data-v="' + l[0] + '">' + l[1] + '</button>'; }).join('');
+    var si = D.meta.scope_index || { atc4: {}, dm1: [], dm2: [] }, cur = ind().id;
+    var opt = function (v, t) { return '<option value="' + esc(v) + '">' + esc(t) + '</option>'; };
+    ROOT.querySelector('#md-atc').innerHTML = opt('', 'All ATC4s') + (si.atc4[cur] || []).map(function (a) { return opt(a[0], a[1]); }).join('');
+    ['dm1', 'dm2'].forEach(function (k) {
+      var inA = si[k].filter(function (x) { return (x[2] || []).indexOf(cur) >= 0; }), oth = si[k].filter(function (x) { return (x[2] || []).indexOf(cur) < 0; });
+      ROOT.querySelector('#md-' + k).innerHTML = opt('', 'All ' + k.toUpperCase() + ' markets') +
+        (inA.length ? '<optgroup label="In ' + esc(cur) + '">' + inA.map(function (x) { return opt(x[0], x[1]); }).join('') + '</optgroup>' : '') +
+        (oth.length ? '<optgroup label="Other areas">' + oth.map(function (x) { return opt(x[0], x[1] + ' (' + (x[2] || [])[0] + ')'); }).join('') + '</optgroup>' : '');
+    });
+    var sk = ST.scope ? ST.scope.split('|')[0] : '';
+    ROOT.querySelector('#md-atc').value = sk === 'A' ? ST.scope : '';
+    ROOT.querySelector('#md-dm1').value = sk === 'DM1' ? ST.scope : '';
+    ROOT.querySelector('#md-dm2').value = sk === 'DM2' ? ST.scope : '';
+    ROOT.querySelector('#md-clr').disabled = !ST.scope;
     ROOT.querySelectorAll('#md-lvl button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === ST.level ? 'true' : 'false'); });
     ROOT.querySelector('#md-valnote').innerHTML = ST.meas === 'value'
       ? '<div class="banner warn"><b>Value includes price.</b> The whole market grew from ' + fmtV(D.indications.reduce(function (t, i) { return t + (i.m.value.su['2023'] || 0); }, 0)) +
-        ' in 2023 to ' + fmtV(marketTotal('value')) + ' in 2025, mostly through price increases. Read value growth as price + volume; packs show real demand.</div>' : '';
+        ' in 2023 to ' + fmtV(marketTotal('value')) + ' in 2025, mostly through price increases. Read value growth as price + volume; SU and packs show real demand.</div>'
+      : ST.meas === 'su' ? '<div class="banner info"><b>SU (est.)</b> = packs × the pack count printed in the product name (tablets, capsules, sachets, vials, suppositories). Liquids, topicals and drops count one unit per pack. ' +
+        'For tablet classes this matches IQVIA Standard Units within 0–5% (e.g. PPIs 1,701 M vs 1,720 M in 2025).</div>' : '';
   }
 
   function overview() {
     var h = '<thead><tr><th>Therapeutic area</th><th class="r">2025</th><th class="r">Δ 2025</th><th class="r">YoY 2025</th><th class="r">YoY 2024</th>' +
       '<th class="r">Acceleration</th><th class="r">CAGR</th><th class="r">H1 2026</th><th class="r">Zeta share 2025</th><th>Trend 2022–25</th><th>Outlook (provisional)</th></tr></thead><tbody>';
-    inds().forEach(function (i) {
+    var all = inds(), cur = ind(), list = ST.ovAll ? all : all.filter(function (i) { return i.id === cur.id; });
+    ROOT.querySelector('#md-ov-title').textContent = ST.ovAll ? (ST.zeta ? 'Zeta therapeutic areas' : 'All therapeutic areas') : 'Selected therapeutic area — ' + cur.name;
+    ROOT.querySelector('#md-ov-hint').textContent = ST.ovAll ? 'Click a row to open it below. Sorted by 2025 volume.' : 'Filtered by the Therapeutic area selector.';
+    ROOT.querySelector('#md-ov-all').textContent = ST.ovAll ? 'Show selected area only' : 'Show all ' + all.length + (ST.zeta ? ' Zeta' : '') + ' areas';
+    list.forEach(function (i) {
       var m = M(i);
       h += '<tr data-id="' + esc(i.id) + '"' + (i.id === ST.ind ? ' class="sel"' : '') + '><td>' + esc(i.name) + '<div class="mut tiny">' + i.n_classes + ' classes · ' + i.n_molecules + ' molecules</div></td>' +
         '<td class="r num">' + fmtV(m.su['2025']) + '</td><td class="r num">' + fmtD(m.delta['2025']) + '</td>' +
@@ -108,16 +159,31 @@
 
   // ---------------------------------------------------------------- detail
   function detail() {
-    var i = ind(), pairs = D.pairs.filter(function (p) { return p.indication === i.id; }), mem = members(i);
-    var h = cards(i, pairs) +
-      '<section class="card"><div class="h2row"><h2>A · Growth &amp; metric grid — ' + (ST.level === 'molecules' ? 'molecules' : 'classes') + ' in ' + esc(i.name) + ' (' + unitWord() + ')</h2>' +
-      '<span class="mut small">Ranked within the area. ● = Zeta sells here. † = special base (hover). Click a blue column title to sort.</span></div>' + grid(i, mem) + '</section>' +
+    if (ST.scope && !SC) return ensureScopes(function () { controls(); detail(); });
+    var area = ind(), sc = scope(), i = sc || area, pairs = D.pairs.filter(function (p) { return p.indication === area.id; }), mem = members(i);
+    var h = (sc ? scopeBanner(sc, area) : '') + cards(i, sc ? [] : pairs) +
+      '<section class="card"><div class="h2row"><h2>A · Growth &amp; metric grid — ' + levelWord() + ' in ' + esc(sc ? scopeLabel(sc) : i.name) + ' (' + unitWord() + ')</h2>' +
+      '<span class="mut small">Ranked within the area. ● = Zeta sells here. † = special base (hover). Click a blue column title to sort.' + (ST.level === 'classes' ? ' Click a class with ▸ to see its split.' : '') + '</span></div>' +
+      grid(i, mem) + (ST.meas === 'su' && fin(i.su_coverage_pct) ? '<div class="note mut">SU estimated from pack counts for ' + fmtS(i.su_coverage_pct) + ' of this area\'s 2025 packs; the rest count one unit per pack.</div>' : '') +
+      '<div id="md-drill">' + drillPanel() + '</div></section>' +
       '<div class="g2"><section class="card"><h2>B · Portfolio matrix</h2>' + matrix(mem) + '</section>' +
-      '<section class="card"><h2>C · Treatment shift</h2>' + (pairs.length ? pairs.map(shift).join('') :
+      '<section class="card"><h2>C · Treatment shift' + (sc && pairs.length ? ' <span class="mut small">(whole ' + esc(area.name) + ' area, not filtered)</span>' : '') + '</h2>' + (pairs.length ? pairs.map(shift).join('') :
         '<p class="mut">No legacy → next-gen pair is defined for this area. Pairs are set in <code>config/market_dynamics_map.json</code>.</p>') + '</section></div>' +
-      outlook(i);
+      outlook(area, sc);
     ROOT.querySelector('#md-detail').innerHTML = h;
-    ROOT.querySelectorAll('#md-ov tr[data-id]').forEach(function (tr) { tr.classList.toggle('sel', tr.getAttribute('data-id') === i.id); });
+    ROOT.querySelectorAll('#md-ov tr[data-id]').forEach(function (tr) { tr.classList.toggle('sel', tr.getAttribute('data-id') === area.id); });
+  }
+  function scopeBanner(sc, area) {
+    var t = sc.kind === 'atc4' ? 'Filtered to <b>' + esc(sc.name) + '</b> inside ' + esc(area.name) + '.'
+      : 'Filtered to our <b>' + sc.kind.toUpperCase() + '</b> market <b>' + esc(sc.name) + '</b> (packs as defined in the IQVIA extract, all therapeutic areas: ' + esc((sc.tas || []).join(', ')) + ').';
+    var rc = sc.kind !== 'atc4' && fin(sc.lcv_gap_pct) ? ' Mapped onto Total Market packs by pack name: 2025 LC Value ' + fmtV2(sc.m.value.su['2025']) + ' vs IQVIA ' + fmtV2(sc.iqvia_lcv2025) +
+      ' (' + (sc.lcv_gap_pct >= 0 ? '+' : '') + sc.lcv_gap_pct.toFixed(1) + '%)' + (Math.abs(sc.lcv_gap_pct) > 1 ? ' — some packs are named differently in the two sources.' : '.') : '';
+    var sr = sc.kind !== 'atc4' && sc.iqvia_su2025 > 0 ? sc.m.su.su['2025'] / sc.iqvia_su2025 * 100 : null;
+    if (fin(sr)) rc += ' SU (est.) 2025 = ' + Math.round(sr) + '% of IQVIA Standard Units' + (Math.abs(sr - 100) > 10 ? ' — pack counts could not be read for some packs here, so use Packs or LC Value for this market.' : '.');
+    var warn = sc.kind !== 'atc4' && (Math.abs(sc.lcv_gap_pct || 0) > 1 || (fin(sr) && Math.abs(sr - 100) > 10));
+    return '<div class="banner ' + (warn ? 'warn' : 'info') + '">' + t + rc + ' <button type="button" class="lnk" id="md-clr2">Clear filter ✕</button></div>';
+  }
+  function fmtV2(v) { var a = Math.abs(v || 0); return 'EGP ' + (a >= 1e9 ? (v / 1e9).toFixed(2) + ' B' : a >= 1e6 ? (v / 1e6).toFixed(1) + ' M' : Math.round(v || 0).toLocaleString());
   }
 
   function cards(i, pairs) {
@@ -131,11 +197,12 @@
         'of the area in H1 2026 · ' + fmtS(last && last.next_share_ind) + ' in 2025' + (h1 && fin(h1.share_chg_pts) ? ' (' + fmtPts(h1.share_chg_pts) + ')' : ''));
     } else pc = card('Zeta share 2025', fmtS(m.zeta_share2025), 'H1 2026: ' + fmtS(m.zeta_share_h1));
     return '<div class="kpis">' +
-      card('Area 2025 (' + unitWord() + ')', fmtV(m.su['2025']), fmtP(m.yoy['2025']) + ' · ' + fmtD(m.delta['2025']) + ' vs 2024 · ' + fmtS(share) + ' of the market') +
+      card((i.kind ? (i.kind === 'atc4' ? 'ATC4' : i.kind.toUpperCase() + ' market') : 'Area') + ' 2025 (' + unitWord() + ')', fmtV(m.su['2025']), fmtP(m.yoy['2025']) + ' · ' + fmtD(m.delta['2025']) + ' vs 2024 · ' + fmtS(share) + ' of the market') +
       card('Acceleration', fmtPts(m.accel), 'YoY ' + fmtP(m.yoy['2024']) + ' → ' + fmtP(m.yoy['2025'])) +
       card('H1 2026 (Jan–Jun)', fmtV(m.h1), 'shown as volume only: no comparable H1 2025 in the source') + pc +
-      '<div class="kpi"><div class="kl">Outlook (provisional)</div><div class="kv">' + chip(BCLS, i.badge[ST.meas], 'badge big') + '</div>' +
-      '<div class="ks">' + (p ? 'Latest shift: ' + esc(p.m[ST.meas].latest_flag) : 'From 2025 and 2024 growth') + '</div></div></div>';
+      (i.badge ? '<div class="kpi"><div class="kl">Outlook (provisional)</div><div class="kv">' + chip(BCLS, i.badge[ST.meas], 'badge big') + '</div>' +
+      '<div class="ks">' + (p ? 'Latest shift: ' + esc(p.m[ST.meas].latest_flag) : 'From 2025 and 2024 growth') + '</div></div>' :
+      card('Players', String((i.counts && i.counts.corps) || '—'), (i.counts ? i.counts.brands + ' brands · ' + i.counts.molecules + ' molecules' : ''))) + '</div>';
   }
 
   function grid(i, mem) {
@@ -144,7 +211,7 @@
       cagr: function (o) { return fin(M(o).cagr) ? M(o).cagr : -1e9; }, chg: function (o) { return fin(M(o).share_chg_pts) ? M(o).share_chg_pts : -1e9; } }[ST.sort] || function (o) { return M(o).su['2025'] || 0; };
     var rows = mem.slice().sort(function (a, b) { if (a.other) return 1; if (b.other) return -1; return keyf(b) - keyf(a); });
     function th(k, t) { return '<th class="r"' + (k ? ' data-sort="' + k + '"' : '') + '>' + t + (ST.sort === k ? ' ▾' : '') + '</th>'; }
-    var h = '<div class="tblwrap"><table class="tbl" id="md-grid"><thead><tr><th>' + (ST.level === 'molecules' ? 'Molecule' : 'Class') + '</th>' +
+    var h = '<div class="tblwrap"><table class="tbl" id="md-grid"><thead><tr><th>' + ({ molecules: 'Molecule', brands: 'Brand', corps: 'Company', combo: 'Segment', form: 'Form' }[ST.level] || 'Class') + '</th>' +
       Y.map(function (y) { return th(y === '2025' ? 'su' : null, y); }).join('') + th(null, 'H1 2026') + th(null, 'Δ 2025') + th('yoy', 'YoY 2025') + th(null, 'YoY 2024') +
       th('accel', 'Accel.') + th('cagr', 'CAGR') + th('share', 'Share 2025') + th('chg', 'Share H1-26') + th(null, 'Rank vol / growth') + '<th>Quadrant</th>' + th(null, 'Zeta share') + '</tr></thead><tbody>';
     rows.forEach(function (o) {
@@ -152,7 +219,9 @@
       var nm = esc(o.name) + (o.zeta_active ? ' <span class="dot" title="Zeta sells here">●</span>' : '') +
         '<div class="mut tiny">' + esc((o.atc4 || []).slice(0, 4).join(', ')) + ((o.atc4 || []).length > 4 ? '…' : '') +
         (o.rule && o.rule.molecules ? ' · molecule rule' : '') + (o.rule && o.rule.components ? ' · ' + o.rule.components + '-molecule combos' : '') + '</div>';
-      h += '<tr' + (o.other ? ' class="oth"' : '') + '><td class="mk">' + nm + '</td>' + Y.map(function (y) { return '<td class="r num">' + fmtV(m.su[y]) + '</td>'; }).join('') +
+      var dr = ST.level === 'classes' && D.drill && D.drill[o.id];
+      if (dr) nm = '<span class="caret">' + (ST.drill === o.id ? '▾' : '▸') + '</span> ' + nm;
+      h += '<tr' + (o.other ? ' class="oth"' : dr ? ' class="drillable' + (ST.drill === o.id ? ' sel' : '') + '" data-cls="' + esc(o.id) + '"' : '') + '><td class="mk">' + nm + '</td>' + Y.map(function (y) { return '<td class="r num">' + fmtV(m.su[y]) + '</td>'; }).join('') +
         '<td class="r num">' + fmtV(m.h1) + '</td><td class="r num">' + fmtD(m.delta['2025']) + '</td><td class="r">' + yoy(o, '2025') + '</td><td class="r">' + yoy(o, '2024') + '</td>' +
         '<td class="r num' + (m.accel < 0 ? ' neg' : '') + '">' + fmtPts(m.accel) + '</td>' +
         '<td class="r num">' + (fin(m.cagr) ? fmtP(m.cagr) + '<div class="mut tiny">' + esc(m.window) + '</div>' : '—') + '</td>' +
@@ -162,12 +231,58 @@
         '<td class="r num">' + fmtS(m.zeta_share2025) + '</td></tr>';
     });
     var im = M(i);
-    h += '<tr class="tot"><td>Area total</td>' + Y.map(function (y) { return '<td class="r num">' + fmtV(im.su[y]) + '</td>'; }).join('') +
+    h += '<tr class="tot"><td>' + (i.kind ? 'Filter total' : 'Area total') + '</td>' + Y.map(function (y) { return '<td class="r num">' + fmtV(im.su[y]) + '</td>'; }).join('') +
       '<td class="r num">' + fmtV(im.h1) + '</td><td class="r num">' + fmtD(im.delta['2025']) + '</td><td class="r">' + yoy(i, '2025') + '</td><td class="r">' + yoy(i, '2024') + '</td>' +
       '<td class="r num">' + fmtPts(im.accel) + '</td><td class="r num">' + (fin(im.cagr) ? fmtP(im.cagr) : '—') + '</td><td class="r num">100%</td><td class="r num">100%</td><td></td><td></td>' +
       '<td class="r num">' + fmtS(im.zeta_share2025) + '</td></tr>';
-    return h + '</tbody></table></div>' + (ST.level === 'molecules' ? '<div class="note mut">Top ' + D.meta.n_molecules_top + ' molecules by packs in this area; the rest are grouped and not ranked. Combinations count as their own molecule.</div>' :
+    return h + '</tbody></table></div>' + (ST.level === 'combo' ? '<div class="note mut">Plain = single molecule; Combination = two or more molecules in one product (e.g. empagliflozin + metformin).</div>' :
+      ST.level === 'form' ? '<div class="note mut">Form from IMS, with sachets taken from the product name (IMS files many sachets as solid oral). Injectables = vials and ampoules.</div>' : ST.scope && ['molecules', 'brands', 'corps'].indexOf(ST.level) >= 0 ? '<div class="note mut">Top 15 by 2025 + H1 2026 volume; the rest are grouped and not ranked. Shares are of the filter total.</div>' : ST.level === 'molecules' ? '<div class="note mut">Top ' + D.meta.n_molecules_top + ' molecules by packs in this area; the rest are grouped and not ranked. Combinations count as their own molecule.</div>' :
       '<div class="note mut">"Share H1-26" = share of the area in January–June 2026 and its change against the full-year 2025 share (a like-for-like share, not growth).</div>');
+  }
+
+  function drillPanel() {
+    var d = ST.drill && D.drill && D.drill[ST.drill];
+    if (!d || ST.level !== 'classes') return '';
+    var t = d.total.m[ST.meas];
+    var h = '<div class="drill"><div class="h2row"><h3>Inside ' + esc(d.name) + ' — all therapeutic areas (' + esc(unitWord()) + ')</h3>' +
+      '<span class="mut small">2025 ' + fmtV(t.su['2025']) + ' · YoY ' + fmtP(t.yoy['2025']) + ' · accel. ' + fmtPts(t.accel) + ' · H1 2026 ' + fmtV(t.h1) +
+      ' <button type="button" class="lnk" data-close="1">Close ✕</button></span></div><div class="g3">';
+    [['area', 'By therapeutic area (adult vs pediatric filing)'], ['combo', 'Plain vs combination'], ['form', 'By pharmaceutical form']].forEach(function (k) {
+      var segs = d.splits[k[0]] || [];
+      h += '<div class="dcard"><div class="dh">' + k[1] + '</div>' + (segs.length > 1 ? stack(segs) + segTable(segs) : '<p class="mut small">Only one: ' + esc(segs[0] ? segs[0].name : '—') + '</p>') + '</div>';
+    });
+    return h + '</div></div>';
+  }
+  function stack(segs) {
+    var top = segs.slice(0, 7), rest = segs.slice(7);
+    var rows = [['2022', 'share2022'], ['2023', 'share2023'], ['2024', 'share2024'], ['2025', 'share2025'], ['H1 26', 'share_h1']];
+    var W = 360, L = 44, R = 8, bh = 16, gap = 7, T = 4, H = T + rows.length * (bh + gap), pw = W - L - R;
+    var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Share of each segment by year">';
+    rows.forEach(function (r, k) {
+      var x = L, y = T + k * (bh + gap);
+      s += '<text class="ax" x="0" y="' + (y + 12) + '">' + r[0] + '</text>';
+      top.forEach(function (sg, j) {
+        var v = sg.m[ST.meas][r[1]] || 0, w = v / 100 * pw;
+        if (w > 0) {
+          s += '<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + Math.max(0, w - 1).toFixed(1) + '" height="' + bh + '" fill="' + SEGCOL[j] + '" data-tip="' + esc(sg.name) + '|' + r[0] + ': ' + fmtS(v) + ' of the class"/>';
+          if (w > 30) s += '<text class="sv" x="' + (x + w / 2).toFixed(1) + '" y="' + (y + 12) + '" text-anchor="middle">' + Math.round(v) + '%</text>';
+        }
+        x += w;
+      });
+      var rv = rest.reduce(function (a, sg) { return a + (sg.m[ST.meas][r[1]] || 0); }, 0);
+      if (rv > 0) s += '<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + Math.max(0, rv / 100 * pw - 1).toFixed(1) + '" height="' + bh + '" fill="#94A3B8" data-tip="Other (' + rest.length + ')|' + r[0] + ': ' + fmtS(rv) + '"/>';
+    });
+    return s + '</svg>';
+  }
+  function segTable(segs) {
+    var h = '<table class="tbl mini"><thead><tr><th>Segment</th><th class="r">2025</th><th class="r">YoY 25</th><th class="r">Share 25</th><th class="r">H1-26 share</th></tr></thead><tbody>';
+    segs.slice(0, 8).forEach(function (sg, j) {
+      var m = sg.m[ST.meas];
+      h += '<tr><td><i class="sw" style="background:' + (SEGCOL[j] || '#94A3B8') + '"></i>' + esc(sg.name) + '</td><td class="r num">' + fmtV(m.su['2025']) + '</td><td class="r">' +
+        (fin(m.yoy['2025']) ? '<span class="num' + (m.yoy['2025'] < 0 ? ' neg' : '') + '">' + fmtP(m.yoy['2025']) + '</span>' : '<span class="mut">' + esc(m.yoy_label['2025'] || '—') + '</span>') +
+        '</td><td class="r num">' + fmtS(m.share2025) + '</td><td class="r num">' + fmtS(m.share_h1) + '<span class="tiny ' + (m.share_chg_pts < 0 ? 'neg' : 'mut') + '"> ' + fmtPts(m.share_chg_pts) + '</span></td></tr>';
+    });
+    return h + '</tbody></table>';
   }
 
   function matrix(mem) {
@@ -257,11 +372,14 @@
     return '<b>' + esc(r.period) + ':</b> ' + esc(nx) + ' ' + fmtD(r.next_delta) + ', ' + esc(lg) + ' ' + fmtD(r.legacy_delta) + ', area ' + fmtD(r.ind_delta) + '. ' + t;
   }
 
-  function outlook(i) {
-    var mk = (D.forecast || []).filter(function (m) { return m.indication === i.id; })
+  function outlook(i, sc) {
+    var mk = (D.forecast || []).filter(function (m) {
+      if (sc && sc.kind === 'atc4') return m.atc4 === sc.code;
+      if (sc) return m.type + '|' + m.name === sc.id;
+      return m.indication === i.id; })
       .sort(function (a, b) { return a.type === b.type ? (b.le || 0) - (a.le || 0) : (a.type < b.type ? -1 : 1); });
     var h = '<section class="card"><div class="h2row"><h2>D · FY2027 outlook — our markets, champion forecast</h2><span class="unitchip">IQVIA Standard Units — a different measure from A–C</span></div>';
-    if (!mk.length) return h + '<p class="mut">None of our forecast markets (DM1 / DM2) sit in this area.</p></section>';
+    if (!mk.length) return h + '<p class="mut">' + (sc ? 'No champion forecast for this filter.' : 'None of our forecast markets (DM1 / DM2) sit in this area.') + '</p></section>';
     h += '<div class="tblwrap"><table class="tbl"><thead><tr><th>Type</th><th>Market</th><th>Main ATC4</th><th class="r">SU 2026 LE</th><th class="r">SU FY2027</th>' +
       '<th class="r">Growth</th><th class="r">Range</th><th>Confidence</th><th>Method</th></tr></thead><tbody>';
     mk.forEach(function (m) {
@@ -277,7 +395,7 @@
     var m = D.meta, th = m.thresholds;
     var ck = (D.checks || []).map(function (c) { var st = c[3] === null ? 'INFO' : c[3] ? 'PASS' : 'CHECK'; return '<li><span class="sev ' + (st === 'PASS' ? 'ok' : st === 'INFO' ? 'inf' : 'bad') + '">' + st + '</span> ' + esc(c[0]) + ': ' + esc(c[1]) + ' ' + esc(c[2]) + '</li>'; }).join('');
     ROOT.querySelector('#md-method-body').innerHTML = '<ol class="ml">' +
-      '<li><b>Source.</b> Total Market Intelligence — ' + esc(m.source_file) + ' (built ' + esc(m.source_built) + '): every ATC4 and therapeutic area of the Egyptian market, annual 2022–2025 plus January–June 2026. Measures: packs (IMS units) and LC Value (EGP). Standard Units are not in this source.</li>' +
+      '<li><b>Source.</b> Total Market Intelligence — ' + esc(m.source_file) + ' (built ' + esc(m.source_built) + '): every ATC4 and therapeutic area of the Egyptian market, annual 2022–2025 plus January–June 2026. Measures: SU (est.) = packs × the pack count in the product name (tablets, capsules, sachets, vials, suppositories; other forms count one unit per pack), packs (IMS units) and LC Value (EGP).</li>' +
       '<li><b>Areas and classes.</b> The therapeutic area is the IMS area on each row, as on the Total Market Intelligence page. A class is an ATC4, or a molecule-level split set in <code>config/market_dynamics_map.json</code> (e.g. vonoprazan out of the PPIs). A class filed under two areas appears in each.</li>' +
       '<li><b>Growth.</b> Volumes are summed first. YoY % = year ÷ previous year − 1; acceleration = YoY 2025 − YoY 2024 in percentage points. "New" = no sales the year before; LB = growth above +' + (m.growth_rules.low_base_growth_pct || 1000).toLocaleString() + '%; † = against a launch year (treated as partial).</li>' +
       '<li><b>2026.</b> January–June only with no month split, so there is no comparable H1 2025: 2026 is shown as volume and as share of the area, compared with the full-year 2025 share.</li>' +
@@ -295,15 +413,33 @@
   }
   function rerender() { controls(); overview(); detail(); }
   function wire() {
-    ROOT.querySelector('#md-ind').addEventListener('change', function (e) { ST.ind = e.target.value; detail(); });
+    ROOT.querySelector('#md-ind').addEventListener('change', function (e) { ST.ind = e.target.value; ST.drill = null; ST.ovAll = false; if (ST.scope && ST.scope.split('|')[0] === 'A') ST.scope = null;
+      if (ST.level === 'brands' || ST.level === 'corps') ST.level = ST.scope ? ST.level : 'classes'; controls(); overview(); detail(); });
+    function setScope(v) {
+      ST.scope = v || null; ST.drill = null; ST.sort = 'su';
+      var lv = levels().map(function (l) { return l[0]; }); if (lv.indexOf(ST.level) < 0) ST.level = ST.scope ? 'molecules' : 'classes';
+      if (ST.scope && ST.scope.split('|')[0] !== 'A') {
+        var hit = (D.meta.scope_index[ST.scope.split('|')[0].toLowerCase()] || []).filter(function (x) { return x[0] === ST.scope; })[0];
+        if (hit && hit[2] && hit[2].length && hit[2].indexOf(ind().id) < 0 && D.indications.some(function (x) { return x.id === hit[2][0]; })) { ST.ind = hit[2][0]; ST.zeta = ST.zeta && (D.meta.zeta_areas || []).indexOf(ST.ind) >= 0; }
+      }
+      ST.ovAll = false; controls(); overview(); detail();
+    }
+    ['#md-atc', '#md-dm1', '#md-dm2'].forEach(function (sel) { ROOT.querySelector(sel).addEventListener('change', function (e) { setScope(e.target.value); }); });
+    ROOT.querySelector('#md-clr').addEventListener('click', function () { setScope(null); });
+    ROOT.querySelector('#md-ov-all').addEventListener('click', function () { ST.ovAll = !ST.ovAll; overview(); });
     ROOT.querySelector('#md-meas').addEventListener('click', function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST.meas = b.getAttribute('data-v'); rerender(); });
     ROOT.querySelector('#md-lvl').addEventListener('click', function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST.level = b.getAttribute('data-v'); controls(); detail(); });
+    ROOT.querySelector('#md-zeta').addEventListener('change', function (e) { ST.zeta = e.target.checked; ST.drill = null; rerender(); });
     ROOT.querySelector('#md-ov').addEventListener('click', function (e) {
-      var tr = e.target.closest('tr[data-id]'); if (!tr) return; ST.ind = tr.getAttribute('data-id'); controls(); detail();
+      var tr = e.target.closest('tr[data-id]'); if (!tr) return; ST.ind = tr.getAttribute('data-id'); ST.drill = null; if (ST.scope && ST.scope.split('|')[0] === 'A') { ST.scope = null; if (ST.level === 'brands' || ST.level === 'corps') ST.level = 'classes'; } controls(); overview(); detail();
       var d = ROOT.querySelector('#md-detail'); if (d && d.scrollIntoView) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     ROOT.querySelector('#md-detail').addEventListener('click', function (e) {
       var th = e.target.closest('th[data-sort]'); if (th) { ST.sort = th.getAttribute('data-sort'); detail(); return; }
+      if (e.target.closest('[data-close]')) { ST.drill = null; detail(); return; }
+      if (e.target.closest('#md-clr2')) { ROOT.querySelector('#md-clr').click(); return; }
+      var dc = e.target.closest('tr[data-cls]');
+      if (dc) { var id = dc.getAttribute('data-cls'); ST.drill = ST.drill === id ? null : id; detail(); var el = ROOT.querySelector('#md-drill'); if (ST.drill && el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
       var tr = e.target.closest('tr[data-mk]'); if (tr) openForecast(tr.getAttribute('data-mk'));
     });
     ROOT.addEventListener('mouseover', function (e) {
@@ -329,7 +465,9 @@
     try {
       D = D || decode();
       if (!D || !D.molecules) { ROOT.innerHTML = '<div style="padding:24px">Market dynamics data not loaded (cache/market_dynamics.data.js). Run UPDATE_DASHBOARD.bat or <code>python etl/build_market_dynamics.py --cache</code>.</div>'; return; }
-      var sv = loadState(); if (sv) { ST.ind = sv.ind || null; ST.level = sv.level === 'molecules' ? 'molecules' : 'classes'; ST.sort = sv.sort || 'su'; ST.meas = sv.meas === 'value' ? 'value' : 'units'; }
+      var sv = loadState(); if (sv) { ST.ind = sv.ind || null; ST.scope = typeof sv.scope === 'string' ? sv.scope : null;
+        ST.level = (ST.scope ? ['molecules', 'brands', 'corps', 'combo', 'form'] : ['classes', 'molecules', 'combo', 'form']).indexOf(sv.level) >= 0 ? sv.level : (ST.scope ? 'molecules' : 'classes'); ST.sort = sv.sort || 'su';
+        ST.meas = ['su', 'units', 'value'].indexOf(sv.meas) >= 0 ? sv.meas : 'su'; ST.zeta = !!sv.zeta; ST.drill = null; }
       if (!ST.ind || !D.indications.some(function (i) { return i.id === ST.ind; })) ST.ind = (D.indications.find(function (i) { return i.id === 'Gastroenterology'; }) || inds()[0]).id;
       ROOT.innerHTML = shell();
       TIP = document.createElement('div'); TIP.className = 'mdx-tip'; ROOT.appendChild(TIP);

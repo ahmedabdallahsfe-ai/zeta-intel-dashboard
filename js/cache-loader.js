@@ -109,7 +109,14 @@
       file: "cache/market_dynamics.data.js",
       globalVar: "MARKET_DYNAMICS_CACHE",
       label: "Market dynamics & treatment shift",
-      version: "20261013_tm",
+      version: "20261013_s3",
+    },
+    // ATC4 / DM1 / DM2 filters of Market Dynamics (2026-10-13) -- same ETL; loaded only when a filter is used
+    market_dynamics_scopes: {
+      file: "cache/market_dynamics_scopes.data.js",
+      globalVar: "MARKET_DYNAMICS_SCOPES_CACHE",
+      label: "Market dynamics filters (ATC4 / DM1 / DM2)",
+      version: "20261013_s3",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",

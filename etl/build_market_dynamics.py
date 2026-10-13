@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import difflib
 import gzip
 import json
 import math
@@ -53,7 +54,17 @@ OUT_DIR = os.path.join(ROOT, "Claude outputs", "Market Dynamics")
 CACHE_OUT = os.path.join(ROOT, "cache", "market_dynamics.data.js")
 FULL = [2022, 2023, 2024, 2025]
 H1 = 2026
-MEAS = ("units", "value")
+MEAS = ("su", "units", "value")
+# Pack-count parsing for the Standard-Unit estimate (2026-10-13, step 1): IMS Units are packs; the product name ends
+# with the pack count ("... FILM C.TABS 5MG 20", "... SACHET 10MG 7 5G"). SU (est.) = packs x count for countable forms;
+# other forms (liquids, topicals, drops ...) count one unit per pack and are reported in su_coverage_pct.
+COUNT_RE = re.compile(r"\s(\d{1,4})(?:\s+[\d.]+\s*(?:G|GM|ML))?\s*$")
+SACHET_RE = re.compile(r"\bSAC(?:H|HET|HETS)?\b|SACHET")
+COUNTABLE_FORMS = {"Solid Oral Form", "Sachets", "Vial", "Suppository/Rectal/Vaginal"}
+FORM_GROUP = {"Solid Oral Form": "Tablets & capsules", "Sachets": "Sachets", "Liquid Oral Form": "Oral liquids", "Vial": "Injectables",
+              "Topical": "Topical & dental", "topical": "Topical & dental", "Dental": "Topical & dental", "EYE/EAR Drops": "Eye / ear drops",
+              "Eye/Ear Drops": "Eye / ear drops", "Nasal": "Nasal", "Suppository/Rectal/Vaginal": "Suppositories", "Food/Nutrition": "Nutrition & milk",
+              "Milk": "Nutrition & milk", "Others": "Other forms"}
 
 
 # ----------------------------------------------------------------------------- inputs
@@ -88,7 +99,34 @@ def load_forecast(path=FORECAST):
 
 
 def n_components(mol: str) -> int:
-    return len([p for p in re.split(r"\s*[+|]\s*", mol) if p.strip()])
+    # 2022-25 rows separate combination components with " + "; the 2026 rows of the source use "," or "&"
+    return len([p for p in re.split(r"\s*[+|,&]\s*", mol) if p.strip()])
+
+
+def mol_key(mol: str):
+    return tuple(sorted(p.strip().upper() for p in re.split(r"\s*[+|,&/]\s*", str(mol)) if p.strip()))
+
+
+def normalise_molecules(L, F, col, yidx, partial_year):
+    """The partial-year (2026) rows of the IMS file name combinations differently ("A,B" instead of "A + B").
+    Map each partial-year molecule name that never occurs in the full years onto the full-year name with the
+    same set of ingredients, so molecule- and segment-level H1 figures line up. The source file is not changed."""
+    mcol = col["molecule"]
+    full = set(F[yidx < partial_year, mcol].tolist())
+    by_key = {}
+    for i in full:
+        by_key.setdefault(mol_key(L["molecules"][i]), i)
+    remap, moved, unmatched = {}, 0, 0
+    part = yidx == partial_year
+    for i in set(F[part, mcol].tolist()) - full:
+        j = by_key.get(mol_key(L["molecules"][i]))
+        if j is not None:
+            remap[i] = j
+    if remap:
+        old = F[part, mcol]
+        new = np.array([remap.get(int(x), int(x)) for x in old])
+        F[part, mcol] = new
+    return remap
 
 
 def class_of(atc4: str, mol: str, classes: list):
@@ -168,6 +206,65 @@ def rank(items, key, ok):
     return {i: r + 1 for r, (_, i) in enumerate(vals)}
 
 
+def dm_mapping(L, F, col, iqvia_path):
+    """Zeta's defined markets (DM1 / DM2) live in the monthly IQVIA extract at pack level ("items").
+    Map each IQVIA pack onto the Total Market Intelligence product with the same name (letters and digits only);
+    when several products share that name, prefer the one whose company starts like the IQVIA company.
+    Returns per-row DM1 / DM2 index (-1 = not in a defined market), the market names and IQVIA 2025 totals."""
+    q = json.load(open(iqvia_path, encoding="utf-8"))
+    QL = q["lookups"]
+    f = np.array(json.loads(gzip.decompress(base64.b64decode(q["b64Data"]))), dtype=np.int64).reshape(-1, 14)
+    nz = lambda x: re.sub(r"[^A-Z0-9]", "", str(x).upper())       # noqa: E731
+    pidx = {}
+    for i, n in enumerate(L["products"]):
+        pidx.setdefault(nz(n), []).append(i)
+    corp_of_prod = dict(np.unique(F[:, [col["product"], col["corp"]]], axis=0).tolist())
+    item = {}
+    for it, c, d1, d2, pr in zip(f[:, 12].tolist(), f[:, 0].tolist(), f[:, 4].tolist(), f[:, 5].tolist(), f[:, 1].tolist()):
+        item[it] = (c, d1, d2, pr)
+    # fallback key for packs whose name is formatted differently ("FILM C.TABS" vs "F.C. TABS"): brand + pack count, strength must agree, closest name wins
+    tail = lambda x: (re.search(r"\s(\d{1,4})(?:\s+[\d.]+\s*(?:G|GM|ML))?\s*$", " " + str(x).upper()) or [None, None])[1]   # noqa: E731
+    mg = lambda x: frozenset(re.findall(r"(\d+(?:\.\d+)?)\s*MG", str(x).upper()))                                              # noqa: E731
+    brand_of_prod = dict(np.unique(F[:, [col["product"], col["brand"]]], axis=0).tolist())
+    bidx = {}
+    for i, n in enumerate(L["products"]):
+        bidx.setdefault((nz(L["brands"][brand_of_prod.get(i, 0)]), tail(n)), []).append(i)
+    pd1 = np.full(len(L["products"]), -1)
+    pd2 = np.full(len(L["products"]), -1)
+    unmatched = []
+    exact = set()
+    for it, (c, d1, d2, pr) in item.items():
+        cand = pidx.get(nz(QL["items"][it]), [])
+        if not cand:
+            unmatched.append(it)
+            continue
+        exact.add(it)
+        if len(cand) > 1:
+            qc = nz(QL["corps"][c])[:6]
+            cand = [x for x in cand if nz(L["corps"][corp_of_prod.get(x, 0)])[:6] == qc] or cand
+        pd1[cand[0]], pd2[cand[0]] = d1, d2
+    still = []
+    for it in unmatched:
+        c, d1, d2, pr = item[it]
+        nm = QL["items"][it]
+        st = mg(nm)
+        cand = [x for x in bidx.get((nz(QL["prods"][pr]), tail(nm)), []) if pd1[x] < 0 and (not mg(L["products"][x]) or mg(L["products"][x]) == st)]
+        sc_ = sorted(((difflib.SequenceMatcher(None, nz(nm), nz(L["products"][x])).ratio(), x) for x in cand), reverse=True)
+        if not sc_ or sc_[0][0] < 0.75:
+            still.append(it)
+            continue
+        pd1[sc_[0][1]], pd2[sc_[0][1]] = d1, d2
+    unmatched = still
+    py = np.array([int(p_[:4]) for p_ in QL["periods"]])
+    m25 = py[f[:, 2]] == 2025
+    iq = {}
+    for lk, ci in (("dm1s", 4), ("dm2s", 5)):
+        lc = np.bincount(f[m25, ci], weights=f[m25, 6], minlength=len(QL[lk]))
+        su = np.bincount(f[m25, ci], weights=f[m25, 7], minlength=len(QL[lk]))
+        iq[lk] = {n: (float(lc[i]), float(su[i])) for i, n in enumerate(QL[lk])}
+    return pd1[F[:, col["product"]]], pd2[F[:, col["product"]]], QL["dm1s"], QL["dm2s"], iq, len(unmatched)
+
+
 # ----------------------------------------------------------------------------- build
 def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, growth_cfg_path=None, top_molecules=30):
     cfg = json.load(open(map_path, encoding="utf-8"))
@@ -179,7 +276,38 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
     mi_meta, L, F, col, U, V = load_mi(mi_path)
     years = L["years"]
     yidx = np.array(years)[F[:, col["year"]]]
-    AMT = {"units": U, "value": V}
+    partial_year = int(src.get("partial_year", max(years)))
+    _new_before = set(F[yidx == partial_year, col["molecule"]].tolist()) - set(F[yidx < partial_year, col["molecule"]].tolist())
+    _pu_new_before = float(U[(yidx == partial_year) & np.isin(F[:, col["molecule"]], list(_new_before))].sum())
+    molmap = normalise_molecules(L, F, col, yidx, partial_year)
+    _left = _new_before - set(molmap)
+    _pu_left = float(U[(yidx == partial_year) & np.isin(F[:, col["molecule"]], list(_left))].sum())
+    _pu_part = float(U[yidx == partial_year].sum())
+    # SU estimate per product
+    prod_form = {}
+    for pr, fo in np.unique(F[:, [col["product"], col["form"]]], axis=0).tolist():
+        prod_form[pr] = fo
+    cnt = np.ones(len(L["products"]))
+    counted = np.zeros(len(L["products"]), bool)
+    for pr, name in enumerate(L["products"]):
+        fo = L["forms"][prod_form[pr]] if pr in prod_form else ""
+        if fo in COUNTABLE_FORMS:
+            m_ = COUNT_RE.search(" " + str(name).upper())
+            if m_ and int(m_.group(1)) > 0:
+                cnt[pr], counted[pr] = int(m_.group(1)), True
+    S = U * cnt[F[:, col["product"]]]
+    row_counted = counted[F[:, col["product"]]]
+    AMT = {"su": S, "units": U, "value": V}
+    # segment labels per row
+    row_combo = np.array(["Combination" if n_components(m_) > 1 else "Plain" for m_ in L["molecules"]], dtype=object)[F[:, col["molecule"]]]
+    pf = []
+    for pr, name in enumerate(L["products"]):
+        fo = L["forms"][prod_form[pr]] if pr in prod_form else "Others"
+        g = FORM_GROUP.get(fo, "Other forms")
+        if g in ("Tablets & capsules", "Oral liquids", "Other forms") and SACHET_RE.search(str(name).upper()):
+            g = "Sachets"
+        pf.append(g)
+    row_form = np.array(pf, dtype=object)[F[:, col["product"]]]
     classes = cfg["classes"]
     cls_by = {c["id"]: c for c in classes}
 
@@ -209,6 +337,41 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
 
     def block(ann):
         return {meas: metrics(ann[meas], low_base) for meas in MEAS}
+
+    def finalize(group, base):
+        fair = 100.0 / max(1, len([c for c in group if not c.get("other")]))
+        for meas in MEAS:
+            im = base[meas]
+            for c in group:
+                cm = c["m"][meas]
+                cm["share2025"] = cm["su"][2025] / im["su"][2025] * 100 if im["su"][2025] > 0 else None
+                cm["share2024"] = cm["su"][2024] / im["su"][2024] * 100 if im["su"][2024] > 0 else None
+                cm["share2022"] = cm["su"][2022] / im["su"][2022] * 100 if im["su"][2022] > 0 else None
+                cm["share2023"] = cm["su"][2023] / im["su"][2023] * 100 if im["su"][2023] > 0 else None
+                cm["share_h1"] = cm["h1"] / im["h1"] * 100 if im["h1"] > 0 else None
+                cm["share_chg_pts"] = (cm["share_h1"] - cm["share2025"]) if (cm["share_h1"] is not None and cm["share2025"] is not None) else None
+                cm["fair_share"] = fair
+                z = c.get("zeta")
+                cm["zeta_share2025"] = (z[meas].get(2025, 0) / cm["su"][2025] * 100) if (z and cm["su"][2025] > 0) else None
+            ranked = [c for c in group if not c.get("other")]
+            rv = rank(ranked, lambda x: x["m"][meas]["su"][2025], lambda x: x["m"][meas]["su"][2025] > 0)
+            rg = rank(ranked, lambda x: x["m"][meas]["yoy"][2025], lambda x: x["m"][meas]["yoy"][2025] is not None
+                      and x["m"][meas]["yoy_label"][2025] != "Low base" and (x["m"][meas]["share2025"] or 0) >= min_share)
+            for c in group:
+                cm = c["m"][meas]
+                cm["rank_volume"], cm["rank_growth"] = rv.get(c["id"]), rg.get(c["id"])
+                cm["quadrant"] = "Not ranked (residual group)" if c.get("other") else quadrant(
+                    cm["share2025"] or 0, fair, cm["yoy"][2025], cm["accel"], cm["yoy"][2024], cm["yoy_label"][2025], th)
+
+    def segments(mask, labels, scope):
+        out = []
+        for lab in sorted(set(labels[mask].tolist())):
+            msk = mask & (labels == lab)
+            z = annual(msk & is_z)
+            out.append({"id": "SEG:" + lab, "key": scope + "|SEG:" + lab, "name": lab, "zeta": {k: z[k] for k in MEAS},
+                        "zeta_active": bool(z["units"].get(2025, 0) + z["units"].get(H1, 0) > 0), "m": block(annual(msk))})
+        out.sort(key=lambda c: -(c["m"]["su"]["su"][2025] + c["m"]["su"]["h1"]))
+        return out
 
     # 2. indications (TA) and classes within them
     tas = sorted(set(row_ta.tolist()))
@@ -256,27 +419,13 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
                              "atc4": [], "other": True, "zeta": {k: z[k] for k in MEAS}, "zeta_active": False, "m": block(annual(msk))})
         ind["n_molecules"] = len(order)
         # shares, fair share, ranks, quadrants per measure
-        for group, fair_n in ((members, len(members)), (mmembers, len(mmembers))):
-            fair = 100.0 / max(1, fair_n)
-            for meas in MEAS:
-                im = ind["m"][meas]
-                for c in group:
-                    cm = c["m"][meas]
-                    cm["share2025"] = cm["su"][2025] / im["su"][2025] * 100 if im["su"][2025] > 0 else None
-                    cm["share2024"] = cm["su"][2024] / im["su"][2024] * 100 if im["su"][2024] > 0 else None
-                    cm["share_h1"] = cm["h1"] / im["h1"] * 100 if im["h1"] > 0 else None
-                    cm["share_chg_pts"] = (cm["share_h1"] - cm["share2025"]) if (cm["share_h1"] is not None and cm["share2025"] is not None) else None
-                    cm["fair_share"] = fair
-                    cm["zeta_share2025"] = c["zeta"][meas].get(2025, 0) / cm["su"][2025] * 100 if cm["su"][2025] > 0 else None
-                ranked = [c for c in group if not c.get("other")]
-                rv = rank(ranked, lambda x: x["m"][meas]["su"][2025], lambda x: x["m"][meas]["su"][2025] > 0)
-                rg = rank(ranked, lambda x: x["m"][meas]["yoy"][2025], lambda x: x["m"][meas]["yoy"][2025] is not None
-                          and x["m"][meas]["yoy_label"][2025] != "Low base" and (x["m"][meas]["share2025"] or 0) >= min_share)
-                for c in group:
-                    cm = c["m"][meas]
-                    cm["rank_volume"], cm["rank_growth"] = rv.get(c["id"]), rg.get(c["id"])
-                    cm["quadrant"] = "Not ranked (residual group)" if c.get("other") else quadrant(
-                        cm["share2025"] or 0, fair, cm["yoy"][2025], cm["accel"], cm["yoy"][2024], cm["yoy_label"][2025], th)
+        finalize(members, ind["m"]); finalize(mmembers, ind["m"])
+        # splits of the whole area: plain vs combination, pharmaceutical form
+        ind["splits"] = {"combo": segments(tm, row_combo, ta), "form": segments(tm, row_form, ta)}
+        for g in ind["splits"].values():
+            finalize(g, ind["m"])
+        p25 = tm & (yidx == 2025)
+        ind["su_coverage_pct"] = float(U[p25 & row_counted].sum() / U[p25].sum() * 100) if U[p25].sum() > 0 else None
         for meas in MEAS:
             ind["m"][meas]["zeta_share2025"] = ind["zeta"][meas].get(2025, 0) / ind["m"][meas]["su"][2025] * 100 if ind["m"][meas]["su"][2025] > 0 else None
             ind["m"][meas]["zeta_share_h1"] = ind["zeta"][meas].get(H1, 0) / ind["m"][meas]["h1"] * 100 if ind["m"][meas]["h1"] > 0 else None
@@ -285,6 +434,98 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
         mol_out += mmembers
     ind_map = {i["id"]: i for i in ind_out}
     cls_key = {c["key"]: c for c in cls_out}
+
+    # 2b. class drill: one class across ALL areas, split by area (adult vs pediatric filing), plain/combination and form
+    drill = {}
+    for cid in sorted(set(row_cls.tolist())):
+        cm_ = row_cls == cid
+        if U[cm_ & (yidx >= 2024)].sum() <= 0:
+            continue
+        tot = {"m": block(annual(cm_))}
+        sp = {"area": segments(cm_, row_ta, cid), "combo": segments(cm_, row_combo, cid), "form": segments(cm_, row_form, cid)}
+        if all(len(v) <= 1 for v in sp.values()):
+            continue                                          # nothing to split
+        for g in sp.values():
+            finalize(g, tot["m"])
+        p25 = cm_ & (yidx == 2025)
+        drill[cid] = {"id": cid, "name": cls_by[cid]["name"] if cid in cls_by else atc_name.get(cid[4:], cid), "total": tot, "splits": sp,
+                      "su_coverage_pct": float(U[p25 & row_counted].sum() / U[p25].sum() * 100) if U[p25].sum() > 0 else None}
+
+    # 2c. scopes behind the ATC4 / DM1 / DM2 filters (written to a second, lazily loaded cache file)
+    def top_group(mask, ci, lk, scope, n=15, prefix="X"):
+        lab = F[mask, ci]
+        yy = yidx[mask]
+        w = AMT["su"][mask]
+        tot_ = np.bincount(lab[(yy == 2025) | (yy == H1)], weights=w[(yy == 2025) | (yy == H1)], minlength=len(L[lk]))
+        order = [i for i in np.argsort(-tot_) if tot_[i] > 0]
+        out = []
+        for k in order[:n]:
+            msk = mask & (F[:, ci] == k)
+            z = annual(msk & is_z)
+            out.append({"id": prefix + ":" + str(k), "key": scope + "|" + prefix + ":" + str(k), "name": L[lk][k],
+                        "zeta": {mm: z[mm] for mm in MEAS}, "zeta_active": bool(z["units"].get(2025, 0) + z["units"].get(H1, 0) > 0),
+                        "m": block(annual(msk))})
+        rest = order[n:]
+        if rest:
+            msk = mask & np.isin(F[:, ci], rest)
+            z = annual(msk & is_z)
+            out.append({"id": prefix + ":OTHER", "key": scope + "|" + prefix + ":OTHER", "name": f"All other ({len(rest)})", "other": True,
+                        "zeta": {mm: z[mm] for mm in MEAS}, "zeta_active": False, "m": block(annual(msk))})
+        return out, len(order)
+
+    def scope_obj(sid, kind, name, mask, **extra):
+        tot = {"m": block(annual(mask))}
+        z = annual(mask & is_z)
+        mem, counts = {}, {}
+        for lv, cname, lk, pre in (("molecules", "molecule", "molecules", "MOL"), ("brands", "brand", "brands", "BR"), ("corps", "corp", "corps", "CO")):
+            mem[lv], counts[lv] = top_group(mask, col[cname], lk, sid, prefix=pre)
+        mem["combo"] = segments(mask, row_combo, sid)
+        mem["form"] = segments(mask, row_form, sid)
+        for g in mem.values():
+            finalize(g, tot["m"])
+        for meas in MEAS:
+            tm_ = tot["m"][meas]
+            tm_["zeta_share2025"] = z[meas].get(2025, 0) / tm_["su"][2025] * 100 if tm_["su"][2025] > 0 else None
+            tm_["zeta_share_h1"] = z[meas].get(H1, 0) / tm_["h1"] * 100 if tm_["h1"] > 0 else None
+        p25 = mask & (yidx == 2025)
+        tas_ = np.bincount(F[mask & (yidx >= 2025), col["ta"]], weights=U[mask & (yidx >= 2025)], minlength=len(L["tas"]))
+        return dict({"id": sid, "kind": kind, "name": name, "m": tot["m"], "members": mem, "counts": counts,
+                     "tas": [L["tas"][i] for i in np.argsort(-tas_) if tas_[i] > 0],
+                     "su_coverage_pct": float(U[p25 & row_counted].sum() / U[p25].sum() * 100) if U[p25].sum() > 0 else None}, **extra)
+
+    scopes, scope_index = {}, {"atc4": {}, "dm1": [], "dm2": []}
+    row_atc = F[:, col["atc4"]]
+    for ta in tas:
+        tm = row_ta == ta
+        lst = []
+        for a in sorted(set(row_atc[tm & (yidx >= 2024)].tolist())):
+            msk = tm & (row_atc == a)
+            if U[msk & (yidx >= 2024)].sum() <= 0:
+                continue
+            sid = "A|" + ta + "|" + L["atc4s"][a].split(" ")[0]
+            scopes[sid] = scope_obj(sid, "atc4", L["atc4s"][a], msk, ta=ta, code=L["atc4s"][a].split(" ")[0])
+            lst.append([sid, L["atc4s"][a]])
+        scope_index["atc4"][ta] = lst
+    dm_recon = []
+    try:
+        rdm1, rdm2, dm1n, dm2n, iq, n_unm = dm_mapping(L, F, col, iqvia_path)
+        for kind, rdm, names, lk in (("dm1", rdm1, dm1n, "dm1s"), ("dm2", rdm2, dm2n, "dm2s")):
+            for i, nm in enumerate(names):
+                if nm == "OTHER MARKET":
+                    continue
+                msk = rdm == i
+                lc_iq, su_iq = iq[lk].get(nm, (0.0, 0.0))
+                lc_mi = float(V[msk & (yidx == 2025)].sum())
+                gap = (lc_mi / lc_iq - 1) * 100 if lc_iq > 0 else None
+                dm_recon.append((kind.upper(), nm, lc_iq, lc_mi, gap))
+                if not msk.any():
+                    continue
+                sid = kind.upper() + "|" + nm
+                scopes[sid] = scope_obj(sid, kind, nm, msk, iqvia_lcv2025=lc_iq, iqvia_su2025=su_iq, lcv_gap_pct=gap)
+                scope_index[kind].append([sid, nm, scopes[sid]["tas"][:3]])
+    except Exception as e:                                              # noqa: BLE001
+        print("  DM1/DM2 mapping skipped:", e)
+        n_unm = None
 
     # 3. treatment shift (within the pair's therapeutic area)
     pairs_out = []
@@ -398,8 +639,18 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
                 n_all += 1
                 n_ok += max(gaps) <= 0.5
         xcheck = (n_ok, n_all)
+        su_ok = su_all = 0
+        for a, nm in enumerate(QL["atc4s"]):
+            code = nm.split(" ")[0]
+            mm = np.isin(F[:, col["atc4"]], [i for i, x in enumerate(L["atc4s"]) if x.startswith(code)]) & (yidx == 2025)
+            sq = f[(f[:, 3] == a) & (py_[f[:, 2]] == 2025), 7].sum()
+            if sq > 0 and U[mm].sum() > 0 and U[mm & row_counted].sum() / U[mm].sum() >= 0.9:
+                su_all += 1
+                su_ok += abs(S[mm].sum() / sq - 1) <= 0.10
+        su_check = (su_ok, su_all)
     except Exception:                                                   # noqa: BLE001
         xcheck = None
+        su_check = None
     out_fc = []
     for s in segs:
         if s["name"] in ("OTHER MARKET",):
@@ -426,12 +677,25 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
                        max(abs(isum[y] - tot[y]) for y in years) < 1.0))
     mt = {"units": mi_meta.get("totalAnnualUnits"), "value": mi_meta.get("totalAnnualValue")}
     for meas in MEAS:
-        if mt[meas]:
+        if mt.get(meas):
             dlt = abs(float(AMT[meas].sum()) - mt[meas])
             checks.append((f"Grand total = Total Market Intelligence build total ({meas})", dlt, meas, dlt < 1.0))
     if xcheck is not None:
         checks.append(("Cross-source: shared ATC4 classes whose LC Value 2022-2024 matches the monthly IQVIA extract within 0.5% "
                        "(the rest differ because the IQVIA extract re-files some products under other ATC4s)", xcheck[0], f"of {xcheck[1]} classes", None))
+    if su_check is not None:
+        checks.append(("SU (est.) = packs x pack count is within 10% of IQVIA Standard Units, 2025 (shared ATC4 classes that are at least 90% countable forms)",
+                       su_check[0], f"of {su_check[1]} classes", None))
+    p25 = yidx == 2025
+    checks.append(("Share of 2025 packs whose pack count was read from the product name (tablets, capsules, sachets, vials, suppositories); the rest count 1 unit per pack",
+                   round(float(U[p25 & row_counted].sum() / U[p25].sum() * 100), 1), "%", None))
+    checks.append((f"H1 {partial_year}: packs under molecule names that do not occur in 2022-{partial_year-1} (source writes combinations as 'A,B'), before -> after matching on ingredient set",
+                   f"{_pu_new_before/_pu_part*100:.1f}% -> {_pu_left/_pu_part*100:.1f}%", f"of H1 packs ({len(molmap)} names mapped)", None))
+    if dm_recon:
+        ok_ = [r for r in dm_recon if r[4] is not None and abs(r[4]) <= 1.0]
+        checks.append(("DM1/DM2 markets mapped from the IQVIA extract onto Total Market packs by pack name: markets whose 2025 LC Value matches IQVIA within 1%",
+                       len(ok_), f"of {len(dm_recon)} markets (worst: " + ", ".join(f"{r[1]} {r[4]:+.1f}%" if r[4] is not None else f"{r[1]} n/a"
+                                                                         for r in sorted(dm_recon, key=lambda r: -abs(r[4]) if r[4] is not None else -1e9)[:4]) + ")", None))
     nofc = [f_["name"] for f_ in out_fc if not f_["indication"]]
     checks.append(("Forecast markets placed in a therapeutic area", len(out_fc) - len(nofc), f"of {len(out_fc)}", not nofc))
     bad = 0
@@ -450,8 +714,10 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
             "growth_rules": {"min_share_pct": min_share, "low_base_growth_pct": low_base}, "thresholds": th,
             "forecast_generated_at": fc_meta.get("generated_at"), "forecast_engine": fc_meta.get("engine"),
             "n_atc4": len(set(L["atc4s"])), "n_molecules_top": top_molecules,
-            "zeta_corp": src.get("zeta_corp", "ZETA PHARM*")}
-    return {"meta": meta, "indications": ind_out, "classes": cls_out, "molecules": mol_out, "pairs": pairs_out,
+            "zeta_corp": src.get("zeta_corp", "ZETA PHARM*"),
+            "zeta_areas": [i["id"] for i in ind_out if (i["zeta"]["units"].get(2025, 0) + i["zeta"]["units"].get(H1, 0)) > 0]}
+    meta["scope_index"] = scope_index
+    return {"meta": meta, "indications": ind_out, "classes": cls_out, "molecules": mol_out, "pairs": pairs_out, "drill": drill, "scopes": scopes, "dm_recon": dm_recon,
             "forecast": out_fc, "checks": checks, "config": cfg,
             "mapping": [(L["atc4s"][a], L["molecules"][mo], cmap[(a, mo)]) for a, mo in am.tolist()]}
 
@@ -474,7 +740,7 @@ def write_workbook(M, path):
     P_ = lambda v: None if v is None else v / 100.0
     wb = Workbook()
     meta = M["meta"]
-    UL = {"units": "packs (M)", "value": "LC Value (EGP M)"}
+    UL = {"su": "SU est. (M)", "units": "packs (M)", "value": "LC Value (EGP M)"}
 
     def fmt_for(h):
         if h.startswith("Accel") or "pts" in h:
@@ -522,7 +788,7 @@ def write_workbook(M, path):
         ("Market Dynamics, Treatment Shift & Growth Outlook — review workbook (source: Total Market Intelligence)", T_FONT),
         (f"Built {meta['generated_at']} from {meta['source']} — {meta['source_file']} (built {meta['source_built']}). "
          f"{meta['n_atc4']} ATC4 classes, all therapeutic areas, 2022–2025 full years + {meta['partial_label']}.", B_FONT),
-        ("Measures: Packs = IMS Units (number of packs). LC Value = EGP. Standard Units are NOT in this source; the FY2027 sheet is in Standard Units (different measure).", B_FONT),
+        ("Measures: SU est. = packs x pack count read from the product name (tablets, capsules, sachets, vials, suppositories; other forms count 1 per pack). Packs = IMS Units. LC Value = EGP. The FY2027 sheet is in IQVIA Standard Units.", B_FONT),
         ("", B_FONT),
         ("Sheets: Checks · Indications (therapeutic areas) · Classes · Molecules (top 30 per area + rest) · Treatment_Shift · FY2027_SU · Mapping", BOLD),
         ("", B_FONT),
@@ -572,7 +838,7 @@ def write_workbook(M, path):
                         [m["accel"], m["window"] or "—", (m["cum_delta"] or 0) / 1e6 if m["cum_delta"] is not None else None, P_(m["cagr"]),
                          P_(m.get("zeta_share2025")), P_(m.get("zeta_share_h1")), i["badge"][meas]])
     sheet("Indications", ["Therapeutic area", "Classes", "Molecules", "Measure"] + yh[:12] + ["Window", "Cumulative Δ (M)", "CAGR", "Zeta share 2025", "Zeta share H1 2026", "Outlook badge (provisional)"],
-          rows, [26, 8, 9, 15] + [11] * 15 + [11, 11, 30], "Therapeutic areas — sum of their classes", "Two rows per area: packs and LC Value. Sorted by 2025 packs.")
+          rows, [26, 8, 9, 15] + [11] * 15 + [11, 11, 30], "Therapeutic areas — sum of their classes", "Three rows per area: SU (est.), packs and LC Value. Sorted by 2025 packs.")
     cls = sorted(M["classes"], key=lambda c: (c["indication"], -c["m"]["units"]["su"][2025]))
     sheet("Classes", ["Therapeutic area", "Class", "Class ID", "ATC4", "Measure"] + yh, series_rows(cls),
           [24, 44, 12, 16, 15] + [11] * 23 + [22, 10, 40], "Classes — benchmarked within their therapeutic area",
@@ -669,15 +935,37 @@ def write_cache(M, path=CACHE_OUT):
         if isinstance(o, np.integer):
             return int(o)
         if isinstance(o, (np.floating, float)):
-            return None if not math.isfinite(o) else round(float(o), 4)
+            return None if not math.isfinite(o) else (round(float(o)) if abs(o) >= 1000 else round(float(o), 2))
         return o
     obj = {k: M[k] for k in ("meta", "indications", "classes", "molecules", "pairs", "forecast", "checks")}
+    # drill panels only need the history, H1, growth, share path and quadrant: slim them (size)
+    keep = ("su", "h1", "yoy", "yoy_label", "accel", "share2022", "share2023", "share2024", "share2025", "share_h1", "share_chg_pts", "quadrant", "zeta_share2025")
+    def slim(seg):
+        return {"id": seg["id"], "name": seg["name"], "m": {ms: {k: v for k, v in seg["m"][ms].items() if k in keep} for ms in seg["m"]}}
+    obj["drill"] = {cid: {"id": d["id"], "name": d["name"], "su_coverage_pct": d["su_coverage_pct"],
+                          "total": {"m": {ms: {k: v for k, v in d["total"]["m"][ms].items() if k in ("su", "h1", "yoy", "yoy_label", "accel")} for ms in d["total"]["m"]}},
+                          "splits": {k: [slim(x) for x in v] for k, v in d["splits"].items()}} for cid, d in M["drill"].items()}
     js = json.dumps(clean(obj), separators=(",", ":"))
     b64 = base64.b64encode(gzip.compress(js.encode("utf-8"), compresslevel=9)).decode()
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         fh.write('window.MARKET_DYNAMICS_CACHE = {b64Data:"' + b64 + '"};\n')
     os.replace(tmp, path)
+    # scopes (ATC4 / DM1 / DM2 filters): a second file, loaded only when a filter is used
+    gk = ("su", "h1", "delta", "yoy", "yoy_label", "accel", "cagr", "window", "share2025", "share_h1", "share_chg_pts", "fair_share",
+          "rank_volume", "rank_growth", "quadrant", "zeta_share2025", "zeta_share_h1")
+    def sl(o):
+        return {ms: {k: v for k, v in o[ms].items() if k in gk} for ms in o}
+    sc = {sid: {k: (sl(v) if k == "m" else {lv: [{kk: (sl(x["m"]) if kk == "m" else x[kk]) for kk in ("id", "name", "m", "other", "zeta_active") if kk in x} for x in g]
+                                           for lv, g in v.items()} if k == "members" else v) for k, v in d.items()}
+          for sid, d in M["scopes"].items()}
+    js2 = json.dumps(clean(sc), separators=(",", ":"))
+    b2 = base64.b64encode(gzip.compress(js2.encode("utf-8"), compresslevel=9)).decode()
+    p2 = path.replace("market_dynamics.data.js", "market_dynamics_scopes.data.js")
+    with open(p2 + ".tmp", "w", encoding="utf-8") as fh:
+        fh.write('window.MARKET_DYNAMICS_SCOPES_CACHE = {b64Data:"' + b2 + '"};\n')
+    os.replace(p2 + ".tmp", p2)
+    print(f"scopes -> {p2} ({len(b2) / 1e6:.2f} MB, {len(sc)} scopes)")
     return len(b64)
 
 
