@@ -441,11 +441,11 @@
     var h = '<section class="card"><div class="h2row"><h2>D · FY2027 outlook — our markets, champion forecast</h2><span class="unitchip">IQVIA Standard Units — a different measure from A–C</span></div>';
     if (!mk.length) return h + '<p class="mut">' + (sc ? 'No champion forecast for this filter.' : 'None of our forecast markets (DM1 / DM2) sit in this area.') + '</p></section>';
     h += '<div class="tblwrap"><table class="tbl"><thead><tr><th>Type</th><th>Market</th><th>Main ATC4</th><th class="r">SU 2026 LE</th><th class="r">SU FY2027</th>' +
-      '<th class="r">Growth</th><th class="r">Range</th><th>Confidence</th><th>Method</th></tr></thead><tbody>';
+      '<th class="r">Growth</th><th>Reliability</th><th>Method</th></tr></thead><tbody>';
     mk.forEach(function (m) {
       h += '<tr class="link" data-mk="' + esc(m.type + '|' + m.name) + '"><td>' + m.type + '</td><td>' + esc(m.name) + '</td><td class="mut small">' + esc(m.atc4 || '') + '</td>' +
         '<td class="r num">' + (fin(m.le) ? big(m.le) : '—') + '</td><td class="r num">' + (fin(m.fy27) ? big(m.fy27) : '—') + '</td><td class="r num' + (m.growth < 0 ? ' neg' : '') + '">' + fmtP(m.growth) + '</td>' +
-        '<td class="r num">' + fmtP(m.low_pct, 0) + ' to ' + fmtP(m.high_pct, 0) + '</td><td>' + esc(m.confidence || '—') + (m.engine === 'safeguard' ? ' <span class="qchip qm">safeguard</span>' : '') + '</td>' +
+        '<td title="' + esc((m.reliability_points || []).join('\n')) + '">' + esc(m.reliability || m.confidence || '—') + (m.engine === 'safeguard' ? ' <span class="qchip qm">safeguard</span>' : '') + '</td>' +
         '<td class="small">' + esc(m.method || '—') + '</td></tr>';
     });
     return h + '</tbody></table></div><div class="note mut">Same figures as the Market Growth Forecast tab (click a row to open it there). The outlook badge above is provisional: it comes from 2024–2025 growth and the treatment-shift flag, not from a forecast of the whole area.</div></section>';

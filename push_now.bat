@@ -108,6 +108,7 @@ REM UPDATE_DASHBOARD removes it from GitHub). Do not add it back here.
 "%GIT_CMD%" add -f cache/sales.data.js          2>nul
 "%GIT_CMD%" add -f cache/iqvia.json             2>nul
 "%GIT_CMD%" add -f cache/iqvia.data.js          2>nul
+"%GIT_CMD%" add -f cache/auth.data.js           2>nul
 "%GIT_CMD%" add -f cache/customer_analytics.data.js 2>nul
 "%GIT_CMD%" add -f cache/market_intel.data.js   2>nul
 "%GIT_CMD%" add -f cache/tms_ims.data.js        2>nul

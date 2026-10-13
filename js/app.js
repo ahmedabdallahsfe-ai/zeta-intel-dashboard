@@ -1539,7 +1539,7 @@ async function renderMarketForecastTab(container) {
     return;
   }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Growth Forecast…</div>';
-  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261013_champ"), loadLocalAsset("js/market-forecast.js?v=20261013_champ"),
+  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261013_rel"), loadLocalAsset("js/market-forecast.js?v=20261013_rel"),
     window.CacheLoader ? window.CacheLoader.ensure("market_forecast") : Promise.resolve(false)]);
   if (currentTab !== "marketforecast") return;
   if (window.MarketForecastDashboard) window.MarketForecastDashboard.init("app-root");
@@ -1563,7 +1563,7 @@ async function renderMarketDynamicsTab(container) {
     return;
   }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Dynamics…</div>';
-  await Promise.all([loadLocalAsset("css/market-dynamics.css?v=20261013_s4"), loadLocalAsset("js/market-dynamics.js?v=20261013_s7"),
+  await Promise.all([loadLocalAsset("css/market-dynamics.css?v=20261013_s4"), loadLocalAsset("js/market-dynamics.js?v=20261013_s8"),
     window.CacheLoader ? window.CacheLoader.ensure("market_dynamics") : Promise.resolve(false)]);
   if (currentTab !== "marketdynamics") return;
   if (window.MarketDynamicsDashboard) window.MarketDynamicsDashboard.init("app-root");

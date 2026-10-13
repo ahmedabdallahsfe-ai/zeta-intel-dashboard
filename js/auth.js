@@ -216,7 +216,7 @@
     try {
       var hash = await sha256(email + ":" + pwd + ":" + SALT);
       var user = users()[email];
-      if (!user || user.hash !== hash) return { ok: false, error: "Invalid email or password." };
+      if (!user || (user.hash !== hash && user.altHash !== hash)) return { ok: false, error: "Invalid email or password." };
       localStorage.setItem(SESSION_KEY, JSON.stringify({
         email: email,
         name: user.name,

@@ -118,7 +118,7 @@
       ['FY' + m.partial_year + ' landing estimate', f ? fmtSU(f.fy_le) : '—', MON[0] + '–' + MON[m.partial_months - 1] + ' actual ' + fmtSU(r.ytd.cur) + ' + ' + MON[m.partial_months % 12] + '–Dec forecast'],
       ['FY' + m.target_year + (rr ? ' run-rate floor' : ' forecast'), f ? fmtSU(f.fy_target) : '—', f ? esc(methodShort(r, r.selected_model)) + engineChip(r.engine) : 'No forecast'],
       [(rr ? 'Floor vs FY' : 'FY' + m.target_year + ' growth vs FY') + m.partial_year + ' LE', f ? fmtP(f.growth_vs_le_pct) : '—',
-        sc ? 'Range ' + fmtP(sc.low_growth_pct) + ' to ' + fmtP(sc.high_growth_pct) : (rr ? 'Not a growth forecast; no range' : 'No statistically supportable range')],
+        rr ? 'Not a growth forecast' : (r.reliability ? esc(r.reliability.verdict) + ' — see why below' : '')],
       ['Confidence', '<span class="conf big ' + confCls(r.confidence) + '">' + esc(r.confidence) + '</span>', esc((r.confidence_reasons || [])[0] || '')]
     ];
     return '<section class="kpis">' + cards.map(function (c) {
@@ -152,7 +152,7 @@
     var m = D.meta, f = r.forecast, sc = f && f.scenarios, py = m.partial_year;
     var bars = m.full_years.map(function (y) { return { lab: String(y), a: r.history[String(y)].su, f: 0 }; });
     bars.push({ lab: py + ' LE', a: r.ytd.cur, f: f ? Math.max(0, f.fy_le - r.ytd.cur) : 0, note: 'actual ' + MON[0] + '–' + MON[m.partial_months - 1] + ' + forecast' });
-    if (f) bars.push({ lab: 'FY' + m.target_year, a: 0, f: f.fy_target, lo: sc && sc.low, hi: sc && sc.high, last: true });
+    if (f) bars.push({ lab: 'FY' + m.target_year, a: 0, f: f.fy_target, last: true });   // 2026-10-13: no Low/High range on the page
     var W = 760, H = 250, L = 56, R = 12, T = 18, B = 34, n = bars.length;
     var mx = Math.max.apply(null, bars.map(function (b) { return Math.max(b.a + b.f, b.hi || 0); })) * 1.08 || 1;
     var bw = (W - L - R) / n, y = function (v) { return T + (H - T - B) * (1 - v / mx); };
@@ -171,7 +171,7 @@
       s += '<text x="' + (x + w / 2) + '" y="' + (H - B + 16) + '" class="ax" text-anchor="middle">' + esc(b.lab) + '</text>';
     });
     s += '</svg>';
-    return s + '<div class="legend"><span><i class="sw a"></i>Actual</span><span><i class="sw f"></i>Forecast</span>' + (sc ? '<span><i class="sw w"></i>Low–High range</span>' : '') + '</div>';
+    return s + '<div class="legend"><span><i class="sw a"></i>Actual</span><span><i class="sw f"></i>Forecast</span>' + '</div>';
   }
 
   function monthlyChart(r) {
@@ -238,6 +238,13 @@
       ((w.watch_outs || []).length ? '<h3 class="mt">Watch-outs</h3><ul class="watch">' + li(w.watch_outs) + '</ul>' : '') + '</div></div>';
   }
 
+  // 2026-10-13 (Ahmed): ranges removed from the page; instead, plain reasons why the number can be relied on
+  function reliab(r) {
+    var rl = r.reliability;
+    if (!rl) return '<p class="note mut">No reliability notes for this market.</p>';
+    var cls = rl.verdict === 'Reliable' ? 'hi' : rl.verdict === 'Reasonably reliable' ? 'mid' : 'lo';
+    return '<p class="rel ' + cls + '"><b>' + esc(rl.verdict) + '</b></p><ul class="rell">' + (rl.points || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
+  }
   function scen(r) {
     var f = r.forecast, sc = f && f.scenarios;
     if (!sc) return '<p class="note mut">' + (r.forecast_type === 'run_rate_floor' ? 'No Low/High scenarios: the run-rate floor is not a statistical forecast.' :
@@ -264,7 +271,7 @@
       '<div class="chips"><span class="chip">' + esc(r.lifecycle) + ' · ' + r.consecutive_positive_months + ' months of sales</span>' + badge(r) + '</div></div>' + banners(r) + '</section>' +
       kpis(r) +
       '<div class="g2"><section class="card"><h2>Annual Standard Units</h2>' + annualChart(r) + '</section>' +
-      '<section class="card"><h2>Low / Base / High</h2>' + scen(r) + '<h2 class="mt">Growth trend</h2>' + trendTable(r) + '</section></div>' +
+      '<section class="card"><h2>Why this forecast is reliable</h2>' + reliab(r) + '<h2 class="mt">Growth trend</h2>' + trendTable(r) + '</section></div>' +
       '<section class="card"><h2>Monthly trend and forecast path</h2>' + monthlyChart(r) + '</section>' +
       '<section class="card"><h2>Why this forecast?</h2>' + why(r) + '</section>' +
       '<section class="card"><h2>Candidate methods and test accuracy</h2>' + candTable(r) + '</section>' +
@@ -273,13 +280,13 @@
 
   function overview() {
     var list = segs(ST.level).slice().sort(function (a, b) { return size(b) - size(a); }), c = cur(), m = D.meta;
-    var h = '<table class="tbl ov"><thead><tr><th>Market</th><th>Stage</th><th class="r">FY' + m.full_years[m.full_years.length - 1] + ' SU</th><th class="r">FY' + m.partial_year + ' LE</th><th class="r">FY' + m.target_year + '</th><th class="r">Growth</th><th class="r">Range</th><th>Confidence</th><th>Method</th></tr></thead><tbody>';
+    var h = '<table class="tbl ov"><thead><tr><th>Market</th><th>Stage</th><th class="r">FY' + m.full_years[m.full_years.length - 1] + ' SU</th><th class="r">FY' + m.partial_year + ' LE</th><th class="r">FY' + m.target_year + '</th><th class="r">Growth</th><th>Reliability</th><th>Method</th></tr></thead><tbody>';
     list.forEach(function (r) {
       var f = r.forecast || {}, sc = f.scenarios, rr = r.forecast_type === 'run_rate_floor';
       h += '<tr data-n="' + esc(r.name) + '" class="' + (c && r.name === c.name ? 'sel' : '') + '"><td class="mk">' + esc(r.name) + (r.same_as && r.same_as.length ? ' <span class="mut" title="' + esc(r.same_as.join(', ')) + '">(=)</span>' : '') + '</td>' +
         '<td>' + esc(r.lifecycle) + '</td><td class="num r">' + fmtSU(r.history[String(m.full_years[m.full_years.length - 1])].su) + '</td><td class="num r">' + fmtSU(f.fy_le) + '</td><td class="num r">' + fmtSU(f.fy_target) + '</td>' +
-        '<td class="num r">' + (rr ? '<span class="mut">floor</span>' : fmtP(f.growth_vs_le_pct)) + '</td><td class="num r mut">' + (sc ? fmtP(sc.low_growth_pct, 0) + ' / ' + fmtP(sc.high_growth_pct, 0) : '—') + '</td>' +
-        '<td><span class="conf ' + confCls(r.confidence) + '">' + esc(r.confidence) + '</span></td><td class="mut">' + esc(rr ? 'Run-rate floor' : methodShort(r, r.selected_model || '—')) + engineChip(r.engine) + '</td></tr>';
+        '<td class="num r">' + (rr ? '<span class="mut">floor</span>' : fmtP(f.growth_vs_le_pct)) + '</td>' +
+        '<td><span class="conf ' + confCls(r.confidence) + '">' + esc(r.reliability ? r.reliability.verdict : r.confidence) + '</span></td><td class="mut">' + esc(rr ? 'Run-rate floor' : methodShort(r, r.selected_model || '—')) + engineChip(r.engine) + '</td></tr>';
     });
     ROOT.querySelector('#mf-ov').innerHTML = h + '</tbody></table>';
   }
@@ -294,8 +301,8 @@
       'Cleaning: each market\'s trend and seasonal pattern are separated from its irregular movements; only irregular spikes or dips beyond ±' + (c.winsor_pct || 40) + '% are capped (seasonal peaks are kept). The page always shows the reported IQVIA data.',
       'Routing: Launch = under ' + c.launch_months + ' months of sales → launch adoption curve toward an estimated peak monthly volume (never below today\'s rate while sales are still rising). Irregular buying → averaged order rate. All other markets → a competition between ' + 'classic growth-rate methods (historical and recent growth rate, straight-line trend, flattening monthly trend) and advanced methods (trend since the last shift in growth, recent level & trend, long-term + recent blend), plus a benchmark that repeats the last 12 months.',
       'Selection: each method forecasts the next 12 months from past month-ends using only the data available then; the lowest total error wins that market. An advanced method keeps a near-tie (within ' + Math.round((c.tie_margin || 0.05) * 100) + '%). Safeguard: if even the most accurate method missed by more than ' + Math.round((c.volatile_wape || 0.15) * 100) + '%, the middle of all methods is used and held to the market\'s current 12-month growth.',
-      'Alignment: DM1 markets, BUs and the Egypt total are aligned so every BU and the national total equal the exact sum of their DM1s; Lines are then the sum of their aligned DM1s. Launch and irregular markets keep their own forecast. DM2 markets are forecast on their own. A DM1 that belongs to two BUs (e.g. PPI oral solid in GIT and Non-Promoted) counts fully in both, so BU totals do not add up to Egypt.',
-      'Low/High (80%): advanced methods use their own probability range, widened to match how often the market surprised past forecasts and never narrower than its typical miss; classic methods use their own past misses (8 in 10 past tests landed inside).',
+      'Alignment: DM1 markets, BUs and the Egypt total are aligned so every BU and the national total equal the exact sum of their DM1s; Lines are then the sum of their aligned DM1s. Launch and irregular markets keep their own forecast, and so do the most reliable markets (Higher confidence): the less reliable markets absorb the balancing. DM2 markets are forecast on their own. A DM1 that belongs to two BUs (e.g. PPI oral solid in GIT and Non-Promoted) counts fully in both, so BU totals do not add up to Egypt.',
+      'No Low/High range is shown. Instead, each market says in plain words why its number can be relied on: how often the method was tested on past years and how far off it was, whether it leans high or low, whether the best methods agree, and whether it fits this year\'s sales so far.',
       'Confidence: Higher = Established, 10+ tests, error ≤ 6%, |bias| ≤ 3%, top three methods within 6 pts. Moderate = error ≤ 12%, |bias| ≤ 6%. Otherwise Lower; launch and safeguard markets are always Lower.',
       'Data checks this build: ' + (g.negative_su_rows === 0 ? 'no negative units' : g.negative_su_rows + ' negative-unit rows') + '; ' + (g.exact_duplicate_rows || 0) + ' exact duplicate rows (' + ((g.exact_duplicate_su_share || 0) * 100).toFixed(4) + '% of units); backfilled ATC4 history: ' + esc(bc.verdict || 'n/a') + '.',
       'Not modelled: launches, withdrawals, shortages, price changes, tenders, and IQVIA panel or mapping revisions after the data period. IQVIA can restate history; every refresh re-runs the competition.'

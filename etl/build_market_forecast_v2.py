@@ -81,6 +81,11 @@ CFG = {
     "guided_prior": 0.5,              # Prophet flexibility at the detected break only
     "range_floor_quantile": 0.50,     # range never narrower than this market's typical (median) past miss
     "lock_segments": ("launch", "intermittent", "lumpy"),
+    # 2026-10-13 (Ahmed approved): ALSO lock "trusted" DM1s in the alignment - established, tested 10+ times,
+    # past error <= 6%, |bias| <= 3%, top methods within 6 pts, no safeguard (= the "Higher" confidence rule).
+    # Before this, MinT cut A10P1 SGLT2 plain from +15.8% to +5.8% to absorb two capped combination markets.
+    # Now the less reliable markets absorb the alignment; totals still add up exactly.
+    "lock_trusted": True,
     # MinT runs on DM1 -> BU -> Egypt (the business hierarchy); Lines are then the exact sum of their
     # reconciled DM1s. Real-data check 2026-10-13: adding the 17 overlapping Lines as extra MinT
     # constraints pushed 3 DM1s by >10% (max +16%); without them none moves >10% (max 7.4%).
@@ -667,6 +672,20 @@ def build_summing_matrix(bottom_ids: list[str], aggs: dict[str, list[str]]):
     return S_df, tags
 
 
+def _trusted(meta: dict, cfg=CFG) -> bool:
+    """Same test as the 'Higher' confidence rule, applied BEFORE alignment (2026-10-13)."""
+    if meta.get("segment") != "continuous" or meta.get("safeguard"):
+        return False
+    bt = meta.get("backtest") or {}
+    if (meta.get("months_of_sales") or 0) < 60 or bt.get("n", 0) < 10:
+        return False
+    if bt.get("wape", 1) > 0.06 or abs(bt.get("bias", 1)) > 0.03:
+        return False
+    rk, cands = meta.get("ranked") or [], meta.get("candidates") or {}
+    top = [cands[x]["growth_vs_le_pct"] for x in rk[:3] if x in cands and cands[x]["growth_vs_le_pct"] is not None]
+    return len(top) >= 2 and max(top) - min(top) <= 6
+
+
 def reconcile_mint(results: dict[str, dict], ds_hist, ds_fut, S_df, tags, cfg=CFG) -> pd.DataFrame:
     """Coherent forecasts: every BU / Line / Egypt number equals the sum of its DM1s, with
     MinT shrinkage putting more trust in the series that forecast best in-sample.
@@ -684,7 +703,10 @@ def reconcile_mint(results: dict[str, dict], ds_hist, ds_fut, S_df, tags, cfg=CF
     S = S_df.set_index("unique_id")
     bottom = list(S.columns)
     aggs_ids = [u for u in S.index if u not in bottom]
-    locked = [b for b in bottom if results[b]["meta"].get("segment") in cfg["lock_segments"]]
+    locked = [b for b in bottom if results[b]["meta"].get("segment") in cfg["lock_segments"]
+              or (cfg.get("lock_trusted") and _trusted(results[b]["meta"], cfg))]
+    for b in bottom:
+        results[b]["meta"]["locked_trusted"] = bool(cfg.get("lock_trusted") and _trusted(results[b]["meta"], cfg))
     free = [b for b in bottom if b not in locked]
     nf, nh = len(ds_fut), len(ds_hist)
 
@@ -806,7 +828,7 @@ def generate_business_insights(market_metadata: dict) -> dict:
         else:
             headline = f"{name}: expected to be broadly flat next year ({g:+.1f}%)"
         if md.get("low_pct") is not None and md.get("high_pct") is not None:
-            headline += f", most likely between {md['low_pct']:+.1f}% and {md['high_pct']:+.1f}%"
+            pass                                   # 2026-10-13: no ranges on the page (Ahmed); see seg["reliability"]
         headline += "."
 
     # -- 1. momentum / structural shifts (dated growth break) ---------------------------
@@ -915,7 +937,9 @@ def generate_business_insights(market_metadata: dict) -> dict:
         diff = rec["reconciled_total"] / rec["base_total"] - 1 if rec.get("base_total") else 0.0
         lvl = md.get("level")
         if lvl == "DM1" and rec.get("locked"):
-            msg = (f"This market's own forecast is kept as is; the {rec.get('parent', 'business unit').split('/')[-1]} "
+            msg = (f"This market's own forecast is kept as is"
+                   + (" because it is one of the most reliable in the portfolio" if md.get("locked_trusted") else "")
+                   + f"; the {rec.get('parent', 'business unit').split('/')[-1]} "
                    "and Egypt totals include it exactly, and the other markets absorb any alignment.")
         elif lvl == "DM1":
             msg = (f"The forecast was mathematically aligned with the {rec.get('parent', 'business unit').split('/')[-1]} "
@@ -1110,6 +1134,61 @@ def standalone_outputs(results, ds_hist, ds_fut, target_year, cfg=CFG):
     return outs
 
 
+def _reliability(seg: dict, md: dict, o: dict, py: int, ty: int, months: str) -> dict:
+    """2026-10-13 (Ahmed): plain-language reasons why the forecast can (or cannot) be relied on - replaces the
+    Low/High range on the page. Every sentence is built from this market's own facts."""
+    conf = md.get("confidence")
+    verdict = {"Higher": "Reliable", "Moderate": "Reasonably reliable"}.get(conf, "Indicative only")
+    pts, g = [], md.get("growth_pct")
+    bt = md.get("backtest") or {}
+    if md.get("segment") == "launch":
+        pts.append(f"New market with {md.get('months_of_sales', '?')} months of sales: there is no past to test a forecast "
+                   "against, so it follows a typical launch adoption curve. Use it as a direction, and review it each quarter.")
+    elif md.get("segment") in ("intermittent", "lumpy"):
+        pts.append("Orders arrive irregularly (tenders, institutions), so the forecast is an average monthly rate, not a trend.")
+    if md.get("safeguard"):
+        sg = md["safeguard"]
+        pts.append(f"Even the best method missed this market by about {sg['top_error'] * 100:.0f}% in past tests, so the middle "
+                   "of all methods is used" + (" and held to today's growth pace" if sg.get("capped") else "") + ".")
+    elif bt.get("n", 0) > 0:
+        w = bt.get("wape", 0) * 100
+        pts.append(f"Tested {bt['n']} times on past data: each time it forecast the next 12 months using only the sales known "
+                   f"then. On average it was {('less than 1' if w < 1 else f'{w:.0f}')}% away from what really happened.")
+        b = bt.get("bias", 0) * 100
+        pts.append("It did not lean towards forecasting too high or too low." if abs(b) <= 2 else
+                   f"It tended to come out about {abs(b):.0f}% too {'high' if b > 0 else 'low'}, so read it as slightly "
+                   f"{'optimistic' if b > 0 else 'cautious'}.")
+    rk, cands = md.get("ranked") or [], md.get("candidates") or {}
+    top = [cands[x]["growth_vs_le_pct"] for x in rk[:3] if x in cands and cands[x]["growth_vs_le_pct"] is not None]
+    if len(top) >= 2 and not md.get("safeguard"):
+        lo_, hi_ = min(top), max(top)
+        pts.append(f"The {len(top)} best-tested methods give similar answers ({lo_:+.0f}% to {hi_:+.0f}%)." if hi_ - lo_ <= 6 else
+                   f"The best-tested methods disagree ({lo_:+.0f}% to {hi_:+.0f}%), which makes the number less certain.")
+    ytd = (seg.get("ytd") or {}).get("growth_pct")
+    if ytd is not None and g is not None and md.get("segment") != "launch" and abs(ytd) <= 200:
+        if abs(g - ytd) <= 8:
+            pts.append(f"It fits today's sales: {months} {py} is {ytd:+.1f}% vs last year, and {ty} is forecast at {g:+.1f}%.")
+        elif g < ytd:
+            pts.append(f"It expects growth to slow from {ytd:+.1f}% ({months} {py}) to {g:+.1f}% in {ty}; "
+                       "this follows the slowing seen over recent years.")
+        else:
+            pts.append(f"It expects growth to pick up from {ytd:+.1f}% ({months} {py}) to {g:+.1f}% in {ty}; check that "
+                       "new launches or supply support this.")
+    rec = md.get("reconciliation") or {}
+    le = o.get("fy_le") or 0
+    if md.get("locked_trusted"):
+        pts.append("Kept exactly as forecast when the BU and Egypt totals were balanced, because it is one of the most reliable "
+                   "markets; less reliable markets absorbed the balancing.")
+    elif rec.get("base_total") and le and not rec.get("standalone"):
+        d = (rec["reconciled_total"] - rec["base_total"]) / le * 100
+        if abs(d) >= 1:
+            pts.append(f"Moved {d:+.1f} points so that markets, BUs and Egypt add up exactly.")
+    ms = md.get("months_of_sales")
+    if ms and md.get("segment") != "launch":
+        pts.append(f"{ms} months of sales history ({md.get('lifecycle', '').lower()} market).")
+    return {"verdict": verdict, "points": pts}
+
+
 def build_dashboard_cache(v1_obj: dict, champion: list, results: dict, Y_rec: pd.DataFrame, cfg=CFG) -> dict:
     """Overlay the champion forecasts onto the v1 cache structure (history, data-quality checks,
     monthly series etc. stay exactly as v1 computed them)."""
@@ -1193,6 +1272,7 @@ def build_dashboard_cache(v1_obj: dict, champion: list, results: dict, Y_rec: pd
         top = [cands[x]["growth_vs_le_pct"] for x in rk[:3] if x in cands and cands[x]["growth_vs_le_pct"] is not None]
         seg["model_spread_pts"] = round(max(top) - min(top), 2) if len(top) >= 2 else None
         seg["confidence"], seg["confidence_reasons"] = md["confidence"], md["confidence_reasons"]
+        seg["reliability"] = _reliability(seg, md, o, py, ty, f"Jan–{MON[meta['partial_months'] - 1]}")
         w = o["why"]
         seg["why"] = {"headline": w["headline"], "facts": w["drivers"], "assumptions": w["assumptions"], "watch_outs": w["watch_outs"]}
         seg["model_info"] = {"seasonal": bool((md.get("model_info") or {}).get("seasonal") or md.get("seasonal"))}

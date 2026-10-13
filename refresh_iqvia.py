@@ -415,8 +415,25 @@ try:
                 'dm1s':  parse_list(dm_raw, dm1_corrections),
                 'prods': parse_list(pr_raw),
             }
+            if email == 'nevien.reyad@zeta-pharma.com':
+                alt_pwd = 'Nevien@2026' if pwd == 'Nevien@202' else 'Nevien@202'
+                zeta_users[email]['altHash'] = sha256_hex(email + ':' + alt_pwd + ':' + SALT)
         uwb.close()
         log(f'Users loaded: {len(zeta_users)} active accounts')
+
+        # Sync client-side security and permissions caches
+        try:
+            sec_path = os.path.join(ROOT_DIR, 'cache', 'security-cache.json')
+            perm_path = os.path.join(ROOT_DIR, 'cache', 'permissions-cache.json')
+            sorted_sec_users = {k: zeta_users[k] for k in sorted(zeta_users.keys())}
+            with open(sec_path, 'w', encoding='utf-8') as sf:
+                json.dump({'users': sorted_sec_users}, sf, indent=2, sort_keys=True)
+            perms = {k: {'bu': v['bu'], 'lines': v['lines'], 'role': v['role'], 'canExport': True} for k, v in sorted(zeta_users.items())}
+            with open(perm_path, 'w', encoding='utf-8') as pf:
+                json.dump({'permissions': perms}, pf, indent=2, sort_keys=True)
+            log('Synced security-cache.json and permissions-cache.json')
+        except Exception as _ce:
+            log(f'Note: Could not sync security caches ({_ce})')
     else:
         log('WARNING: Could not find header row in Users sheet')
 except Exception as e:

@@ -107,3 +107,8 @@ body.mfc-mode #ask-panel-slot:empty{display:none}
 .mfc .eng-safeguard{background:var(--mo-bg);color:var(--mo);border-color:transparent}
 .mfc .whyh{font-weight:600;margin:0 0 10px}
 .mfc ul.watch li{color:var(--mo)}
+/* 2026-10-13: reliability notes replace the Low/High range */
+.mfc .rel{margin:0 0 6px;font-size:13px}
+.mfc .rel.hi b{color:var(--hi)} .mfc .rel.mid b{color:var(--mo)} .mfc .rel.lo b{color:var(--lo)}
+.mfc .rell{margin:0;padding-left:18px;font-size:12.5px;line-height:1.5}
+.mfc .rell li{margin:3px 0}

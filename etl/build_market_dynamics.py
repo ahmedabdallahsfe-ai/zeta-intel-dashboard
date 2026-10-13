@@ -779,7 +779,9 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
                        "le": f_.get("fy_le"), "fy27": f_.get("fy_target"), "growth": f_.get("growth_vs_le_pct"),
                        "low_pct": sc.get("low_growth_pct"), "high_pct": sc.get("high_growth_pct"),
                        "confidence": s.get("confidence"), "engine": s.get("engine"), "method": s.get("selected_label"),
-                       "su2025": ((s.get("history") or {}).get("2025") or {}).get("su")})
+                       "su2025": ((s.get("history") or {}).get("2025") or {}).get("su"),
+                       "reliability": (s.get("reliability") or {}).get("verdict"),
+                       "reliability_points": (s.get("reliability") or {}).get("points") or []})
 
     # 6. checks
     checks = []

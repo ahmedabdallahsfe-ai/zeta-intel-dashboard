@@ -102,21 +102,21 @@
       file: "cache/market_forecast.data.js",
       globalVar: "MARKET_FORECAST_CACHE",
       label: "Market growth forecast",
-      version: "20261013_champ2",
+      version: "20261013_rel",
     },
     // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache (source: Total Market Intelligence)
     market_dynamics: {
       file: "cache/market_dynamics.data.js",
       globalVar: "MARKET_DYNAMICS_CACHE",
       label: "Market dynamics & treatment shift",
-      version: "20261013_s7",
+      version: "20261013_s8",
     },
     // ATC4 / DM1 / DM2 filters of Market Dynamics (2026-10-13) -- same ETL; loaded only when a filter is used
     market_dynamics_scopes: {
       file: "cache/market_dynamics_scopes.data.js",
       globalVar: "MARKET_DYNAMICS_SCOPES_CACHE",
       label: "Market dynamics filters (ATC4 / DM1 / DM2)",
-      version: "20261013_s7",
+      version: "20261013_s8",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",
