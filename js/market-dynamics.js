@@ -17,14 +17,50 @@
   }
 
   var D = null, SC = null, SC_LOADING = false, HOST = null, ROOT = null, TIP = null;
-  var ST = { ind: null, level: 'classes', sort: 'su', meas: 'su', zeta: false, drill: null, ovAll: false, scope: null };
-  var KEY = 'zeta_md_state_v3';
+  var ST = { ind: null, level: 'classes', sort: 'su', meas: 'su', zeta: false, drill: null, ovAll: false, scope: null, f: { atc: '', dm1: '', dm2: '', whole: false }, cg: '2022' };
+  var KEY = 'zeta_md_state_v4';
   var SEGCOL = ['#2a78d6', '#15803D', '#D97706', '#7C3AED', '#0891B2', '#DB2777', '#64748B', '#A16207'];
-  var LEVELS = [['classes', 'Classes'], ['molecules', 'Molecules'], ['combo', 'Plain vs combination'], ['form', 'Form']];
+  var LEVELS = [['classes', 'Classes'], ['atc4', 'ATC4'], ['dm1', 'DM1 markets'], ['molecules', 'Molecules'], ['combo', 'Plain vs combination'], ['form', 'Form']];
   // 2026-10-13: ATC4 / DM1 / DM2 filters. A "scope" is one ATC4 inside the selected area, or one of our defined markets
   // (DM1 / DM2 from the IQVIA extract, mapped onto Total Market packs in the ETL). Scopes live in a second, lazy cache file.
   var SLEVELS = [['molecules', 'Molecules'], ['brands', 'Brands'], ['corps', 'Companies'], ['combo', 'Plain vs combination'], ['form', 'Form']];
+  // CAGR start year (selector): 2022 or 2023 -> 2025; each row starts later if it launched later (ETL: cagr / cagr23)
+  function cg(m) { return ST.cg === '2023' ? [m.cagr23, m.window23] : [m.cagr, m.window]; }
+  function ytdLabel() { var y = D.meta.ytd; return y ? 'YTD ' + y.months.split('–')[1] + ' ' + String(y.year).slice(2) : 'YTD'; }
+  function ytdCell(m) {
+    if (fin(m.ytd)) return '<span class="num' + (m.ytd < 0 ? ' neg' : '') + '">' + fmtP(m.ytd) + '</span>';
+    return '<span class="mut" title="' + (fin(m.ytd_cov) ? 'The IQVIA monthly extract covers only ' + Math.round(m.ytd_cov) + '% of this row (needs 95%)' : 'No monthly data') + '">—</span>';
+  }
   function levels() { return ST.scope ? SLEVELS : LEVELS; }
+  // Cascading filters: Area -> ATC4 -> DM1 -> DM2 (AND). Options come from meta.filter_index (every leaf combination with data);
+  // the selected combination resolves to a pre-computed scope through meta.filter_alias. "whole" = the DM market across all areas.
+  function fx() { return D.meta.filter_index || []; }
+  function uniq(a) { var o = [], seen = {}; a.forEach(function (x) { if (x && !seen[x]) { seen[x] = 1; o.push(x); } }); return o.sort(); }
+  function fopts(level) {
+    var f = ST.f, cur = ind().id;
+    var rows = fx().filter(function (r) { return (f.whole || r[0] === cur); });
+    if (level === 'atc') return uniq(rows.map(function (r) { return r[1]; }));
+    if (f.atc && !f.whole) rows = rows.filter(function (r) { return r[1] === f.atc; });
+    if (level === 'dm1') return uniq(rows.map(function (r) { return r[2]; }));
+    if (f.dm1) rows = rows.filter(function (r) { return r[2] === f.dm1; });
+    return uniq(rows.map(function (r) { return r[3]; }));
+  }
+  function spansAreas() {
+    var f = ST.f; if (!f.dm1 && !f.dm2) return false;
+    return uniq(fx().filter(function (r) { return (!f.dm1 || r[2] === f.dm1) && (!f.dm2 || r[3] === f.dm2); }).map(function (r) { return r[0]; })).length > 1;
+  }
+  function syncScope() {
+    var f = ST.f;
+    if (f.whole && !(f.dm1 || f.dm2)) f.whole = false;
+    if (f.whole) f.atc = '';
+    if (f.atc && fopts('atc').indexOf(f.atc) < 0) f.atc = '';
+    if (f.dm1 && fopts('dm1').indexOf(f.dm1) < 0) f.dm1 = '';
+    if (f.dm2 && fopts('dm2').indexOf(f.dm2) < 0) f.dm2 = '';
+    if (f.whole && !spansAreas()) f.whole = false;
+    var k = [f.whole ? '*' : ind().id, f.atc, f.dm1, f.dm2].join('|');
+    ST.scope = (f.atc || f.dm1 || f.dm2) ? ((D.meta.filter_alias || {})[k] || null) : null;
+    var lv = levels().map(function (l) { return l[0]; }); if (lv.indexOf(ST.level) < 0) ST.level = ST.scope ? 'molecules' : 'classes';
+  }
   function scope() { return ST.scope && SC ? SC[ST.scope] || null : null; }
   function ensureScopes(cb) {
     if (SC) return cb();
@@ -68,11 +104,13 @@
   function ind() { return D.indications.find(function (i) { return i.id === ST.ind; }) || inds()[0]; }
   function members(i) {
     var sc = scope(); if (sc) return sc.members[ST.level] || [];
-    if (ST.level === 'combo' || ST.level === 'form') return (i.splits && i.splits[ST.level]) || [];
+    if (['combo', 'form', 'atc4', 'dm1'].indexOf(ST.level) >= 0) return (i.splits && i.splits[ST.level]) || [];
     return (ST.level === 'molecules' ? D.molecules : D.classes).filter(function (c) { return c.indication === i.id; });
   }
-  function levelWord() { return { classes: 'classes', molecules: 'molecules', brands: 'brands', corps: 'companies', combo: 'plain vs combination', form: 'pharmaceutical forms' }[ST.level]; }
-  function scopeLabel(sc) { return sc.kind === 'atc4' ? 'ATC4 ' + sc.name : sc.kind.toUpperCase() + ' market ' + sc.name; }
+  function levelWord() { return { classes: 'classes', atc4: 'ATC4s', dm1: 'DM1 markets', molecules: 'molecules', brands: 'brands', corps: 'companies', combo: 'plain vs combination', form: 'pharmaceutical forms' }[ST.level]; }
+  // label / context always from the selection itself (identical combinations share one pre-computed scope)
+  function scopeLabel() { var f = ST.f, an = D.meta.atc_names || {};
+    return [f.atc ? 'ATC4 ' + (an[f.atc] || f.atc) : '', f.dm1 ? 'DM1 ' + f.dm1 : '', f.dm2 ? 'DM2 ' + f.dm2 : ''].filter(Boolean).join(' · ') + (f.whole ? ' (all areas)' : ''); }
   function marketTotal(meas) { var t = 0; D.indications.forEach(function (i) { t += i.m[meas].su['2025'] || 0; }); return t; }
   function spark(arr, w, h) {
     var v = arr.filter(fin); if (v.length < 2) return '';
@@ -93,11 +131,14 @@
       '<div class="ctl"><label>Measure</label><div class="seg" id="md-meas"><button type="button" data-v="su" title="Packs x pack count (tablets, capsules, sachets, vials); other forms count 1 per pack">SU (est.)</button><button type="button" data-v="units">Packs</button><button type="button" data-v="value">LC Value</button></div></div>' +
       '<div class="ctl grow"><label for="md-ind">Therapeutic area</label><select id="md-ind"></select></div>' +
       '<div class="ctl"><label>&nbsp;</label><label class="chk"><input type="checkbox" id="md-zeta"> Zeta areas only</label></div>' +
+      '<div class="ctl"><label>CAGR from</label><div class="seg" id="md-cg"><button type="button" data-v="2022">2022</button><button type="button" data-v="2023">2023</button></div></div>' +
       '<div class="ctl"><label>Compare</label><div class="seg" id="md-lvl"></div></div>' +
-      '<div class="frow"><div class="ctl grow"><label for="md-atc">ATC4 (in this area)</label><select id="md-atc"></select></div>' +
-      '<div class="ctl grow"><label for="md-dm1">DM1 market</label><select id="md-dm1"></select></div>' +
-      '<div class="ctl grow"><label for="md-dm2">DM2 market</label><select id="md-dm2"></select></div>' +
-      '<div class="ctl"><label>&nbsp;</label><button type="button" class="btn" id="md-clr">Clear filter</button></div></div>' +
+      '<div class="frow"><div class="ctl grow"><label for="md-atc">ATC4 <span class="mut">(in this area)</span></label><select id="md-atc"></select></div>' +
+      '<div class="ctl grow"><label for="md-dm1">DM1 market <span class="mut">(narrows with ATC4)</span></label><select id="md-dm1"></select></div>' +
+      '<div class="ctl grow"><label for="md-dm2">DM2 market <span class="mut">(narrows with DM1)</span></label><select id="md-dm2"></select></div>' +
+      '<div class="ctl"><label>&nbsp;</label><label class="chk" id="md-whole-w" title="The DM market across every therapeutic area it is filed in"><input type="checkbox" id="md-whole"> Whole market (all areas)</label></div>' +
+      '<div class="ctl"><label>&nbsp;</label><button type="button" class="btn" id="md-clr">Clear all</button></div>' +
+      '<div class="chips" id="md-chips"></div></div>' +
       '</section>' +
       '<div id="md-valnote"></div>' +
       '<section class="card"><div class="h2row"><h2 id="md-ov-title">All therapeutic areas</h2><span class="mut small"><span id="md-ov-hint"></span> <button type="button" class="lnk" id="md-ov-all"></button></span></div>' +
@@ -109,26 +150,31 @@
   }
 
   function controls() {
+    syncScope();
     ROOT.querySelector('#md-ind').innerHTML = inds().map(function (i) { return '<option value="' + esc(i.id) + '">' + esc(i.name) + '</option>'; }).join('');
     if (!inds().some(function (x) { return x.id === ST.ind; })) ST.ind = inds()[0].id;
     ROOT.querySelector('#md-ind').value = ind().id;
     ROOT.querySelector('#md-zeta').checked = !!ST.zeta;
     ROOT.querySelectorAll('#md-meas button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === ST.meas ? 'true' : 'false'); });
     ROOT.querySelector('#md-lvl').innerHTML = levels().map(function (l) { return '<button type="button" data-v="' + l[0] + '">' + l[1] + '</button>'; }).join('');
-    var si = D.meta.scope_index || { atc4: {}, dm1: [], dm2: [] }, cur = ind().id;
+    var f = ST.f, an = D.meta.atc_names || {};
     var opt = function (v, t) { return '<option value="' + esc(v) + '">' + esc(t) + '</option>'; };
-    ROOT.querySelector('#md-atc').innerHTML = opt('', 'All ATC4s') + (si.atc4[cur] || []).map(function (a) { return opt(a[0], a[1]); }).join('');
-    ['dm1', 'dm2'].forEach(function (k) {
-      var inA = si[k].filter(function (x) { return (x[2] || []).indexOf(cur) >= 0; }), oth = si[k].filter(function (x) { return (x[2] || []).indexOf(cur) < 0; });
-      ROOT.querySelector('#md-' + k).innerHTML = opt('', 'All ' + k.toUpperCase() + ' markets') +
-        (inA.length ? '<optgroup label="In ' + esc(cur) + '">' + inA.map(function (x) { return opt(x[0], x[1]); }).join('') + '</optgroup>' : '') +
-        (oth.length ? '<optgroup label="Other areas">' + oth.map(function (x) { return opt(x[0], x[1] + ' (' + (x[2] || [])[0] + ')'); }).join('') + '</optgroup>' : '');
-    });
-    var sk = ST.scope ? ST.scope.split('|')[0] : '';
-    ROOT.querySelector('#md-atc').value = sk === 'A' ? ST.scope : '';
-    ROOT.querySelector('#md-dm1').value = sk === 'DM1' ? ST.scope : '';
-    ROOT.querySelector('#md-dm2').value = sk === 'DM2' ? ST.scope : '';
-    ROOT.querySelector('#md-clr').disabled = !ST.scope;
+    var oa = fopts('atc'), o1 = fopts('dm1'), o2 = fopts('dm2');
+    var sa = ROOT.querySelector('#md-atc'), s1 = ROOT.querySelector('#md-dm1'), s2 = ROOT.querySelector('#md-dm2');
+    sa.innerHTML = opt('', f.whole ? 'Not used with whole market' : 'All ATC4s (' + oa.length + ')') + oa.map(function (c) { return opt(c, an[c] || c); }).join('');
+    s1.innerHTML = opt('', o1.length ? 'All DM1 markets (' + o1.length + ')' : 'No DM1 market here') + o1.map(function (x) { return opt(x, x); }).join('');
+    s2.innerHTML = opt('', o2.length ? 'All DM2 markets (' + o2.length + ')' : 'No DM2 market here') + o2.map(function (x) { return opt(x, x); }).join('');
+    sa.value = f.atc; s1.value = f.dm1; s2.value = f.dm2;
+    sa.disabled = f.whole; s1.disabled = !o1.length; s2.disabled = !o2.length;
+    var wv = spansAreas() && !f.atc;
+    ROOT.querySelector('#md-whole-w').style.display = wv || f.whole ? '' : 'none';
+    ROOT.querySelector('#md-whole').checked = f.whole;
+    ROOT.querySelector('#md-clr').disabled = !(f.atc || f.dm1 || f.dm2);
+    var chip_ = function (k, t) { return '<span class="fchip">' + esc(t) + ' <button type="button" data-rm="' + k + '" aria-label="Remove">✕</button></span>'; };
+    ROOT.querySelector('#md-chips').innerHTML = (f.atc || f.dm1 || f.dm2) ? '<span class="mut small">Active:</span> ' + (f.whole ? chip_('area', 'All areas') : '<span class="fchip">' + esc(ind().name) + '</span>') +
+      (f.atc ? chip_('atc', 'ATC4 ' + (an[f.atc] || f.atc)) : '') + (f.dm1 ? chip_('dm1', 'DM1 ' + f.dm1) : '') + (f.dm2 ? chip_('dm2', 'DM2 ' + f.dm2) : '') +
+      (ST.scope ? '' : ' <span class="neg small">no data for this combination</span>') : '';
+    ROOT.querySelectorAll('#md-cg button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === ST.cg ? 'true' : 'false'); });
     ROOT.querySelectorAll('#md-lvl button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === ST.level ? 'true' : 'false'); });
     ROOT.querySelector('#md-valnote').innerHTML = ST.meas === 'value'
       ? '<div class="banner warn"><b>Value includes price.</b> The whole market grew from ' + fmtV(D.indications.reduce(function (t, i) { return t + (i.m.value.su['2023'] || 0); }, 0)) +
@@ -150,7 +196,7 @@
         '<td class="r num">' + fmtV(m.su['2025']) + '</td><td class="r num">' + fmtD(m.delta['2025']) + '</td>' +
         '<td class="r">' + yoy(i, '2025') + '</td><td class="r">' + yoy(i, '2024') + '</td>' +
         '<td class="r num' + (m.accel < 0 ? ' neg' : '') + '">' + fmtPts(m.accel) + '</td>' +
-        '<td class="r num">' + (fin(m.cagr) ? fmtP(m.cagr) + '<div class="mut tiny">' + esc(m.window) + '</div>' : '—') + '</td>' +
+        '<td class="r num">' + (fin(cg(m)[0]) ? fmtP(cg(m)[0]) + '<div class="mut tiny">' + esc(cg(m)[1]) + '</div>' : '—') + '</td>' +
         '<td class="r num">' + fmtV(m.h1) + '</td><td class="r num">' + fmtS(m.zeta_share2025) + '</td>' +
         '<td>' + spark(Y.map(function (y) { return m.su[y]; }), 72, 20) + '</td><td>' + chip(BCLS, i.badge[ST.meas], 'badge') + '</td></tr>';
     });
@@ -162,9 +208,12 @@
     if (ST.scope && !SC) return ensureScopes(function () { controls(); detail(); });
     var area = ind(), sc = scope(), i = sc || area, pairs = D.pairs.filter(function (p) { return p.indication === area.id; }), mem = members(i);
     var h = (sc ? scopeBanner(sc, area) : '') + cards(i, sc ? [] : pairs) +
-      '<section class="card"><div class="h2row"><h2>A · Growth &amp; metric grid — ' + levelWord() + ' in ' + esc(sc ? scopeLabel(sc) : i.name) + ' (' + unitWord() + ')</h2>' +
+      '<section class="card"><div class="h2row"><h2>A · Growth &amp; metric grid — ' + levelWord() + ' in ' + esc(sc ? scopeLabel() : i.name) + ' (' + unitWord() + ')</h2>' +
       '<span class="mut small">Ranked within the area. ● = Zeta sells here. † = special base (hover). Click a blue column title to sort.' + (ST.level === 'classes' ? ' Click a class with ▸ to see its split.' : '') + '</span></div>' +
       grid(i, mem) + (ST.meas === 'su' && fin(i.su_coverage_pct) ? '<div class="note mut">SU estimated from pack counts for ' + fmtS(i.su_coverage_pct) + ' of this area\'s 2025 packs; the rest count one unit per pack.</div>' : '') +
+      (D.meta.ytd ? '<div class="note mut"><b>Share column:</b> ' + (fin(M(i).ytd_cur) ? '<b>Share ' + ytdLabel() + '</b> = share of this view\'s total in ' + esc(D.meta.ytd.months) + ' ' + D.meta.ytd.year + ' (IQVIA monthly extract), with the change against the same months of ' + (D.meta.ytd.year - 1) + '.'
+        : '<b>Share H1-26</b> (Total Market, Jan–Jun 2026, change vs full-year 2025). The ' + ytdLabel() + ' share needs IQVIA monthly data for the whole of this view, and the extract covers only ' + Math.round(M(i).ytd_cov || 0) + '% of it — open an ATC4 or DM1 market (filters above) to see the ' + ytdLabel() + ' share.') + '</div>' : '') +
+      (D.meta.ytd ? '<div class="note mut"><b>' + ytdLabel() + ' growth</b> = ' + esc(D.meta.ytd.months) + ' ' + D.meta.ytd.year + ' vs the same months of ' + (D.meta.ytd.year - 1) + ', from the IQVIA monthly extract (' + (ST.meas === 'value' ? 'LC Value' : 'Standard Units') + '). Shown only where that extract covers at least 95% of the row — our 59 ATC4 classes and DM markets; "—" elsewhere (hover for coverage). <b>CAGR</b> runs from the selected year (or the first full year after launch) to 2025.</div>' : '') +
       '<div id="md-drill">' + drillPanel() + '</div></section>' +
       '<div class="g2"><section class="card"><h2>B · Portfolio matrix</h2>' + matrix(mem) + '</section>' +
       '<section class="card"><h2>C · Treatment shift' + (sc && pairs.length ? ' <span class="mut small">(whole ' + esc(area.name) + ' area, not filtered)</span>' : '') + '</h2>' + (pairs.length ? pairs.map(shift).join('') :
@@ -174,14 +223,16 @@
     ROOT.querySelectorAll('#md-ov tr[data-id]').forEach(function (tr) { tr.classList.toggle('sel', tr.getAttribute('data-id') === area.id); });
   }
   function scopeBanner(sc, area) {
-    var t = sc.kind === 'atc4' ? 'Filtered to <b>' + esc(sc.name) + '</b> inside ' + esc(area.name) + '.'
-      : 'Filtered to our <b>' + sc.kind.toUpperCase() + '</b> market <b>' + esc(sc.name) + '</b> (packs as defined in the IQVIA extract, all therapeutic areas: ' + esc((sc.tas || []).join(', ')) + ').';
-    var rc = sc.kind !== 'atc4' && fin(sc.lcv_gap_pct) ? ' Mapped onto Total Market packs by pack name: 2025 LC Value ' + fmtV2(sc.m.value.su['2025']) + ' vs IQVIA ' + fmtV2(sc.iqvia_lcv2025) +
+    var isDM = !!(ST.f.dm1 || ST.f.dm2);
+    var t = 'Filtered to <b>' + esc(scopeLabel().replace(' (all areas)', '')) + '</b> ' + (ST.f.whole ? 'across all areas (' + esc((sc.tas || []).join(', ')) + ')' : 'inside ' + esc(area.name)) + '.' +
+      (isDM ? ' DM markets are the packs defined in the IQVIA extract.' : '') +
+      (fin(sc.share_of_market_pct) && sc.share_of_market_pct < 99.5 ? ' This area holds <b>' + Math.round(sc.share_of_market_pct) + '%</b> of the market\'s 2025 packs — tick "Whole market" to see all of it.' : '');
+    var rc = isDM && fin(sc.lcv_gap_pct) ? ' Mapped onto Total Market packs by pack name: 2025 LC Value ' + fmtV2(sc.m.value.su['2025']) + ' vs IQVIA ' + fmtV2(sc.iqvia_lcv2025) +
       ' (' + (sc.lcv_gap_pct >= 0 ? '+' : '') + sc.lcv_gap_pct.toFixed(1) + '%)' + (Math.abs(sc.lcv_gap_pct) > 1 ? ' — some packs are named differently in the two sources.' : '.') : '';
-    var sr = sc.kind !== 'atc4' && sc.iqvia_su2025 > 0 ? sc.m.su.su['2025'] / sc.iqvia_su2025 * 100 : null;
+    var sr = isDM && sc.iqvia_su2025 > 0 ? sc.m.su.su['2025'] / sc.iqvia_su2025 * 100 : null;
     if (fin(sr)) rc += ' SU (est.) 2025 = ' + Math.round(sr) + '% of IQVIA Standard Units' + (Math.abs(sr - 100) > 10 ? ' — pack counts could not be read for some packs here, so use Packs or LC Value for this market.' : '.');
-    var warn = sc.kind !== 'atc4' && (Math.abs(sc.lcv_gap_pct || 0) > 1 || (fin(sr) && Math.abs(sr - 100) > 10));
-    return '<div class="banner ' + (warn ? 'warn' : 'info') + '">' + t + rc + ' <button type="button" class="lnk" id="md-clr2">Clear filter ✕</button></div>';
+    var warn = isDM && (Math.abs(sc.lcv_gap_pct || 0) > 1 || (fin(sr) && Math.abs(sr - 100) > 10));
+    return '<div class="banner ' + (warn ? 'warn' : 'info') + '">' + t + rc + ' <button type="button" class="lnk" id="md-clr2">Clear all ✕</button></div>';
   }
   function fmtV2(v) { var a = Math.abs(v || 0); return 'EGP ' + (a >= 1e9 ? (v / 1e9).toFixed(2) + ' B' : a >= 1e6 ? (v / 1e6).toFixed(1) + ' M' : Math.round(v || 0).toLocaleString());
   }
@@ -197,7 +248,7 @@
         'of the area in H1 2026 · ' + fmtS(last && last.next_share_ind) + ' in 2025' + (h1 && fin(h1.share_chg_pts) ? ' (' + fmtPts(h1.share_chg_pts) + ')' : ''));
     } else pc = card('Zeta share 2025', fmtS(m.zeta_share2025), 'H1 2026: ' + fmtS(m.zeta_share_h1));
     return '<div class="kpis">' +
-      card((i.kind ? (i.kind === 'atc4' ? 'ATC4' : i.kind.toUpperCase() + ' market') : 'Area') + ' 2025 (' + unitWord() + ')', fmtV(m.su['2025']), fmtP(m.yoy['2025']) + ' · ' + fmtD(m.delta['2025']) + ' vs 2024 · ' + fmtS(share) + ' of the market') +
+      card((i.kind ? 'Filter' : 'Area') + ' 2025 (' + unitWord() + ')', fmtV(m.su['2025']), fmtP(m.yoy['2025']) + ' · ' + fmtD(m.delta['2025']) + ' vs 2024 · ' + fmtS(share) + ' of the market') +
       card('Acceleration', fmtPts(m.accel), 'YoY ' + fmtP(m.yoy['2024']) + ' → ' + fmtP(m.yoy['2025'])) +
       card('H1 2026 (Jan–Jun)', fmtV(m.h1), 'shown as volume only: no comparable H1 2025 in the source') + pc +
       (i.badge ? '<div class="kpi"><div class="kl">Outlook (provisional)</div><div class="kv">' + chip(BCLS, i.badge[ST.meas], 'badge big') + '</div>' +
@@ -206,14 +257,18 @@
   }
 
   function grid(i, mem) {
+    // Share column: YTD (IQVIA months, vs the same months last year) when the total of this view is covered by the
+    // IQVIA extract; otherwise the Total Market H1 2026 share vs full-year 2025.
+    var useY = fin(M(i).ytd_cur) && !!D.meta.ytd;
+    if (!mem.length && ST.level === 'dm1') return '<p class="mut">None of our DM1 markets sits in this area. Pick another area, or tick "Zeta areas only" to see the areas where we compete.</p>';
     var keyf = { su: function (o) { return M(o).su['2025'] || 0; }, yoy: function (o) { return fin(M(o).yoy['2025']) ? M(o).yoy['2025'] : -1e9; },
       accel: function (o) { return fin(M(o).accel) ? M(o).accel : -1e9; }, share: function (o) { return M(o).share2025 || 0; },
-      cagr: function (o) { return fin(M(o).cagr) ? M(o).cagr : -1e9; }, chg: function (o) { return fin(M(o).share_chg_pts) ? M(o).share_chg_pts : -1e9; } }[ST.sort] || function (o) { return M(o).su['2025'] || 0; };
+      cagr: function (o) { return fin(cg(M(o))[0]) ? cg(M(o))[0] : -1e9; }, ytd: function (o) { return fin(M(o).ytd) ? M(o).ytd : -1e9; }, chg: function (o) { var v = useY ? M(o).share_ytd_chg_pts : M(o).share_chg_pts; return fin(v) ? v : -1e9; } }[ST.sort] || function (o) { return M(o).su['2025'] || 0; };
     var rows = mem.slice().sort(function (a, b) { if (a.other) return 1; if (b.other) return -1; return keyf(b) - keyf(a); });
     function th(k, t) { return '<th class="r"' + (k ? ' data-sort="' + k + '"' : '') + '>' + t + (ST.sort === k ? ' ▾' : '') + '</th>'; }
-    var h = '<div class="tblwrap"><table class="tbl" id="md-grid"><thead><tr><th>' + ({ molecules: 'Molecule', brands: 'Brand', corps: 'Company', combo: 'Segment', form: 'Form' }[ST.level] || 'Class') + '</th>' +
-      Y.map(function (y) { return th(y === '2025' ? 'su' : null, y); }).join('') + th(null, 'H1 2026') + th(null, 'Δ 2025') + th('yoy', 'YoY 2025') + th(null, 'YoY 2024') +
-      th('accel', 'Accel.') + th('cagr', 'CAGR') + th('share', 'Share 2025') + th('chg', 'Share H1-26') + th(null, 'Rank vol / growth') + '<th>Quadrant</th>' + th(null, 'Zeta share') + '</tr></thead><tbody>';
+    var h = '<div class="tblwrap"><table class="tbl" id="md-grid"><thead><tr><th>' + ({ molecules: 'Molecule', brands: 'Brand', corps: 'Company', combo: 'Segment', form: 'Form', atc4: 'ATC4', dm1: 'DM1 market' }[ST.level] || 'Class') + '</th>' +
+      Y.map(function (y) { return th(y === '2025' ? 'su' : null, y); }).join('') + th(null, 'H1 2026') + th(null, 'Δ 2025') + th('ytd', ytdLabel() + ' growth') + th('yoy', 'YoY 2025') + th(null, 'YoY 2024') +
+      th('accel', 'Accel.') + th('cagr', 'CAGR ' + (ST.cg === '2023' ? '23' : '22') + '–25') + th('share', 'Share 2025') + th('chg', useY ? 'Share ' + ytdLabel().replace('YTD ', 'YTD ') : 'Share H1-26') + th(null, 'Rank vol / growth') + '<th>Quadrant</th>' + th(null, 'Zeta share') + '</tr></thead><tbody>';
     rows.forEach(function (o) {
       var m = M(o);
       var nm = esc(o.name) + (o.zeta_active ? ' <span class="dot" title="Zeta sells here">●</span>' : '') +
@@ -221,21 +276,25 @@
         (o.rule && o.rule.molecules ? ' · molecule rule' : '') + (o.rule && o.rule.components ? ' · ' + o.rule.components + '-molecule combos' : '') + '</div>';
       var dr = ST.level === 'classes' && D.drill && D.drill[o.id];
       if (dr) nm = '<span class="caret">' + (ST.drill === o.id ? '▾' : '▸') + '</span> ' + nm;
-      h += '<tr' + (o.other ? ' class="oth"' : dr ? ' class="drillable' + (ST.drill === o.id ? ' sel' : '') + '" data-cls="' + esc(o.id) + '"' : '') + '><td class="mk">' + nm + '</td>' + Y.map(function (y) { return '<td class="r num">' + fmtV(m.su[y]) + '</td>'; }).join('') +
-        '<td class="r num">' + fmtV(m.h1) + '</td><td class="r num">' + fmtD(m.delta['2025']) + '</td><td class="r">' + yoy(o, '2025') + '</td><td class="r">' + yoy(o, '2024') + '</td>' +
+      var fv = !o.other && !ST.scope && (ST.level === 'atc4' ? o.code : ST.level === 'dm1' ? o.name : '');
+      if (fv) nm = '<span class="caret">▸</span> ' + nm;
+      h += '<tr' + (o.other ? ' class="oth"' : dr ? ' class="drillable' + (ST.drill === o.id ? ' sel' : '') + '" data-cls="' + esc(o.id) + '"' : fv ? ' class="drillable" data-flt="' + ST.level + '" data-fv="' + esc(fv) + '"' : '') + '><td class="mk">' + nm + '</td>' + Y.map(function (y) { return '<td class="r num">' + fmtV(m.su[y]) + '</td>'; }).join('') +
+        '<td class="r num">' + fmtV(m.h1) + '</td><td class="r num">' + fmtD(m.delta['2025']) + '</td><td class="r">' + ytdCell(m) + '</td><td class="r">' + yoy(o, '2025') + '</td><td class="r">' + yoy(o, '2024') + '</td>' +
         '<td class="r num' + (m.accel < 0 ? ' neg' : '') + '">' + fmtPts(m.accel) + '</td>' +
-        '<td class="r num">' + (fin(m.cagr) ? fmtP(m.cagr) + '<div class="mut tiny">' + esc(m.window) + '</div>' : '—') + '</td>' +
+        '<td class="r num">' + (fin(cg(m)[0]) ? fmtP(cg(m)[0]) + '<div class="mut tiny">' + esc(cg(m)[1]) + '</div>' : '—') + '</td>' +
         '<td class="r num">' + fmtS(m.share2025) + '<div class="mut tiny">fair ' + fmtS(m.fair_share) + '</div></td>' +
-        '<td class="r num">' + fmtS(m.share_h1) + '<div class="tiny ' + (m.share_chg_pts < 0 ? 'neg' : 'mut') + '">' + fmtPts(m.share_chg_pts) + '</div></td>' +
+        (useY ? '<td class="r num">' + (fin(m.share_ytd) ? fmtS(m.share_ytd) + '<div class="tiny ' + (m.share_ytd_chg_pts < 0 ? 'neg' : 'mut') + '">' + fmtPts(m.share_ytd_chg_pts) + '</div>' : '<span class="mut">—</span>') + '</td>'
+          : '<td class="r num">' + fmtS(m.share_h1) + '<div class="tiny ' + (m.share_chg_pts < 0 ? 'neg' : 'mut') + '">' + fmtPts(m.share_chg_pts) + '</div></td>') +
         '<td class="r num">' + (m.rank_volume || '—') + ' / ' + (m.rank_growth || '—') + '</td><td>' + (o.other ? '<span class="mut small">not ranked</span>' : chip(QCLS, m.quadrant)) + '</td>' +
         '<td class="r num">' + fmtS(m.zeta_share2025) + '</td></tr>';
     });
     var im = M(i);
     h += '<tr class="tot"><td>' + (i.kind ? 'Filter total' : 'Area total') + '</td>' + Y.map(function (y) { return '<td class="r num">' + fmtV(im.su[y]) + '</td>'; }).join('') +
-      '<td class="r num">' + fmtV(im.h1) + '</td><td class="r num">' + fmtD(im.delta['2025']) + '</td><td class="r">' + yoy(i, '2025') + '</td><td class="r">' + yoy(i, '2024') + '</td>' +
-      '<td class="r num">' + fmtPts(im.accel) + '</td><td class="r num">' + (fin(im.cagr) ? fmtP(im.cagr) : '—') + '</td><td class="r num">100%</td><td class="r num">100%</td><td></td><td></td>' +
+      '<td class="r num">' + fmtV(im.h1) + '</td><td class="r num">' + fmtD(im.delta['2025']) + '</td><td class="r">' + ytdCell(im) + '</td><td class="r">' + yoy(i, '2025') + '</td><td class="r">' + yoy(i, '2024') + '</td>' +
+      '<td class="r num">' + fmtPts(im.accel) + '</td><td class="r num">' + (fin(cg(im)[0]) ? fmtP(cg(im)[0]) : '—') + '</td><td class="r num">100%</td><td class="r num">100%</td><td></td><td></td>' +
       '<td class="r num">' + fmtS(im.zeta_share2025) + '</td></tr>';
-    return h + '</tbody></table></div>' + (ST.level === 'combo' ? '<div class="note mut">Plain = single molecule; Combination = two or more molecules in one product (e.g. empagliflozin + metformin).</div>' :
+    return h + '</tbody></table></div>' + (ST.level === 'atc4' ? '<div class="note mut">Every ATC4 of this area (IMS filing). Fair share = 1 / number of ATC4s here. Click a row to open it as a filter (molecules, brands, companies, DM1 markets inside it).</div>' :
+      ST.level === 'dm1' ? '<div class="note mut">Our DM1 markets as defined in the IQVIA extract, mapped onto Total Market packs; the rest of the area is one unranked row so shares add to 100%. Fair share = 1 / number of DM1 markets here. Click a row to open it as a filter.</div>' : ST.level === 'combo' ? '<div class="note mut">Plain = single molecule; Combination = two or more molecules in one product (e.g. empagliflozin + metformin).</div>' :
       ST.level === 'form' ? '<div class="note mut">Form from IMS, with sachets taken from the product name (IMS files many sachets as solid oral). Injectables = vials and ampoules.</div>' : ST.scope && ['molecules', 'brands', 'corps'].indexOf(ST.level) >= 0 ? '<div class="note mut">Top 15 by 2025 + H1 2026 volume; the rest are grouped and not ranked. Shares are of the filter total.</div>' : ST.level === 'molecules' ? '<div class="note mut">Top ' + D.meta.n_molecules_top + ' molecules by packs in this area; the rest are grouped and not ranked. Combinations count as their own molecule.</div>' :
       '<div class="note mut">"Share H1-26" = share of the area in January–June 2026 and its change against the full-year 2025 share (a like-for-like share, not growth).</div>');
   }
@@ -374,8 +433,9 @@
 
   function outlook(i, sc) {
     var mk = (D.forecast || []).filter(function (m) {
-      if (sc && sc.kind === 'atc4') return m.atc4 === sc.code;
-      if (sc) return m.type + '|' + m.name === sc.id;
+      var f = ST.f;
+      if (sc && (f.dm1 || f.dm2)) return (f.dm1 && m.type === 'DM1' && m.name === f.dm1) || (f.dm2 && m.type === 'DM2' && m.name === f.dm2);
+      if (sc && f.atc) return m.atc4 === f.atc;
       return m.indication === i.id; })
       .sort(function (a, b) { return a.type === b.type ? (b.le || 0) - (a.le || 0) : (a.type < b.type ? -1 : 1); });
     var h = '<section class="card"><div class="h2row"><h2>D · FY2027 outlook — our markets, champion forecast</h2><span class="unitchip">IQVIA Standard Units — a different measure from A–C</span></div>';
@@ -413,31 +473,33 @@
   }
   function rerender() { controls(); overview(); detail(); }
   function wire() {
-    ROOT.querySelector('#md-ind').addEventListener('change', function (e) { ST.ind = e.target.value; ST.drill = null; ST.ovAll = false; if (ST.scope && ST.scope.split('|')[0] === 'A') ST.scope = null;
-      if (ST.level === 'brands' || ST.level === 'corps') ST.level = ST.scope ? ST.level : 'classes'; controls(); overview(); detail(); });
-    function setScope(v) {
-      ST.scope = v || null; ST.drill = null; ST.sort = 'su';
-      var lv = levels().map(function (l) { return l[0]; }); if (lv.indexOf(ST.level) < 0) ST.level = ST.scope ? 'molecules' : 'classes';
-      if (ST.scope && ST.scope.split('|')[0] !== 'A') {
-        var hit = (D.meta.scope_index[ST.scope.split('|')[0].toLowerCase()] || []).filter(function (x) { return x[0] === ST.scope; })[0];
-        if (hit && hit[2] && hit[2].length && hit[2].indexOf(ind().id) < 0 && D.indications.some(function (x) { return x.id === hit[2][0]; })) { ST.ind = hit[2][0]; ST.zeta = ST.zeta && (D.meta.zeta_areas || []).indexOf(ST.ind) >= 0; }
-      }
-      ST.ovAll = false; controls(); overview(); detail();
-    }
-    ['#md-atc', '#md-dm1', '#md-dm2'].forEach(function (sel) { ROOT.querySelector(sel).addEventListener('change', function (e) { setScope(e.target.value); }); });
-    ROOT.querySelector('#md-clr').addEventListener('click', function () { setScope(null); });
+    ROOT.querySelector('#md-ind').addEventListener('change', function (e) { ST.ind = e.target.value; ST.drill = null; ST.ovAll = false; ST.f.whole = false; controls(); overview(); detail(); });
+    ROOT.querySelector('#md-cg').addEventListener('click', function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST.cg = b.getAttribute('data-v'); controls(); overview(); detail(); });
+    function refilter() { ST.drill = null; ST.sort = 'su'; ST.ovAll = false; controls(); overview(); detail(); }
+    ROOT.querySelector('#md-atc').addEventListener('change', function (e) { ST.f.atc = e.target.value; refilter(); });
+    ROOT.querySelector('#md-dm1').addEventListener('change', function (e) { ST.f.dm1 = e.target.value; refilter(); });
+    ROOT.querySelector('#md-dm2').addEventListener('change', function (e) { ST.f.dm2 = e.target.value; refilter(); });
+    ROOT.querySelector('#md-whole').addEventListener('change', function (e) { ST.f.whole = e.target.checked; refilter(); });
+    ROOT.querySelector('#md-clr').addEventListener('click', function () { ST.f = { atc: '', dm1: '', dm2: '', whole: false }; refilter(); });
+    ROOT.querySelector('#md-chips').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-rm]'); if (!b) return; var k = b.getAttribute('data-rm');
+      if (k === 'area') ST.f.whole = false; else ST.f[k] = ''; refilter();
+    });
     ROOT.querySelector('#md-ov-all').addEventListener('click', function () { ST.ovAll = !ST.ovAll; overview(); });
     ROOT.querySelector('#md-meas').addEventListener('click', function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST.meas = b.getAttribute('data-v'); rerender(); });
     ROOT.querySelector('#md-lvl').addEventListener('click', function (e) { var b = e.target.closest('button[data-v]'); if (!b) return; ST.level = b.getAttribute('data-v'); controls(); detail(); });
     ROOT.querySelector('#md-zeta').addEventListener('change', function (e) { ST.zeta = e.target.checked; ST.drill = null; rerender(); });
     ROOT.querySelector('#md-ov').addEventListener('click', function (e) {
-      var tr = e.target.closest('tr[data-id]'); if (!tr) return; ST.ind = tr.getAttribute('data-id'); ST.drill = null; if (ST.scope && ST.scope.split('|')[0] === 'A') { ST.scope = null; if (ST.level === 'brands' || ST.level === 'corps') ST.level = 'classes'; } controls(); overview(); detail();
+      var tr = e.target.closest('tr[data-id]'); if (!tr) return; ST.ind = tr.getAttribute('data-id'); ST.drill = null; ST.f.whole = false; controls(); overview(); detail();
       var d = ROOT.querySelector('#md-detail'); if (d && d.scrollIntoView) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     ROOT.querySelector('#md-detail').addEventListener('click', function (e) {
       var th = e.target.closest('th[data-sort]'); if (th) { ST.sort = th.getAttribute('data-sort'); detail(); return; }
       if (e.target.closest('[data-close]')) { ST.drill = null; detail(); return; }
       if (e.target.closest('#md-clr2')) { ROOT.querySelector('#md-clr').click(); return; }
+      var ft = e.target.closest('tr[data-flt]');
+      if (ft) { var k = ft.getAttribute('data-flt') === 'atc4' ? 'atc' : 'dm1'; ST.f = { atc: '', dm1: '', dm2: '', whole: false }; ST.f[k] = ft.getAttribute('data-fv');
+        ST.drill = null; ST.sort = 'su'; controls(); overview(); detail(); var top = ROOT.querySelector('#md-detail'); if (top && top.scrollIntoView) top.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       var dc = e.target.closest('tr[data-cls]');
       if (dc) { var id = dc.getAttribute('data-cls'); ST.drill = ST.drill === id ? null : id; detail(); var el = ROOT.querySelector('#md-drill'); if (ST.drill && el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
       var tr = e.target.closest('tr[data-mk]'); if (tr) openForecast(tr.getAttribute('data-mk'));
@@ -465,8 +527,9 @@
     try {
       D = D || decode();
       if (!D || !D.molecules) { ROOT.innerHTML = '<div style="padding:24px">Market dynamics data not loaded (cache/market_dynamics.data.js). Run UPDATE_DASHBOARD.bat or <code>python etl/build_market_dynamics.py --cache</code>.</div>'; return; }
-      var sv = loadState(); if (sv) { ST.ind = sv.ind || null; ST.scope = typeof sv.scope === 'string' ? sv.scope : null;
-        ST.level = (ST.scope ? ['molecules', 'brands', 'corps', 'combo', 'form'] : ['classes', 'molecules', 'combo', 'form']).indexOf(sv.level) >= 0 ? sv.level : (ST.scope ? 'molecules' : 'classes'); ST.sort = sv.sort || 'su';
+      var sv = loadState(); if (sv) { ST.ind = sv.ind || null; ST.cg = sv.cg === '2023' ? '2023' : '2022'; var sf = sv.f && typeof sv.f === 'object' ? sv.f : {};
+        ST.f = { atc: String(sf.atc || ''), dm1: String(sf.dm1 || ''), dm2: String(sf.dm2 || ''), whole: !!sf.whole }; ST.scope = null;
+        ST.level = ['classes', 'atc4', 'dm1', 'molecules', 'brands', 'corps', 'combo', 'form'].indexOf(sv.level) >= 0 ? sv.level : 'classes'; ST.sort = sv.sort || 'su';
         ST.meas = ['su', 'units', 'value'].indexOf(sv.meas) >= 0 ? sv.meas : 'su'; ST.zeta = !!sv.zeta; ST.drill = null; }
       if (!ST.ind || !D.indications.some(function (i) { return i.id === ST.ind; })) ST.ind = (D.indications.find(function (i) { return i.id === 'Gastroenterology'; }) || inds()[0]).id;
       ROOT.innerHTML = shell();

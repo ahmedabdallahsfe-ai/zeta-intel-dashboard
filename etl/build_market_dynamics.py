@@ -181,6 +181,13 @@ def metrics(annual: dict, low_base: float):
         m["cagr"] = ((su[2025] / su[start]) ** (1.0 / (2025 - start)) - 1.0) * 100.0 if su[2025] > 0 else -100.0
     else:
         m["window"], m["cum_delta"], m["cagr"] = None, None, None
+    # CAGR from a chosen start year (UI selector, 2026-10-13): starts at that year, or later if the row launched later
+    s23 = next((y for y in FULL[:-1] if y >= 2023 and su[y] > 0 and not (launched and y == first)), None)
+    if s23 is not None and 2025 - s23 >= 2:
+        m["window23"] = f"{s23}–{str(2025)[2:]}"
+        m["cagr23"] = ((su[2025] / su[s23]) ** (1.0 / (2025 - s23)) - 1.0) * 100.0 if su[2025] > 0 else -100.0
+    else:
+        m["window23"], m["cagr23"] = None, None
     return m
 
 
@@ -233,6 +240,7 @@ def dm_mapping(L, F, col, iqvia_path):
     pd2 = np.full(len(L["products"]), -1)
     unmatched = []
     exact = set()
+    prod_of_item = {}
     for it, (c, d1, d2, pr) in item.items():
         cand = pidx.get(nz(QL["items"][it]), [])
         if not cand:
@@ -243,6 +251,7 @@ def dm_mapping(L, F, col, iqvia_path):
             qc = nz(QL["corps"][c])[:6]
             cand = [x for x in cand if nz(L["corps"][corp_of_prod.get(x, 0)])[:6] == qc] or cand
         pd1[cand[0]], pd2[cand[0]] = d1, d2
+        prod_of_item[it] = cand[0]
     still = []
     for it in unmatched:
         c, d1, d2, pr = item[it]
@@ -254,6 +263,7 @@ def dm_mapping(L, F, col, iqvia_path):
             still.append(it)
             continue
         pd1[sc_[0][1]], pd2[sc_[0][1]] = d1, d2
+        prod_of_item[it] = sc_[0][1]
     unmatched = still
     py = np.array([int(p_[:4]) for p_ in QL["periods"]])
     m25 = py[f[:, 2]] == 2025
@@ -262,7 +272,26 @@ def dm_mapping(L, F, col, iqvia_path):
         lc = np.bincount(f[m25, ci], weights=f[m25, 6], minlength=len(QL[lk]))
         su = np.bincount(f[m25, ci], weights=f[m25, 7], minlength=len(QL[lk]))
         iq[lk] = {n: (float(lc[i]), float(su[i])) for i, n in enumerate(QL[lk])}
-    return pd1[F[:, col["product"]]], pd2[F[:, col["product"]]], QL["dm1s"], QL["dm2s"], iq, len(unmatched)
+    # YTD (Jan..last month of the extract) this year vs the same months last year, per Total Market product
+    last = QL["periods"][-1]
+    ly, lm = int(last[:4]), int(last[5:7])
+    pm = np.array([int(p_[5:7]) for p_ in QL["periods"]])
+    cur = (py[f[:, 2]] == ly) & (pm[f[:, 2]] <= lm)
+    prv = (py[f[:, 2]] == ly - 1) & (pm[f[:, 2]] <= lm)
+    ytd = np.zeros((len(L["products"]), 4))                            # su cur, su prev, lcv cur, lcv prev
+    mapped = np.zeros(len(L["products"]), bool)
+    itp = np.full(len(QL["items"]), -1)
+    for it, pr_ in prod_of_item.items():
+        itp[it] = pr_
+    rp = itp[f[:, 12]]
+    ok = rp >= 0
+    for j, (msk_, ci) in enumerate(((cur, 7), (prv, 7), (cur, 6), (prv, 6))):
+        mm = ok & msk_
+        ytd[:, j] = np.bincount(rp[mm], weights=f[mm, ci], minlength=len(L["products"]))
+    mapped[rp[ok]] = True
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    ytd_info = {"label": f"YTD {months[lm - 1]} {ly}", "months": f"Jan–{months[lm - 1]}", "year": ly, "last_month": lm}
+    return (pd1[F[:, col["product"]]], pd2[F[:, col["product"]]], QL["dm1s"], QL["dm2s"], iq, len(unmatched), ytd, mapped, ytd_info)
 
 
 # ----------------------------------------------------------------------------- build
@@ -328,15 +357,51 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
     for a in range(len(L["atc4s"])):
         atc_name.setdefault(L["atc4s"][a].split(" ")[0], L["atc4s"][a])
 
+    try:
+        rdm1, rdm2, dm1n, dm2n, iq, n_unm, P_YTD, P_MAPPED, YTD_INFO = dm_mapping(L, F, col, iqvia_path)
+    except Exception as e:                                              # noqa: BLE001
+        print("  DM1/DM2 mapping and YTD skipped:", e)
+        rdm1 = rdm2 = np.full(len(F), -1)
+        dm1n, dm2n, iq, n_unm = [], [], {"dm1s": {}, "dm2s": {}}, None
+        P_YTD, P_MAPPED, YTD_INFO = np.zeros((len(L["products"]), 4)), np.zeros(len(L["products"]), bool), None
+    row_prod = F[:, col["product"]]
+    row_mapped = P_MAPPED[row_prod]
+    YTD_MIN_COVER = 95.0
+
+    def ytd_of(mask):
+        """YTD growth from the IQVIA monthly extract for the Total Market rows in mask; None unless the IQVIA extract
+        covers >= 95% of the group's 2025 LC Value (the extract only holds Zeta's 59 ATC4 classes)."""
+        if YTD_INFO is None:
+            return None, None
+        m25 = mask & (yidx == 2025)
+        v = V[m25].sum()
+        cov = float(V[m25 & row_mapped].sum() / v * 100) if v > 0 else 0.0
+        if cov < YTD_MIN_COVER:
+            return None, cov
+        prods = np.unique(row_prod[mask & row_mapped])
+        t = P_YTD[prods].sum(axis=0)
+        g_su = (t[0] / t[1] - 1) * 100 if t[1] > 0 else None
+        g_lc = (t[2] / t[3] - 1) * 100 if t[3] > 0 else None
+        return (g_su, g_lc, t), cov
+
     def annual(mask):
-        out = {}
+        out = {"_mask": mask}
         for meas in MEAS:
             v = np.bincount(np.searchsorted(years, yidx[mask]), weights=AMT[meas][mask], minlength=len(years))
             out[meas] = {y: float(v[i]) for i, y in enumerate(years)}
         return out
 
     def block(ann):
-        return {meas: metrics(ann[meas], low_base) for meas in MEAS}
+        b = {meas: metrics(ann[meas], low_base) for meas in MEAS}
+        if "_mask" in ann:
+            g, cov = ytd_of(ann["_mask"])
+            for meas in MEAS:
+                b[meas]["ytd"] = None if g is None else (g[1] if meas == "value" else g[0])
+                b[meas]["ytd_cov"] = cov
+                # raw YTD sums (SU, or LC Value for the value measure) for YTD shares in finalize()
+                b[meas]["ytd_cur"] = None if g is None else float(g[2][2] if meas == "value" else g[2][0])
+                b[meas]["ytd_prev"] = None if g is None else float(g[2][3] if meas == "value" else g[2][1])
+        return b
 
     def finalize(group, base):
         fair = 100.0 / max(1, len([c for c in group if not c.get("other")]))
@@ -351,6 +416,13 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
                 cm["share_h1"] = cm["h1"] / im["h1"] * 100 if im["h1"] > 0 else None
                 cm["share_chg_pts"] = (cm["share_h1"] - cm["share2025"]) if (cm["share_h1"] is not None and cm["share2025"] is not None) else None
                 cm["fair_share"] = fair
+                # YTD share (IQVIA months, like-for-like vs the same months last year) when the parent is covered
+                if im.get("ytd_cur") and cm.get("ytd_cur") is not None:
+                    cm["share_ytd"] = cm["ytd_cur"] / im["ytd_cur"] * 100
+                    cm["share_ytd_prev"] = cm["ytd_prev"] / im["ytd_prev"] * 100 if im.get("ytd_prev") else None
+                    cm["share_ytd_chg_pts"] = cm["share_ytd"] - cm["share_ytd_prev"] if cm["share_ytd_prev"] is not None else None
+                else:
+                    cm["share_ytd"] = cm["share_ytd_prev"] = cm["share_ytd_chg_pts"] = None
                 z = c.get("zeta")
                 cm["zeta_share2025"] = (z[meas].get(2025, 0) / cm["su"][2025] * 100) if (z and cm["su"][2025] > 0) else None
             ranked = [c for c in group if not c.get("other")]
@@ -493,39 +565,83 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
                      "tas": [L["tas"][i] for i in np.argsort(-tas_) if tas_[i] > 0],
                      "su_coverage_pct": float(U[p25 & row_counted].sum() / U[p25].sum() * 100) if U[p25].sum() > 0 else None}, **extra)
 
-    scopes, scope_index = {}, {"atc4": {}, "dm1": [], "dm2": []}
+    # Cascading filters (best practice, 2026-10-13): Area -> ATC4 -> DM1 -> DM2, combined with AND.
+    # Every non-empty combination is pre-computed once; combinations that select exactly the same rows share one scope.
+    # Key = "ta|atc4code|dm1|dm2" ("" = not set; ta "*" = the whole DM market across all areas).
+    scopes, alias, sig_sid, dm_recon = {}, {}, {}, []
     row_atc = F[:, col["atc4"]]
-    for ta in tas:
-        tm = row_ta == ta
-        lst = []
-        for a in sorted(set(row_atc[tm & (yidx >= 2024)].tolist())):
-            msk = tm & (row_atc == a)
-            if U[msk & (yidx >= 2024)].sum() <= 0:
-                continue
-            sid = "A|" + ta + "|" + L["atc4s"][a].split(" ")[0]
-            scopes[sid] = scope_obj(sid, "atc4", L["atc4s"][a], msk, ta=ta, code=L["atc4s"][a].split(" ")[0])
-            lst.append([sid, L["atc4s"][a]])
-        scope_index["atc4"][ta] = lst
-    dm_recon = []
-    try:
-        rdm1, rdm2, dm1n, dm2n, iq, n_unm = dm_mapping(L, F, col, iqvia_path)
-        for kind, rdm, names, lk in (("dm1", rdm1, dm1n, "dm1s"), ("dm2", rdm2, dm2n, "dm2s")):
-            for i, nm in enumerate(names):
-                if nm == "OTHER MARKET":
-                    continue
-                msk = rdm == i
-                lc_iq, su_iq = iq[lk].get(nm, (0.0, 0.0))
-                lc_mi = float(V[msk & (yidx == 2025)].sum())
-                gap = (lc_mi / lc_iq - 1) * 100 if lc_iq > 0 else None
-                dm_recon.append((kind.upper(), nm, lc_iq, lc_mi, gap))
-                if not msk.any():
-                    continue
-                sid = kind.upper() + "|" + nm
-                scopes[sid] = scope_obj(sid, kind, nm, msk, iqvia_lcv2025=lc_iq, iqvia_su2025=su_iq, lcv_gap_pct=gap)
-                scope_index[kind].append([sid, nm, scopes[sid]["tas"][:3]])
-    except Exception as e:                                              # noqa: BLE001
-        print("  DM1/DM2 mapping skipped:", e)
-        n_unm = None
+    code_of = [x.split(" ")[0] for x in L["atc4s"]]
+    for names, arr in ((dm1n, rdm1), (dm2n, rdm2)):
+        if "OTHER MARKET" in names:
+            arr[arr == names.index("OTHER MARKET")] = -1
+    live = (yidx >= 2024) & (U > 0)
+    combos = sorted(set(zip(F[live, col["ta"]].tolist(), row_atc[live].tolist(), rdm1[live].tolist(), rdm2[live].tolist())))
+    findex = []                                                          # leaf combinations for the cascading option lists
+    for t, a_, d1, d2 in combos:
+        findex.append([L["tas"][t], code_of[a_], dm1n[d1] if d1 >= 0 else "", dm2n[d2] if d2 >= 0 else ""])
+    atc_names = {code_of[i]: L["atc4s"][i] for i in range(len(L["atc4s"]))}
+    keys = set()
+    for t, a_, d1, d2 in combos:
+        for A in (a_, None):
+            for D1 in ((d1, None) if d1 >= 0 else (None,)):
+                for D2 in ((d2, None) if d2 >= 0 else (None,)):
+                    if A is not None or D1 is not None or D2 is not None:
+                        keys.add((t, A, D1, D2))
+                    if A is None and (D1 is not None or D2 is not None):
+                        keys.add((-1, None, D1, D2))                    # whole market, all areas
+    whole_su = {}
+    for t, A, D1, D2 in sorted(keys, key=lambda k: (k[0] != -1, [-2 if x is None else x for x in k])):     # whole-market scopes first
+        msk = np.ones(len(F), bool) if t == -1 else (F[:, col["ta"]] == t)
+        if A is not None:
+            msk &= row_atc == A
+        if D1 is not None:
+            msk &= rdm1 == D1
+        if D2 is not None:
+            msk &= rdm2 == D2
+        k = "|".join(["*" if t == -1 else L["tas"][t], code_of[A] if A is not None else "", dm1n[D1] if D1 is not None else "", dm2n[D2] if D2 is not None else ""])
+        sig = hash(np.flatnonzero(msk).tobytes())
+        if sig in sig_sid:
+            alias[k] = sig_sid[sig]
+            continue
+        sid = "S" + str(len(scopes))
+        sig_sid[sig] = sid
+        alias[k] = sid
+        parts = k.split("|")
+        extra = {"key": k, "ta": parts[0], "code": parts[1], "dm1": parts[2], "dm2": parts[3]}
+        if D1 is not None or D2 is not None:
+            wk = ("", D1, D2)
+            if t == -1:
+                lc = float(V[msk & (yidx == 2025)].sum())
+                iqs = [iq["dm1s"].get(dm1n[D1]) if D1 is not None else None, iq["dm2s"].get(dm2n[D2]) if D2 is not None else None]
+                ref = iqs[0] if (D1 is not None and D2 is None) else iqs[1] if (D2 is not None and D1 is None) else None
+                if ref:
+                    extra.update(iqvia_lcv2025=ref[0], iqvia_su2025=ref[1], lcv_gap_pct=(lc / ref[0] - 1) * 100 if ref[0] > 0 else None)
+                    dm_recon.append(("DM1" if D2 is None else "DM2", dm1n[D1] if D2 is None else dm2n[D2], ref[0], lc, extra["lcv_gap_pct"]))
+                whole_su[wk] = float(U[msk & (yidx == 2025)].sum())
+            elif A is None and whole_su.get(wk):
+                extra["share_of_market_pct"] = float(U[msk & (yidx == 2025)].sum()) / whole_su[wk] * 100
+        nm = " · ".join(x for x in [atc_names.get(parts[1], "") if parts[1] else "", ("DM1 " + parts[2]) if parts[2] else "", ("DM2 " + parts[3]) if parts[3] else ""] if x)
+        scopes[sid] = scope_obj(sid, "filter", nm, msk, **extra)
+
+    # 2d. area-level views "ATC4" and "DM1 markets" (2026-10-13, Ahmed): one row per ATC4 / DM1 market in the area,
+    #     same metrics as the class grid; packs outside any DM1 market form one unranked "rest of area" row.
+    row_atc_lab = np.array(L["atc4s"], dtype=object)[row_atc]
+    DM_REST = "Rest of area (not in a DM1 market)"
+    row_dm1_lab = np.array([dm1n[i] if i >= 0 else DM_REST for i in range(len(dm1n))] + [DM_REST], dtype=object)[np.where(rdm1 >= 0, rdm1, len(dm1n))]
+    for ind in ind_out:
+        tm = row_ta == ind["id"]
+        ga = segments(tm, row_atc_lab, ind["id"])
+        for c in ga:
+            c["code"] = c["name"].split(" ")[0]
+        gd = segments(tm, row_dm1_lab, ind["id"])
+        for c in gd:
+            if c["name"] == DM_REST:
+                c["other"] = True
+        gd.sort(key=lambda c: (bool(c.get("other")), -(c["m"]["su"]["su"][2025] + c["m"]["su"]["h1"])))
+        finalize(ga, ind["m"])
+        finalize(gd, ind["m"])
+        ind["splits"]["atc4"] = ga
+        ind["splits"]["dm1"] = gd if any(not c.get("other") for c in gd) else []
 
     # 3. treatment shift (within the pair's therapeutic area)
     pairs_out = []
@@ -693,9 +809,13 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
                    f"{_pu_new_before/_pu_part*100:.1f}% -> {_pu_left/_pu_part*100:.1f}%", f"of H1 packs ({len(molmap)} names mapped)", None))
     if dm_recon:
         ok_ = [r for r in dm_recon if r[4] is not None and abs(r[4]) <= 1.0]
-        checks.append(("DM1/DM2 markets mapped from the IQVIA extract onto Total Market packs by pack name: markets whose 2025 LC Value matches IQVIA within 1%",
+        checks.append(("DM1/DM2 markets mapped from the IQVIA extract onto Total Market packs by pack name: distinct markets (DM2 markets identical to a DM1 counted once) whose 2025 LC Value matches IQVIA within 1%",
                        len(ok_), f"of {len(dm_recon)} markets (worst: " + ", ".join(f"{r[1]} {r[4]:+.1f}%" if r[4] is not None else f"{r[1]} n/a"
                                                                          for r in sorted(dm_recon, key=lambda r: -abs(r[4]) if r[4] is not None else -1e9)[:4]) + ")", None))
+    if YTD_INFO:
+        na = [c for i_ in ind_out for c in i_["splits"].get("atc4", [])]
+        checks.append((f"{YTD_INFO['label']} growth (IQVIA monthly extract) shown for ATC4 rows that the extract covers at least {YTD_MIN_COVER:.0f}% (2025 LC Value)",
+                       sum(1 for c in na if c["m"]["su"].get("ytd") is not None), f"of {len(na)} area x ATC4 rows", None))
     nofc = [f_["name"] for f_ in out_fc if not f_["indication"]]
     checks.append(("Forecast markets placed in a therapeutic area", len(out_fc) - len(nofc), f"of {len(out_fc)}", not nofc))
     bad = 0
@@ -716,7 +836,10 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
             "n_atc4": len(set(L["atc4s"])), "n_molecules_top": top_molecules,
             "zeta_corp": src.get("zeta_corp", "ZETA PHARM*"),
             "zeta_areas": [i["id"] for i in ind_out if (i["zeta"]["units"].get(2025, 0) + i["zeta"]["units"].get(H1, 0)) > 0]}
-    meta["scope_index"] = scope_index
+    meta["filter_index"] = findex
+    meta["filter_alias"] = alias
+    meta["ytd"] = dict(YTD_INFO or {}, source="IQVIA monthly extract (cache/iqvia.json)", min_cover_pct=YTD_MIN_COVER) if YTD_INFO else None
+    meta["atc_names"] = {r[1]: atc_names.get(r[1], r[1]) for r in findex}
     return {"meta": meta, "indications": ind_out, "classes": cls_out, "molecules": mol_out, "pairs": pairs_out, "drill": drill, "scopes": scopes, "dm_recon": dm_recon,
             "forecast": out_fc, "checks": checks, "config": cfg,
             "mapping": [(L["atc4s"][a], L["molecules"][mo], cmap[(a, mo)]) for a, mo in am.tolist()]}
@@ -953,7 +1076,7 @@ def write_cache(M, path=CACHE_OUT):
     os.replace(tmp, path)
     # scopes (ATC4 / DM1 / DM2 filters): a second file, loaded only when a filter is used
     gk = ("su", "h1", "delta", "yoy", "yoy_label", "accel", "cagr", "window", "share2025", "share_h1", "share_chg_pts", "fair_share",
-          "rank_volume", "rank_growth", "quadrant", "zeta_share2025", "zeta_share_h1")
+          "rank_volume", "rank_growth", "quadrant", "zeta_share2025", "zeta_share_h1", "ytd", "ytd_cov", "cagr23", "window23", "ytd_cur", "share_ytd", "share_ytd_chg_pts")
     def sl(o):
         return {ms: {k: v for k, v in o[ms].items() if k in gk} for ms in o}
     sc = {sid: {k: (sl(v) if k == "m" else {lv: [{kk: (sl(x["m"]) if kk == "m" else x[kk]) for kk in ("id", "name", "m", "other", "zeta_active") if kk in x} for x in g]
