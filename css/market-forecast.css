@@ -157,3 +157,14 @@ body.mfc-mode #ask-panel-slot:empty{display:none}
 .mfc .tbl.itbl tr.irow{cursor:pointer}
 .mfc .tbl.itbl tr.irow:hover td{background:var(--primary-light)}
 .mfc .tbl.itbl tr.sel td{background:color-mix(in srgb,var(--hi-bg) 70%,transparent);font-weight:600}
+/* 2026-10-15: brand totals in the by-item table */
+.mfc .tbl.itbl tr.brow td{background:color-mix(in srgb,var(--primary-light) 70%,transparent);font-weight:600;border-top:2px solid var(--border-strong)}
+.mfc .tbl.itbl tr.trow td{background:var(--surface-alt);font-weight:700;border-bottom:2px solid var(--border-strong)}
+.mfc .tbl.itbl .ind{color:var(--fg-3);margin-left:8px}
+/* 2026-10-15: BEX v2 — item inputs, market edit, clear */
+.mfc input.bexi,.mfc input.bexm{width:78px;font:inherit;text-align:right;padding:3px 6px;border:1px solid var(--primary);border-radius:6px;background:var(--surface);color:var(--fg)}
+.mfc input.bexm{width:90px;border-color:var(--mo)}
+.mfc .xbtn.danger{border-color:var(--lo);color:var(--lo)} .mfc .xbtn.danger:hover{background:var(--lo);color:#fff}
+.mfc .xbtn[disabled]{opacity:.45;cursor:default;pointer-events:none}
+.mfc .warnt{color:var(--mo)}
+.mfc td.bexc{white-space:nowrap}
