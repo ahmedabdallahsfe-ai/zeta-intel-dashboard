@@ -276,7 +276,7 @@
   function itemPrice(i) { return i.s6 && i.s6[0] > 0 ? i.s6[1] / i.s6[0] : (i.mat && i.mat[0] > 0 ? i.mat[1] / i.mat[0] : null); }
   // BEX numbers for the current Zeta selection of market r (sum of the selected items' BEX)
   function bexCalc(r, z) {
-    var f = r.forecast || {}, vv = r.value || {}, d = ZF_OFF || !segKey(r) ? (bexSaved(r) ? bexDraft(r) : null) : bexDraft(r);
+    var f = r.forecast || {}, vv = r.value || {}, d = ZF_OFF || !segKey(r) ? (DRAFT[segKey(r)] || (bexSaved(r) ? bexDraft(r) : null)) : bexDraft(r);
     if (!d || !fin(f.fy_target)) return null;
     var mkt = fin(d.mkt) && d.mkt > 0 ? d.mkt : f.fy_target, pm = f.fy_target > 0 && fin(vv.fy_target) ? vv.fy_target / f.fy_target : null, mktVal = fin(pm) ? mkt * pm : null;
     var its = zItems(r), su = 0, val = 0, n = 0, hasDetail = its.length && (its[0] || {}).years;
@@ -430,6 +430,25 @@
     });
     return out;
   }
+  // 2026-10-15 (Ahmed): defined market of each Zeta item (every item sits in exactly one DM1 and one DM2)
+  var DM_MAP = null;
+  function dmOf(level, items) {
+    if (!DM_MAP) { DM_MAP = { DM1: {}, DM2: {} }; D.segments.forEach(function (q) { if (!DM_MAP[q.type]) return; ((((q.scorecard || {}).zeta) || {}).items || []).forEach(function (i) { DM_MAP[q.type][i.item] = q.name; }); }); }
+    var out = []; (items || []).forEach(function (it) { var n = DM_MAP[level][it]; if (n && out.indexOf(n) < 0) out.push(n); });
+    return out.join(' / ');
+  }
+  function rowItems(r, x) {
+    var all = (((r.scorecard || {}).zeta) || {}).items || [];
+    if (x.kind === 'item') return [x.item];
+    return all.filter(function (i) { return (x.kind === 'total' || i.brand === x.brand) && (!ZF.atc || i.atc4 === ZF.atc); }).map(function (i) { return i.item; });
+  }
+  // BEX growth like-for-like: BEX vs the MAT of the items that have a BEX share (k 0 = SU, 1 = value)
+  function bexGrowth(r, x, k) {
+    var B = x.P && x.P.bex; if (!B || !fin(B.su)) return null;
+    var bx = k ? B.val : B.su, d = DRAFT[segKey(r)] || bexSaved(r) || { items: {} }, set = rowItems(r, x), base = 0;
+    ((((r.scorecard || {}).zeta) || {}).items || []).forEach(function (i) { if (set.indexOf(i.item) >= 0 && fin((d.items || {})[i.item])) base += i.mat[k]; });
+    return fin(bx) && base > 0 ? bx / base - 1 : null;
+  }
   function zCagr(years, k) {
     var fy = D.meta.full_years, yN = fy[fy.length - 1], y0 = fy.find(function (y) { return ((years || {})[String(y)] || [0, 0])[k] > 0; });
     if (!y0 || y0 >= yN) return { pct: null, span: '' };
@@ -444,7 +463,7 @@
     var G = itemGroups(r);
     if (!G.length) return '';
     var val = isV(), k = val ? 1 : 0, sc = r.scorecard || {}, mm = sc.market_mat || {}, mk = val ? mm.val : mm.su, mkp = val ? mm.val_py : mm.su_py;
-    var MC = mktCagr(r, k);
+    var MC = mktCagr(r, k), showDM = r.type !== 'DM1' && r.type !== 'DM2';
     var rows = G.map(function (x) {
       var ZC = zCagr(x.years, k);
       var P = x.P, sh = mk > 0 ? x.mat[k] / mk : null, shp = mkp > 0 ? x.mat[k + 2] / mkp : null, d = fin(sh) && fin(shp) ? (sh - shp) * 100 : null, g = x.mat[k + 2] > 0 ? (x.mat[k] / x.mat[k + 2] - 1) * 100 : null;
@@ -452,11 +471,13 @@
       var sel = (x.kind === 'item' && x.item === ZF.item) || (x.kind === 'brand' && !ZF.item && ZF.brand === x.brand);
       var cls = x.kind === 'item' ? 'irow' : x.kind === 'brand' ? 'irow brow' : 'irow trow';
       var name = x.kind === 'item' ? '<span class="ind">↳</span> ' + esc(x.label) : '<b>' + esc(x.label) + '</b>' + (x.n ? ' <span class="mut small">(' + x.n + ' item' + (x.n > 1 ? 's' : '') + ')</span>' : '');
-      return '<tr class="' + cls + (sel ? ' sel' : '') + '" data-kind="' + x.kind + '" data-br="' + esc(x.brand) + '" data-it="' + esc(x.item || '') + '"><td>' + name + '</td><td class="mut">' + esc(x.kind === 'total' ? '' : x.brand) + '</td><td class="mut small">' + esc((x.atc || '').split(' ')[0]) + '</td>' +
+      return '<tr class="' + cls + (sel ? ' sel' : '') + '" data-kind="' + x.kind + '" data-br="' + esc(x.brand) + '" data-it="' + esc(x.item || '') + '"><td>' + name + '</td><td class="mut">' + esc(x.kind === 'total' ? '' : x.brand) + '</td><td class="mut small">' + esc((x.atc || '').split(' ')[0]) + '</td>' + (showDM ? '<td class="mut small">' + esc(x.kind === 'item' ? dmOf('DM1', [x.item]) : '') + '</td>' : '') +
         '<td class="num r">' + fmtM(x.mat[k], val) + '</td><td class="num r">' + fmtP(g) + '</td><td class="num r mut">' + fmtP(MC.pct) + '</td><td class="num r" title="' + esc(ZC.span) + '">' + fmtP(ZC.pct) + (ZC.span && ZC.span !== MC.span ? ' <small class="mut">(' + esc(ZC.span) + ')</small>' : '') + '</td><td class="num r">' + (fin(sh) ? (sh * 100).toFixed(2) + '%' : '—') + '</td><td class="num r ' + (d == null ? '' : d >= 0.05 ? 'pos' : d <= -0.05 ? 'neg' : '') + '">' + (d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(2) + ' pts') + '</td>' +
-        '<td>' + (P.present ? chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') : '<span class="mut">—</span>') + '</td><td class="num r">' + (P.present ? (P.objShare * 100).toFixed(2) + '%' : '—') + '</td><td class="num r">' + (fin(obj) ? fmtM(obj, val) : '—') + '</td><td class="num r bexc">' + (x.kind === 'item' ? '<input type="text" inputmode="decimal" class="bexi" data-item="' + esc(x.item) + '" min="0" max="100" step="0.01" placeholder="share %" value="' + (fin(dd.items[x.item]) ? dd.items[x.item] : '') + '"> %<br>' : '') + (fin(bx) ? '<b>' + fmtM(bx, val) + '</b> <span class="mut">(' + ((val ? P.bex.valShare : P.bex.share) * 100).toFixed(2) + '%' + (x.kind !== 'item' ? ', ' + P.bex.n + '/' + P.bex.nItems + ' items' : '') + ')</span>' : '<span class="mut">—</span>') + '</td></tr>';
+        '<td>' + (P.present ? chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') : '<span class="mut">—</span>') + '</td><td class="num r">' + (P.present ? (P.objShare * 100).toFixed(2) + '%' : '—') + '</td><td class="num r">' + (fin(obj) ? fmtM(obj, val) : '—') + '</td><td class="num r bexc">' + (x.kind === 'item' ? '<input type="text" inputmode="decimal" class="bexi" data-item="' + esc(x.item) + '" min="0" max="100" step="0.01" placeholder="share %" value="' + (fin(dd.items[x.item]) ? dd.items[x.item] : '') + '"> %<br>' : '') + (fin(bx) ? '<b>' + fmtM(bx, val) + '</b> <span class="mut">(' + ((val ? P.bex.valShare : P.bex.share) * 100).toFixed(2) + '%' + (x.kind !== 'item' ? ', ' + P.bex.n + '/' + P.bex.nItems + ' items' : '') + ')</span>' : '<span class="mut">—</span>') + '</td>' +
+        '<td class="num r bexg">' + (function (q) { return fin(q) ? fmtP(q * 100) + (x.kind !== 'item' && P.bex.n < P.bex.nItems ? ' <small class="mut" title="Like-for-like: only the items with a BEX share">(' + P.bex.n + '/' + P.bex.nItems + ')</small>' : '') : '<span class="mut">—</span>'; })(bexGrowth(r, x, k)) + '</td></tr>';
     });
-    return '<h3 class="mt">By brand and item — ' + matLbl() + ' and FY' + D.meta.target_year + ' objective <span class="mut small">(click a brand or an item to plan it above)</span></h3><div class="tblwrap"><table class="tbl yby itbl"><thead><tr><th>Brand / item</th><th>Brand</th><th>ATC4</th><th class="r">' + matLbl() + '</th><th class="r">Growth</th><th class="r">Market CAGR ' + esc(MC.span) + '</th><th class="r">Zeta CAGR</th><th class="r">Share' + (val ? ' (value)' : ' (SU)') + '</th><th class="r">Share change</th><th>Strategy</th><th class="r">Objective share</th><th class="r">Objective FY' + D.meta.target_year + '</th><th class="r">BEX forecast<br><small class="mut">share % per item → SU / value</small></th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
+    return '<div class="h2row"><h3 class="mt">By brand and item — ' + matLbl() + ' and FY' + D.meta.target_year + ' objective <span class="mut small">(click a brand or an item to plan it above)</span></h3>' +
+      '<div class="btns"><button type="button" class="xbtn" id="mf-xtbl" title="All Zeta brands and items (filters ignored) for this market and for every market at this level, SU and value, with objective and BEX forecast">⬇ Excel — full table, all products</button></div></div><div class="tblwrap"><table class="tbl yby itbl"><thead><tr><th>Brand / item</th><th>Brand</th><th>ATC4</th>' + (showDM ? '<th>Defined market</th>' : '') + '<th class="r">' + matLbl() + '</th><th class="r">Growth</th><th class="r">Market CAGR ' + esc(MC.span) + '</th><th class="r">Zeta CAGR</th><th class="r">Share' + (val ? ' (value)' : ' (SU)') + '</th><th class="r">Share change</th><th>Strategy</th><th class="r">Objective share</th><th class="r">Objective FY' + D.meta.target_year + '</th><th class="r">BEX forecast<br><small class="mut">share % per item → SU / value</small></th><th class="r">BEX growth<br><small class="mut">vs ' + matLbl() + '</small></th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
   }
   function planNotes(r) {
     var P = zplan(r);
@@ -526,6 +547,7 @@
       var blk = ROOT.querySelector('#mf-ov .plan'); if (blk && blk.scrollIntoView) blk.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; });
     var x1 = el.querySelector('#mf-xone'); if (x1) x1.onclick = function () { try { exportOne(r); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
     var xa = el.querySelector('#mf-xall'); if (xa) xa.onclick = function () { try { exportAll(); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
+    var xt = el.querySelector('#mf-xtbl'); if (xt) xt.onclick = function () { try { exportTable(r); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
     var xi = el.querySelector('#mf-ximp'); if (xi) xi.onchange = function () { importBex(xi.files && xi.files[0]); };
   }
 
@@ -568,6 +590,67 @@
     ws2['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 16 }, { wch: 30 }].concat(it[0].slice(4).map(function () { return { wch: 16 }; }));
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Market plan FY' + ty); XLSX.utils.book_append_sheet(wb, ws2, 'Zeta by brand & item');
     XLSX.writeFile(wb, 'Market_Plan_FY' + ty + '_' + safeName(r.name) + (zfOn(r) ? '_' + safeName(zSelLabel(r)) : '') + '.xlsx', { compression: true });
+  }
+  // 2026-10-15 (Ahmed): full "By brand and item" table — every Zeta brand and item, ATC4/brand/item filters ignored
+  function tableRows(r, lvlName) {
+    var keep = ZF, off = ZF_OFF, out = [];
+    ZF_OFF = false; ZF = { key: segKey(r), atc: '', brand: '', item: '' };
+    try {
+      var mm = (r.scorecard || {}).market_mat || {}, mc0 = mktCagr(r, 0), mc1 = mktCagr(r, 1), st = bexSaved(r), dirty = bexDirty(r), d = bexDraft(r);
+      var n = function (x) { return fin(x) ? x : null; };
+      var bstat = dirty ? 'Unsaved' : st && st.saved ? 'Saved ' + st.saved + (st.by ? ' by ' + st.by : '') : '';
+      itemGroups(r).forEach(function (x) {
+        var Q = x.P, B = Q.bex && fin(Q.bex.su) ? Q.bex : null, z0 = zCagr(x.years, 0), z1 = zCagr(x.years, 1);
+        var sh = mm.su > 0 ? x.mat[0] / mm.su : null, shp = mm.su_py > 0 ? x.mat[2] / mm.su_py : null, shv = mm.val > 0 ? x.mat[1] / mm.val : null;
+        var its = rowItems(r, x);
+        out.push([lvlName, r.name, x.kind === 'total' ? 'Total' : x.kind === 'brand' ? 'Brand total' : 'Item', x.label, x.kind === 'total' ? '' : x.brand, x.atc, dmOf('DM1', its), dmOf('DM2', its),
+          x.mat[0], x.mat[1], x.mat[2] > 0 ? x.mat[0] / x.mat[2] - 1 : null, x.mat[3] > 0 ? x.mat[1] / x.mat[3] - 1 : null,
+          fin(mc0.pct) ? mc0.pct / 100 : null, fin(z0.pct) ? z0.pct / 100 : null, fin(mc1.pct) ? mc1.pct / 100 : null, fin(z1.pct) ? z1.pct / 100 : null, z0.span,
+          n(sh), n(shv), fin(sh) && fin(shp) ? (sh - shp) * 100 : null, x.s6[0] > 0 ? x.s6[1] / x.s6[0] : null,
+          Q.present ? Q.strategy : 'Not present', Q.present ? Q.objShare : null, Q.present ? n(Q.objSU) : null, Q.present ? n(Q.objVal) : null,
+          fin((r.forecast || {}).fy_target) ? r.forecast.fy_target : null, fin(d.mkt) ? d.mkt : null,
+          B ? n(B.share) : null, B ? n(B.su) : null, B ? n(B.val) : null, B ? bstat : '',
+          n(bexGrowth(r, x, 0)), n(bexGrowth(r, x, 1)),
+          n(mm.su), n(mm.val), mm.su_py > 0 ? mm.su / mm.su_py - 1 : null, mm.val_py > 0 ? mm.val / mm.val_py - 1 : null]);
+      });
+    } finally { ZF = keep; ZF_OFF = off; }
+    return out;
+  }
+  function exportTable(r) {
+    if (!xlsxOk()) return;
+    var m = D.meta, ty = m.target_year, lv = (LEVELS.find(function (l) { return l[0] === r.type; }) || [0, r.type])[1];
+    var H = ['Level', 'Market', 'Row', 'Brand / item', 'Brand', 'ATC4', 'Defined market (DM1)', 'Defined market (DM2)', 'SU ' + matLbl(), 'Value ' + matLbl() + ' (EGP)', 'SU growth vs previous MAT', 'Value growth vs previous MAT',
+      'Market CAGR SU ' + mktCagr(r, 0).span, 'Zeta CAGR SU', 'Market CAGR value', 'Zeta CAGR value', 'Zeta CAGR period',
+      'Share (SU)', 'Share (value)', 'Share change SU (pts)', 'Price per SU (EGP, 6m)',
+      'Strategy', 'Objective share (SU)', 'Objective SU FY' + ty, 'Objective value FY' + ty + ' (EGP)',
+      'Market SU FY' + ty + ' (forecast)', 'BEX market SU FY' + ty + ' (if edited)', 'BEX share (SU)', 'BEX SU FY' + ty, 'BEX value FY' + ty + ' (EGP)', 'BEX status',
+      'BEX growth SU vs ' + matLbl(), 'BEX growth value vs ' + matLbl(), 'Market SU ' + matLbl(), 'Market value ' + matLbl() + ' (EGP)', 'Market growth SU vs previous MAT', 'Market growth value vs previous MAT'];
+    var F = [null, null, null, null, null, null, null, null, '#,##0', '#,##0', '0.0%', '0.0%', '0.0%', '0.0%', '0.0%', '0.0%', null, '0.00%', '0.00%', '+0.00;-0.00;0.00', '0.00', null, '0.00%', '#,##0', '#,##0', '#,##0', '#,##0', '0.00%', '#,##0', '#,##0', null, '0.0%', '0.0%', '#,##0', '#,##0', '0.0%', '0.0%'];
+    var mkSheet = function (aoa) {
+      var ws = XLSX.utils.aoa_to_sheet(aoa); fmtCells(ws, aoa, 0, F);
+      ws['!cols'] = H.map(function (h, i) { return { wch: i === 1 ? 32 : i === 3 ? 42 : i === 5 || i === 6 || i === 7 ? 28 : Math.max(11, Math.min(22, h.length + 2)) }; });
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(1, aoa.length - 1), c: H.length - 1 } }) };
+      ws['!freeze'] = { xSplit: 4, ySplit: 1 }; return ws;
+    };
+    var one = [H].concat(tableRows(r, lv));
+    var all = [H];
+    segs(r.type).slice().sort(function (a, b) { return (((b.scorecard || {}).zeta || {}).mat || {}).su - (((a.scorecard || {}).zeta || {}).mat || {}).su || 0; })
+      .forEach(function (q) { all = all.concat(tableRows(q, lv)); });
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, mkSheet(one), 'This market');
+    XLSX.utils.book_append_sheet(wb, mkSheet(all), 'All markets - ' + safeName(r.type).slice(0, 18));
+    var note = [['Full brand & item table — FY' + ty], ['Market', r.name], ['Level', lv],
+      ['Rows', 'Total = all Zeta in the market · Brand total = sum of its items · Item = one Zeta pack. ATC4 / brand / item filters on the page are ignored: every Zeta product is included.'],
+      ['Sheet "All markets"', 'Every ' + lv + ' market with Zeta sales, same columns; use the filter arrows to pick a market, brand or item.'],
+      ['Share', 'Share of the whole market (SU or value), ' + matLbl() + '.'],
+      ['Defined market', 'The IQVIA defined market (DM1 / DM2) each Zeta item belongs to; brand and total rows list the defined markets of their items.'],
+      ['Market MAT', 'Market SU / value and growth = the market in column "Market" (' + matLbl() + ' vs the previous 12 months). BEX growth = BEX FY' + ty + ' vs the row\'s own ' + matLbl() + '; brand / total rows compare like-for-like (only the items that have a BEX share).'],
+      ['Objective', 'Defend = biggest brand, >= ' + (OBJ_RULES.dominant * 100) + '% share, or lost >= ' + Math.abs(OBJ_RULES.losing) + ' pts -> hold share. Grow = add the latest MAT share gain (min +' + OBJ_RULES.gainMin + ' pts or +25% of a small share; max +' + OBJ_RULES.gainMax + ' pts or double the share).'],
+      ['BEX', 'Item BEX SU = BEX share x market forecast (or BEX market if edited). Value = SU x the item\'s own price per SU (last 6 months). Brand and total = sum of items. "Unsaved" = typed but not saved yet.'],
+      ['IQVIA data to', per(m.data_period)], ['Exported', new Date().toLocaleString()]];
+    var wn = XLSX.utils.aoa_to_sheet(note); wn['!cols'] = [{ wch: 20 }, { wch: 120 }];
+    XLSX.utils.book_append_sheet(wb, wn, 'Read me');
+    XLSX.writeFile(wb, 'Zeta_Brand_Item_FY' + ty + '_' + safeName(r.name) + '.xlsx', { compression: true });
   }
   function exportAll() {
     if (!xlsxOk()) return;
