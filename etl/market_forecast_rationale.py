@@ -41,6 +41,18 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 CI, PI, TI, AI, D1I, D2I, LI, SI, LINEI, BUI, MOLI = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
 STRIDE = 14
+# 2026-10-15 (Ahmed): one Zeta "item" per presentation (brand + form + strength); pack sizes merged.
+# IQVIA's strength column keeps only one strength for combos (e.g. EMPACOZA PLUS 10/5 and 25/5 = "5MG"),
+# so the presentation is the IQVIA item name without its pack count (" 30", " 14 3G", " 5 2ML").
+_PACK_RE = re.compile(r"\s+\d+(?:\s+\d+(?:\.\d+)?(?:G|ML|MG|GM))?\s*$")
+_FORMS = ("FILM", "F.C", "TABS", "TAB ", "ECGFDROS", "HGC", "PO.SUS", "SY ", "DRHGC", "DEL", "CREAM", "SACHET", "ORAL", "XR ", "HA ", "MEN ", "AOCS")
+
+
+def presentation(item, brand):
+    s = _PACK_RE.sub("", str(item).strip())
+    if brand and s.startswith(brand) and len(s) > len(brand) and s[len(brand)] != " " and s[len(brand):].startswith(_FORMS):
+        s = brand + " " + s[len(brand):]
+    return s
 
 
 # ---------------------------------------------------------------- io
@@ -415,13 +427,18 @@ def build_scorecard(seg, flat, L, meta, masks_cache):
                  "mat": zy >= t - 11, "matp": (zy >= t - 23) & (zy < t - 11), "s6": zy >= t - 5}
             acc = {k: (isum(v, SI), isum(v, LI)) for k, v in S.items()}
             accy = {y: (isum(v, SI), isum(v, LI)) for y, v in yy.items()}
-            out = []
+            grp = {}   # presentation -> list of IQVIA item ids (packs)
             for i in ids.tolist():
                 rr = za[za[:, 12] == i]
-                pb_ = np.bincount(rr[:, PI], weights=rr[:, SI] + 1).argmax(); ab_ = np.bincount(rr[:, AI], weights=rr[:, SI] + 1).argmax()
-                g = lambda k: [float(acc[k][0][i]), float(acc[k][1][i])]
-                out.append({"item": L["items"][i], "brand": L["prods"][int(pb_)], "atc4": L["atc4s"][int(ab_)],
-                            "su": g("mat")[0], "val": g("mat")[1], "years": {str(y): [float(accy[y][0][i]), float(accy[y][1][i])] for y in fyrs},
+                pb_ = int(np.bincount(rr[:, PI], weights=rr[:, SI] + 1).argmax())
+                grp.setdefault((L["prods"][pb_], presentation(L["items"][i], L["prods"][pb_])), []).append(i)
+            out = []
+            for (brand_, pres_), ii in grp.items():
+                rr = za[np.isin(za[:, 12], ii)]
+                ab_ = np.bincount(rr[:, AI], weights=rr[:, SI] + 1).argmax()
+                g = lambda k: [float(sum(acc[k][0][i] for i in ii)), float(sum(acc[k][1][i] for i in ii))]
+                out.append({"item": pres_, "brand": brand_, "atc4": L["atc4s"][int(ab_)], "packs": sorted(L["items"][i] for i in ii),
+                            "su": g("mat")[0], "val": g("mat")[1], "years": {str(y): [float(sum(accy[y][0][i] for i in ii)), float(sum(accy[y][1][i] for i in ii))] for y in fyrs},
                             "ytd": g("ytd") + g("ytdp"), "mat": g("mat") + g("matp"), "s6": g("s6")})
             zitems = sorted(out, key=lambda x: (-x["su"], x["item"]))
     return {"zeta": {"years": years, **z, "brands": zb, "items": zitems, "price_su": zprice}, "market_mat": mk, "brands": brands,

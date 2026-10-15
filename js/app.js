@@ -1533,13 +1533,13 @@ async function renderMarketForecastTab(container) {
       ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
           icon: "\u{1F512}",
           title: "Access restricted",
-          hint: "The Market Growth Forecast is available to SFE and BEX roles only.",
+          hint: "The Market Growth Forecast is available to CEO, VP, SFE and BEX roles only.",
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;
   }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Growth Forecast…</div>';
-  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261015_bex2"), loadLocalAsset("js/market-forecast.js?v=20261015_mktmat"),
+  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261015_bex2"), loadLocalAsset("js/market-forecast.js?v=20261015_present"),
     window.CacheLoader ? window.CacheLoader.ensure("market_forecast") : Promise.resolve(false)]);
   if (currentTab !== "marketforecast") return;
   if (window.MarketForecastDashboard) window.MarketForecastDashboard.init("app-root");

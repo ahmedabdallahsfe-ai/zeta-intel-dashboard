@@ -262,7 +262,20 @@
   function bex2Put(map) { try { localStorage.setItem(bex2Key(), JSON.stringify(map)); return true; } catch (e) { return false; } }
   var LIVE_T = null;
   var DRAFT = {};   // unsaved edits per market (segKey -> {mkt, items})
-  function bexSaved(r) { return bex2All()[segKey(r)] || null; }
+  // 2026-10-15 (Ahmed): items are presentations (brand + form + strength, pack sizes merged). BEX shares saved / imported
+  // under an old pack name (e.g. "NEXICUREFILM C.TABS 40MG 20") are added to their presentation ("NEXICURE FILM C.TABS 40MG").
+  function bexSaved(r) {
+    var sv = bex2All()[segKey(r)]; if (!sv) return null;
+    var its = (((r.scorecard || {}).zeta) || {}).items || [], names = {}, pk = {}, moved = false, out = {};
+    its.forEach(function (i) { names[i.item] = 1; (i.packs || []).forEach(function (p) { pk[p] = i.item; }); });
+    Object.keys(sv.items || {}).forEach(function (k) {
+      var v = sv.items[k], to = names[k] || k === '__total__' ? k : pk[k];
+      if (!to) return;
+      if (to !== k) moved = true;
+      out[to] = Math.round(((out[to] || 0) + v) * 100) / 100;
+    });
+    return moved || Object.keys(out).length !== Object.keys(sv.items || {}).length ? Object.assign({}, sv, { items: out }) : sv;
+  }
   function bexDraft(r) {
     var k = segKey(r);
     if (!DRAFT[k]) { var sv = bexSaved(r) || {}; DRAFT[k] = { mkt: fin(sv.mkt) ? sv.mkt : null, items: JSON.parse(JSON.stringify(sv.items || {})) }; }
@@ -441,7 +454,7 @@
     brands.forEach(function (g) {
       var a4 = g.items.map(function (i) { return i.atc4; }).filter(function (x, i, a) { return a.indexOf(x) === i; });
       out.push({ kind: 'brand', label: g.brand + ' — brand total', brand: g.brand, atc: a4.length === 1 ? a4[0] : a4.length + ' ATC4', mat: g.tot.mat, s6: g.tot.s6, years: g.tot.years, ytd: g.tot.ytd, P: plan(g.brand, ''), n: g.items.length });
-      g.items.forEach(function (i) { out.push({ kind: 'item', label: i.item, brand: i.brand, atc: i.atc4, mat: i.mat, s6: i.s6, years: i.years, ytd: i.ytd, P: plan(i.brand, i.item), item: i.item }); });
+      g.items.forEach(function (i) { out.push({ kind: 'item', label: i.item, brand: i.brand, atc: i.atc4, mat: i.mat, s6: i.s6, years: i.years, ytd: i.ytd, packs: i.packs, P: plan(i.brand, i.item), item: i.item }); });
     });
     return out;
   }
@@ -490,7 +503,7 @@
       var obj = P.present ? (val ? P.objVal : P.objSU) : null, bx = P.bex && fin(P.bex.su) ? (val ? P.bex.val : P.bex.su) : null, dd = bexDraft(r);
       var sel = (x.kind === 'item' && x.item === ZF.item) || (x.kind === 'brand' && !ZF.item && ZF.brand === x.brand);
       var cls = x.kind === 'item' ? 'irow' : x.kind === 'brand' ? 'irow brow' : 'irow trow';
-      var name = x.kind === 'item' ? '<span class="ind">↳</span> ' + esc(x.label) : '<b>' + esc(x.label) + '</b>' + (x.n ? ' <span class="mut small">(' + x.n + ' item' + (x.n > 1 ? 's' : '') + ')</span>' : '');
+      var name = x.kind === 'item' ? '<span class="ind">↳</span> <span title="' + esc('Packs: ' + ((x.packs || []).join(' · ') || x.label)) + '">' + esc(x.label) + '</span>' + ((x.packs || []).length > 1 ? ' <small class="mut">(' + x.packs.length + ' packs)</small>' : '') : '<b>' + esc(x.label) + '</b>' + (x.n ? ' <span class="mut small">(' + x.n + ' item' + (x.n > 1 ? 's' : '') + ')</span>' : '');
       return '<tr class="' + cls + (sel ? ' sel' : '') + '" data-kind="' + x.kind + '" data-br="' + esc(x.brand) + '" data-it="' + esc(x.item || '') + '"><td>' + name + '</td><td class="mut">' + esc(x.kind === 'total' ? '' : x.brand) + '</td><td class="mut small">' + esc((x.atc || '').split(' ')[0]) + '</td>' + (showDM ? '<td class="mut small">' + esc(x.kind === 'item' ? dmOf('DM1', [x.item]) : '') + '</td>' : '') + mmCell +
         '<td class="num r">' + fmtM(x.mat[k], val) + '</td><td class="num r">' + fmtP(g) + '</td><td class="num r mut">' + fmtP(MC.pct) + '</td><td class="num r" title="' + esc(ZC.span) + '">' + fmtP(ZC.pct) + (ZC.span && ZC.span !== MC.span ? ' <small class="mut">(' + esc(ZC.span) + ')</small>' : '') + '</td><td class="num r">' + (fin(sh) ? (sh * 100).toFixed(2) + '%' : '—') + '</td><td class="num r ' + (d == null ? '' : d >= 0.05 ? 'pos' : d <= -0.05 ? 'neg' : '') + '">' + (d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(2) + ' pts') + '</td>' +
         mfcCell + '<td>' + (P.present ? chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') : '<span class="mut">—</span>') + '</td><td class="num r">' + (P.present ? (P.objShare * 100).toFixed(2) + '%' : '—') + '</td><td class="num r">' + (fin(obj) ? fmtM(obj, val) : '—') + '</td><td class="num r bexc">' + (x.kind === 'item' ? '<input type="text" inputmode="decimal" class="bexi" data-item="' + esc(x.item) + '" min="0" max="100" step="0.01" placeholder="share %" value="' + (fin(dd.items[x.item]) ? dd.items[x.item] : '') + '"> %<br>' : '') + (fin(bx) ? '<b>' + fmtM(bx, val) + '</b> <span class="mut">(' + ((val ? P.bex.valShare : P.bex.share) * 100).toFixed(2) + '%' + (x.kind !== 'item' ? ', ' + P.bex.n + '/' + P.bex.nItems + ' items' : '') + ')</span>' : '<span class="mut">—</span>') + '</td>' +
@@ -633,7 +646,8 @@
           B ? n(B.share) : null, B ? n(B.su) : null, B ? n(B.val) : null, B ? bstat : '',
           (function (L) { return n(L.su); })(zLE(r, (x.ytd || [0, 0])[0], (x.ytd || [0, 0])[1])), (function (L) { return n(L.val); })(zLE(r, (x.ytd || [0, 0])[0], (x.ytd || [0, 0])[1])),
           n(bexGrowth(r, x, 0)), n(bexGrowth(r, x, 1)),
-          n(mm.su), n(mm.val), mm.su_py > 0 ? mm.su / mm.su_py - 1 : null, mm.val_py > 0 ? mm.val / mm.val_py - 1 : null]);
+          n(mm.su), n(mm.val), mm.su_py > 0 ? mm.su / mm.su_py - 1 : null, mm.val_py > 0 ? mm.val / mm.val_py - 1 : null,
+          x.kind === 'item' ? (x.packs || []).join(' | ') : '']);
       });
     } finally { ZF = keep; ZF_OFF = off; }
     return out;
@@ -646,7 +660,7 @@
       'Share (SU)', 'Share (value)', 'Share change SU (pts)', 'Price per SU (EGP, 6m)',
       'Strategy', 'Objective share (SU)', 'Objective SU FY' + ty, 'Objective value FY' + ty + ' (EGP)',
       'Market SU FY' + ty + ' (forecast)', 'Market growth SU FY' + ty + ' vs ' + m.partial_year, 'Market value FY' + ty + ' (forecast, EGP)', 'Market growth value FY' + ty + ' vs ' + m.partial_year, 'BEX market SU FY' + ty + ' (if edited)', 'BEX share (SU)', 'BEX SU FY' + ty, 'BEX value FY' + ty + ' (EGP)', 'BEX status',
-      'SU ' + leLbl(), 'Value ' + leLbl() + ' (EGP)', 'BEX growth SU FY' + ty + ' vs ' + m.partial_year, 'BEX growth value FY' + ty + ' vs ' + m.partial_year, 'Market SU ' + matLbl(), 'Market value ' + matLbl() + ' (EGP)', 'Market growth SU vs previous MAT', 'Market growth value vs previous MAT'];
+      'SU ' + leLbl(), 'Value ' + leLbl() + ' (EGP)', 'BEX growth SU FY' + ty + ' vs ' + m.partial_year, 'BEX growth value FY' + ty + ' vs ' + m.partial_year, 'Market SU ' + matLbl(), 'Market value ' + matLbl() + ' (EGP)', 'Market growth SU vs previous MAT', 'Market growth value vs previous MAT', 'Packs (IQVIA items)'];
     var F = [null, null, null, null, null, null, null, null, '#,##0', '#,##0', '0.0%', '0.0%', '0.0%', '0.0%', '0.0%', '0.0%', null, '0.00%', '0.00%', '+0.00;-0.00;0.00', '0.00', null, '0.00%', '#,##0', '#,##0', '#,##0', '0.0%', '#,##0', '0.0%', '#,##0', '0.00%', '#,##0', '#,##0', null, '#,##0', '#,##0', '0.0%', '0.0%', '#,##0', '#,##0', '0.0%', '0.0%'];
     var mkSheet = function (aoa) {
       var ws = XLSX.utils.aoa_to_sheet(aoa); fmtCells(ws, aoa, 0, F);
@@ -698,7 +712,7 @@
     ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: H.length - 1 } }) };
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'All markets FY' + ty);
     // BEX by item — the sheet BEX fills in and imports back (one row per Zeta item; brand / total are sums)
-    var HB = ['Level', 'Market', 'Brand', 'Item', 'ATC4', 'Market SU FY' + ty + ' (forecast)', 'BEX market SU FY' + ty + ' (optional)', 'Item share ' + matLbl(), 'Objective share', 'BEX share %', 'BEX SU FY' + ty, 'BEX value FY' + ty + ' (EGP)'];
+    var HB = ['Level', 'Market', 'Brand', 'Item', 'ATC4', 'Market SU FY' + ty + ' (forecast)', 'BEX market SU FY' + ty + ' (optional)', 'Item share ' + matLbl(), 'Objective share', 'BEX share %', 'BEX SU FY' + ty, 'BEX value FY' + ty + ' (EGP)', 'Packs (IQVIA items)'];
     var bb = [HB];
     LEVELS.forEach(function (lv) { segs(lv[0]).forEach(function (r) {
       var f = r.forecast || {}, d = bexSaved(r) ? bexDraft(r) : (DRAFT[segKey(r)] || { mkt: null, items: {} }), mkt = fin(d.mkt) ? d.mkt : f.fy_target, mm = (r.scorecard || {}).market_mat || {};
@@ -707,7 +721,7 @@
       its.forEach(function (i) {
         var keep = ZF, off = ZF_OFF; ZF_OFF = false; ZF = { key: segKey(r), atc: i.atc4, brand: i.brand, item: i.item }; var Q = zplan(r); ZF = keep; ZF_OFF = off;
         var sh = d.items[i.item], su = fin(sh) && fin(mkt) ? sh / 100 * mkt : null, pr = itemPrice(i);
-        bb.push([lv[1], r.name, i.brand, i.item, i.atc4, f.fy_target, fin(d.mkt) ? d.mkt : null, mm.su > 0 ? i.mat[0] / mm.su : null, Q.present ? Q.objShare : null, fin(sh) ? sh : null, su, fin(su) && fin(pr) ? su * pr : null]);
+        bb.push([lv[1], r.name, i.brand, i.item, i.atc4, f.fy_target, fin(d.mkt) ? d.mkt : null, mm.su > 0 ? i.mat[0] / mm.su : null, Q.present ? Q.objShare : null, fin(sh) ? sh : null, su, fin(su) && fin(pr) ? su * pr : null, (i.packs || []).join(' | ')]);
       });
     }); });
     var wsb = XLSX.utils.aoa_to_sheet(bb); fmtCells(wsb, bb, 0, [null, null, null, null, null, '#,##0', '#,##0', '0.00%', '0.00%', '0.00', '#,##0', '#,##0']);

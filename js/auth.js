@@ -476,17 +476,20 @@
   // 2026-10-12 (Ahmed): published for SFE and BEX roles only (+ Admin). The page
   // also scopes markets with isBuAllowed / isLineAllowed.
   // -------------------------------------------------------------------
-  var MARKET_FORECAST_ROLES = ["SFE Manager", "SFE", "sfe", "BEX", "bex", "Admin"];
-  function canViewMarketForecast() {
+  // 2026-10-15 (Ahmed): "share it with CEO and VP" -> CEO and VP added to the Market Growth Forecast only.
+  var MARKET_FORECAST_ROLES = ["SFE Manager", "SFE", "sfe", "BEX", "bex", "Admin", "CEO", "VP"];
+  var SFE_BEX_ROLES = ["SFE Manager", "SFE", "sfe", "BEX", "bex", "Admin"];
+  function roleIn(list) {
     var u = getValidSessionUser();
     if (!u) return false;
-    return MARKET_FORECAST_ROLES.indexOf(u.role) >= 0 || (u.role && String(u.role).toLowerCase().indexOf("sfe") >= 0);
+    return list.indexOf(u.role) >= 0 || (u.role && String(u.role).toLowerCase().indexOf("sfe") >= 0);
   }
+  function canViewMarketForecast() { return roleIn(MARKET_FORECAST_ROLES); }
 
   // MARKET DYNAMICS & TREATMENT SHIFT (2026-10-13, Ahmed): same audience as the
   // Market Growth Forecast -- SFE and BEX roles only (+ Admin). js/market-dynamics.js.
   function canViewMarketDynamics() {
-    return canViewMarketForecast();
+    return roleIn(SFE_BEX_ROLES);   // unchanged audience (not shared with CEO / VP)
   }
 
   // -------------------------------------------------------------------
