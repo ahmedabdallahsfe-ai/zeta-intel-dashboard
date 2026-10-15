@@ -225,3 +225,7 @@ body.tmi-mode #ask-panel-slot:empty{display:none}
 .igeo .ach.a-lo{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
 .igeo .tgtseg{margin:0 0 6px}
 .igeo .drawer tr.tot td{border-top:2px solid var(--border-strong)}
+
+/* 2026-10-15: Excel export of All positions (positions + bricks drilled down) */
+.igeo .xbtn{font:inherit;font-size:12px;font-weight:600;padding:4px 12px;border:1px solid var(--s1);border-radius:6px;background:var(--surface-alt);color:var(--s1);cursor:pointer}
+.igeo .xbtn:hover{background:var(--s1);color:#fff}

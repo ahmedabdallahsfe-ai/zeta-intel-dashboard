@@ -18,7 +18,7 @@
   }
 
   var D = null, HOST = null, ROOT = null;
-  var ST = { level: 'DM1', seg: {}, sort: 'size' };
+  var ST = { level: 'DM1', seg: {}, sort: 'size', meas: 'su' };   // meas: 'su' | 'val' (2026-10-15)
   var KEY = 'zeta_mf_state';
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var LEVELS = [['DM1', 'Defined market (DM1)'], ['DM2', 'Defined market (DM2)'], ['BU', 'Business unit'], ['Line', 'Line'], ['Total', 'Egypt total']];
@@ -69,24 +69,40 @@
     if (!r) { r = list.slice().sort(function (a, b) { return size(b) - size(a); })[0]; ST.seg[ST.level] = r.name; }
     return r;
   }
-  function size(r) { return r.forecast ? r.forecast.fy_target : (r.history[String(D.meta.full_years[D.meta.full_years.length - 1])] || {}).su || 0; }
+  function size(r) { var v = V(r); return fin(v.fy_target) ? v.fy_target : (v.hist(String(D.meta.full_years[D.meta.full_years.length - 1])) || 0); }
+
+  // 2026-10-15 (Ahmed): Standard Units <-> Value (EGP). Value = SU forecast x today's price per SU (etl/market_forecast_value.py).
+  function isV() { return ST.meas === 'val' && hasVal(); }
+  function hasVal() { return D && D.segments.some(function (r) { return r.value && fin(r.value.fy_target); }); }
+  function V(r) {
+    var f = r.forecast || {};
+    if (isV() && r.value) {
+      var v = r.value;
+      return { val: true, unit: 'EGP', hist: function (y) { return (v.history || {})[y]; }, ytd: v.ytd || {}, monthly: v.monthly || [], path: v.path || [],
+        fy_le: v.fy_le, fy_target: v.fy_target, growth: v.growth_vs_le_pct, yoy: v.yoy_pct || {}, hc: v.hist_cagr || {}, rc: v.recent_cagr || {} };
+    }
+    return { val: false, unit: 'SU', hist: function (y) { return (r.history[y] || {}).su; }, ytd: r.ytd, monthly: r.monthly_su, path: f.path || [],
+      fy_le: f.fy_le, fy_target: f.fy_target, growth: f.growth_vs_le_pct, yoy: r.yoy_pct, hc: r.hist_cagr, rc: r.recent_cagr };
+  }
+  function fmtM(v, val) { if (!fin(v)) return '—'; return val ? 'EGP ' + fmtSU(v) : fmtSU(v) + ' SU'; }
 
   // ── markup ──
   function shell() {
     var m = D.meta;
     return '<div class="wrap">' +
       '<header class="top"><div><h1>Market Growth Forecast — FY' + m.target_year + '</h1>' +
-      '<div class="sub">IQVIA Standard Units. Each market is forecast separately from its own monthly history and checked against what actually happened in past periods. Volume only, not value or price.</div></div>' +
+      '<div class="sub" id="mf-hsub"></div></div>' +
       '<div class="sub asof">Actuals to <b>' + esc(per(m.data_period)) + '</b> · built ' + esc(m.generated_at) + '</div></header>' +
       '<section class="card controls" aria-label="Filters">' +
       '<div class="ctl"><label>Market level</label><div class="seg" id="mf-lvl">' +
       LEVELS.filter(function (l) { return segs(l[0]).length; }).map(function (l) { return '<button data-v="' + l[0] + '" aria-pressed="' + (l[0] === ST.level) + '">' + esc(l[1]) + '</button>'; }).join('') +
       '</div></div>' +
       '<div class="ctl grow"><label for="mf-seg">Market</label><select id="mf-seg"></select></div>' +
+      (hasVal() ? '<div class="ctl"><label>Measure</label><div class="seg" id="mf-meas"><button data-v="su" aria-pressed="' + (ST.meas !== 'val') + '">Standard Units</button><button data-v="val" aria-pressed="' + (ST.meas === 'val') + '">Value (EGP)</button></div></div>' : '') +
       '</section>' +
       '<div id="mf-detail"></div>' +
       '<section class="card"><div class="h2row"><h2>All markets at this level</h2><div class="sub">Click a row to open it. Sorted by FY' + m.target_year + ' size.</div></div><div class="tblwrap" id="mf-ov"></div></section>' +
-      '<details class="card method" id="mf-method"><summary><h2>Methodology & data notes</h2></summary><div id="mf-methodbody"></div></details>' +
+      '<details class="card method" id="mf-method"><summary><h2>How the forecast is built</h2></summary><div id="mf-methodbody"></div></details>' +
       '</div>';
   }
 
@@ -107,19 +123,20 @@
     return ' <span class="eng eng-' + esc(e) + '">' + esc(lbl) + '</span>';
   }
 
-  function badge(r) { return '<span class="conf ' + confCls(r.confidence) + '">' + esc(r.confidence) + ' confidence</span>'; }
 
+  // 2026-10-14 (Ahmed): one forecast per market, no ranges, no statistics -- KPI cards carry business facts only
   function kpis(r) {
-    var f = r.forecast, m = D.meta, ly = String(m.full_years[m.full_years.length - 1]);
-    var sc = f && f.scenarios;
-    var rr = r.forecast_type === 'run_rate_floor';
+    var m = D.meta, ly = String(m.full_years[m.full_years.length - 1]), ra = r.rationale || {}, v = V(r), vv = r.value || {};
+    var add = fin(v.fy_target) && fin(v.fy_le) ? v.fy_target - v.fy_le : null;
+    var c5 = v.val
+      ? ['Value growth split', fmtP(vv.volume_effect_pct) + ' <span class="kss">volume</span> · ' + fmtP(vv.price_effect_pct) + ' <span class="kss">' + (r.type === 'DM1' || r.type === 'DM2' ? 'price' : 'price & mix') + '</span>', 'Today\'s price EGP ' + (fin(vv.price_now) ? vv.price_now.toFixed(2) : '—') + ' per SU, held for FY' + m.target_year]
+      : ['Main growth driver', '<span class="kdrv">' + esc(ra.key_driver || '—') + '</span>', ra.drivers && ra.drivers.level === 'market' ? 'Sub-market adding most volume (last 12 months)' : 'Brand adding most volume (last 12 months)'];
     var cards = [
-      ['FY' + ly + ' actual', fmtSU(r.history[ly].su), 'Latest complete year (SU)'],
-      ['FY' + m.partial_year + ' landing estimate', f ? fmtSU(f.fy_le) : '—', MON[0] + '–' + MON[m.partial_months - 1] + ' actual ' + fmtSU(r.ytd.cur) + ' + ' + MON[m.partial_months % 12] + '–Dec forecast'],
-      ['FY' + m.target_year + (rr ? ' run-rate floor' : ' forecast'), f ? fmtSU(f.fy_target) : '—', f ? esc(methodShort(r, r.selected_model)) + engineChip(r.engine) : 'No forecast'],
-      [(rr ? 'Floor vs FY' : 'FY' + m.target_year + ' growth vs FY') + m.partial_year + ' LE', f ? fmtP(f.growth_vs_le_pct) : '—',
-        rr ? 'Not a growth forecast' : (r.reliability ? esc(r.reliability.verdict) + ' — see why below' : '')],
-      ['Confidence', '<span class="conf big ' + confCls(r.confidence) + '">' + esc(r.confidence) + '</span>', esc((r.confidence_reasons || [])[0] || '')]
+      ['FY' + ly + ' actual', fmtM(v.hist(ly), v.val), 'Latest complete year'],
+      ['FY' + m.partial_year + ' landing estimate', fmtM(v.fy_le, v.val), MON[0] + '–' + MON[m.partial_months - 1] + ' actual ' + fmtM(v.ytd.cur, v.val) + ' + ' + MON[m.partial_months % 12] + '–Dec forecast'],
+      ['FY' + m.target_year + ' forecast', fmtM(v.fy_target, v.val), v.val ? 'At today\'s prices (EGP)' : 'Standard Units'],
+      ['FY' + m.target_year + ' growth vs FY' + m.partial_year, fmtP(v.growth), fin(add) ? (add >= 0 ? 'Market adds ' : 'Market loses ') + fmtM(Math.abs(add), v.val) : ''],
+      c5
     ];
     return '<section class="kpis">' + cards.map(function (c) {
       return '<div class="kpi"><div class="kl">' + esc(c[0]) + '</div><div class="kv num">' + c[1] + '</div><div class="ks">' + c[2] + '</div></div>';
@@ -128,19 +145,6 @@
 
   function banners(r) {
     var h = '';
-    if (r.forecast_type === 'run_rate_floor') {
-      var why_ = r.lifecycle === 'Launch'
-        ? 'Only ' + r.consecutive_positive_months + ' consecutive months of sales (a validated forecast needs ' + D.meta.config.launch_months + ').'
-        : 'Too few past test points (' + r.backtest.n_common + ') to validate any method.';
-      h += '<div class="banner warn"><b>Not statistically forecastable.</b> ' + esc(why_) +
-        ' A credible launch-type forecast needs analog uptake curves or brand-team input. The figure shown is a <b>run-rate floor</b> (last 3 months average × 12): a minimum to plan from, not a growth forecast and not a target.</div>';
-    }
-    if (r.forecast_type === 'launch_curve') {
-      h += '<div class="banner info"><b>New market.</b> ' + esc(r.selection_rationale || '') + ' Treat the peak as an estimate until brand-team patient potential is available.</div>';
-    }
-    if (r.forecast_type === 'safeguard') {
-      h += '<div class="banner warn"><b>Safeguard applied.</b> ' + esc(r.selection_rationale || '') + ' Read this figure as directional.</div>';
-    }
     if (r.type === 'DM2') h += '<div class="banner info">DM2 markets cut across the DM1 market tree, so they are forecast on their own and are not part of the aligned BU and national totals.</div>';
     if (r.same_as && r.same_as.length) h += '<div class="banner info">Same market (identical products) as ' + esc(r.same_as.join(', ')) + '.</div>';
     if (r.residual_market) h += '<div class="banner info">Includes <b>OTHER MARKET</b>, the residual of everything outside Zeta\'s defined markets. Read it as the background market, not a promoted market.</div>';
@@ -149,20 +153,20 @@
 
   // ── charts (inline SVG, colours from CSS variables so night mode works) ──
   function annualChart(r) {
-    var m = D.meta, f = r.forecast, sc = f && f.scenarios, py = m.partial_year;
-    var bars = m.full_years.map(function (y) { return { lab: String(y), a: r.history[String(y)].su, f: 0 }; });
-    bars.push({ lab: py + ' LE', a: r.ytd.cur, f: f ? Math.max(0, f.fy_le - r.ytd.cur) : 0, note: 'actual ' + MON[0] + '–' + MON[m.partial_months - 1] + ' + forecast' });
+    var m = D.meta, v = V(r), f = fin(v.fy_target) ? v : null, py = m.partial_year, U = v.val ? ' EGP' : ' SU';
+    var bars = m.full_years.map(function (y) { return { lab: String(y), a: v.hist(String(y)) || 0, f: 0 }; });
+    bars.push({ lab: py + ' LE', a: v.ytd.cur, f: f ? Math.max(0, f.fy_le - v.ytd.cur) : 0, note: 'actual ' + MON[0] + '–' + MON[m.partial_months - 1] + ' + forecast' });
     if (f) bars.push({ lab: 'FY' + m.target_year, a: 0, f: f.fy_target, last: true });   // 2026-10-13: no Low/High range on the page
     var W = 760, H = 250, L = 56, R = 12, T = 18, B = 34, n = bars.length;
     var mx = Math.max.apply(null, bars.map(function (b) { return Math.max(b.a + b.f, b.hi || 0); })) * 1.08 || 1;
     var bw = (W - L - R) / n, y = function (v) { return T + (H - T - B) * (1 - v / mx); };
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img" aria-label="Annual Standard Units, actual and forecast">' +
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img" aria-label="Annual ' + (v.val ? 'value (EGP)' : 'Standard Units') + ', actual and forecast">' +
       '<defs><pattern id="mf-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="hb"/><line x1="0" y1="0" x2="0" y2="6" class="hl"/></pattern></defs>';
     for (var g = 0; g <= 4; g++) { var gv = mx * g / 4; s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(gv) + '" y2="' + y(gv) + '" class="grid"/><text x="' + (L - 6) + '" y="' + (y(gv) + 4) + '" class="ax" text-anchor="end">' + fmtSU(gv) + '</text>'; }
     bars.forEach(function (b, i) {
       var x = L + i * bw + bw * 0.18, w = bw * 0.64;
-      if (b.a > 0) s += '<rect x="' + x + '" y="' + y(b.a) + '" width="' + w + '" height="' + (y(0) - y(b.a)) + '" class="ba"><title>' + esc(b.lab) + ' actual: ' + fmtSU(b.a) + ' SU</title></rect>';
-      if (b.f > 0) s += '<rect x="' + x + '" y="' + y(b.a + b.f) + '" width="' + w + '" height="' + (y(b.a) - y(b.a + b.f)) + '" class="bf"><title>' + esc(b.lab) + ' forecast part: ' + fmtSU(b.f) + ' SU</title></rect>';
+      if (b.a > 0) s += '<rect x="' + x + '" y="' + y(b.a) + '" width="' + w + '" height="' + (y(0) - y(b.a)) + '" class="ba"><title>' + esc(b.lab) + ' actual: ' + fmtSU(b.a) + U + '</title></rect>';
+      if (b.f > 0) s += '<rect x="' + x + '" y="' + y(b.a + b.f) + '" width="' + w + '" height="' + (y(b.a) - y(b.a + b.f)) + '" class="bf"><title>' + esc(b.lab) + ' forecast part: ' + fmtSU(b.f) + U + '</title></rect>';
       if (fin(b.lo) && fin(b.hi)) {
         var cx = x + w / 2;
         s += '<line x1="' + cx + '" x2="' + cx + '" y1="' + y(b.hi) + '" y2="' + y(b.lo) + '" class="wh"/><line x1="' + (cx - 8) + '" x2="' + (cx + 8) + '" y1="' + y(b.hi) + '" y2="' + y(b.hi) + '" class="wh"/><line x1="' + (cx - 8) + '" x2="' + (cx + 8) + '" y1="' + y(b.lo) + '" y2="' + y(b.lo) + '" class="wh"><title>Range ' + fmtSU(b.lo) + ' – ' + fmtSU(b.hi) + '</title></line>';
@@ -176,164 +180,124 @@
 
   function monthlyChart(r) {
     var m = D.meta, P = m.periods, nA = Math.min(36, P.length), a0 = P.length - nA;
-    var act = r.monthly_su.slice(a0), fp = (r.forecast && r.forecast.path) || [];
+    var v = V(r), U = v.val ? ' EGP' : ' SU', act = (v.monthly || []).slice(a0), fp = v.path || [];
     var labs = P.slice(a0).concat(m.future_periods.slice(0, fp.length));
     var all = act.concat(fp), n = all.length;
     var W = 1300, H = 260, L = 64, R = 12, T = 14, B = 30;
     var mx = Math.max.apply(null, all) * 1.1 || 1;
     var x = function (i) { return L + (W - L - R) * i / (n - 1); }, y = function (v) { return T + (H - T - B) * (1 - v / mx); };
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img" aria-label="Monthly Standard Units, last 36 months and forecast">';
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img" aria-label="Monthly ' + (v.val ? 'value (EGP)' : 'Standard Units') + ', last 36 months and forecast">';
     for (var g = 0; g <= 4; g++) { var gv = mx * g / 4; s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(gv) + '" y2="' + y(gv) + '" class="grid"/><text x="' + (L - 6) + '" y="' + (y(gv) + 4) + '" class="ax" text-anchor="end">' + fmtSU(gv) + '</text>'; }
     if (fp.length) s += '<rect x="' + x(nA - 1) + '" y="' + T + '" width="' + (x(n - 1) - x(nA - 1)) + '" height="' + (H - T - B) + '" class="fz"/>';
     s += '<polyline class="la" points="' + act.map(function (v, i) { return x(i) + ',' + y(v); }).join(' ') + '"/>';
     if (fp.length) s += '<polyline class="lf" points="' + [x(nA - 1) + ',' + y(act[nA - 1])].concat(fp.map(function (v, i) { return x(nA + i) + ',' + y(v); })).join(' ') + '"/>';
-    all.forEach(function (v, i) { s += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="2.4" class="' + (i < nA ? 'pa' : 'pf') + '"><title>' + per(labs[i]) + (i < nA ? ' actual: ' : ' forecast: ') + fmtSU(v) + ' SU</title></circle>'; });
+    all.forEach(function (v, i) { s += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="2.4" class="' + (i < nA ? 'pa' : 'pf') + '"><title>' + per(labs[i]) + (i < nA ? ' actual: ' : ' forecast: ') + fmtSU(v) + U + '</title></circle>'; });
     labs.forEach(function (p, i) { if (p.slice(5, 7) === '01') s += '<text x="' + x(i) + '" y="' + (H - B + 16) + '" class="ax" text-anchor="middle">Jan ' + p.slice(0, 4) + '</text>'; });
     s += '</svg>';
     return s + '<div class="legend"><span><i class="sw a"></i>Actual (last 36 months)</span>' + (fp.length ? '<span><i class="sw f"></i>Forecast path to Dec ' + m.target_year + '</span>' : '') +
-      (r.model_info && r.model_info.seasonal ? '<span>Seasonality: significant, applied</span>' : '<span>Seasonality: not significant / not applied</span>') + '</div>';
+      (r.model_info && r.model_info.seasonal ? '<span>Follows the usual seasonal pattern</span>' : '') + '</div>';
   }
 
   function trendTable(r) {
+    var v = V(r), y = v.ytd || {};
     var rows = [
-      ['Historical trend' + (r.hist_cagr.span ? ' (' + r.hist_cagr.span + ', a year)' : ''), fmtP(r.hist_cagr.pct), 'CAGR, first full year after launch to last full year'],
-      ['Recent trend (' + r.recent_cagr.span + ', a year)', fmtP(r.recent_cagr.pct), 'CAGR over the last two full years'],
-      ['YTD ' + r.ytd.months + ' ' + D.meta.partial_year + ' vs ' + (D.meta.partial_year - 1), fmtP(r.ytd.growth_pct), fmtSU(r.ytd.cur) + ' vs ' + fmtSU(r.ytd.py) + ' SU']
+      ['Historical trend' + (v.hc.span ? ' (' + v.hc.span + ', a year)' : ''), fmtP(v.hc.pct), 'Average a year, first full year to last full year'],
+      ['Recent trend (' + v.rc.span + ', a year)', fmtP(v.rc.pct), 'Average a year, last two full years'],
+      ['YTD ' + (y.months || '') + ' ' + D.meta.partial_year + ' vs ' + (D.meta.partial_year - 1), fmtP(y.growth_pct), fmtM(y.cur, v.val) + ' vs ' + fmtM(y.py, v.val)]
     ];
-    Object.keys(r.yoy_pct).forEach(function (k) { rows.push(['Year on year ' + k.replace('-', ' → '), fmtP(r.yoy_pct[k]), '']); });
+    Object.keys(v.yoy || {}).forEach(function (k) { rows.push(['Year on year ' + k.replace('-', ' → '), fmtP(v.yoy[k]), '']); });
+    if (v.val && r.value && r.value.price_by_year) {
+      var pb = r.value.price_by_year;
+      rows.push(['Price per SU (EGP)', '', Object.keys(pb).filter(function (k) { return fin(pb[k]); }).map(function (k) { return k + ': ' + pb[k].toFixed(2); }).join(' · ')]);
+    }
     return '<table class="tbl"><tbody>' + rows.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td class="num r">' + x[1] + '</td><td class="mut">' + esc(x[2]) + '</td></tr>'; }).join('') + '</tbody></table>';
   }
 
-  function candTable(r) {
-    var met = r.backtest.metrics || {}, rr = r.forecast_type === 'run_rate_floor';
-    var keys = Object.keys(r.candidates || {});
-    keys.sort(function (a, b) {
-      var wa = (met[a] || {}).wape, wb = (met[b] || {}).wape;
-      if (a === r.selected_model) return -1; if (b === r.selected_model) return 1;
-      return (fin(wa) ? wa : 9) - (fin(wb) ? wb : 9);
-    });
-    var h = '<table class="tbl"><thead><tr><th>Method</th><th class="r">FY' + D.meta.target_year + ' SU</th><th class="r">Growth vs LE</th><th class="r">Tests</th><th class="r">Error (WAPE)</th><th class="r">Bias</th><th class="r">vs benchmark</th><th></th></tr></thead><tbody>';
-    keys.forEach(function (k) {
-      var c = r.candidates[k], mt = met[k] || {}, sel = k === r.selected_model;
-      var rel = fin(mt.rel_to_naive) && k !== 'NAIVE' && k !== 'SeasonalNaive' ? ((1 - mt.rel_to_naive) * 100) : null;
-      h += '<tr class="' + (sel ? 'sel' : '') + '"><td title="' + esc(c.plain || '') + '">' + esc(c.label || methodShort(r, k)) + engineChip(c.engine) + '</td><td class="num r">' + fmtSU(c.fy_target) + '</td><td class="num r">' + fmtP(c.growth_vs_le_pct) + '</td>' +
-        '<td class="num r">' + (mt.n || '—') + '</td><td class="num r">' + (fin(mt.wape) ? (mt.wape * 100).toFixed(1) + '%' : '—') + '</td><td class="num r">' + fmtF(mt.bias) + '</td>' +
-        '<td class="num r">' + (rel == null ? '—' : (rel >= 0 ? rel.toFixed(0) + '% better' : (-rel).toFixed(0) + '% worse')) + '</td><td>' + (sel ? '<span class="chip">Selected</span>' : '') + '</td></tr>';
-    });
-    h += '</tbody></table>';
-    var bt = r.backtest;
-    h += '<p class="note"><b>Why this method:</b> ' + esc(r.selection_rationale) + '</p>';
-    h += '<p class="note mut">"Classic" = the original engine\'s growth-rate methods; "advanced" = the newer statistical methods. Tests: forecast the next 12 months from past month-ends ' + (bt.origins ? '(' + esc(bt.origins.replace('..', ' to ')) + ')' : '') +
-      ' using only the data available at that time, then compare with what IQVIA actually reported. WAPE = total absolute error ÷ total actual. Bias: negative = the method under-forecast. Methods\' figures are shown before the BU/national alignment; the selected forecast above is after it.' +
-      (rr ? ' Model results are listed for reference only: none could be validated for this market.' : '') + '</p>';
-    return h;
+  // 2026-10-14 (Ahmed): business rationale & insights (etl/market_forecast_rationale.py) replace the statistical cards
+  function li(arr, cls) { return (arr || []).length ? '<ul class="' + (cls || 'rl') + '">' + arr.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : ''; }
+  function rationale(r) {
+    var ra = r.rationale;
+    if (!ra) return '<p class="note mut">Rationale not built yet: run UPDATE_DASHBOARD.bat (or <code>python etl/market_forecast_rationale.py</code>).</p>';
+    if (isV() && ra.value) return '<p class="stmt">' + esc(ra.value.statement) + '</p>' + li(ra.value.why, 'rl why') +
+      '<h3 class="mt">Volume behind it (Standard Units)</h3><p class="stmt2">' + esc(ra.statement) + '</p>' + li(ra.why, 'rl why');
+    return '<p class="stmt">' + esc(ra.statement) + '</p>' + li(ra.why, 'rl why');
   }
-
-  function why(r) {
-    var w = r.why || { facts: [], assumptions: [] };
-    var li = function (arr) { return (arr || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join(''); };
-    return (w.headline ? '<p class="whyh">' + esc(w.headline) + '</p>' : '') +
-      '<div class="why"><div><h3>Calculated from the data</h3><ul>' + li(w.facts) + '</ul></div>' +
-      '<div><h3>Assumptions</h3><ul>' + li(w.assumptions) + '</ul>' +
-      ((w.watch_outs || []).length ? '<h3 class="mt">Watch-outs</h3><ul class="watch">' + li(w.watch_outs) + '</ul>' : '') + '</div></div>';
+  function insights(r) {
+    var ra = r.rationale || {};
+    return (ra.insights || []).length ? li(ra.insights, 'rl ins') : '<p class="note mut">No brand-level movement to report for this market.</p>';
   }
-
-  // 2026-10-13 (Ahmed): ranges removed from the page; instead, plain reasons why the number can be relied on
-  function reliab(r) {
-    var rl = r.reliability;
-    if (!rl) return '<p class="note mut">No reliability notes for this market.</p>';
-    var cls = rl.verdict === 'Reliable' ? 'hi' : rl.verdict === 'Reasonably reliable' ? 'mid' : 'lo';
-    return '<p class="rel ' + cls + '"><b>' + esc(rl.verdict) + '</b></p><ul class="rell">' + (rl.points || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
-  }
-  function scen(r) {
-    var f = r.forecast, sc = f && f.scenarios;
-    if (!sc) return '<p class="note mut">' + (r.forecast_type === 'run_rate_floor' ? 'No Low/High scenarios: the run-rate floor is not a statistical forecast.' :
-      'No Low/High scenarios: fewer than ' + D.meta.config.interval_min_origins + ' validated test points, so a range would not be statistically supportable.') + '</p>';
-    var rows = [['Low', sc.low, sc.low_growth_pct], ['Base', sc.base, f.growth_vs_le_pct], ['High', sc.high, sc.high_growth_pct]];
-    return '<div class="scn">' + rows.map(function (x) { return '<div class="sc ' + x[0].toLowerCase() + '"><div class="kl">' + x[0] + '</div><div class="kv num">' + fmtSU(x[1]) + '</div><div class="ks num">' + fmtP(x[2]) + ' vs FY' + D.meta.partial_year + ' LE</div></div>'; }).join('') + '</div>' +
-      '<p class="note mut">' + esc(sc.method) + (fin(sc.median_backtest_error_pct) ? ' In past tests this method\'s typical miss was ' + fmtP(sc.median_backtest_error_pct) + ' (actual vs forecast).' : '') + '</p>';
-  }
-
-  function dq(r) {
-    var fl = (r.data_quality_flags || []).filter(function (f) { return f.code !== 'RESIDUAL'; });
-    var h = '';
-    if (!fl.length) h += '<p class="note">No data-quality warnings for this market.</p>';
-    else h += '<ul class="dql">' + fl.map(function (f) { return '<li><span class="sev ' + esc(f.sev) + '">' + esc(f.sev) + '</span> ' + esc(f.text) + '</li>'; }).join('') + '</ul>';
-    if (r.outlier_sensitivity) h += '<p class="note mut">If the flagged months were replaced by their local median, the FY' + D.meta.target_year + ' forecast would change by ' + fmtP(r.outlier_sensitivity.delta_pct) + '. Shown for transparency only; the headline keeps the reported data.</p>';
-    return h;
+  function zetaCard(r) {
+    var ra = r.rationale || {};
+    var z = (isV() && ra.value ? (ra.value.zeta || []) : []).concat(ra.zeta || []);
+    return z.length ? li(z, 'rl zeta') : '<p class="note mut">Zeta has no sales in this market.</p>';
   }
 
   function detail() {
     var r = cur(), el = ROOT.querySelector('#mf-detail');
     if (!r) { el.innerHTML = '<section class="card"><p>No market available for your access scope at this level.</p></section>'; return; }
+    var ra = r.rationale || {};
     el.innerHTML =
       '<section class="card head"><div class="ttl"><div><div class="eyebrow">' + esc(r.type === 'Total' ? 'Market' : (LEVELS.find(function (l) { return l[0] === r.type; }) || [0, r.type])[1]) + '</div><h2 class="mname">' + esc(r.name) + '</h2></div>' +
-      '<div class="chips"><span class="chip">' + esc(r.lifecycle) + ' · ' + r.consecutive_positive_months + ' months of sales</span>' + badge(r) + '</div></div>' + banners(r) + '</section>' +
+      '<div class="chips"><span class="chip">' + esc(r.lifecycle) + ' · ' + r.consecutive_positive_months + ' months of sales</span></div></div>' + banners(r) + '</section>' +
       kpis(r) +
-      '<div class="g2"><section class="card"><h2>Annual Standard Units</h2>' + annualChart(r) + '</section>' +
-      '<section class="card"><h2>Why this forecast is reliable</h2>' + reliab(r) + '<h2 class="mt">Growth trend</h2>' + trendTable(r) + '</section></div>' +
-      '<section class="card"><h2>Monthly trend and forecast path</h2>' + monthlyChart(r) + '</section>' +
-      '<section class="card"><h2>Why this forecast?</h2>' + why(r) + '</section>' +
-      '<section class="card"><h2>Candidate methods and test accuracy</h2>' + candTable(r) + '</section>' +
-      '<section class="card"><h2>Data quality</h2>' + dq(r) + '</section>';
+      '<section class="card rat"><h2>Why this forecast</h2>' + rationale(r) + '</section>' +
+      '<div class="g2"><section class="card"><h2>Annual ' + (isV() ? 'value (EGP, at today\'s prices for the forecast)' : 'Standard Units') + '</h2>' + annualChart(r) + '</section>' +
+      '<section class="card"><h2>Market insights — what moves the market' + (isV() ? ' <span class="mut small">(volume)</span>' : '') + '</h2>' + insights(r) + '</section></div>' +
+      '<div class="g2"><section class="card"><h2>What it means for Zeta</h2>' + zetaCard(r) +
+      ((ra.watch || []).length ? '<h2 class="mt">Watch-outs</h2>' + li(ra.watch, 'rl watch') : '') + '</section>' +
+      '<section class="card"><h2>Growth history</h2>' + trendTable(r) + '</section></div>' +
+      '<section class="card"><h2>Monthly trend and forecast path</h2>' + monthlyChart(r) + '</section>';
   }
 
   function overview() {
     var list = segs(ST.level).slice().sort(function (a, b) { return size(b) - size(a); }), c = cur(), m = D.meta;
-    var h = '<table class="tbl ov"><thead><tr><th>Market</th><th>Stage</th><th class="r">FY' + m.full_years[m.full_years.length - 1] + ' SU</th><th class="r">FY' + m.partial_year + ' LE</th><th class="r">FY' + m.target_year + '</th><th class="r">Growth</th><th>Reliability</th><th>Method</th></tr></thead><tbody>';
+    var h = '<table class="tbl ov"><thead><tr><th>Market</th><th>Stage</th><th class="r">FY' + m.full_years[m.full_years.length - 1] + (isV() ? ' EGP' : ' SU') + '</th><th class="r">FY' + m.partial_year + ' LE</th><th class="r">FY' + m.target_year + '</th><th class="r">Growth</th><th class="r">' + (isV() ? 'Value added (EGP)' : 'Volume added (SU)') + '</th><th>Main growth driver</th></tr></thead><tbody>';
     list.forEach(function (r) {
-      var f = r.forecast || {}, sc = f.scenarios, rr = r.forecast_type === 'run_rate_floor';
+      var f = V(r), rr = r.forecast_type === 'run_rate_floor';
       h += '<tr data-n="' + esc(r.name) + '" class="' + (c && r.name === c.name ? 'sel' : '') + '"><td class="mk">' + esc(r.name) + (r.same_as && r.same_as.length ? ' <span class="mut" title="' + esc(r.same_as.join(', ')) + '">(=)</span>' : '') + '</td>' +
-        '<td>' + esc(r.lifecycle) + '</td><td class="num r">' + fmtSU(r.history[String(m.full_years[m.full_years.length - 1])].su) + '</td><td class="num r">' + fmtSU(f.fy_le) + '</td><td class="num r">' + fmtSU(f.fy_target) + '</td>' +
-        '<td class="num r">' + (rr ? '<span class="mut">floor</span>' : fmtP(f.growth_vs_le_pct)) + '</td>' +
-        '<td><span class="conf ' + confCls(r.confidence) + '">' + esc(r.reliability ? r.reliability.verdict : r.confidence) + '</span></td><td class="mut">' + esc(rr ? 'Run-rate floor' : methodShort(r, r.selected_model || '—')) + engineChip(r.engine) + '</td></tr>';
+        '<td>' + esc(r.lifecycle) + '</td><td class="num r">' + fmtSU(f.hist(String(m.full_years[m.full_years.length - 1]))) + '</td><td class="num r">' + fmtSU(f.fy_le) + '</td><td class="num r">' + fmtSU(f.fy_target) + '</td>' +
+        '<td class="num r">' + fmtP(f.growth) + '</td>' +
+        '<td class="num r">' + (fin(f.fy_target) && fin(f.fy_le) ? (f.fy_target >= f.fy_le ? '+' : '−') + fmtSU(Math.abs(f.fy_target - f.fy_le)) : '—') + '</td>' +
+        '<td class="mut">' + esc((r.rationale || {}).key_driver || '—') + '</td></tr>';
     });
     ROOT.querySelector('#mf-ov').innerHTML = h + '</tbody></table>';
   }
 
+  // 2026-10-14 (Ahmed): plain-language methodology, no statistics
   function methodology() {
-    var m = D.meta, c = m.config, g = m.global_checks || {}, bc = g.backfill_unit_check || {};
-    var li;
-    if (!m.engine) { return methodologyV1(); }
-    li = [
-      'Source: IQVIA monthly Standard Units from the Market Intelligence cache (' + esc(g.periods || '') + '), with the approved ownership restatements and market overrides already applied. Market definitions match the Market Intelligence page; a BU or Line market = the DM1 markets where Zeta has products of that BU or Line.',
-      'FY' + m.partial_year + ' has ' + m.partial_months + ' actual months and is completed with a forecast (Landing Estimate, LE). FY' + m.target_year + ' growth = FY' + m.target_year + ' forecast ÷ FY' + m.partial_year + ' LE − 1, always derived from the Standard Units forecast.',
-      'Cleaning: each market\'s trend and seasonal pattern are separated from its irregular movements; only irregular spikes or dips beyond ±' + (c.winsor_pct || 40) + '% are capped (seasonal peaks are kept). The page always shows the reported IQVIA data.',
-      'Routing: Launch = under ' + c.launch_months + ' months of sales → launch adoption curve toward an estimated peak monthly volume (never below today\'s rate while sales are still rising). Irregular buying → averaged order rate. All other markets → a competition between ' + 'classic growth-rate methods (historical and recent growth rate, straight-line trend, flattening monthly trend) and advanced methods (trend since the last shift in growth, recent level & trend, long-term + recent blend), plus a benchmark that repeats the last 12 months.',
-      'Selection: each method forecasts the next 12 months from past month-ends using only the data available then; the lowest total error wins that market. An advanced method keeps a near-tie (within ' + Math.round((c.tie_margin || 0.05) * 100) + '%). Safeguard: if even the most accurate method missed by more than ' + Math.round((c.volatile_wape || 0.15) * 100) + '%, the middle of all methods is used and held to the market\'s current 12-month growth.',
-      'Alignment: DM1 markets, BUs and the Egypt total are aligned so every BU and the national total equal the exact sum of their DM1s; Lines are then the sum of their aligned DM1s. Launch and irregular markets keep their own forecast, and so do the most reliable markets (Higher confidence): the less reliable markets absorb the balancing. DM2 markets are forecast on their own. A DM1 that belongs to two BUs (e.g. PPI oral solid in GIT and Non-Promoted) counts fully in both, so BU totals do not add up to Egypt.',
-      'No Low/High range is shown. Instead, each market says in plain words why its number can be relied on: how often the method was tested on past years and how far off it was, whether it leans high or low, whether the best methods agree, and whether it fits this year\'s sales so far.',
-      'Confidence: Higher = Established, 10+ tests, error ≤ 6%, |bias| ≤ 3%, top three methods within 6 pts. Moderate = error ≤ 12%, |bias| ≤ 6%. Otherwise Lower; launch and safeguard markets are always Lower.',
-      'Data checks this build: ' + (g.negative_su_rows === 0 ? 'no negative units' : g.negative_su_rows + ' negative-unit rows') + '; ' + (g.exact_duplicate_rows || 0) + ' exact duplicate rows (' + ((g.exact_duplicate_su_share || 0) * 100).toFixed(4) + '% of units); backfilled ATC4 history: ' + esc(bc.verdict || 'n/a') + '.',
-      'Not modelled: launches, withdrawals, shortages, price changes, tenders, and IQVIA panel or mapping revisions after the data period. IQVIA can restate history; every refresh re-runs the competition.'
+    var m = D.meta;
+    var li_ = [
+      'Source: IQVIA monthly Standard Units (the Market Intelligence data, with the approved ownership restatements and market definitions). A BU or Line market = the defined markets (DM1) where Zeta has products of that BU or Line.',
+      'One forecast per market: FY' + m.target_year + ' full-year Standard Units. Growth = FY' + m.target_year + ' forecast vs the FY' + m.partial_year + ' landing estimate (' + m.partial_months + ' actual months + the rest of the year forecast).',
+      'How the number is built: each market is projected from its own sales history since 2021 — its long-term direction, its recent pace and the usual seasonal pattern. Unusual one-off months (stock building, supply gaps) are not allowed to drive the result. New markets are built on today\'s monthly sales rate.',
+      'Markets add up: every BU and the Egypt total equal the sum of their markets; Lines are the sum of their markets. DM2 markets stand on their own. A market that belongs to two BUs (e.g. PPI oral solid in GIT and Non-Promoted) counts in both.',
+      'Why this forecast / Market insights: written automatically from the same IQVIA data — the market\'s growth pattern, this year\'s sales, the brands (or sub-markets) adding and losing the most volume over the last 12 months, brands launched in the last 24 months, and the shift between molecules over two years.',
+      'Value (EGP) view: best practice is to forecast volume and price separately. Value = each defined market\'s Standard Units forecast × its own price per SU today (IQVIA LC value ÷ SU, last 6 months, current product mix); BUs, Lines and Egypt add up their markets. FY' + m.partial_year + ' landing estimate (value) = actual Jan–' + MON[m.partial_months - 1] + ' value + the remaining months\' volume × today\'s price. No new price increase is assumed for FY' + m.target_year + ': value growth = volume growth + the carry-over of prices (and mix) already in the market.',
+      'What it means for Zeta: Zeta\'s share of the last 12 months, and the volume Zeta needs in FY' + m.target_year + ' to keep that share if the market lands on the forecast.',
+      'Not built in: new launches, withdrawals, shortages, price changes or tenders that are not yet visible in IQVIA sales. IQVIA can restate history; every refresh rebuilds the forecast and its rationale.'
     ];
-    ROOT.querySelector('#mf-methodbody').innerHTML = '<ol class="ml">' + li.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ol>';
+    ROOT.querySelector('#mf-methodbody').innerHTML = '<ol class="ml">' + li_.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ol>';
   }
 
-  function methodologyV1() {
-    var m = D.meta, c = m.config, g = m.global_checks || {}, bc = g.backfill_unit_check || {};
-    var li = [
-      'Source: IQVIA monthly Standard Units from the Market Intelligence cache (' + esc(g.periods || '') + '), with the approved ownership restatements and market overrides already applied. Market definitions are the same as on the Market Intelligence page. BU and Line markets = the DM1 markets where Zeta has products of that BU or Line.',
-      'FY' + m.partial_year + ' has ' + m.partial_months + ' actual months, so it is completed with a forecast (Landing Estimate, LE). FY' + m.target_year + ' growth = FY' + m.target_year + ' forecast ÷ FY' + m.partial_year + ' LE − 1. Growth is always derived from the Standard Units forecast, never the other way round.',
-      'Stage: Launch = under ' + c.launch_months + ' consecutive months of sales; Developing = ' + c.launch_months + '–' + (c.established_months - 1) + '; Established = ' + c.established_months + '+. Launch markets, and any market with fewer than ' + c.min_common_origins + ' test points, are not statistically forecastable: a run-rate floor (last ' + c.runrate_months + ' months average) is shown with Lower confidence.',
-      'Methods: seasonal naive benchmark (last 12 months carried flat); A historical CAGR on moving annual totals; B recent 2-year CAGR; C1 linear trend on annual totals; C2 Holt damped trend on monthly log units, seasonally adjusted when a permutation test finds significant seasonality (p < ' + c.seasonal_p + '); MED = median of A, B, C1, C2.',
-      'Selection: lowest out-of-sample WAPE; the median combination is preferred when it is within ' + Math.round(c.med_tolerance * 100) + '% of the best single method. No weights are fitted.',
-      'Low/High: the spread (10th–90th percentile around the median) of the selected method\'s own past forecast errors, widened for the longer horizon, shown only with ' + c.interval_min_origins + '+ test points. Systematic bias is shown separately, not hidden in the range.',
-      'Confidence: Higher = Established, ' + c.higher.min_origins + '+ test points, WAPE ≤ ' + (c.higher.wape * 100) + '%, |bias| ≤ ' + (c.higher.bias * 100) + '%, methods within ' + c.higher.spread_pts + ' pts, no high-severity data flag. Moderate = WAPE ≤ ' + (c.moderate.wape * 100) + '%, |bias| ≤ ' + (c.moderate.bias * 100) + '%. Otherwise Lower.',
-      'Abnormal months: a month above ' + c.outlier_hi + '× or below ' + c.outlier_lo + '× the median of the 3 months on either side is flagged, never removed. Zero months after first sale are shown as gaps, not treated as missing data.',
-      'Data checks this build: ' + (g.negative_su_rows === 0 ? 'no negative units' : g.negative_su_rows + ' negative-unit rows') + '; ' + (g.exact_duplicate_rows || 0) + ' exact duplicate rows (' + ((g.exact_duplicate_su_share || 0) * 100).toFixed(4) + '% of units, kept as in the dashboard); backfilled ATC4 history (' + ((bc.share_of_egypt_su_last12 || 0) * 100).toFixed(1) + '% of units): ' + esc(bc.verdict || 'n/a') + '.',
-      'Not modelled: launches, withdrawals, shortages, price changes, tenders, and IQVIA panel or mapping revisions after the data period. No market drivers are assumed. IQVIA can restate history; every refresh re-runs the tests.'
-    ];
-    ROOT.querySelector('#mf-methodbody').innerHTML = '<ol class="ml">' + li.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ol>';
+  function hsub() {
+    var el = ROOT.querySelector('#mf-hsub'); if (!el) return;
+    el.textContent = isV() ? 'IQVIA value (EGP). Each market\'s volume forecast × its price per Standard Unit today — one forecast per market, with the reasons behind it. No new price increase assumed.'
+      : 'IQVIA Standard Units. One forecast per market, built from its own IQVIA sales history, with the business reasons behind it. Switch the measure to see value (EGP).';
   }
-
-  function render() { fillSelect(); detail(); overview(); }
+  function render() { hsub(); fillSelect(); detail(); overview(); }
 
   function wire() {
     ROOT.querySelector('#mf-lvl').addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
       ST.level = b.dataset.v;
       ROOT.querySelectorAll('#mf-lvl button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      render();
+    });
+    var mz = ROOT.querySelector('#mf-meas');
+    if (mz) mz.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      ST.meas = b.dataset.v; saveState();
+      mz.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
       render();
     });
     ROOT.querySelector('#mf-seg').addEventListener('change', function (e) { ST.seg[ST.level] = e.target.value; detail(); overview(); });
@@ -355,7 +319,7 @@
       D = D || decode();
       if (!D) { ROOT.innerHTML = '<div style="padding:24px">Market forecast data not loaded (cache/market_forecast.data.js). Run UPDATE_DASHBOARD.bat or <code>python etl/build_market_forecast.py --cache</code>.</div>'; return; }
       computeScope();
-      var sv = loadState(); if (sv && sv.level) { ST.level = sv.level; ST.seg = sv.seg || {}; }
+      var sv = loadState(); if (sv && sv.level) { ST.level = sv.level; ST.seg = sv.seg || {}; ST.meas = sv.meas === 'val' ? 'val' : 'su'; }
       if (!segs(ST.level).length) ST.level = (LEVELS.find(function (l) { return segs(l[0]).length; }) || ['DM1'])[0];
       ROOT.innerHTML = shell(); wire(); methodology(); render();
     } catch (e) {

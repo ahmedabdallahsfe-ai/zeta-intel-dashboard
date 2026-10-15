@@ -781,7 +781,11 @@ def build(mi_path=MI, map_path=MAP, forecast_path=FORECAST, iqvia_path=IQVIA, gr
                        "confidence": s.get("confidence"), "engine": s.get("engine"), "method": s.get("selected_label"),
                        "su2025": ((s.get("history") or {}).get("2025") or {}).get("su"),
                        "reliability": (s.get("reliability") or {}).get("verdict"),
-                       "reliability_points": (s.get("reliability") or {}).get("points") or []})
+                       "reliability_points": (s.get("reliability") or {}).get("points") or [],
+                       # 2026-10-14 (Ahmed): business rationale from etl/market_forecast_rationale.py
+                       "key_driver": (s.get("rationale") or {}).get("key_driver"),
+                       "statement": (s.get("rationale") or {}).get("statement"),
+                       "why": ((s.get("rationale") or {}).get("why") or [])[:2]})
 
     # 6. checks
     checks = []

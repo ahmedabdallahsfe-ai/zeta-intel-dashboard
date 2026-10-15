@@ -37,6 +37,7 @@ import gzip
 import json
 import math
 import os
+import sys
 import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -1365,6 +1366,22 @@ def run_all(src, n_jobs=1, cfg=CFG):
 
 
 def publish(n_jobs=1):
+    """Dashboard refresh step: forecast (champion or v1 fallback) + value (EGP) overlay + business rationale overlay."""
+    rc = _publish_forecast(n_jobs)
+    if rc == 0:
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from market_forecast_value import add_value          # 2026-10-15: EGP view (SU forecast x today's price)
+            add_value()
+            from market_forecast_rationale import add_rationale
+            add_rationale()
+        except Exception as e:                                      # noqa: BLE001
+            import traceback; traceback.print_exc()
+            print(f"rationale step failed ({type(e).__name__}); forecast cache kept without rationale")
+    return rc
+
+
+def _publish_forecast(n_jobs=1):
     """Refresh step for the dashboard (config/refresh_map.json -> market_forecast).
 
     1. If the forecasting libraries are missing: keep the current champion cache when IQVIA has not changed

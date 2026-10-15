@@ -438,17 +438,16 @@
       if (sc && f.atc) return m.atc4 === f.atc;
       return m.indication === i.id; })
       .sort(function (a, b) { return a.type === b.type ? (b.le || 0) - (a.le || 0) : (a.type < b.type ? -1 : 1); });
-    var h = '<section class="card"><div class="h2row"><h2>D · FY2027 outlook — our markets, champion forecast</h2><span class="unitchip">IQVIA Standard Units — a different measure from A–C</span></div>';
+    var h = '<section class="card"><div class="h2row"><h2>D · FY2027 outlook — our markets</h2><span class="unitchip">IQVIA Standard Units — a different measure from A–C</span></div>';
     if (!mk.length) return h + '<p class="mut">' + (sc ? 'No champion forecast for this filter.' : 'None of our forecast markets (DM1 / DM2) sit in this area.') + '</p></section>';
     h += '<div class="tblwrap"><table class="tbl"><thead><tr><th>Type</th><th>Market</th><th>Main ATC4</th><th class="r">SU 2026 LE</th><th class="r">SU FY2027</th>' +
-      '<th class="r">Growth</th><th>Reliability</th><th>Method</th></tr></thead><tbody>';
+      '<th class="r">Growth</th><th>Main growth driver</th></tr></thead><tbody>';
     mk.forEach(function (m) {
       h += '<tr class="link" data-mk="' + esc(m.type + '|' + m.name) + '"><td>' + m.type + '</td><td>' + esc(m.name) + '</td><td class="mut small">' + esc(m.atc4 || '') + '</td>' +
         '<td class="r num">' + (fin(m.le) ? big(m.le) : '—') + '</td><td class="r num">' + (fin(m.fy27) ? big(m.fy27) : '—') + '</td><td class="r num' + (m.growth < 0 ? ' neg' : '') + '">' + fmtP(m.growth) + '</td>' +
-        '<td title="' + esc((m.reliability_points || []).join('\n')) + '">' + esc(m.reliability || m.confidence || '—') + (m.engine === 'safeguard' ? ' <span class="qchip qm">safeguard</span>' : '') + '</td>' +
-        '<td class="small">' + esc(m.method || '—') + '</td></tr>';
+        '<td class="small" title="' + esc([m.statement].concat(m.why || []).filter(Boolean).join('\n')) + '">' + esc(m.key_driver || '—') + '</td></tr>';   // 2026-10-14: one forecast, no reliability/method
     });
-    return h + '</tbody></table></div><div class="note mut">Same figures as the Market Growth Forecast tab (click a row to open it there). The outlook badge above is provisional: it comes from 2024–2025 growth and the treatment-shift flag, not from a forecast of the whole area.</div></section>';
+    return h + '</tbody></table></div><div class="note mut">Same figures as the Market Growth Forecast tab — hover a driver for the reason behind the forecast, click a row to open its full rationale. The outlook badge above is provisional: it comes from 2024–2025 growth and the treatment-shift flag, not from a forecast of the whole area.</div></section>';
   }
 
   function methodology() {
@@ -461,7 +460,7 @@
       '<li><b>2026.</b> January–June only with no month split, so there is no comparable H1 2025: 2026 is shown as volume and as share of the area, compared with the full-year 2025 share.</li>' +
       '<li><b>Quadrants</b> (first match): Contracting / At-Risk = YoY below 0 in 2025 and 2024 → at or above fair share: Volume Anchor if YoY ≥ ' + th.anchor_min_yoy_pct + '% and acceleration ≥ ' + th.anchor_min_accel_pts + ' pts, else Mature / Plateauing → below fair share: Growth Engine if YoY ≥ ' + th.engine_min_yoy_pct + '% or acceleration ≥ +' + th.engine_min_accel_pts + ' pts, else Niche / Stable. Fair share = 1 ÷ number of classes (or listed molecules) in the area.</li>' +
       '<li><b>Treatment shift.</b> Within the pair\'s area. Substitution ratio = share of the next-gen gain that legacy losses explain (capped at 100%). Legacy Decline (not replaced) = legacy lost more than ' + (th.legacy_decline_multiple || 2) + '× the next-gen gain; Class Substitution = legacy falling and ratio ≥ ' + th.substitution_min_ratio_pct + '%; Segment Deepening = legacy stable or growing; otherwise Mixed.</li>' +
-      '<li><b>FY2027.</b> Section D shows our markets\' champion forecast in IQVIA Standard Units, unchanged (built ' + esc(m.forecast_generated_at || '—') + '). Each market is placed in the area of its main ATC4.</li></ol>' +
+      '<li><b>FY2027.</b> Section D shows our markets\' FY2027 forecast in IQVIA Standard Units with its main growth driver, unchanged (built ' + esc(m.forecast_generated_at || '—') + '). Each market is placed in the area of its main ATC4.</li></ol>' +
       '<h3>Data checks at build time</h3><ul class="dql">' + ck + '</ul>';
   }
 

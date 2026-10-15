@@ -1516,7 +1516,7 @@ async function renderTerritoryMarketTab(container) {
   const allowed = window.AUTH && typeof window.AUTH.canViewTerritoryMarket === "function" ? window.AUTH.canViewTerritoryMarket() : false;
   if (!allowed) { renderLocalOnlyDenied(container, "Territory Market Insights"); return; }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Territory Market Insights…</div>';
-  await Promise.all([loadLocalAsset("css/iqvia-geo.css?v=20261011_tgt"), loadLocalAsset("js/iqvia-geo.js?v=20261012_scope"),
+  await Promise.all([loadLocalAsset("css/iqvia-geo.css?v=20261015_xlsx"), loadLocalAsset("js/iqvia-geo.js?v=20261015_xlsx"),
     window.CacheLoader ? window.CacheLoader.ensure("iqvia_geo") : Promise.resolve(false)]);
   if (currentTab !== "territorymarket") return;
   if (window.TerritoryMarketDashboard) window.TerritoryMarketDashboard.init("app-root");
@@ -1539,7 +1539,7 @@ async function renderMarketForecastTab(container) {
     return;
   }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Growth Forecast…</div>';
-  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261013_rel"), loadLocalAsset("js/market-forecast.js?v=20261013_rel"),
+  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261015_val"), loadLocalAsset("js/market-forecast.js?v=20261015_val"),
     window.CacheLoader ? window.CacheLoader.ensure("market_forecast") : Promise.resolve(false)]);
   if (currentTab !== "marketforecast") return;
   if (window.MarketForecastDashboard) window.MarketForecastDashboard.init("app-root");
@@ -1563,7 +1563,7 @@ async function renderMarketDynamicsTab(container) {
     return;
   }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Dynamics…</div>';
-  await Promise.all([loadLocalAsset("css/market-dynamics.css?v=20261013_s4"), loadLocalAsset("js/market-dynamics.js?v=20261013_s8"),
+  await Promise.all([loadLocalAsset("css/market-dynamics.css?v=20261013_s4"), loadLocalAsset("js/market-dynamics.js?v=20261015_rat"),
     window.CacheLoader ? window.CacheLoader.ensure("market_dynamics") : Promise.resolve(false)]);
   if (currentTab !== "marketdynamics") return;
   if (window.MarketDynamicsDashboard) window.MarketDynamicsDashboard.init("app-root");

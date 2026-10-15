@@ -60,7 +60,7 @@
     <h2>All positions — Zeta vs competitors</h2>
     <div class="sub"><b>How to read:</b> <b>Market</b> = size and growth of the market the position covers · <b>Zeta</b> = sales, growth and share in the position · <b>Fair Share Index</b> 100 = same share as nationally, <span class="idx i-lo">below 90</span> under-performing, <span class="idx i-hi">above 110</span> over-performing · <b>Evolution Index</b> above 100 = Zeta growing faster than the market · <b>Market Geo Share %</b> = part of the national market that sits in this position (grey bar) · <b>Contribution %</b> = part of national Zeta brand sales that comes from this position (blue bar) — when the blue bar is longer than the grey tick, Zeta is over-represented here (▲), shorter = under-represented (▼) · competitor cells = share, Fair Share Index, points gained/lost vs last year, growth. Click a column header (or use <b>Sort by</b>) to sort. Click ▸ for the bricks, click a row for the position profile with its month-by-month trend.</div>
     <div class="toolbar"><div id="ig-pRegChips" style="display:flex;flex-wrap:wrap;gap:6px" role="group" aria-label="Region filter"></div></div>
-    <div class="toolbar"><input type="search" id="ig-pSearch" placeholder="Search position, rep or DM" aria-label="Search position, rep or DM"><label class="sortctl">Sort by <select id="ig-pSort"></select></label><button type="button" class="sortdir" id="ig-pDir" title="Switch between highest first and lowest first"></button><span class="foot" id="ig-pSum"></span></div>
+    <div class="toolbar"><input type="search" id="ig-pSearch" placeholder="Search position, rep or DM" aria-label="Search position, rep or DM"><label class="sortctl">Sort by <select id="ig-pSort"></select></label><button type="button" class="sortdir" id="ig-pDir" title="Switch between highest first and lowest first"></button><button type="button" class="xbtn" id="ig-pXlsx" title="Download every position with its bricks (all 148 bricks, drilled down) for the current filters">⬇ Download Excel</button><span class="foot" id="ig-pSum"></span></div>
     <div class="tbl-wrap"><table class="dt" id="ig-pTbl"></table></div>
     <button class="more" id="ig-pMore" hidden>Show all positions</button>
   </section>
@@ -220,6 +220,7 @@ $('#ig-fPs2').onchange=e=>{ST.pto=e.target.value;render();};
 $('#ig-fAlloc').onchange=e=>{ST.anc=e.target.checked;render();};
 $('#ig-pSearch').oninput=e=>{ST.pq=e.target.value.toLowerCase();renderPos(LAST,LASTP);};
 $('#ig-pMore').onclick=()=>{ST.pAll=true;renderPos(LAST,LASTP);};
+$('#ig-pXlsx').onclick=()=>{try{exportPosXlsx(LAST,LASTP);}catch(e){console.error('[IqviaGeo] Excel export',e); alert('Excel export failed: '+(e&&e.message||e));}};
 
 /* ---------- render ---------- */
 let LAST=null;
@@ -467,6 +468,94 @@ function renderPos(C,P){
   $('#ig-pTbl').querySelectorAll('td.tog').forEach(td=>td.onclick=e=>{e.stopPropagation();const p=+td.dataset.t; ST.open.has(p)?ST.open.delete(p):ST.open.add(p); renderPos(LAST,LASTP);});
   $('#ig-pTbl').querySelectorAll('tr.prow').forEach(tr=>tr.onclick=()=>openPos(+tr.dataset.p));
   $('#ig-pTbl').querySelectorAll('tr.brow').forEach(tr=>tr.onclick=()=>openBrick(+tr.dataset.k));
+}
+/* 2026-10-15 (Ahmed): "All positions — Zeta vs competitors" -> Excel. Same numbers and filters as the table
+   (period, measure, sector, BU/line/market/DM2, region chips, search, estimated-sales toggle), but every position and
+   every brick under it (drilled down), plus a sheet with all 148 bricks. Numbers are written as numbers. */
+function exportPosXlsx(C,P0){
+  if(typeof XLSX==='undefined'){alert('Excel library not loaded (assets/xlsx.core.min.js).');return;}
+  if(!C||!P0){return;}
+  const comps=(LASTS&&LASTS.comp?LASTS.comp:[]).slice(0,5), zbs=C.zBrands, one=zbs.length<=1, ul=UL();
+  const nat={}; for(const L in C.byL){nat[L]={mk:C.byL[L].mk.reduce((t,v)=>t+v,0),z:C.byL[L].z.reduce((t,v)=>t+v,0)};}
+  const NBL={}; C.bb.forEach(m=>{for(const [bi,v] of m){const L=lineOfMkt[D.brands[bi].m]; const t=NBL[L]??={T:0,b:new Map()}; t.T+=v[0]; t.b.set(bi,(t.b.get(bi)||0)+v[0]);}});
+  const NBA={T:0,b:new Map()}; C.bb.forEach(m=>{for(const [bi,v] of m){NBA.T+=v[0]; NBA.b.set(bi,(NBA.b.get(bi)||0)+v[0]);}});
+  const num=v=>(v==null||!isFinite(v))?null:v;
+  const g_=(c,p)=>HASPREV?num(gr(c,p)):null;
+  const short=n=>n.replace(/ Solid Oral.*| Oral cap.*/,'');
+  const cols=[...(one?[]:zbs.map(bi=>[bi,short(D.brands[bi].n)+(D.brands[bi].a?' ≈':'')+' (Zeta)'])),...comps.map(bi=>[bi,short(D.brands[bi].n)+' · '+D.brands[bi].c.replace('*','')]),[-1,'Others']];
+  function shareSet(mk,mkp,cb,NB,brick){ // same logic as shareCells: Zeta products, named competitors, Others
+    const out=[]; let uc=0,up=0,ns=0; const nsh=bi=>NB&&NB.T>0?(NB.b.get(bi)||0)/NB.T:null;
+    const cell=(c,p,n)=>{const s_=mk>0?c/mk:null, ix=(s_!=null&&n>0)?s_/n*100:null, sp=(HASPREV&&mkp>0)?p/mkp:null; return [num(s_),num(ix),(s_!=null&&sp!=null)?(s_-sp)*100:null,g_(c,p)];};
+    zbs.forEach(bi=>{if(brick&&D.brands[bi].a){if(!one)out.push([null,null,null,null]);return;} const v=cb.get(bi)||[0,0]; uc+=v[0]; up+=v[1]; const n=nsh(bi); ns+=n||0; if(!one)out.push(cell(v[0],v[1],n));});
+    comps.forEach(bi=>{const v=cb.get(bi)||[0,0]; uc+=v[0]; up+=v[1]; const n=nsh(bi); ns+=n||0; out.push(cell(v[0],v[1],n));});
+    out.push(cell(Math.max(0,mk-uc),Math.max(0,mkp-up),NB&&NB.T>0?Math.max(0,1-ns):null));
+    return out.flat();}
+  const zl=zLab(C);
+  const compHead=cols.flatMap(([,n])=>[n+' share',n+' FSI',n+' Δ share (pts)',n+' growth']);
+  const H=['Level','Position','Line','Region','Medical rep','District manager','NSM','Status','Where to act','Brick','Brick territory','Brick region','Allocation %',
+    'Market '+ul,'Market '+ul+' last year','Market growth','Market Geo Share %',
+    zl+' '+ul,zl+' '+ul+' last year',zl+' growth',zl+' share',zl+' Δ share (pts)','Fair Share Index','Evolution Index',zl+' Contribution %','Gap to fair share ('+ul+')',...compHead];
+  let P=P0.slice().sort((a,b)=>a.line.localeCompare(b.line)||b.pot-a.pot);
+  if(ST.pq) P=P.filter(o=>(o.name+' '+o.rep+' '+o.dm).toLowerCase().includes(ST.pq));
+  const rows=[H], lvl=[]; const brickSet=new Set();
+  for(const o of P){
+    const n=nat[o.line]||{mk:0,z:0}, natSh=n.mk>0?n.z/n.mk:0;
+    const regs=[...new Set(o.br.map(([b])=>D.bricks[b].r))].join(' / ');
+    const sh=o.pot>0?o.z/o.pot:null, shp=(HASPREV&&o.potP>0)?o.zp/o.potP:null, fsi=(sh!=null&&natSh>0)?sh/natSh*100:null;
+    rows.push(['Position',o.name,o.line,regs,o.vac!=='Filled'?'(vacant)':o.rep,o.dm,o.nsm,o.vac,o.seg,'','','',null,
+      num(o.pot),HASPREV?num(o.potP):null,g_(o.pot,o.potP),n.mk>0?o.pot/n.mk:null,
+      C.hasZ?num(o.z):null,C.hasZ&&HASPREV?num(o.zp):null,C.hasZ&&!o.gzNat?g_(o.z,o.zp):null,C.hasZ?num(sh):null,(sh!=null&&shp!=null)?(sh-shp)*100:null,C.hasZ?num(fsi):null,num(o.ei),C.hasZ&&n.z>0?o.z/n.z:null,C.hasZ?num(o.gap):null,
+      ...shareSet(o.pot,o.potP,o.cb,NBL[o.line],0)]); lvl.push(1);
+    const brs=o.br.map(([b,al])=>({b,al,...lineBrick(C,b,o.line)})).sort((a,b)=>b.mk*b.al-a.mk*a.al);
+    for(const x of brs){ brickSet.add(x.b);
+      const bsh=x.mk>0?x.z/x.mk:null, bshp=(HASPREV&&x.mkp>0)?x.zp/x.mkp:null, idx=(bsh!=null&&natSh>0)?bsh/natSh*100:null, gm=gr(x.mk,x.mkp), gz=gr(x.z,x.zp), ei=(HASPREV&&gz!=null&&gm!=null)?100*(1+gz)/(1+gm):null;
+      const pos=C.ancOnly.has(o.line), B=D.bricks[x.b];
+      rows.push(['Brick',o.name,o.line,B.r,o.vac!=='Filled'?'(vacant)':o.rep,o.dm,o.nsm,o.vac,'',B.n,B.t,B.r,x.al,
+        num(x.mk),HASPREV?num(x.mkp):null,g_(x.mk,x.mkp),n.mk>0?x.mk/n.mk:null,
+        C.hasZ&&!pos?num(x.z):null,C.hasZ&&!pos&&HASPREV?num(x.zp):null,C.hasZ&&!pos?g_(x.z,x.zp):null,C.hasZ&&!pos?num(bsh):null,(!pos&&bsh!=null&&bshp!=null)?(bsh-bshp)*100:null,C.hasZ&&!pos?num(idx):null,pos?null:num(ei),C.hasZ&&!pos&&n.z>0?x.z/n.z:null,C.hasZ&&!pos&&natSh>0&&bsh!=null?Math.max(0,natSh-bsh)*x.mk:null,
+        ...shareSet(x.mk,x.mkp,x.br,NBL[o.line],1)]); lvl.push(2);}
+  }
+  // Sheet 2: all 148 bricks for the selection (whole selection, every region; positions listed)
+  const posOf=new Map(); for(const [p,b,al] of D.alloc){ if(al<=0)continue; const P_=D.pos[p]; if(![...C.ms].some(i=>lineOfMkt[i]===P_[1]))continue; (posOf.get(b)||posOf.set(b,[]).get(b)).push(P_[0]+(P_[5]!=='Filled'?' (vacant)':'')+' '+Math.round(al*100)+'%'); }
+  const H2=['Brick','Territory','Region','Positions covering (allocation)','Market '+ul,'Market '+ul+' last year','Market growth','Market Geo Share %',zl+' '+ul,zl+' growth',zl+' share','Fair Share Index','Evolution Index','Gap to fair share ('+ul+')','Segment','Low base',...compHead];
+  const rows2=[H2]; const NM=C.N.mk||0;
+  C.rows.slice().sort((a,b)=>(a.ps-b.ps)||a.r.localeCompare(b.r)||b.mk-a.mk).forEach(r=>{   // 148 IQVIA bricks first, then the 6 region-level rows of estimated (≈) Zeta sales
+    rows2.push([r.n,r.t,r.r,(posOf.get(r.k)||[]).join('; '),num(r.mk),HASPREV?num(r.mkp):null,g_(r.mk,r.mkp),NM>0?r.mk/NM:null,C.hasZ?num(r.z):null,C.hasZ?g_(r.z,r.zp):null,C.hasZ?num(r.sh):null,num(r.idx),num(r.ei),C.hasZ?num(r.gap):null,r.seg,r.low?'Yes':'',
+      ...shareSet(r.mk,r.mkp,C.bb[r.k],NBA,1)]);});
+  // Sheet 3: selection + definitions
+  const scope=ST.d2?('DM2 '+ST.d2):ST.mkt!==''?D.markets[+ST.mkt].n:ST.line?('Line '+ST.line+' · all markets'):ST.bu?('BU '+ST.bu):'All Zeta markets';
+  const rows3=[['Territory Market Insights — All positions, Zeta vs competitors'],[],
+    ['Market selection',scope],['Period',C.PI.label+(C.PI.ok?' vs same months last year':' (no prior-year comparison)')],['Measure',ST.meas==='v'?'Value (EGP)':'Units'],
+    ['Sector',{0:'Pharmacies',1:'Stores',all:'Pharmacies + Stores'}[ST.sec]],['Region',ST.region==='ALL'?'All regions':ST.region],['Search',ST.pq||'(none)'],
+    ['Estimated Zeta sales (brands IQVIA reports nationally only)',ST.anc?'On (≈, directional)':'Off'],['Zeta product(s)',zName(C)],
+    ['Positions exported',P.length],['Bricks under those positions',brickSet.size],['Bricks in sheet "Bricks (148)"',C.rows.filter(r=>!r.ps).length+' IQVIA bricks'+(C.rows.some(r=>r.ps)?' + '+C.rows.filter(r=>r.ps).length+' region-level rows for ≈ estimated Zeta sales (no brick split), listed last':'')],
+    ['Source',D.meta.source+' · built '+D.meta.built],['Exported',new Date().toLocaleString()],[],
+    ['Definitions'],['Market','Σ IQVIA tracked brands of the selected market(s). Position market = Σ brick market × allocation % (organogram share).'],
+    ['Market Geo Share %','Position (or brick) market ÷ national market of the line.'],[zl+' Contribution %','Position (or brick) Zeta ÷ national Zeta of the line.'],
+    ['Share','Brand ÷ tracked market (not IQVIA "market share").'],['Δ share (pts)','Share now − share in the same months last year, in percentage points.'],
+    ['Fair Share Index (FSI)','Share here ÷ national share × 100. Below 90 under-performing, above 110 over-performing.'],
+    ['Evolution Index','100 × (1 + Zeta growth) ÷ (1 + market growth). Above 100 = growing faster than the market.'],
+    ['Gap to fair share','max(0, national share − share here) × market here: what Zeta would add at its national share.'],
+    ['Where to act','Fill vacancy (no rep) · Close the gap (FSI < 90) · Protect (FSI > 110) · On track (90–110).'],
+    ['Brick rows','Brick market and Zeta are shown for the whole brick (the allocation % is a separate column), same as the page.'],
+    ['Blank Zeta cells on bricks','≈ Estimated brands exist at position level only (no brick split).'],
+    ['Competitors','Same top-5 competitors as the page (by national value in the selection) + Others (IQVIA aggregate rows and smaller brands).']];
+  // formats
+  const PCT='0.0%', NUM='#,##0', IDX='0', PTS='+0.0;-0.0;0.0';
+  const fmtCols=(hdr)=>hdr.map(h=>/ share$|Geo Share %|Contribution %|Allocation %| growth$|Market growth/.test(h)?PCT:/FSI$|Fair Share Index|Evolution Index/.test(h)?IDX:/pts\)$/.test(h)?PTS:/ (EGP|units)( last year)?$|Gap to fair share/.test(h)?NUM:null);
+  function sheet(aoa,widths){const ws=XLSX.utils.aoa_to_sheet(aoa), f=fmtCols(aoa[0]);
+    for(let r=1;r<aoa.length;r++) for(let c=0;c<f.length;c++){ if(!f[c])continue; const ref=XLSX.utils.encode_cell({r,c}); if(ws[ref]&&ws[ref].t==='n') ws[ref].z=f[c]; }
+    ws['!cols']=aoa[0].map((h,i)=>({wch:widths&&widths[i]||Math.min(28,Math.max(10,String(h).length+2))}));
+    ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:aoa[0].length-1}})};
+    return ws;}
+  const ws1=sheet(rows,[9,28,9,18,26,24,22,10,14,22,18,14,11]);
+  ws1['!rows']=lvl.map(l=>l===2?{level:1}:{}); ws1['!rows'].unshift({});   // Excel outline: bricks grouped under each position
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws1,'Positions & bricks');
+  XLSX.utils.book_append_sheet(wb,sheet(rows2,[22,18,14,60]),'Bricks (148)');
+  const ws3=XLSX.utils.aoa_to_sheet(rows3); ws3['!cols']=[{wch:44},{wch:110}]; XLSX.utils.book_append_sheet(wb,ws3,'Selection & definitions');
+  const safe=s_=>String(s_).replace(/[^A-Za-z0-9_-]+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').slice(0,40);
+  XLSX.writeFile(wb,'Territory_Positions_'+safe(scope)+'_'+safe(C.PI.label)+'_'+(ST.meas==='v'?'EGP':'Units')+'.xlsx',{compression:true});
 }
 function posMonthly(C,o){ // month-by-month for one position: same bricks, allocation, filters and estimated layer as the tables
   const L=o.line, mi=ST.meas==='v'?3:4, NM=MON.length, end=C.PI.cur[C.PI.cur.length-1], ms=[]; for(let i=Math.max(0,end-11);i<=end;i++) ms.push(i);
