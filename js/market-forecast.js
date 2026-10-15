@@ -101,7 +101,7 @@
       (hasVal() ? '<div class="ctl"><label>Measure</label><div class="seg" id="mf-meas"><button data-v="su" aria-pressed="' + (ST.meas !== 'val') + '">Standard Units</button><button data-v="val" aria-pressed="' + (ST.meas === 'val') + '">Value (EGP)</button></div></div>' : '') +
       '</section>' +
       '<div id="mf-detail"></div>' +
-      '<section class="card"><div class="h2row"><h2>All markets at this level</h2><div class="sub">Click a row to open it. Sorted by FY' + m.target_year + ' size.</div></div><div class="tblwrap" id="mf-ov"></div></section>' +
+      '<section class="card glance" id="mf-ov"></section>' +
       '<details class="card method" id="mf-method"><summary><h2>How the forecast is built</h2></summary><div id="mf-methodbody"></div></details>' +
       '</div>';
   }
@@ -249,18 +249,62 @@
       '<section class="card"><h2>Monthly trend and forecast path</h2>' + monthlyChart(r) + '</section>';
   }
 
+  // 2026-10-15 (Ahmed): the bottom section shows ONLY the selected market — performance + forecast in plain words
+  function chip(txt, cls) { return '<span class="vchip ' + cls + '">' + esc(txt) + '</span>'; }
   function overview() {
-    var list = segs(ST.level).slice().sort(function (a, b) { return size(b) - size(a); }), c = cur(), m = D.meta;
-    var h = '<table class="tbl ov"><thead><tr><th>Market</th><th>Stage</th><th class="r">FY' + m.full_years[m.full_years.length - 1] + (isV() ? ' EGP' : ' SU') + '</th><th class="r">FY' + m.partial_year + ' LE</th><th class="r">FY' + m.target_year + '</th><th class="r">Growth</th><th class="r">' + (isV() ? 'Value added (EGP)' : 'Volume added (SU)') + '</th><th>Main growth driver</th></tr></thead><tbody>';
-    list.forEach(function (r) {
-      var f = V(r), rr = r.forecast_type === 'run_rate_floor';
-      h += '<tr data-n="' + esc(r.name) + '" class="' + (c && r.name === c.name ? 'sel' : '') + '"><td class="mk">' + esc(r.name) + (r.same_as && r.same_as.length ? ' <span class="mut" title="' + esc(r.same_as.join(', ')) + '">(=)</span>' : '') + '</td>' +
-        '<td>' + esc(r.lifecycle) + '</td><td class="num r">' + fmtSU(f.hist(String(m.full_years[m.full_years.length - 1]))) + '</td><td class="num r">' + fmtSU(f.fy_le) + '</td><td class="num r">' + fmtSU(f.fy_target) + '</td>' +
-        '<td class="num r">' + fmtP(f.growth) + '</td>' +
-        '<td class="num r">' + (fin(f.fy_target) && fin(f.fy_le) ? (f.fy_target >= f.fy_le ? '+' : '−') + fmtSU(Math.abs(f.fy_target - f.fy_le)) : '—') + '</td>' +
-        '<td class="mut">' + esc((r.rationale || {}).key_driver || '—') + '</td></tr>';
+    var r = cur(), el = ROOT.querySelector('#mf-ov');
+    if (!r) { el.innerHTML = ''; return; }
+    var m = D.meta, v = V(r), val = v.val, k = val ? 'val' : 'su', sc = r.scorecard || {}, z = sc.zeta || {}, mm = sc.market_mat || {};
+    var ly = String(m.full_years[m.full_years.length - 1]), py = m.partial_year, ty = m.target_year;
+    var g = function (a, b) { return fin(a) && fin(b) && b > 0 ? (a / b - 1) * 100 : null; };
+    var lastYoy = v.yoy[(m.full_years[m.full_years.length - 2]) + '-' + ly];
+    var ytdG = (v.ytd || {}).growth_pct, leG = g(v.fy_le, v.hist(ly)), fG = v.growth;
+    // 1) market trend
+    var mt = fin(ytdG) ? ytdG : lastYoy;
+    var t1 = !fin(mt) ? ['No trend yet', 'n'] : mt >= 15 ? ['Growing fast', 'up'] : mt >= 3 ? ['Growing', 'up'] : mt > -3 ? ['Flat', 'n'] : ['Declining', 'dn'];
+    // 2) next year
+    var t2 = !fin(fG) ? ['No forecast', 'n'] : !fin(leG) ? [fG >= 0 ? 'Growth expected' : 'Decline expected', fG >= 0 ? 'up' : 'dn'] :
+      Math.abs(fG - leG) <= 3 ? ['Same pace as this year', fG >= 0 ? 'up' : 'dn'] : fG > leG ? ['Faster than this year', 'up'] : ['Slower than this year', fG >= 0 ? 'n' : 'dn'];
+    // 3) Zeta position (last 12 months)
+    var zm = z.mat || {}, zs = mm[k] > 0 ? (zm[k] || 0) / mm[k] : null, zsp = mm[k + '_py'] > 0 ? (zm[k + '_py'] || 0) / mm[k + '_py'] : null;
+    var dpts = fin(zs) && fin(zsp) ? (zs - zsp) * 100 : null, zg = g(zm[k], zm[k + '_py']), mg = g(mm[k], mm[k + '_py']);
+    var t3 = !zs ? ['Zeta not present', 'n'] : !fin(dpts) ? ['New for Zeta', 'up'] : dpts >= 0.3 ? ['Zeta gaining share', 'up'] : dpts <= -0.3 ? ['Zeta losing share', 'dn'] : ['Zeta holding share', 'n'];
+    // 4) leader
+    var br = (sc.brands || []).slice().sort(function (a, b) { return (b[k] || 0) - (a[k] || 0); });
+    var lead = br[0], zr = br.findIndex(function (b) { return b.z; });
+    var tiles = [
+      ['Market trend', t1, fmtM(v.hist(ly), val) + ' in ' + ly + ' (' + fmtP(lastYoy) + '). ' + (fin(ytdG) ? 'This year so far ' + fmtP(ytdG) + ' vs last year.' : '')],
+      ['Next year (FY' + ty + ')', t2, 'Forecast ' + fmtM(v.fy_target, val) + ' (' + fmtP(fG) + '), after ' + fmtP(leG) + ' expected for ' + py + '.'],
+      ['Zeta position', t3, zs ? 'Zeta ' + (zs * 100).toFixed(1) + '% of the market' + (fin(dpts) ? ' (' + (dpts >= 0 ? '+' : '') + dpts.toFixed(1) + ' pts)' : '') + '. Zeta ' + fmtP(zg) + ' vs market ' + fmtP(mg) + ' (last 12 months).' : 'Zeta has no sales in this market.'],
+      ['Market leader', [lead ? lead.n : '—', lead && lead.z ? 'up' : 'n'], lead ? (lead.c || '').replace('*', '') + ' · ' + (mm[k] > 0 ? (lead[k] / mm[k] * 100).toFixed(1) + '% of the market' : '') + (zr > 0 ? ' · Zeta\'s top brand ' + br[zr].n + ' ranks #' + (zr + 1) : zr === 0 ? ' · Zeta leads the market' : '') : '']
+    ];
+    var h = '<div class="h2row"><h2>' + esc(r.name) + ' — at a glance</h2><div class="sub">Performance and forecast in one view · ' + (val ? 'Value (EGP; forecast at today\'s prices)' : 'Standard Units') + '</div></div>';
+    h += '<div class="gtiles">' + tiles.map(function (x) { return '<div class="gtile"><div class="kl">' + esc(x[0]) + '</div><div class="gv">' + chip(x[1][0], x[1][1]) + '</div><div class="ks">' + esc(x[2]) + '</div></div>'; }).join('') + '</div>';
+    // year by year
+    var yrs = z.years || {}, rows = [], prevM = null, prevZ = null;
+    m.full_years.forEach(function (yy) {
+      var Y = String(yy), mv = v.hist(Y), zv = (yrs[Y] || {})[val ? 'zval' : 'zsu'];
+      rows.push(['<b>' + Y + '</b>', 'Actual', fmtM(mv, val), fmtP(g(mv, prevM)), zv ? fmtM(zv, val) : '—', zv ? fmtP(g(zv, prevZ)) : '—', mv > 0 && zv ? (zv / mv * 100).toFixed(1) + '%' : '—']);
+      prevM = mv; prevZ = zv;
     });
-    ROOT.querySelector('#mf-ov').innerHTML = h + '</tbody></table>';
+    var zy = z.ytd || {}, yc = (v.ytd || {}).cur, ypy = (v.ytd || {}).py, zyc = zy[k], zyp = zy[k + '_py'];
+    rows.push(['<b>' + py + '</b> ' + esc((v.ytd || {}).months || ''), 'Actual so far', fmtM(yc, val), fmtP(ytdG), zyc ? fmtM(zyc, val) : '—', zyc ? fmtP(g(zyc, zyp)) : '—', yc > 0 && zyc ? (zyc / yc * 100).toFixed(1) + '%' : '—']);
+    rows.push(['<b>' + py + '</b> full year', 'Landing estimate', fmtM(v.fy_le, val), fmtP(leG), '—', '—', '—']);
+    var need = zs && fin(v.fy_target) ? zs * v.fy_target : null;
+    rows.push(['<b>' + ty + '</b>', '<b>Forecast</b>', '<b>' + fmtM(v.fy_target, val) + '</b>', '<b>' + fmtP(fG) + '</b>', need ? fmtM(need, val) + ' <span class="mut">to hold share</span>' : '—', '—', zs ? (zs * 100).toFixed(1) + '% <span class="mut">(hold)</span>' : '—']);
+    h += '<div class="g2"><div><h3 class="mt">Year by year — market and Zeta</h3><div class="tblwrap"><table class="tbl yby"><thead><tr><th>Year</th><th>Basis</th><th class="r">Market</th><th class="r">Market growth</th><th class="r">Zeta</th><th class="r">Zeta growth</th><th class="r">Zeta share</th></tr></thead><tbody>' +
+      rows.map(function (x, i) { return '<tr class="' + (i === rows.length - 1 ? 'fc' : '') + '">' + x.map(function (c, j) { return '<td' + (j >= 2 ? ' class="num r"' : '') + '>' + c + '</td>'; }).join('') + '</tr>'; }).join('') +
+      '</tbody></table></div><p class="note mut">Growth = vs the year before (' + py + ' so far = vs the same months last year). The ' + ty + ' Zeta figure is the ' + (val ? 'value' : 'volume') + ' Zeta needs to keep today\'s share if the market lands on the forecast.</p></div>';
+    // who wins the market
+    var top = br.slice(0, 8), zIn = top.some(function (b) { return b.z; });
+    if (!zIn) { var zb = br.find(function (b) { return b.z; }); if (zb) top.push(zb); }
+    h += '<div><h3 class="mt">Who wins the market — last 12 months (' + esc(sc.mat_label || '') + ')</h3><div class="tblwrap"><table class="tbl yby"><thead><tr><th>#</th><th>Brand</th><th>Company</th><th class="r">Sales</th><th class="r">Share</th><th class="r">Share change</th><th class="r">Growth</th></tr></thead><tbody>' +
+      top.map(function (b) {
+        var s1 = mm[k] > 0 ? b[k] / mm[k] : null, s0 = mm[k + '_py'] > 0 ? b[k + '_py'] / mm[k + '_py'] : null, d = fin(s1) && fin(s0) ? (s1 - s0) * 100 : null, gb = g(b[k], b[k + '_py']);
+        return '<tr class="' + (b.z ? 'zrow' : '') + '"><td class="mut">' + (br.indexOf(b) + 1) + '</td><td>' + esc(b.n) + (b.z ? ' <span class="zt">Zeta</span>' : '') + '</td><td class="mut">' + esc((b.c || '').replace('*', '')) + '</td><td class="num r">' + fmtM(b[k], val) + '</td><td class="num r">' + (fin(s1) ? (s1 * 100).toFixed(1) + '%' : '—') + '</td>' +
+          '<td class="num r ' + (d == null ? '' : d >= 0.05 ? 'pos' : d <= -0.05 ? 'neg' : '') + '">' + (d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(1) + ' pts') + '</td><td class="num r">' + (gb == null ? (b[k] > 0 ? 'new' : '—') : fmtP(gb)) + '</td></tr>';
+      }).join('') + '</tbody></table></div><p class="note mut">Share = brand ÷ the whole market. Share change = points won or lost vs the 12 months before. A brand growing faster than the market (' + fmtP(mg) + ') is taking share.</p></div></div>';
+    el.innerHTML = h;
   }
 
   // 2026-10-14 (Ahmed): plain-language methodology, no statistics

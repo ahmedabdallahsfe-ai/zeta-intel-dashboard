@@ -352,6 +352,49 @@ def build_rationale(seg, flat, L, meta, masks_cache):
             "added_su": float(added)}
 
 
+def build_scorecard(seg, flat, L, meta, masks_cache):
+    """2026-10-15 (Ahmed): "Market at a glance" for the selected market - Zeta by year (SU + value), market and Zeta
+    over the last 12 months vs the 12 before, and the main brands (share, growth) in both measures."""
+    P = meta["periods"]; t = len(P) - 1; py, pm = meta["partial_year"], meta["partial_months"]
+    msk = masks_cache(seg)
+    yi = flat[:, TI]
+    pyear = np.array([int(p[:4]) for p in P]); pmon = np.array([int(p[5:7]) for p in P])
+    zi = L["corps"].index("ZETA PHARM*") if "ZETA PHARM*" in L["corps"] else -1
+    zm = msk & (flat[:, CI] == zi)
+
+    def tot(m, col, sel):
+        return float(flat[m & sel, col].sum())
+    years = {}
+    for y in [int(x) for x in meta["full_years"]]:
+        sel = np.isin(yi, np.where(pyear == y)[0])
+        years[str(y)] = {"zsu": tot(zm, SI, sel), "zval": tot(zm, LI, sel)}
+    ytd_c = np.isin(yi, np.where(pyear == py)[0]); ytd_p = np.isin(yi, np.where((pyear == py - 1) & (pmon <= pm))[0])
+    mat_c = yi >= t - 11; mat_p = (yi >= t - 23) & (yi < t - 11)
+    z = {"ytd": {"su": tot(zm, SI, ytd_c), "val": tot(zm, LI, ytd_c), "su_py": tot(zm, SI, ytd_p), "val_py": tot(zm, LI, ytd_p)},
+         "mat": {"su": tot(zm, SI, mat_c), "val": tot(zm, LI, mat_c), "su_py": tot(zm, SI, mat_p), "val_py": tot(zm, LI, mat_p)}}
+    mk = {"su": tot(msk, SI, mat_c), "val": tot(msk, LI, mat_c), "su_py": tot(msk, SI, mat_p), "val_py": tot(msk, LI, mat_p)}
+    # brands (products) over the last 12 months vs the 12 before
+    n = len(L["prods"])
+    def by(col, sel):
+        m = msk & sel
+        return np.bincount(flat[m, PI], weights=flat[m, col], minlength=n)
+    sc, sp, vc, vp = by(SI, mat_c), by(SI, mat_p), by(LI, mat_c), by(LI, mat_p)
+    keep = set(np.argsort(-sc)[:10].tolist()) | set(np.argsort(-vc)[:10].tolist())
+    keep = [i for i in keep if sc[i] > 0 or vc[i] > 0]
+    cm = msk & mat_c
+    corp_of = {}
+    for i in keep:
+        r = flat[cm & (flat[:, PI] == i)]
+        if len(r):
+            c = np.bincount(r[:, CI], weights=r[:, LI]).argmax()
+            corp_of[i] = L["corps"][int(c)]
+    zp = set(np.unique(flat[zm, PI]).tolist()) if zi >= 0 else set()
+    brands = [{"n": L["prods"][i], "c": corp_of.get(i, ""), "z": i in zp, "su": float(sc[i]), "su_py": float(sp[i]),
+               "val": float(vc[i]), "val_py": float(vp[i])} for i in keep]
+    return {"zeta": {"years": years, **z}, "market_mat": mk, "brands": brands,
+            "mat_label": f"{MON[(int(P[t][5:7])) % 12]} {int(P[t][:4]) - 1}–{MON[int(P[t][5:7]) - 1]} {P[t][:4]}"}
+
+
 def add_rationale(cache_path=None, iqvia_path=None, write=True):
     cache_path = cache_path or os.path.join(ROOT, "cache", "market_forecast.data.js")
     iqvia_path = iqvia_path or os.path.join(ROOT, "cache", "iqvia.json")
@@ -376,6 +419,7 @@ def add_rationale(cache_path=None, iqvia_path=None, write=True):
     n = 0
     for seg in obj["segments"]:
         seg["rationale"] = build_rationale(seg, flat, L, meta, masks)
+        seg["scorecard"] = build_scorecard(seg, flat, L, meta, masks)
         n += 1
     meta["rationale_built"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     if write:
