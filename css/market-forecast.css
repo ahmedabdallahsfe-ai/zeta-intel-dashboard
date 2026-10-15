@@ -134,3 +134,26 @@ body.mfc-mode #ask-panel-slot:empty{display:none}
 .mfc .tbl.yby tr.zrow td{background:color-mix(in srgb,var(--hi-bg) 70%,transparent);font-weight:600}
 .mfc .zt{font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--hi);color:#fff;vertical-align:middle}
 .mfc td.pos{color:var(--hi)} .mfc td.neg{color:var(--lo)}
+/* 2026-10-15: Zeta FY objective + BEX forecast */
+.mfc .plan{border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin:12px 0;background:var(--surface)}
+.mfc .plan .btns{display:flex;flex-wrap:wrap;gap:6px}
+.mfc .xbtn{font:inherit;font-size:12px;font-weight:600;padding:4px 12px;border:1px solid var(--primary);border-radius:6px;background:var(--surface-alt);color:var(--primary);cursor:pointer;display:inline-block}
+.mfc .xbtn:hover{background:var(--primary);color:#fff}
+.mfc .xbtn.ghost{border-color:var(--border-strong);color:var(--fg-2)}
+.mfc .pstrat{margin:6px 0 8px;line-height:1.5}
+.mfc .bexrow input{width:76px;font:inherit;text-align:right;padding:3px 6px;border:1px solid var(--primary);border-radius:6px;background:var(--surface);color:var(--fg)}
+.mfc .bexbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.mfc .tbl.yby tr.obj td{background:color-mix(in srgb,var(--hi-bg) 75%,transparent)}
+.mfc .tbl.yby tr.bex td{background:color-mix(in srgb,var(--mo-bg) 75%,transparent)}
+.mfc .tbl.yby tr.cg td{background:var(--surface-alt);font-style:italic}
+/* 2026-10-15: merged year-by-year + objective + BEX */
+.mfc .gwide{margin-top:8px}
+.mfc .tbl.yby tr.matrow td{background:color-mix(in srgb,var(--primary-light) 60%,transparent);font-weight:600}
+.mfc .plan .h2row{align-items:center}
+/* 2026-10-15: Zeta by item — selection filters + item table */
+.mfc .zfbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:6px 0 4px;padding:8px 10px;border:1px dashed var(--border-strong);border-radius:var(--r);background:var(--surface-alt)}
+.mfc .zfbar label{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--fg-2)}
+.mfc .zfbar select{max-width:280px}
+.mfc .tbl.itbl tr.irow{cursor:pointer}
+.mfc .tbl.itbl tr.irow:hover td{background:var(--primary-light)}
+.mfc .tbl.itbl tr.sel td{background:color-mix(in srgb,var(--hi-bg) 70%,transparent);font-weight:600}

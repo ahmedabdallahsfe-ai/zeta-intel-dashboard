@@ -391,7 +391,40 @@ def build_scorecard(seg, flat, L, meta, masks_cache):
     zp = set(np.unique(flat[zm, PI]).tolist()) if zi >= 0 else set()
     brands = [{"n": L["prods"][i], "c": corp_of.get(i, ""), "z": i in zp, "su": float(sc[i]), "su_py": float(sp[i]),
                "val": float(vc[i]), "val_py": float(vp[i])} for i in keep]
-    return {"zeta": {"years": years, **z}, "market_mat": mk, "brands": brands,
+    # 2026-10-15: Zeta brands + items (SKUs) in this market and Zeta's own price per SU (last 6 months) for the FY+1 objective
+    zb, zitems, zprice = [], [], None
+    if zi >= 0 and zm.any():
+        m6 = yi >= t - 5
+        zsu6, zlc6 = float(flat[zm & m6, SI].sum()), float(flat[zm & m6, LI].sum())
+        zprice = zlc6 / zsu6 if zsu6 > 0 else None
+        r = flat[zm & mat_c]
+        if len(r):
+            pb = np.bincount(r[:, PI], weights=r[:, SI], minlength=n)
+            zb = [L["prods"][i] for i in np.argsort(-pb) if pb[i] > 0]
+            ni = len(L["items"]); isu = np.bincount(r[:, 12], weights=r[:, SI], minlength=ni); ilc = np.bincount(r[:, 12], weights=r[:, LI], minlength=ni)
+        # 2026-10-15 (Ahmed): Zeta by ITEM (with brand + ATC4) - years, YTD, MAT, last-6-month price basis
+        za = flat[zm]
+        if len(za):
+            ni = len(L["items"]); fyrs = [int(x) for x in meta["full_years"]]
+            ids = np.unique(za[:, 12])
+            def isum(sel, col):
+                return np.bincount(za[sel, 12], weights=za[sel, col], minlength=ni)
+            zy = za[:, TI]
+            yy = {y: np.isin(zy, np.where(pyear == y)[0]) for y in fyrs}
+            S = {"ytd": np.isin(zy, np.where(pyear == py)[0]), "ytdp": np.isin(zy, np.where((pyear == py - 1) & (pmon <= pm))[0]),
+                 "mat": zy >= t - 11, "matp": (zy >= t - 23) & (zy < t - 11), "s6": zy >= t - 5}
+            acc = {k: (isum(v, SI), isum(v, LI)) for k, v in S.items()}
+            accy = {y: (isum(v, SI), isum(v, LI)) for y, v in yy.items()}
+            out = []
+            for i in ids.tolist():
+                rr = za[za[:, 12] == i]
+                pb_ = np.bincount(rr[:, PI], weights=rr[:, SI] + 1).argmax(); ab_ = np.bincount(rr[:, AI], weights=rr[:, SI] + 1).argmax()
+                g = lambda k: [float(acc[k][0][i]), float(acc[k][1][i])]
+                out.append({"item": L["items"][i], "brand": L["prods"][int(pb_)], "atc4": L["atc4s"][int(ab_)],
+                            "su": g("mat")[0], "val": g("mat")[1], "years": {str(y): [float(accy[y][0][i]), float(accy[y][1][i])] for y in fyrs},
+                            "ytd": g("ytd") + g("ytdp"), "mat": g("mat") + g("matp"), "s6": g("s6")})
+            zitems = sorted(out, key=lambda x: (-x["su"], x["item"]))
+    return {"zeta": {"years": years, **z, "brands": zb, "items": zitems, "price_su": zprice}, "market_mat": mk, "brands": brands,
             "mat_label": f"{MON[(int(P[t][5:7])) % 12]} {int(P[t][:4]) - 1}–{MON[int(P[t][5:7]) - 1]} {P[t][:4]}"}
 
 
