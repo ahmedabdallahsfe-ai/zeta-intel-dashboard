@@ -56,6 +56,23 @@ def presentation(item, brand):
 
 
 # ---------------------------------------------------------------- io
+# 2026-10-16 (Ahmed): Zeta products in a NON-PROMOTED line (e.g. NOVAPANTOLIX) are not shown anywhere on the
+# forecast page: they are not Zeta's plan, not in Zeta's share, and not listed among the market's brands.
+# Market totals keep their volume (it is real market demand).
+HIDDEN_LINES = {"non-promoted", "non promoted", "non_promoted", "nonpromoted"}
+
+
+def zeta_masks(flat, L):
+    """(promoted Zeta rows, hidden product ids). Hidden = products sold by Zeta only in a non-promoted line."""
+    zi = L["corps"].index("ZETA PHARM*") if "ZETA PHARM*" in L["corps"] else -1
+    hl = [i for i, n in enumerate(L["lines"]) if str(n).strip().lower() in HIDDEN_LINES]
+    z = flat[:, CI] == zi
+    hid = z & np.isin(flat[:, LINEI], hl)
+    zp = z & ~hid
+    hp = set(np.unique(flat[hid, PI]).tolist()) - set(np.unique(flat[zp, PI]).tolist())
+    return zp, hp
+
+
 def read_cache(path):
     txt = open(path, encoding="utf-8").read()
     return json.loads(gzip.decompress(base64.b64decode(re.search(r'b64Data:"([^"]+)"', txt).group(1))))
@@ -213,16 +230,18 @@ def build_rationale(seg, flat, L, meta, masks_cache):
     gross_up = chg[chg > 0].sum()
     gross_dn = -chg[chg < 0].sum()
     zi = L["corps"].index("ZETA PHARM*") if "ZETA PHARM*" in L["corps"] else -1
+    ZP, HP = zeta_masks(flat, L)
     zeta_prod = set()
     if not agg and zi >= 0:
-        zeta_prod = set(np.unique(flat[msk & (flat[:, CI] == zi), PI]).tolist())
+        zeta_prod = set(np.unique(flat[msk & ZP, PI]).tolist())
+    hide = HP if not agg else set()
 
     def lab(i):
         s = nm(L[lk][i])
         return s + (" (Zeta)" if i in zeta_prod else "")
 
-    up_idx = [i for i in np.argsort(-chg) if chg[i] > 0][:3]
-    dn_idx = [i for i in np.argsort(chg) if chg[i] < 0][:2]
+    up_idx = [i for i in np.argsort(-chg) if chg[i] > 0 and i not in hide][:3]
+    dn_idx = [i for i in np.argsort(chg) if chg[i] < 0 and i not in hide][:2]
     up = [{"name": lab(i), "su": float(chg[i]), "share_of_gain": float(chg[i] / gross_up) if gross_up else None} for i in up_idx]
     dn = [{"name": lab(i), "su": float(chg[i])} for i in dn_idx if gross_dn and -chg[i] / max(mkt_pri, 1) >= 0.005]
     unit = "sub-markets" if agg else "brands"
@@ -242,7 +261,7 @@ def build_rationale(seg, flat, L, meta, masks_cache):
         first = np.full(n, 10 ** 6, dtype=np.int64)
         np.minimum.at(first, flat[sel, PI], flat[sel, TI])
         recent = np.where((first >= t - 23) & (first <= t))[0]
-        recent = [i for i in recent if cur[i] > 0]
+        recent = [i for i in recent if cur[i] > 0 and i not in hide]
         if recent and mkt_cur > 0:
             nsu = float(cur[recent].sum())
             shr = nsu / mkt_cur
@@ -272,7 +291,7 @@ def build_rationale(seg, flat, L, meta, masks_cache):
 
     # ---- 4. what it means for Zeta
     if zi >= 0 and mkt_cur > 0:
-        zsel = msk & (flat[:, CI] == zi)
+        zsel = msk & ZP
         z_cur = float(flat[zsel & (flat[:, TI] >= t0c), SI].sum())
         z_pri = float(flat[zsel & (flat[:, TI] >= t0p) & (flat[:, TI] < t0c), SI].sum())
         if z_cur > 0 and z_cur / mkt_cur < 0.001:
@@ -348,7 +367,7 @@ def build_rationale(seg, flat, L, meta, masks_cache):
                       + ". These increases are history only; they are not projected forward.")
         zv = []
         if zi >= 0:
-            zsel = msk & (flat[:, CI] == zi)
+            zsel = msk & ZP
             zl_cur = float(flat[zsel & (flat[:, TI] >= t0c), LI].sum())
             ml_cur = float(flat[msk & (flat[:, TI] >= t0c), LI].sum())
             if zl_cur > 0 and ml_cur > 0 and zl_cur / ml_cur >= 0.001:
@@ -372,7 +391,8 @@ def build_scorecard(seg, flat, L, meta, masks_cache):
     yi = flat[:, TI]
     pyear = np.array([int(p[:4]) for p in P]); pmon = np.array([int(p[5:7]) for p in P])
     zi = L["corps"].index("ZETA PHARM*") if "ZETA PHARM*" in L["corps"] else -1
-    zm = msk & (flat[:, CI] == zi)
+    ZP, HP = zeta_masks(flat, L)
+    zm = msk & ZP
 
     def tot(m, col, sel):
         return float(flat[m & sel, col].sum())
@@ -392,7 +412,7 @@ def build_scorecard(seg, flat, L, meta, masks_cache):
         return np.bincount(flat[m, PI], weights=flat[m, col], minlength=n)
     sc, sp, vc, vp = by(SI, mat_c), by(SI, mat_p), by(LI, mat_c), by(LI, mat_p)
     keep = set(np.argsort(-sc)[:10].tolist()) | set(np.argsort(-vc)[:10].tolist())
-    keep = [i for i in keep if sc[i] > 0 or vc[i] > 0]
+    keep = [i for i in keep if (sc[i] > 0 or vc[i] > 0) and i not in HP]
     cm = msk & mat_c
     corp_of = {}
     for i in keep:

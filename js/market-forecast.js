@@ -14,7 +14,11 @@
     if (!c || !c.b64Data || typeof pako === 'undefined') return null;
     var bin = atob(c.b64Data), bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return JSON.parse(pako.ungzip(bytes, { to: 'string' }));
+    var d = JSON.parse(pako.ungzip(bytes, { to: 'string' }));
+    // 2026-10-16 (Ahmed): non-promoted lines are not planned here - drop the Non-Promoted BU / Line views
+    // (their Zeta products are already left out of every market by the ETL).
+    if (d && d.segments) d.segments = d.segments.filter(function (r) { return !((r.type === 'BU' || r.type === 'Line') && /^non[-_ ]?promoted$/i.test(String(r.name || '').trim())); });
+    return d;
   }
 
   var D = null, HOST = null, ROOT = null;
@@ -1491,7 +1495,7 @@
       'Source: IQVIA monthly Standard Units (the Market Intelligence data, with the approved ownership restatements and market definitions). A BU or Line market = the defined markets (DM1) where Zeta has products of that BU or Line.',
       'One forecast per market: FY' + m.target_year + ' full-year Standard Units. Growth = FY' + m.target_year + ' forecast vs the FY' + m.partial_year + ' landing estimate (' + m.partial_months + ' actual months + the rest of the year forecast).',
       'How the number is built: each market is projected from its own sales history since 2021 — its long-term direction, its recent pace and the usual seasonal pattern. Unusual one-off months (stock building, supply gaps) are not allowed to drive the result. New markets are built on today\'s monthly sales rate.',
-      'Markets add up: every BU and the Egypt total equal the sum of their markets; Lines are the sum of their markets. DM2 markets stand on their own. A market that belongs to two BUs (e.g. PPI oral solid in GIT and Non-Promoted) counts in both.',
+      'Markets add up: every BU and the Egypt total equal the sum of their markets; Lines are the sum of their markets. DM2 markets stand on their own. A market that belongs to two BUs counts in both. Zeta products in non-promoted lines are not shown on this page (not in Zeta share, brands or plans); their volume stays in the market totals.',
       'Why this forecast / Market insights: written automatically from the same IQVIA data — the market\'s growth pattern, this year\'s sales, the brands (or sub-markets) adding and losing the most volume over the last 12 months, brands launched in the last 24 months, and the shift between molecules over two years.',
       'Value (EGP) view: best practice is to forecast volume and price separately. Value = each defined market\'s Standard Units forecast × its own price per SU today (IQVIA LC value ÷ SU, last 6 months, current product mix); BUs, Lines and Egypt add up their markets. FY' + m.partial_year + ' landing estimate (value) = actual Jan–' + MON[m.partial_months - 1] + ' value + the remaining months\' volume × today\'s price. No new price increase is assumed for FY' + m.target_year + ': value growth = volume growth + the carry-over of prices (and mix) already in the market.',
       'What it means for Zeta: Zeta\'s share of the last 12 months, and the volume Zeta needs in FY' + m.target_year + ' to keep that share if the market lands on the forecast.',
