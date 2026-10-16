@@ -20,6 +20,15 @@
       "why": "The new 60-tablet pack of DOZOVA WOMAN MAX (Jul-Aug 2026) came in as OTHER MARKET.",
       "products": ["DOZOVA WOMAN MAX"],
       "dm1": "MAN_WOMEN_MULTI_VIT", "dm2": "WOMEN_MULTI_VIT", "line": "CHC", "bu": "CHC"
+    },
+    {
+      "id": "ESOMEPRAZOLE-SACHET-ADULT",
+      "why": "2026-10-16 (Ahmed): adult esomeprazole sachets (20/40 MG) were in OTHER MARKET, so NEXICURE 20MG sachet could not be planned. New defined market for adult sachets; the paediatric ESOMEPRAZOLE SACHET market (2.5-10 MG, PEDIA) is unchanged. Brands today: NEXICURE 20MG, ESMORAP 20/40MG.",
+      "molecule_contains": "ESOMEPRAZOLE",
+      "products": ["NEXICURE", "ESMORAP"],
+      "doses": ["SACHET / ORAL POWDER"],
+      "strengths": ["20MG", "40MG"],
+      "dm1": "ESOMEPRAZOLE SACHET 20-40MG", "dm2": "ESOMEPRAZOLE SACHET 20-40MG", "line": "GIT-I", "bu": "GIT"
     }
   ]
 }

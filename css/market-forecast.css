@@ -168,3 +168,50 @@ body.mfc-mode #ask-panel-slot:empty{display:none}
 .mfc .xbtn[disabled]{opacity:.45;cursor:default;pointer-events:none}
 .mfc .warnt{color:var(--mo)}
 .mfc td.bexc{white-space:nowrap}
+
+/* 2026-10-16 (Ahmed): Zeta portfolio, growth bridge, forecast check flags */
+.mfc .pf{border-left:4px solid var(--primary)}
+.mfc .pfwrap>summary{cursor:pointer;list-style:none}
+.mfc .pfwrap>summary::-webkit-details-marker{display:none}
+.mfc .pfwrap>summary h2{display:inline}
+.mfc .pfwrap>summary::before{content:'▸ ';color:var(--fg-3)}
+.mfc .pfwrap[open]>summary::before{content:'▾ '}
+.mfc .pfhl{margin:8px 0;flex:1 1 420px}
+.mfc .pftiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:10px 0}
+.mfc .pft{border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;background:var(--surface-alt);border-top:3px solid var(--fg-3)}
+.mfc .pft.neg{border-top-color:var(--lo)} .mfc .pft.pro{border-top-color:var(--primary)} .mfc .pft.pos{border-top-color:var(--hi)}
+.mfc .pft .pfk{font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--fg-2)}
+.mfc .pft .pfv{font-size:20px;font-weight:700;margin-top:2px}
+.mfc .pft .pfs{font-size:12px;margin-top:2px}
+.mfc .pft .pfd{font-size:11px;margin-top:4px}
+.mfc .pfsvg{width:100%;height:auto;display:block}
+.mfc .pfsvg .grid{stroke:var(--border);stroke-width:1}
+.mfc .pfsvg .zero{stroke:var(--fg-3);stroke-width:1.2}
+.mfc .pfsvg .egl{stroke:var(--fg-2);stroke-width:1.2;stroke-dasharray:4 3}
+.mfc .pfsvg .ax{fill:var(--fg-2);font-size:11px}
+.mfc .pfsvg .pfl{fill:var(--fg);font-size:10.5px;pointer-events:none}
+.mfc .pfsvg .pfb{cursor:pointer}
+.mfc .pfsvg .pfb circle{fill-opacity:.55;stroke-width:1.5}
+.mfc .pfsvg .pfb:hover circle{fill-opacity:.85}
+.mfc .pfsvg .pfb.fix circle{fill:var(--lo);stroke:var(--lo)}
+.mfc .pfsvg .pfb.protect circle{fill:var(--primary);stroke:var(--primary)}
+.mfc .pfsvg .pfb.invest circle{fill:var(--hi);stroke:var(--hi)}
+.mfc .pfsvg .pfb.maintain circle{fill:var(--fg-3);stroke:var(--fg-3)}
+.mfc .pftbl tr.pfr{cursor:pointer}
+.mfc .pftbl tr.pfr:hover td{background:var(--primary-light)}
+.mfc .pftbl td{vertical-align:top}
+.mfc .vchip.neg{background:var(--lo-bg);color:var(--lo)} .mfc .vchip.pro{background:var(--primary-light);color:var(--primary)} .mfc .vchip.pos{background:var(--hi-bg);color:var(--hi)} .mfc .vchip.mut{background:var(--surface-alt);color:var(--fg-2)}
+.mfc .flag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;font-size:10.5px;font-weight:600;background:var(--warn-bg);color:var(--mo);border:1px solid var(--warn-bd)}
+.mfc .brg td.pos{color:var(--hi)} .mfc .brg td.neg{color:var(--lo)}
+@media (max-width:900px){.mfc .pftiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* 2026-10-16: professional Excel button */
+.mfc .xbtn.pro{background:var(--primary);color:#fff;border-color:var(--primary)}
+.mfc .xbtn.pro:hover{filter:brightness(1.08)}
+/* 2026-10-16: portfolio scope switch + MECE insight boxes */
+.mfc .pfscope{display:inline-flex;margin:8px 0}
+.mfc .pfscope button[disabled]{opacity:.45;cursor:not-allowed}
+.mfc .pfins{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin:8px 0 12px}
+.mfc .pfi{border:1px solid var(--border);border-left:3px solid var(--primary);border-radius:var(--r);background:var(--surface-alt);padding:8px 10px}
+.mfc .pfi .pfit{font-weight:700;font-size:12px;color:var(--primary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
+.mfc .pfi ul{margin:0;padding-left:16px}
+.mfc .pfi li{margin:2px 0;font-size:12.5px;line-height:1.4}

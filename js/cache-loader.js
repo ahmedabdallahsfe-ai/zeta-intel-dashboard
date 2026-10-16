@@ -76,7 +76,7 @@
       file: "cache/business_review.data.js",
       globalVar: "BUSINESS_REVIEW_CACHE",
       label: "BU business review",
-      version: "20261014_1007_auto",
+      version: "20261016_sachet",
     },
     list_intel: {
       file: "cache/list_intel.data.js",
@@ -95,34 +95,34 @@
       file: "cache/iqvia_geo.data.js",
       globalVar: "IQVIA_GEO_CACHE",
       label: "Territory market insights (IQVIA geo)",
-      version: "20261014_1007_auto",
+      version: "20261016_sachet",
     },
     // Market Growth Forecast (2026-10-12) -- etl/build_market_forecast_v2.py --publish (champion, 2026-10-13)
     market_forecast: {
       file: "cache/market_forecast.data.js",
       globalVar: "MARKET_FORECAST_CACHE",
       label: "Market growth forecast",
-      version: "20261015_present",
+      version: "20261016_sachet",
     },
     // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache (source: Total Market Intelligence)
     market_dynamics: {
       file: "cache/market_dynamics.data.js",
       globalVar: "MARKET_DYNAMICS_CACHE",
       label: "Market dynamics & treatment shift",
-      version: "20261015_rat",
+      version: "20261016_sachet",
     },
     // ATC4 / DM1 / DM2 filters of Market Dynamics (2026-10-13) -- same ETL; loaded only when a filter is used
     market_dynamics_scopes: {
       file: "cache/market_dynamics_scopes.data.js",
       globalVar: "MARKET_DYNAMICS_SCOPES_CACHE",
       label: "Market dynamics filters (ATC4 / DM1 / DM2)",
-      version: "20261015_rat",
+      version: "20261016_sachet",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",
       globalVar: "IMS_RX_CACHE",
       label: "IMS Rx",
-      version: "20261014_1007_auto",
+      version: "20261016_sachet",
     },
   };
 

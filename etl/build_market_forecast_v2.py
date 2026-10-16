@@ -1371,6 +1371,8 @@ def publish(n_jobs=1):
     if rc == 0:
         try:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from market_forecast_cap import cap_alignment        # 2026-10-16: no DM1 moved > 5 pts by the alignment
+            cap_alignment()
             from market_forecast_value import add_value          # 2026-10-15: EGP view (SU forecast x today's price)
             add_value()
             from market_forecast_rationale import add_rationale
