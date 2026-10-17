@@ -215,3 +215,40 @@ body.mfc-mode #ask-panel-slot:empty{display:none}
 .mfc .pfi .pfit{font-weight:700;font-size:12px;color:var(--primary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
 .mfc .pfi ul{margin:0;padding-left:16px}
 .mfc .pfi li{margin:2px 0;font-size:12.5px;line-height:1.4}
+
+/* 2026-10-17: defined-market filter in the plan sections + share-objective verdict */
+.mfc .mkbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:6px 0 4px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface-alt)}
+.mfc .mkbar .kl{font-weight:700;font-size:12px;color:var(--fg-2)}
+.mfc .mkbar .mksel{max-width:420px;min-width:220px}
+.mfc .vrd{margin:12px 0;padding:10px 12px;border:1px solid var(--border);border-left:4px solid var(--primary);border-radius:var(--r);background:var(--surface-alt)}
+.mfc .vrd.up{border-left-color:var(--hi)} .mfc .vrd.dn{border-left-color:var(--lo)} .mfc .vrd.n{border-left-color:var(--warn-bd)}
+.mfc .vrd .vq{font-weight:700;margin-bottom:6px}
+.mfc .vrd .vv{margin:4px 0 6px}
+.mfc .vrd ul{margin:0 0 6px;padding-left:18px} .mfc .vrd li{margin:3px 0;line-height:1.45}
+.mfc .mkbar .mkdd{display:flex;gap:6px;align-items:center;font-size:12px;font-weight:600;color:var(--fg-2)}
+.mfc .mkbar .mkdd.on select{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.mfc .mkbar .mkdd.on{color:var(--primary)}
+
+/* 2026-10-17: one filter section — cascading Business unit / Line / DM1 / DM2 drop-downs */
+.mfc .controls .fdd{flex:1 1 200px;max-width:340px}
+.mfc .controls .fdd select{width:100%}
+.mfc .controls .fdd.set select{border-color:var(--primary)}
+.mfc .controls .fdd.on label{color:var(--primary)}
+.mfc .controls .fdd.on select{box-shadow:0 0 0 1px var(--primary);font-weight:600}
+
+/* 2026-10-17: page organisation — sticky filters + section navigation + numbered sections */
+.mfc .mfstick{display:flex;flex-direction:column;gap:6px;background:var(--bg,var(--surface));padding:4px 0}
+@media (min-width:900px){.mfc .mfstick{position:sticky;top:0;z-index:30;box-shadow:0 6px 10px -8px rgba(0,0,0,.25)}}
+.mfc .mfnav{display:flex;flex-wrap:wrap;gap:4px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface)}
+.mfc .mfnav a{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12.5px;font-weight:600;color:var(--fg-2);text-decoration:none;border:1px solid transparent}
+.mfc .mfnav a:hover{background:var(--surface-alt);color:var(--fg)}
+.mfc .mfnav a.on{background:var(--primary-light);color:var(--primary);border-color:var(--primary)}
+.mfc .secn{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:999px;background:var(--primary);color:#fff;font-size:11px;font-weight:700;padding:0 5px}
+.mfc .mfnav a .secn{min-width:18px;height:18px;font-size:10.5px;background:var(--fg-2)} .mfc .mfnav a.on .secn{background:var(--primary)}
+.mfc .sechd{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin:14px 0 -4px;padding-bottom:4px;border-bottom:2px solid var(--primary-light)}
+.mfc .sechd h2{margin:0;font-size:18px} .mfc .sechd .sub{font-size:12.5px;color:var(--fg-2)}
+.mfc #mf-ov{display:flex;flex-direction:column;gap:14px}
+.mfc .sumst{margin:8px 0 0;font-size:14px;font-weight:600;line-height:1.45}
+.mfc .sumv{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 2px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface-alt)}
+.mfc .sumv .kl{font-weight:700} .mfc .golink{margin-left:auto;font-weight:600;font-size:12.5px;color:var(--primary);text-decoration:none}
+@media print{.mfc .mfstick{position:static;box-shadow:none} .mfc .mfnav{display:none}}

@@ -22,7 +22,7 @@
   }
 
   var D = null, HOST = null, ROOT = null;
-  var ST = { level: 'DM1', seg: {}, sort: 'size', meas: 'su' };   // meas: 'su' | 'val' (2026-10-15)
+  var ST = { level: 'DM1', seg: {}, sort: 'size', meas: 'su', f: { BU: '', Line: '', DM1: '', DM2: '' } };   // meas: 'su' | 'val' (2026-10-15)
   var KEY = 'zeta_mf_state';
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var LEVELS = [['DM1', 'Defined market (DM1)'], ['DM2', 'Defined market (DM2)'], ['BU', 'Business unit'], ['Line', 'Line'], ['Total', 'Egypt total']];
@@ -97,25 +97,80 @@
       '<header class="top"><div><h1>Market Growth Forecast — FY' + m.target_year + '</h1>' +
       '<div class="sub" id="mf-hsub"></div></div>' +
       '<div class="sub asof">Actuals to <b>' + esc(per(m.data_period)) + '</b> · built ' + esc(m.generated_at) + '</div></header>' +
-      '<section class="card controls" aria-label="Filters">' +
-      '<div class="ctl"><label>Market level</label><div class="seg" id="mf-lvl">' +
-      LEVELS.filter(function (l) { return segs(l[0]).length; }).map(function (l) { return '<button data-v="' + l[0] + '" aria-pressed="' + (l[0] === ST.level) + '">' + esc(l[1]) + '</button>'; }).join('') +
-      '</div></div>' +
-      '<div class="ctl grow"><label for="mf-seg">Market</label><select id="mf-seg"></select></div>' +
+      '<div class="mfstick" id="mf-stick"><section class="card controls" aria-label="Filters">' +
+      FK.filter(function (k) { return segs(k).length; }).map(function (k) { return '<div class="ctl grow fdd"><label for="mf-f' + k + '">' + esc(FLBL[k]) + '</label><select id="mf-f' + k + '" data-f="' + k + '"></select></div>'; }).join('') +
+      '<div class="ctl"><label>&nbsp;</label><button type="button" class="xbtn ghost" id="mf-freset" title="Clear all market filters">Reset</button></div>' +
       (hasVal() ? '<div class="ctl"><label>Measure</label><div class="seg" id="mf-meas"><button data-v="su" aria-pressed="' + (ST.meas !== 'val') + '">Standard Units</button><button data-v="val" aria-pressed="' + (ST.meas === 'val') + '">Value (EGP)</button></div></div>' : '') +
       '</section>' +
-      '<section class="card pf" id="mf-pf"></section>' +
-      '<div id="mf-detail"></div>' +
-      '<section class="card glance" id="mf-ov"></section>' +
-      '<details class="card method" id="mf-method"><summary><h2>How the forecast is built</h2></summary><div id="mf-methodbody"></div></details>' +
+      '<nav class="mfnav" id="mf-nav" aria-label="Page sections">' + SECS.map(function (x, i) { return '<a href="#' + x[0] + '" data-t="' + x[0] + '"><span class="secn">' + (i + 1) + '</span>' + esc(x[1]) + '</a>'; }).join('') + '</nav></div>' +
+      secHd(1, 'Summary', 'the market, its FY' + m.target_year + ' forecast and where Zeta stands') + '<div id="mf-sum"></div>' +
+      secHd(2, 'Zeta portfolio', 'where FY' + m.target_year + ' is won or lost (SFE view)') + '<section class="card pf" id="mf-pf"></section>' +
+      secHd(3, 'Market forecast', 'why this number, history and monthly path') + '<div id="mf-detail"></div>' +
+      secHd(4, 'Competition', 'who wins the market and what moves it') + '<div id="mf-comp"></div>' +
+      secHd(5, 'Zeta FY' + m.target_year + ' plan', 'objective, ' + PN() + ' forecast' + (isSFEView() ? ' and share verdict' : '')) + '<div id="mf-ov"></div>' +
       '</div>';
   }
 
+  // 2026-10-17 (Ahmed): ONE filter section — Business unit / Line / DM1 / DM2 drop-downs that narrow each other.
+  // The page shows the most specific choice (DM2, else DM1, else Line, else BU, else the Egypt total).
+  var FK = ['BU', 'Line', 'DM1', 'DM2'], FLBL = { BU: 'Business unit', Line: 'Line', DM1: 'Defined market (DM1)', DM2: 'Defined market (DM2)' };
+  var LK = null;
+  function links() {
+    if (LK) return LK;
+    var L0 = (D.meta && D.meta.links) || {}, d12 = L0.dm1_dm2 || null, lb = L0.line_bu || null, d21 = {};
+    if (d12) Object.keys(d12).forEach(function (a) { d12[a].forEach(function (b) { (d21[b] = d21[b] || []).push(a); }); });
+    else segs('DM2').forEach(function (r) { if (segs('DM1').some(function (q) { return q.name === r.name; })) d21[r.name] = [r.name]; });   // fallback: same-name twin
+    if (!lb) { lb = {}; segs('Line').forEach(function (l) { segs('BU').forEach(function (b) { if ((l.members || []).length && l.members.every(function (m) { return (b.members || []).indexOf(m) >= 0; })) (lb[l.name] = lb[l.name] || []).push(b.name); }); }); }
+    return (LK = { d21: d21, lb: lb });
+  }
+  function bySize(a) { return a.slice().sort(function (x, y) { return size(y) - size(x); }); }
+  function segOf(k, n) { return segs(k).find(function (q) { return q.name === n; }); }
+  function fOpts(k) {
+    var F = ST.f, X = links();
+    if (k === 'BU') return bySize(segs('BU'));
+    if (k === 'Line') return bySize(segs('Line').filter(function (l) { return !F.BU || (X.lb[l.name] || []).indexOf(F.BU) >= 0; }));
+    var base = F.Line && segOf('Line', F.Line) ? segOf('Line', F.Line).members : F.BU && segOf('BU', F.BU) ? segOf('BU', F.BU).members : null;
+    if (k === 'DM1') return bySize(segs('DM1').filter(function (q) { return !base || base.indexOf(q.name) >= 0; }));
+    var d1 = F.DM1 ? [F.DM1] : base ? fOpts('DM1').map(function (q) { return q.name; }) : null;
+    return bySize(segs('DM2').filter(function (q) { return !d1 || (X.d21[q.name] || []).some(function (a) { return d1.indexOf(a) >= 0; }); }));
+  }
+  function fFix() { FK.forEach(function (k) { if (ST.f[k] && !fOpts(k).some(function (q) { return q.name === ST.f[k]; })) ST.f[k] = ''; }); }
+  function fUp(k) {   // a lower choice fills the level above it when that is unambiguous
+    var F = ST.f, X = links();
+    if (k === 'DM2' && F.DM2 && !F.DM1) { var a = (X.d21[F.DM2] || []).filter(function (n) { return segOf('DM1', n); }); if (a.length === 1) F.DM1 = a[0]; }
+    if ((k === 'DM2' || k === 'DM1') && F.DM1 && !F.Line && !F.BU) { /* a DM1 can sit in several BUs / Lines: leave them open */ }
+    if (k === 'Line' && F.Line && !F.BU) { var b = (X.lb[F.Line] || []).filter(function (n) { return segOf('BU', n); }); if (b.length === 1) F.BU = b[0]; }
+  }
+  function fView() {
+    var F = ST.f, k = F.DM2 ? 'DM2' : F.DM1 ? 'DM1' : F.Line ? 'Line' : F.BU ? 'BU' : 'Total';
+    if (k === 'Total' && !segs('Total').length) { k = ['BU', 'Line', 'DM1'].find(function (x) { return segs(x).length; }) || 'DM1'; var q = bySize(segs(k))[0]; if (q) F[k] = q.name; }
+    ST.level = k; if (k !== 'Total') ST.seg[k] = F[k];
+  }
+  function fFrom(type, name) {   // navigation from elsewhere on the page (portfolio, tables)
+    var F = ST.f, X = links();
+    if (type === 'Total') { ST.f = { BU: '', Line: '', DM1: '', DM2: '' }; }
+    else if (type === 'BU') { ST.f = { BU: name, Line: '', DM1: '', DM2: '' }; }
+    else if (type === 'Line') { ST.f = { BU: F.BU, Line: name, DM1: '', DM2: '' }; fUp('Line'); }
+    else if (type === 'DM1') { ST.f = { BU: F.BU, Line: F.Line, DM1: name, DM2: '' }; }
+    else if (type === 'DM2') { ST.f = { BU: F.BU, Line: F.Line, DM1: '', DM2: name }; fUp('DM2'); }
+    FK.forEach(function (k) { if (ST.f[k] && !fOpts(k).some(function (q) { return q.name === ST.f[k]; })) { if (k === 'BU' || k === 'Line') { ST.f[k] = ''; } } });
+    if (type === 'DM1' || type === 'DM2') { fFix(); if (!ST.f[type]) { ST.f.BU = ''; ST.f.Line = ''; ST.f[type] = name; if (type === 'DM2') fUp('DM2'); } }
+    fFix(); fView(); saveState();
+  }
+  function navTo(type, name, scroll) {
+    fFrom(type, name); render();
+    if (scroll) goSec(ROOT.querySelector('#mf-s1'));
+  }
   function fillSelect() {
-    var sel = ROOT.querySelector('#mf-seg'), list = segs(ST.level).slice().sort(function (a, b) { return size(b) - size(a); });
-    var c = cur();
-    sel.innerHTML = list.map(function (r) { return '<option' + (c && r.name === c.name ? ' selected' : '') + ' value="' + esc(r.name) + '">' + esc(r.name) + '</option>'; }).join('');
-    sel.disabled = list.length < 2;
+    var F = ST.f;
+    FK.forEach(function (k) {
+      var sel = ROOT.querySelector('#mf-f' + k); if (!sel) return;
+      var list = fOpts(k), all = k === 'BU' ? 'All business units' : k === 'Line' ? 'All lines' : 'All ' + k + ' markets';
+      sel.innerHTML = '<option value="">' + esc(all) + ' (' + list.length + ')</option>' + list.map(function (r) { return '<option value="' + esc(r.name) + '"' + (r.name === F[k] ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join('');
+      sel.parentNode.classList.toggle('on', !!F[k] && ST.level === k);
+      sel.parentNode.classList.toggle('set', !!F[k]);
+    });
+    var rb = ROOT.querySelector('#mf-freset'); if (rb) rb.disabled = !FK.some(function (k) { return F[k]; });
   }
 
   function methodShort(r, k) {
@@ -263,10 +318,10 @@
   var PF_CLASS = { Fix: { c: 'neg', t: 'Losing share — find the cause and act' }, Protect: { c: 'pro', t: 'Leading position — defend share' },
     Invest: { c: 'pos', t: 'Fast-growing market — push for share' }, Maintain: { c: 'mut', t: 'Slower market — keep efficient' } };
   function egyptGrowth(val) { var t = D.segments.find(function (x) { return x.type === 'Total'; }); if (!t) return null; return val ? (t.value || {}).growth_vs_le_pct : (t.forecast || {}).growth_vs_le_pct; }
-  function pfRows(scope) {   // scope = array of DM1 names, or null = all defined markets
+  function pfRows(scope, seg) {   // scope = array of DM1 names, or null = all defined markets; seg = one DM2 market shown on its own
     var val = isV(), k = val ? 'val' : 'su', eg = egyptGrowth(val), rows = [], other = [];
     D.segments.forEach(function (r) {
-      if (r.type !== 'DM1' || !ALLOWED(r)) return;
+      if (!(r.type === 'DM1' || r === seg) || !ALLOWED(r)) return;
       var sc = r.scorecard || {}, z = sc.zeta || {}, zm = z.mat || {}, mm = sc.market_mat || {};
       if (!(zm.su > 0) && !(zm.val > 0)) return;
       if (r.residual_market) { other.push(r); return; }
@@ -279,8 +334,9 @@
         brands: (z.brands || []).slice(0, 3) });
     });
     var totAll = rows.reduce(function (a, x) { return a + x.zval; }, 0);
+    if (seg) { var sr = rows.filter(function (x) { return x.r === seg; }); rows = rows.filter(function (x) { return x.r !== seg; }); totAll = rows.reduce(function (a, x) { return a + x.zval; }, 0); rows = sr; other = other.filter(function (r) { return r === seg; }); }
     rows.forEach(function (x) { x.wtAll = totAll > 0 ? x.zval / totAll : 0; });
-    if (scope) { rows = rows.filter(function (x) { return scope.indexOf(x.name) >= 0; }); other = other.filter(function (r) { return scope.indexOf(r.name) >= 0; }); }
+    if (scope && !seg) { rows = rows.filter(function (x) { return scope.indexOf(x.name) >= 0; }); other = other.filter(function (r) { return scope.indexOf(r.name) >= 0; }); }
     var tot = rows.reduce(function (a, x) { return a + x.zval; }, 0);
     rows.forEach(function (x) { x.wt = tot > 0 ? x.zval / tot : 0; });
     var order = { Fix: 0, Protect: 1, Invest: 2, Maintain: 3 };
@@ -294,8 +350,7 @@
     if (ST.pfAll || !r || r.type === 'Total') return { names: null, label: 'all defined markets', all: true };
     if (r.type === 'DM1') return { names: [r.name], label: r.name, one: true };
     if (r.type === 'DM2') {
-      var d1 = D.segments.find(function (x) { return x.type === 'DM1' && x.name === r.name; });
-      return d1 ? { names: [d1.name], label: r.name, one: true } : { names: null, label: 'all defined markets (' + r.name + ' is a DM2 market with no DM1 twin)', all: true };
+      return { names: [r.name], seg: r, label: r.name + ' (DM2)', one: true };   // 2026-10-17 (Ahmed): only the selected DM2 market
     }
     return { names: (r.members || []).slice(), label: r.name + ' (' + (LEVELS.find(function (l) { return l[0] === r.type; }) || [0, r.type])[1] + ')' };
   }
@@ -387,7 +442,7 @@
   function portfolio() {
     var el = ROOT.querySelector('#mf-pf'); if (!el) return;
     if (!isSFEView()) { el.innerHTML = ''; el.style.display = 'none'; return; }   // SFE (and Admin) only
-    var SC = pfScope(), P = pfRows(SC.names), val = P.val;
+    var SC = pfScope(), P = pfRows(SC.names, SC.seg), val = P.val;
     if (!P.rows.length) { el.style.display = ''; el.innerHTML = '<p class="note mut">Zeta portfolio: no defined market with Zeta sales in ' + esc(SC.label) + '. <button type="button" class="xbtn ghost" id="mf-pfall">Show all defined markets</button></p>'; var b0 = el.querySelector('#mf-pfall'); if (b0) b0.onclick = function () { ST.pfAll = true; saveState(); portfolio(); }; return; }
     el.style.display = '';
     var cls = ['Fix', 'Protect', 'Invest', 'Maintain'], open = el.hasAttribute('data-closed') ? '' : ' open';
@@ -418,7 +473,7 @@
       '<p class="note mut">Priority rules: <b>Fix</b> = share down ≥ ' + Math.abs(PF_RULES.losing) + ' pts (MAT vs previous MAT) · <b>Protect</b> = share ≥ ' + (PF_RULES.lead * 100) + '% · <b>Invest</b> = market grows ≥ ' + PF_RULES.investGap + ' pts faster than Egypt in FY' + D.meta.target_year + ' · <b>Maintain</b> = the rest. "% of Zeta" in the table = share of Zeta value in this selection.</p>' + (SC.all ? oth : '') + '</details>';
     el.querySelectorAll('.pfscope button').forEach(function (bt) { bt.onclick = function (ev) { ev.preventDefault(); ev.stopPropagation(); ST.pfAll = bt.getAttribute('data-pf') === 'all'; saveState(); portfolio(); }; });
     var det = el.querySelector('details'); det.ontoggle = function () { if (det.open) el.removeAttribute('data-closed'); else el.setAttribute('data-closed', '1'); };
-    var go = function (n) { ST.level = 'DM1'; ST.seg.DM1 = n; ROOT.querySelectorAll('#mf-lvl button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === 'DM1')); }); render(); var d = ROOT.querySelector('#mf-detail'); if (d && d.scrollIntoView) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    var go = function (n) { navTo(SC.seg && SC.seg.name === n ? 'DM2' : 'DM1', n, true); };
     el.querySelectorAll('.pfr, .pfb').forEach(function (n) { n.onclick = function () { go(n.getAttribute('data-n')); }; });
     var xb = el.querySelector('#mf-xpf'); if (xb) xb.onclick = function () { try { exportPortfolio(P); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
   }
@@ -477,22 +532,52 @@
       '<p class="note mut">Market growth = ' + esc(zProd(r)) + ' keeps its ' + D.meta.partial_year + ' share (' + (s26 * 100).toFixed(1) + '%) of the bigger market. Share gain / loss = the rest of the change.' + (val ? ' In value, share includes product mix and price differences (no new price increase is assumed).' : '') + '</p>';
   }
 
+  // 2026-10-17 (Ahmed): page organised for reading and navigating — answer first, then evidence, then the plan.
+  // 1 Summary · 2 Zeta portfolio (SFE) · 3 Market forecast · 4 Competition · 5 Zeta FY plan · 6 Brands & items · 7 Method
+  var SECS = [['mf-s1', 'Summary'], ['mf-s2', 'Zeta portfolio'], ['mf-s3', 'Market forecast'], ['mf-s4', 'Competition'], ['mf-s5', 'Zeta plan'], ['mf-s6', 'Brands & items']];
+  function secHd(n, title, sub) { return '<div class="sechd" id="' + SECS[n - 1][0] + '"><span class="secn">' + n + '</span><h2>' + esc(title) + '</h2>' + (sub ? '<span class="sub">' + sub + '</span>' : '') + '</div>'; }
+  function goSec(el) {
+    if (!el) return;
+    var st = ROOT && ROOT.querySelector('#mf-stick'), off = st && getComputedStyle(st).position === 'sticky' ? st.offsetHeight + 8 : 8;
+    var y = el.getBoundingClientRect().top + (global.pageYOffset || 0) - off;
+    try { global.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } catch (e) { if (el.scrollIntoView) el.scrollIntoView(); }
+  }
+  function navSync() {   // highlight the section being read; hide links to hidden sections
+    if (!ROOT) return;
+    var st = ROOT.querySelector('#mf-stick'), off = (st ? st.offsetHeight : 0) + 24, act = SECS[0][0], no = 0;
+    SECS.forEach(function (x) { var e = ROOT.querySelector('#' + x[0]); if (!e || e.style.display === 'none') return; no++;   // number only the sections this user sees
+      var a = ROOT.querySelector('#mf-nav a[data-t="' + x[0] + '"] .secn'), h = e.querySelector('.secn'); if (a) a.textContent = no; if (h) h.textContent = no; });
+    SECS.forEach(function (x) { var e = ROOT.querySelector('#' + x[0]); if (e && e.offsetParent !== null && e.getBoundingClientRect().top - off <= 0) act = x[0]; });
+    ROOT.querySelectorAll('#mf-nav a').forEach(function (a) {
+      var e = ROOT.querySelector('#' + a.getAttribute('data-t')); a.style.display = e && e.style.display !== 'none' ? '' : 'none';
+      a.classList.toggle('on', a.getAttribute('data-t') === act);
+    });
+  }
+  var NAV_RAF = 0;
+  function onScroll() { if (NAV_RAF) return; NAV_RAF = (global.requestAnimationFrame || setTimeout)(function () { NAV_RAF = 0; navSync(); }); }
+
   function detail() {
-    var r = cur(), el = ROOT.querySelector('#mf-detail');
-    if (!r) { el.innerHTML = '<section class="card"><p>No market available for your access scope at this level.</p></section>'; return; }
-    var ra = r.rationale || {};
-    el.innerHTML =
+    var r = cur(), el = ROOT.querySelector('#mf-detail'), sm = ROOT.querySelector('#mf-sum'), cp = ROOT.querySelector('#mf-comp');
+    if (!r) { sm.innerHTML = '<section class="card"><p>No market available for your access scope at this level.</p></section>'; el.innerHTML = ''; cp.innerHTML = ''; return; }
+    var ra = r.rationale || {}, ty = D.meta.target_year;
+    // 1) Summary — the answer: market, FY forecast, Zeta position, share verdict
+    sm.innerHTML =
       '<section class="card head"><div class="ttl"><div><div class="eyebrow">' + esc(r.type === 'Total' ? 'Market' : (LEVELS.find(function (l) { return l[0] === r.type; }) || [0, r.type])[1]) + '</div><h2 class="mname">' + esc(r.name) + '</h2></div>' +
-      '<div class="chips"><span class="chip">' + esc(r.lifecycle) + ' · ' + r.consecutive_positive_months + ' months of sales</span></div></div>' + banners(r) + '</section>' +
-      kpis(r) +
-      '<section class="card rat"><h2>Why this forecast</h2>' + rationale(r) + '</section>' +
+      '<div class="chips"><span class="chip">' + esc(r.lifecycle) + ' · ' + r.consecutive_positive_months + ' months of sales</span></div></div>' + banners(r) +
+      ((isV() && ra.value ? ra.value.statement : ra.statement) ? '<p class="sumst">' + esc(isV() && ra.value ? ra.value.statement : ra.statement) + '</p>' : '') + '</section>' +
+      kpis(r) + '<div id="mf-sumz"></div>';
+    // 3) Market forecast — why, history, path
+    el.innerHTML =
+      '<section class="card rat"><h2>Why this forecast</h2>' + rationale(r) +
+      ((ra.watch || []).length ? '<h3 class="mt">Watch-outs</h3>' + li(ra.watch, 'rl watch') : '') + '</section>' +
       '<div class="g2"><section class="card"><h2>Annual ' + (isV() ? 'value (EGP, at today\'s prices for the forecast)' : 'Standard Units') + '</h2>' + annualChart(r) + '</section>' +
-      '<section class="card"><h2>Market insights — what moves the market' + (isV() ? ' <span class="mut small">(volume)</span>' : '') + '</h2>' + insights(r) + '</section></div>' +
-      '<div class="g2"><section class="card"><h2>What it means for Zeta</h2>' + zetaCard(r) +
-      ((ra.watch || []).length ? '<h2 class="mt">Watch-outs</h2>' + li(ra.watch, 'rl watch') : '') + '</section>' +
       '<section class="card"><h2>Growth history</h2>' + trendTable(r) + '</section></div>' +
       '<section class="card"><h2>Monthly trend and forecast path</h2>' + monthlyChart(r) + '</section>';
+    // 4) Competition — what moves the market, who wins it (the "who wins" table is filled by overview())
+    cp.innerHTML = '<div class="g2"><section class="card" id="mf-who"></section>' +
+      '<section class="card"><h2>Market insights — what moves the market' + (isV() ? ' <span class="mut small">(volume)</span>' : '') + '</h2>' + insights(r) + '</section></div>';
   }
+
 
 
   // ── 2026-10-15 (Ahmed): Zeta FY+1 objective (Defend / Grow), BEX forecast input (saved), Excel export / import ──
@@ -714,6 +799,53 @@
         bsu: P.bex ? cagr((yrs[yN] || {}).zsu, P.bex.su, ty - yN) : null, bval: P.bex ? cagr((yrs[yN] || {}).zval, P.bex.val, ty - yN) : null } };
     return { rows: out, cagr: C, plan: P };
   }
+  // 2026-10-17 (Ahmed): defined-market filter (DM1 / DM2) inside the plan sections, synced with the top filter
+  function mktBar(r, at) {   // 2026-10-17 (Ahmed): two drop-down lists, one for DM1 and one for DM2
+    var lv = ['DM1', 'DM2'].filter(function (l) { return segs(l).length; }); if (!lv.length) return '';
+    var dd = function (l) {
+      var list = segs(l).slice().sort(function (a, b) { return size(b) - size(a); }), on = r.type === l;
+      return '<label class="mkdd' + (on ? ' on' : '') + '">' + l + ' <select class="mksel" data-lv="' + l + '">' + (on ? '' : '<option value="" selected>— select a ' + l + ' market (' + list.length + ') —</option>') +
+        list.map(function (q) { return '<option value="' + esc(q.name) + '"' + (on && q.name === r.name ? ' selected' : '') + '>' + esc(q.name) + '</option>'; }).join('') + '</select></label>';
+    };
+    return '<div class="mkbar" data-at="' + at + '"><span class="kl">Defined market</span>' + lv.map(dd).join('') +
+      '<span class="mut small">Showing: <b>' + esc(r.type === 'Total' ? 'Egypt total' : r.type + ' · ' + r.name) + '</b></span></div>';
+  }
+  // 2026-10-17 (Ahmed): "will the <title> share forecast achieve the strategic share objective?" -> verdict
+  function riskBand(os) { return Math.min(0.5, Math.max(0.05, os * 100 * 0.1)); }   // pts: 0.5 pts, or 10% of a small objective share
+  function shareVerdict(P) {
+    var B = P && P.bex;
+    if (!P || !P.present || !fin(P.objShare)) return { k: 'na' };
+    if (!B || !fin(B.share)) return { k: 'none' };
+    var gap = (B.share - P.objShare) * 100, band = riskBand(P.objShare), part = B.nItems > 1 && B.n < B.nItems;
+    var k = gap >= -0.05 ? 'yes' : gap >= -band ? 'risk' : 'no';
+    return { k: k, gap: gap, band: band, part: part, fs: B.share, os: P.objShare, cls: k === 'yes' ? 'up' : k === 'risk' ? 'n' : 'dn',
+      lbl: k === 'yes' ? 'YES — achieves the objective' : k === 'risk' ? 'AT RISK — just short of the objective' : 'NO — misses the objective' };
+  }
+  function vCell(P) {
+    var V_ = shareVerdict(P);
+    if (V_.k === 'na') return '<span class="mut">—</span>';
+    if (V_.k === 'none') return '<span class="mut small">no ' + PN() + ' share</span>';
+    return '<span class="vchip ' + V_.cls + '" title="' + esc(V_.lbl + (V_.part ? ' (provisional: not every item has a share)' : '')) + '">' + (V_.k === 'yes' ? '✓' : V_.k === 'risk' ? '!' : '✗') + ' ' + (Math.abs(V_.gap) < 0.005 ? '' : V_.gap > 0 ? '+' : '−') + Math.abs(V_.gap).toFixed(2) + ' pts</span>' + (V_.part ? '<br><small class="mut">provisional</small>' : '');
+  }
+  function verdictBox(r) {
+    var P = zplan(r), V_ = shareVerdict(P), pn = PN(), ty = D.meta.target_year, zn = zProd(r), val = isV(), B = P.bex || {};
+    var q = '<div class="vq">Will the ' + esc(pn) + ' share forecast achieve the strategic share objective for ' + esc(zn) + ' in FY' + ty + '?</div>';
+    if (V_.k === 'na') return '<div class="vrd n">' + q + '<p>' + chip('No objective', 'n') + ' ' + esc(P.reason || 'No share objective is set for this market.') + '</p></div>';
+    if (V_.k === 'none') return '<div class="vrd n">' + q + '<p>' + chip('Not answered yet', 'n') + ' The objective is <b>' + (P.objShare * 100).toFixed(2) + '%</b> share (' + fmtM(P.objSU, false) + '). Type the ' + esc(pn) + ' share for each item in the table below (or press "Fill items with objective") to get the verdict.</p></div>';
+    var pts = function (x) { return (Math.abs(x) < 0.005 ? '' : x > 0 ? '+' : '−') + Math.abs(x).toFixed(2) + ' pts'; };
+    var s0 = P.s, dSU = (B.su || 0) - P.objSU, needF = (V_.fs - s0) * 100, needO = (V_.os - s0) * 100;
+    var bl = [];
+    bl.push('<b>Share:</b> ' + esc(pn) + ' ' + (V_.fs * 100).toFixed(2) + '% vs objective ' + (V_.os * 100).toFixed(2) + '% → <b>' + pts(V_.gap) + '</b>' + (V_.k === 'risk' ? ' (inside the ±' + V_.band.toFixed(2) + ' pts at-risk band)' : '') + '.');
+    bl.push('<b>Volume:</b> ' + esc(pn) + ' ' + fmtM(B.su, false) + ' vs objective ' + fmtM(P.objSU, false) + ' → ' + (dSU >= 0 ? '+' : '−') + fmtM(Math.abs(dSU), false) +
+      (fin(B.val) && fin(P.objVal) ? '; value ' + fmtM(B.val, true) + ' vs ' + fmtM(P.objVal, true) + ' (' + (B.val - P.objVal >= 0 ? '+' : '−') + fmtM(Math.abs(B.val - P.objVal), true) + ')' : '') + '.');
+    bl.push('<b>Share move vs ' + matLbl() + ' (' + (s0 * 100).toFixed(2) + '%):</b> objective needs ' + pts(needO) + ', ' + esc(pn) + ' plans ' + pts(needF) + (fin(P.d) ? '; last MAT Zeta moved ' + pts(P.d) + ' — the ' + esc(pn) + ' plan is ' + (needF > Math.max(P.d, 0) + 0.5 ? 'more ambitious than the recent trend (needs new share actions)' : needF < Math.min(P.d, 0) - 0.5 ? 'below the recent trend' : 'in line with the recent trend') : '') + '.');
+    bl.push('<b>Market assumption:</b> ' + (B.mktEdited ? esc(pn) + ' market ' + fmtM(B.mkt, false) + ' vs forecast ' + fmtM(P.mktSU, false) + ' — share is judged on the ' + esc(pn) + ' market, volume on both.' : 'same market forecast as the objective (' + fmtM(P.mktSU, false) + ').'));
+    var act = V_.k === 'yes' ? (V_.gap > 2 ? 'Above the objective by more than 2 pts: confirm the share gain is resourced (calls, coverage, stock) before committing.' : 'Commit: the plan delivers the strategic share. Track monthly share vs ' + (V_.os * 100).toFixed(2) + '%.')
+      : 'Close ' + pts(-V_.gap).replace('+', '') + ' (≈ ' + fmtM(Math.max(0, P.objSU * (B.mkt > 0 ? B.mkt / P.mktSU : 1) - (B.su || 0)), false) + '): ' + (V_.k === 'risk' ? 'small gap — focus on the items with the largest shortfall in the table below.' : 'agree the share actions that close it, or formally accept a lower objective.');
+    bl.push('<b>Action:</b> ' + act);
+    return '<div class="vrd ' + V_.cls + '">' + q + '<p class="vv">' + chip(V_.lbl, V_.cls) + (V_.part ? ' <span class="flag" title="Items without a ' + esc(pn) + ' share count as zero">provisional — ' + B.n + ' of ' + B.nItems + ' items have a share</span>' : '') + '</p><ul>' + bl.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+      '<p class="note mut">YES = ' + esc(pn) + ' share ≥ objective share. AT RISK = short by at most ' + V_.band.toFixed(2) + ' pts (0.5 pts, or 10% of a small objective share). NO = short by more. Objective = the strategic (top-down, cascaded) share' + (val ? '; the verdict is on SU share (value follows from price)' : '') + '.</p></div>';
+  }
   function planCard(r) {   // 2026-10-15: header, strategy and notes; the objective + BEX rows are in the year-by-year table
     var P = zplan(r), m = D.meta, ty = m.target_year;
     var h = '<div class="h2row"><h3 class="mt">Year by year — market and ' + esc(zProd(r)) + ' · FY' + ty + ' objective & ' + PN() + ' forecast</h3>' +
@@ -811,10 +943,10 @@
       return '<tr class="' + cls + (sel ? ' sel' : '') + '" data-kind="' + x.kind + '" data-br="' + esc(x.brand) + '" data-it="' + esc(x.item || '') + '"><td>' + name + '</td><td class="mut">' + esc(x.kind === 'total' ? '' : x.brand) + '</td><td class="mut small">' + esc((x.atc || '').split(' ')[0]) + '</td>' + (showDM ? '<td class="mut small">' + esc(x.kind === 'item' ? dmOf('DM1', [x.item]) : '') + '</td>' : '') + mmCell +
         '<td class="num r">' + fmtM(x.mat[k], val) + '</td><td class="num r">' + fmtP(g) + '</td><td class="num r mut">' + fmtP(MC.pct) + '</td><td class="num r" title="' + esc(ZC.span) + '">' + fmtP(ZC.pct) + (ZC.span && ZC.span !== MC.span ? ' <small class="mut">(' + esc(ZC.span) + ')</small>' : '') + '</td><td class="num r">' + (fin(sh) ? (sh * 100).toFixed(2) + '%' : '—') + '</td><td class="num r ' + (d == null ? '' : d >= 0.05 ? 'pos' : d <= -0.05 ? 'neg' : '') + '">' + (d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(2) + ' pts') + '</td>' +
         mfcCell + '<td>' + (P.present ? chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') : '<span class="mut">—</span>') + '</td><td class="num r">' + (P.present ? (P.objShare * 100).toFixed(2) + '%' : '—') + '</td><td class="num r">' + (fin(obj) ? fmtM(obj, val) : '—') + '</td><td class="num r bexc">' + (x.kind === 'item' ? '<input type="text" inputmode="decimal" class="bexi" data-item="' + esc(x.item) + '" min="0" max="100" step="0.01" placeholder="share %" value="' + (fin(dd.items[x.item]) ? dd.items[x.item] : '') + '"> %<br>' : '') + (fin(bx) ? '<b>' + fmtM(bx, val) + '</b> <span class="mut">(' + ((val ? P.bex.valShare : P.bex.share) * 100).toFixed(2) + '%' + (x.kind !== 'item' ? ', ' + P.bex.n + '/' + P.bex.nItems + ' items' : '') + ')</span>' : '<span class="mut">—</span>') + '</td>' +
-        '<td class="num r bexg">' + (function (q) { return fin(q) ? fmtP(q * 100) + (x.kind !== 'item' && P.bex.n < P.bex.nItems ? ' <small class="mut" title="Like-for-like: only the items with a ' + PN() + ' share">(' + P.bex.n + '/' + P.bex.nItems + ')</small>' : '') : '<span class="mut">—</span>'; })(bexGrowth(r, x, k)) + '</td></tr>';
+        '<td class="num r bexg">' + (function (q) { return fin(q) ? fmtP(q * 100) + (x.kind !== 'item' && P.bex.n < P.bex.nItems ? ' <small class="mut" title="Like-for-like: only the items with a ' + PN() + ' share">(' + P.bex.n + '/' + P.bex.nItems + ')</small>' : '') : '<span class="mut">—</span>'; })(bexGrowth(r, x, k)) + '</td>' + (isSFEView() ? '<td class="num r">' + vCell(P) + '</td>' : '') + '</tr>';
     });
     return '<div class="h2row"><h3 class="mt">By brand and item — ' + matLbl() + ' and FY' + D.meta.target_year + ' objective <span class="mut small">(click a brand or an item to plan it above)</span></h3>' +
-      '<div class="btns"><button type="button" class="xbtn" id="mf-xtbl" title="All Zeta brands and items (filters ignored) for this market and for every market at this level, SU and value, with objective and ' + PN() + ' forecast">⬇ Excel — full table, all products</button></div></div><div class="tblwrap"><table class="tbl yby itbl"><thead><tr><th>Brand / item</th><th>Brand</th><th>ATC4</th>' + (showDM ? '<th>Defined market</th>' : '') + '<th class="r">Market ' + matLbl() + '</th><th class="r">Market growth<br><small class="mut">vs previous MAT</small></th><th class="r">Zeta ' + matLbl() + '</th><th class="r">Zeta growth<br><small class="mut">vs previous MAT</small></th><th class="r">Market CAGR ' + esc(MC.span) + '</th><th class="r">Zeta CAGR</th><th class="r">Share' + (val ? ' (value)' : ' (SU)') + '</th><th class="r">Share change</th><th class="r">Market FY' + D.meta.target_year + '<br><small class="mut">forecast</small></th><th class="r">Market growth<br><small class="mut">FY' + D.meta.target_year + ' vs ' + D.meta.partial_year + '</small></th><th>Strategy</th><th class="r">Objective share</th><th class="r">Objective FY' + D.meta.target_year + '</th><th class="r">' + PN() + ' forecast<br><small class="mut">share % per item → SU / value</small></th><th class="r">' + PN() + ' growth<br><small class="mut">FY' + D.meta.target_year + ' vs ' + D.meta.partial_year + '</small></th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
+      '<div class="btns"><button type="button" class="xbtn" id="mf-xtbl" title="All Zeta brands and items (filters ignored) for this market and for every market at this level, SU and value, with objective and ' + PN() + ' forecast">⬇ Excel — full table, all products</button></div></div><div class="tblwrap"><table class="tbl yby itbl"><thead><tr><th>Brand / item</th><th>Brand</th><th>ATC4</th>' + (showDM ? '<th>Defined market</th>' : '') + '<th class="r">Market ' + matLbl() + '</th><th class="r">Market growth<br><small class="mut">vs previous MAT</small></th><th class="r">Zeta ' + matLbl() + '</th><th class="r">Zeta growth<br><small class="mut">vs previous MAT</small></th><th class="r">Market CAGR ' + esc(MC.span) + '</th><th class="r">Zeta CAGR</th><th class="r">Share' + (val ? ' (value)' : ' (SU)') + '</th><th class="r">Share change</th><th class="r">Market FY' + D.meta.target_year + '<br><small class="mut">forecast</small></th><th class="r">Market growth<br><small class="mut">FY' + D.meta.target_year + ' vs ' + D.meta.partial_year + '</small></th><th>Strategy</th><th class="r">Objective share</th><th class="r">Objective FY' + D.meta.target_year + '</th><th class="r">' + PN() + ' forecast<br><small class="mut">share % per item → SU / value</small></th><th class="r">' + PN() + ' growth<br><small class="mut">FY' + D.meta.target_year + ' vs ' + D.meta.partial_year + '</small></th>' + (isSFEView() ? '<th class="r">Share verdict<br><small class="mut">' + PN() + ' vs objective</small></th>' : '') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
   }
   function planNotes(r) {
     var P = zplan(r);
@@ -881,7 +1013,7 @@
       else if (kind === 'brand') { ZF = { key: segKey(r), atc: ZF.atc, brand: br, item: '' }; }
       else { ZF = { key: segKey(r), atc: ZF.atc, brand: '', item: '' }; }
       overview();
-      var blk = ROOT.querySelector('#mf-ov .plan'); if (blk && blk.scrollIntoView) blk.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; });
+      goSec(ROOT.querySelector('#mf-ov .plan')); }; });
     var x1 = el.querySelector('#mf-xone'); if (x1) x1.onclick = function () { try { exportOne(r); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
     var xa = el.querySelector('#mf-xall'); if (xa) xa.onclick = function () { try { exportAll(); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
     var xp = el.querySelector('#mf-xpro'); if (xp) xp.onclick = function () { exportPro(r); };
@@ -1453,8 +1585,8 @@
       [zProd(r) + ' position', t3, zs ? zProd(r) + ' ' + (zs * 100).toFixed(1) + '% of the market' + (fin(dpts) ? ' (' + (dpts >= 0 ? '+' : '') + dpts.toFixed(1) + ' pts)' : '') + '. ' + zProd(r) + ' ' + fmtP(zg) + ' vs market ' + fmtP(mg) + ' (' + matLbl() + ').' : 'Zeta has no sales in this market.'],
       ['Market leader', [lead ? lead.n : '—', lead && lead.z ? 'up' : 'n'], lead ? (lead.c || '').replace('*', '') + ' · ' + (mm[k] > 0 ? (lead[k] / mm[k] * 100).toFixed(1) + '% of the market' : '') + (zr > 0 ? ' · Zeta\'s top brand ' + br[zr].n + ' ranks #' + (zr + 1) : zr === 0 ? ' · Zeta leads the market' : '') : '']
     ];
-    var h = '<div class="h2row"><h2>' + esc(r.name) + ' — at a glance</h2><div class="sub">Performance and forecast in one view · ' + (val ? 'Value (EGP; forecast at today\'s prices)' : 'Standard Units') + '</div></div>';
-    h += '<div class="gtiles">' + tiles.map(function (x) { return '<div class="gtile"><div class="kl">' + esc(x[0]) + '</div><div class="gv">' + chip(x[1][0], x[1][1]) + '</div><div class="ks">' + esc(x[2]) + '</div></div>'; }).join('') + '</div>';
+    var h = '';
+    var sumz = '<div class="gtiles">' + tiles.map(function (x) { return '<div class="gtile"><div class="kl">' + esc(x[0]) + '</div><div class="gv">' + chip(x[1][0], x[1][1]) + '</div><div class="ks">' + esc(x[2]) + '</div></div>'; }).join('') + '</div>';
     // year by year (+ Zeta objective, BEX forecast and CAGR)
     var YR = yearRows(r), kk = val ? ['mval', 'mvalg', 'zval', 'zvalg', 'zvalsh'] : ['msu', 'msug', 'zsu', 'zsug', 'zsush'];
     var rows = YR.rows.map(function (x) { var sp = x.y.indexOf(' ');
@@ -1470,22 +1602,36 @@
       if (noItems) rr[6] = '<input type="text" inputmode="decimal" class="bexi" data-item="__total__" min="0" max="100" step="0.1" placeholder="share" value="' + (fin(d.items.__total__) ? d.items.__total__ : '') + '"> %';
       else rr[6] = fin(Bx.share) ? ((val ? Bx.valShare : Bx.share) * 100).toFixed(1) + '% <small class="mut">(' + Bx.n + '/' + Bx.nItems + ' items)</small>' : '<small class="mut">enter item shares below</small>';
     });
-    h += '<div class="plan">' + planCard(r) +
+    var V0 = shareVerdict(zplan(r));
+    // 2026-10-17 (Ahmed): the share-objective verdict is shown to SFE (and Admin) only
+    if (isSFEView()) sumz += '<div class="sumv">' + '<span class="kl">FY' + ty + ' share objective — will the ' + esc(PN()) + ' forecast achieve it?</span> ' +
+      (V0.k === 'na' ? chip('No objective', 'n') + ' <span class="mut small">Zeta is not present in this market.</span>' :
+       V0.k === 'none' ? chip('Not answered yet', 'n') + ' <span class="mut small">Enter the ' + esc(PN()) + ' item shares in Brands & items.</span>' :
+       chip(V0.lbl, V0.cls) + ' <span class="small">' + esc(PN()) + ' ' + (V0.fs * 100).toFixed(2) + '% vs objective ' + (V0.os * 100).toFixed(2) + '% (' + (Math.abs(V0.gap) < 0.005 ? '' : V0.gap > 0 ? '+' : '−') + Math.abs(V0.gap).toFixed(2) + ' pts)' + (V0.part ? ' · provisional' : '') + '</span>') +
+      ' <a href="#mf-s5" class="golink" data-t="mf-s5">Open the plan →</a></div>';
+    var sz = ROOT.querySelector('#mf-sumz'); if (sz) sz.innerHTML = sumz;
+    var IT = itemTable(r);
+    h += '<section class="card"><h2>What it means for Zeta</h2>' + zetaCard(r) + '</section>';
+    h += '<section class="card"><div class="plan">' + planCard(r) +
       '<div class="tblwrap"><table class="tbl yby"><thead><tr><th>Year</th><th>Basis</th><th class="r">Market</th><th class="r">Market growth</th><th class="r">' + esc(zProd(r)) + '</th><th class="r">' + esc(zProd(r)) + ' growth</th><th class="r">' + esc(zProd(r)) + ' share' + (val ? ' (value)' : '') + '</th></tr></thead><tbody>' +
       rows.map(function (x, i) { var c = x[7], mt = (YR.rows[i] || {}).mat; return '<tr class="' + (c === 1 ? 'fc' : c === 2 ? 'fc obj' : c === 3 ? 'fc bex bexrow' : c === 9 ? 'cg' : mt ? 'matrow' : '') + '">' + x.slice(0, 7).map(function (cc, j) { return '<td' + (j >= 2 ? ' class="num r"' : '') + '>' + cc + '</td>'; }).join('') + '</tr>'; }).join('') +
-      '</tbody></table></div>' + planNotes(r) + bridge(r) + itemTable(r) +
-      '<p class="note mut">Growth = vs the year before (' + py + ' so far = vs the same months last year; ' + matLbl() + ' = vs the previous 12 months). CAGR = average growth a year.</p></div>';
+      '</tbody></table></div>' + (isSFEView() ? verdictBox(r) : '') + planNotes(r) + bridge(r) +
+      '<p class="note mut">Growth = vs the year before (' + py + ' so far = vs the same months last year; ' + matLbl() + ' = vs the previous 12 months). CAGR = average growth a year.</p></div></section>';
+    h += secHd(6, 'Brands & items', 'every Zeta brand and item — objective, ' + PN() + ' share input' + (isSFEView() ? ' and verdict' : '')) +
+      '<section class="card">' + (IT || '<p class="note mut">No Zeta item detail in this market.</p>') + '</section>';
     // who wins the market
     var top = br.slice(0, 8), zIn = top.some(function (b) { return b.z; });
     if (!zIn) { var zb = br.find(function (b) { return b.z; }); if (zb) top.push(zb); }
-    h += '<div class="g2"><div><h3 class="mt">Who wins the market — ' + matLbl() + ' (' + esc(sc.mat_label || '') + ')</h3><div class="tblwrap"><table class="tbl yby"><thead><tr><th>#</th><th>Brand</th><th>Company</th><th class="r">Sales</th><th class="r">Share</th><th class="r">Share change</th><th class="r">Growth</th></tr></thead><tbody>' +
+    var who = '<div><h2>Who wins the market — ' + matLbl() + ' (' + esc(sc.mat_label || '') + ')</h3><div class="tblwrap"><table class="tbl yby"><thead><tr><th>#</th><th>Brand</th><th>Company</th><th class="r">Sales</th><th class="r">Share</th><th class="r">Share change</th><th class="r">Growth</th></tr></thead><tbody>' +
       top.map(function (b) {
         var s1 = mm[k] > 0 ? b[k] / mm[k] : null, s0 = mm[k + '_py'] > 0 ? b[k + '_py'] / mm[k + '_py'] : null, d = fin(s1) && fin(s0) ? (s1 - s0) * 100 : null, gb = g(b[k], b[k + '_py']);
         return '<tr class="' + (b.z ? 'zrow' : '') + '"><td class="mut">' + (br.indexOf(b) + 1) + '</td><td>' + esc(b.n) + (b.z ? ' <span class="zt">Zeta</span>' : '') + '</td><td class="mut">' + esc((b.c || '').replace('*', '')) + '</td><td class="num r">' + fmtM(b[k], val) + '</td><td class="num r">' + (fin(s1) ? (s1 * 100).toFixed(1) + '%' : '—') + '</td>' +
           '<td class="num r ' + (d == null ? '' : d >= 0.05 ? 'pos' : d <= -0.05 ? 'neg' : '') + '">' + (d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(1) + ' pts') + '</td><td class="num r">' + (gb == null ? (b[k] > 0 ? 'new' : '—') : fmtP(gb)) + '</td></tr>';
-      }).join('') + '</tbody></table></div><p class="note mut">Share = brand ÷ the whole market. Share change = points won or lost vs the 12 months before. A brand growing faster than the market (' + fmtP(mg) + ') is taking share.</p></div></div>';
+      }).join('') + '</tbody></table></div><p class="note mut">Share = brand ÷ the whole market. Share change = points won or lost vs the 12 months before. A brand growing faster than the market (' + fmtP(mg) + ') is taking share.</p></div>';
+    var wh = ROOT.querySelector('#mf-who'); if (wh) wh.innerHTML = who;
     el.innerHTML = h;
     wirePlan(r);
+    navSync();
   }
 
   // 2026-10-14 (Ahmed): plain-language methodology, no statistics
@@ -1501,7 +1647,8 @@
       'What it means for Zeta: Zeta\'s share of the last 12 months, and the volume Zeta needs in FY' + m.target_year + ' to keep that share if the market lands on the forecast.',
       'Not built in: new launches, withdrawals, shortages, price changes or tenders that are not yet visible in IQVIA sales. IQVIA can restate history; every refresh rebuilds the forecast and its rationale.'
     ];
-    ROOT.querySelector('#mf-methodbody').innerHTML = '<ol class="ml">' + li_.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ol>';
+    var mb_ = ROOT.querySelector('#mf-methodbody'); if (!mb_) return;   // section removed 2026-10-17
+    mb_.innerHTML = '<ol class="ml">' + li_.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ol>';
   }
 
   function hsub() {
@@ -1509,15 +1656,25 @@
     el.textContent = isV() ? 'IQVIA value (EGP). Each market\'s volume forecast × its price per Standard Unit today — one forecast per market, with the reasons behind it. No new price increase assumed.'
       : 'IQVIA Standard Units. One forecast per market, built from its own IQVIA sales history, with the business reasons behind it. Switch the measure to see value (EGP).';
   }
-  function render() { hsub(); fillSelect(); portfolio(); detail(); overview(); }
+  function render() {
+    hsub(); fillSelect(); portfolio();
+    var pf = ROOT.querySelector('#mf-pf'), h2 = ROOT.querySelector('#mf-s2'); if (h2) h2.style.display = pf && pf.style.display !== 'none' && pf.innerHTML ? '' : 'none';
+    detail(); overview(); navSync();
+  }
 
   function wire() {
-    ROOT.querySelector('#mf-lvl').addEventListener('click', function (e) {
-      var b = e.target.closest('button'); if (!b) return;
-      ST.level = b.dataset.v;
-      ROOT.querySelectorAll('#mf-lvl button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
-      render();
+    FK.forEach(function (k) {
+      var sel = ROOT.querySelector('#mf-f' + k); if (!sel) return;
+      sel.addEventListener('change', function () { ST.f[k] = sel.value; fUp(k); fFix(); fView(); saveState(); render(); });
     });
+    ROOT.addEventListener('click', function (e) {
+      var a = e.target.closest('#mf-nav a, a.golink'); if (!a) return;
+      e.preventDefault(); var t = ROOT.querySelector('#' + a.getAttribute('data-t'));
+      if (a.getAttribute('data-t') === 'mf-s7') { var md = ROOT.querySelector('#mf-method'); if (md) md.open = true; }
+      goSec(t);
+    });
+    global.addEventListener('scroll', onScroll, { passive: true });
+    var rb = ROOT.querySelector('#mf-freset'); if (rb) rb.addEventListener('click', function () { ST.f = { BU: '', Line: '', DM1: '', DM2: '' }; fView(); saveState(); render(); });
     var mz = ROOT.querySelector('#mf-meas');
     if (mz) mz.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
@@ -1525,11 +1682,25 @@
       mz.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
       render();
     });
-    ROOT.querySelector('#mf-seg').addEventListener('change', function (e) { ST.seg[ST.level] = e.target.value; portfolio(); detail(); overview(); });
+    var mkGo = function (lv, name, at) {
+      if (!segs(lv).some(function (q) { return q.name === name; })) return;
+      fFrom(lv, name); render();
+      var b = ROOT.querySelector('.mkbar[data-at="' + at + '"]'); if (b && b.scrollIntoView) b.scrollIntoView({ block: 'center' });
+    };
+    ROOT.querySelector('#mf-ov').addEventListener('click', function (e) {
+      var mb = e.target.closest('.mkbar button[data-mk]'); if (!mb) return;
+      var lv = mb.dataset.mk, at = mb.closest('.mkbar').dataset.at, c = cur(), list = segs(lv).slice().sort(function (a, b) { return size(b) - size(a); });
+      if (c && c.type === lv) return;
+      var t = c && c.type === 'DM1' && lv === 'DM2' && list.find(function (q) { return q.name === c.name; }) || c && c.type === 'DM2' && lv === 'DM1' && list.find(function (q) { return q.name === c.name; }) || list.find(function (q) { return q.name === ST.seg[lv]; }) || list[0];
+      if (t) mkGo(lv, t.name, at);
+    });
+    ROOT.querySelector('#mf-ov').addEventListener('change', function (e) {
+      var s = e.target.closest('select.mksel'); if (!s || !s.value) return;
+      mkGo(s.dataset.lv, s.value, s.closest('.mkbar').dataset.at);
+    });
     ROOT.querySelector('#mf-ov').addEventListener('click', function (e) {
       var tr = e.target.closest('tr[data-n]'); if (!tr) return;
-      ST.seg[ST.level] = tr.getAttribute('data-n'); render();
-      var d = ROOT.querySelector('#mf-detail'); if (d && d.scrollIntoView) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      navTo(ST.level, tr.getAttribute('data-n'), true);
     });
   }
 
@@ -1546,13 +1717,16 @@
       computeScope();
       var sv = loadState(); if (sv && sv.level) { ST.level = sv.level; ST.seg = sv.seg || {}; ST.meas = sv.meas === 'val' ? 'val' : 'su'; }
       if (!segs(ST.level).length) ST.level = (LEVELS.find(function (l) { return segs(l[0]).length; }) || ['DM1'])[0];
+      if (sv && sv.f) { ST.f = { BU: sv.f.BU || '', Line: sv.f.Line || '', DM1: sv.f.DM1 || '', DM2: sv.f.DM2 || '' }; fFix(); fView(); }
+      else if (sv && sv.level) { var c0 = cur(); fFrom(c0 ? c0.type : 'Total', c0 ? c0.name : ''); }
+      else { fFix(); fView(); }   // first visit: Egypt total (all filters open)
       ROOT.innerHTML = shell(); wire(); methodology(); render();
     } catch (e) {
       console.error('[MarketForecast]', e);
       ROOT.innerHTML = '<div style="padding:24px">Market Forecast could not render: ' + esc(e && e.message || e) + '</div>';
     }
   }
-  function destroy() { saveState(); document.body.classList.remove('mfc-mode'); if (HOST) { HOST.innerHTML = ''; HOST = ROOT = null; } }
+  function destroy() { saveState(); global.removeEventListener('scroll', onScroll); document.body.classList.remove('mfc-mode'); if (HOST) { HOST.innerHTML = ''; HOST = ROOT = null; } }
 
   global.addEventListener('beforeunload', saveState);
   global.MarketForecastDashboard = { init: init, destroy: destroy };

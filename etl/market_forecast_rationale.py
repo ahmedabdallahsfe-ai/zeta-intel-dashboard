@@ -491,6 +491,17 @@ def add_rationale(cache_path=None, iqvia_path=None, write=True):
         seg["rationale"] = build_rationale(seg, flat, L, meta, masks)
         seg["scorecard"] = build_scorecard(seg, flat, L, meta, masks)
         n += 1
+    # 2026-10-17 (Ahmed): links for the page's cascading filters (BU -> Line -> DM1 -> DM2)
+    pos = flat[:, SI] > 0
+    pr = np.unique(flat[pos][:, [D1I, D2I]], axis=0)
+    dd = {}
+    for a, b in pr.tolist():
+        dd.setdefault(L["dm1s"][a], []).append(L["dm2s"][b])
+    zi_ = L["corps"].index("ZETA PHARM*") if "ZETA PHARM*" in L["corps"] else -1
+    lb = {}
+    for a, b in np.unique(flat[flat[:, CI] == zi_][:, [LINEI, BUI]], axis=0).tolist():
+        lb.setdefault(L["lines"][a], []).append(L["bus"][b])
+    meta["links"] = {"dm1_dm2": {k: sorted(set(v)) for k, v in dd.items()}, "line_bu": {k: sorted(set(v)) for k, v in lb.items()}}
     meta["rationale_built"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     if write:
         size = write_cache(obj, cache_path)
