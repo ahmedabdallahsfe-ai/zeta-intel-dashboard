@@ -1084,12 +1084,12 @@
     fmtCells(ws, aoa, t2, [null, null, '0.0%', '#,##0', '#,##0', '0.0%', '0.00', '0.0%']);
     ws['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 17 }, { wch: 12 }, { wch: 17 }, { wch: 12 }, { wch: 12 }, { wch: 40 }];
     var mm0 = (r.scorecard || {}).market_mat || {};
-    var it = [['Level', 'Brand / item', 'Brand', 'ATC4', 'SU ' + matLbl(), 'Value ' + matLbl() + ' (EGP)', 'SU growth vs previous MAT', 'Market CAGR SU ' + mktCagr(r, 0).span, 'Zeta CAGR SU', 'Market CAGR value', 'Zeta CAGR value', 'Zeta CAGR period', 'Share (SU)', 'Share change (pts)', 'Price per SU (EGP, 6m)', 'Strategy', 'Objective share (SU)', 'Objective SU FY' + ty, 'Objective value FY' + ty + ' (EGP)', '' + PN() + ' share (SU)', '' + PN() + ' SU FY' + ty, '' + PN() + ' value FY' + ty + ' (EGP)']];
+    var it = [['Level', 'Brand / item', 'Brand', 'ATC4', 'SU ' + matLbl(), 'Value ' + matLbl() + ' (EGP)', 'SU growth vs previous MAT', 'Market CAGR SU ' + mktCagr(r, 0).span, 'Zeta CAGR SU', 'Market CAGR value', 'Zeta CAGR value', 'Zeta CAGR period', 'Share (SU)', 'Share change (pts)', 'Price per SU (EGP, 6m)', 'Strategy', 'Objective share (SU)', 'Objective SU FY' + ty, 'Objective value FY' + ty + ' (EGP)', '' + PN() + ' share (SU)', '' + PN() + ' SU FY' + ty, '' + PN() + ' value FY' + ty + ' (EGP)', 'Defined market (DM1)', 'Defined market (DM2)']];
     var mc0 = mktCagr(r, 0), mc1 = mktCagr(r, 1);
     itemGroups(r).forEach(function (x) {
       var Q = x.P, sh = mm0.su > 0 ? x.mat[0] / mm0.su : null, shp = mm0.su_py > 0 ? x.mat[2] / mm0.su_py : null;
       it.push([x.kind === 'total' ? 'Total' : x.kind === 'brand' ? 'Brand total' : 'Item', x.label, x.kind === 'total' ? '' : x.brand, x.atc, x.mat[0], x.mat[1], x.mat[2] > 0 ? x.mat[0] / x.mat[2] - 1 : null, fin(mc0.pct) ? mc0.pct / 100 : null, fin(zCagr(x.years, 0).pct) ? zCagr(x.years, 0).pct / 100 : null, fin(mc1.pct) ? mc1.pct / 100 : null, fin(zCagr(x.years, 1).pct) ? zCagr(x.years, 1).pct / 100 : null, zCagr(x.years, 0).span, n(sh), fin(sh) && fin(shp) ? (sh - shp) * 100 : null, x.s6[0] > 0 ? x.s6[1] / x.s6[0] : null,
-        Q.strategy, Q.present ? Q.objShare : null, n(Q.objSU), n(Q.objVal), Q.bex ? Q.bex.share : null, Q.bex ? n(Q.bex.su) : null, Q.bex ? n(Q.bex.val) : null]);
+        Q.strategy, Q.present ? Q.objShare : null, n(Q.objSU), n(Q.objVal), Q.bex ? Q.bex.share : null, Q.bex ? n(Q.bex.su) : null, Q.bex ? n(Q.bex.val) : null, dmOf('DM1', rowItems(r, x)), dmOf('DM2', rowItems(r, x))]);
     });
     var ws2 = XLSX.utils.aoa_to_sheet(it); fmtCells(ws2, it, 0, [null, null, null, null, '#,##0', '#,##0', '0.0%', '0.0%', '0.0%', '0.0%', '0.0%', null, '0.00%', '+0.00;-0.00;0.00', '0.00', null, '0.00%', '#,##0', '#,##0', '0.00%', '#,##0', '#,##0']);
     ws2['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 16 }, { wch: 30 }].concat(it[0].slice(4).map(function () { return { wch: 16 }; }));
@@ -1204,7 +1204,8 @@
       { key: 'lbl', h: 'Brand / item', w: 44, val: function (x) { return x.label; } },
       { key: 'lvl', h: 'Level', w: 8, val: function (x) { return x.kind === 'total' ? 'Total' : x.kind === 'brand' ? 'Brand' : 'Item'; } },
       { key: 'atc', h: 'ATC4', w: 9, val: function (x) { return / ATC4$/.test(x.atc || '') ? x.atc : (x.atc || '').split(' ')[0]; } },
-      { key: 'dm', h: 'Defined market', w: 26, val: function (x, c) { var d = dmOf('DM1', rowItems(c.r, x)), a = d ? d.split(' / ') : []; return a.length > 2 ? a.length + ' defined markets' : d; } },
+      { key: 'dm', h: 'Defined market (DM1)', w: 26, val: function (x, c) { var d = dmOf('DM1', rowItems(c.r, x)), a = d ? d.split(' / ') : []; return a.length > 2 ? a.length + ' defined markets' : d; } },
+      { key: 'dm2', h: 'Defined market (DM2)', w: 30, val: function (x, c) { var d = dmOf('DM2', rowItems(c.r, x)), a = d ? d.split(' / ') : []; return a.length > 2 ? a.length + ' DM2 markets' : d; } },
       { key: 'mmat', h: 'Market ' + matLbl() + U, w: 15, fmt: XF.n, val: function (x, c) { return n(c.mm[mk]); } },
       { key: 'mg', h: 'Market growth vs previous MAT', w: 12, fmt: XF.g, val: function (x, c) { return c.mm[mk + '_py'] > 0 ? c.mm[mk] / c.mm[mk + '_py'] - 1 : null; } },
       { key: 'zmat', h: 'Zeta ' + matLbl() + U, w: 15, fmt: XF.n, val: function (x) { return n(x.mat[k]); } },
@@ -1545,7 +1546,7 @@
     ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: H.length - 1 } }) };
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'All markets FY' + ty);
     // BEX by item — the sheet BEX fills in and imports back (one row per Zeta item; brand / total are sums)
-    var HB = ['Level', 'Market', 'Brand', 'Item', 'ATC4', 'Market SU FY' + ty + ' (forecast)', '' + PN() + ' market SU FY' + ty + ' (optional)', 'Item share ' + matLbl(), 'Objective share', '' + PN() + ' share %', '' + PN() + ' SU FY' + ty, '' + PN() + ' value FY' + ty + ' (EGP)', 'Packs (IQVIA items)'];
+    var HB = ['Level', 'Market', 'Brand', 'Item', 'ATC4', 'Market SU FY' + ty + ' (forecast)', '' + PN() + ' market SU FY' + ty + ' (optional)', 'Item share ' + matLbl(), 'Objective share', '' + PN() + ' share %', '' + PN() + ' SU FY' + ty, '' + PN() + ' value FY' + ty + ' (EGP)', 'Packs (IQVIA items)', 'Defined market (DM1)', 'Defined market (DM2)'];
     var bb = [HB];
     LEVELS.forEach(function (lv) { segs(lv[0]).forEach(function (r) {
       var f = r.forecast || {}, d = bexSaved(r) ? bexDraft(r) : (DRAFT[segKey(r)] || { mkt: null, items: {} }), mkt = fin(d.mkt) ? d.mkt : f.fy_target, mm = (r.scorecard || {}).market_mat || {};
@@ -1554,7 +1555,7 @@
       its.forEach(function (i) {
         var keep = ZF, off = ZF_OFF; ZF_OFF = false; ZF = { key: segKey(r), atc: i.atc4, brand: i.brand, item: i.item }; var Q = zplan(r); ZF = keep; ZF_OFF = off;
         var sh = d.items[i.item], su = fin(sh) && fin(mkt) ? sh / 100 * mkt : null, pr = itemPrice(i);
-        bb.push([lv[1], r.name, i.brand, i.item, i.atc4, f.fy_target, fin(d.mkt) ? d.mkt : null, mm.su > 0 ? i.mat[0] / mm.su : null, Q.present ? Q.objShare : null, fin(sh) ? sh : null, su, fin(su) && fin(pr) ? su * pr : null, (i.packs || []).join(' | ')]);
+        bb.push([lv[1], r.name, i.brand, i.item, i.atc4, f.fy_target, fin(d.mkt) ? d.mkt : null, mm.su > 0 ? i.mat[0] / mm.su : null, Q.present ? Q.objShare : null, fin(sh) ? sh : null, su, fin(su) && fin(pr) ? su * pr : null, (i.packs || []).join(' | '), dmOf('DM1', [i.item]), dmOf('DM2', [i.item])]);
       });
     }); });
     var wsb = XLSX.utils.aoa_to_sheet(bb); fmtCells(wsb, bb, 0, [null, null, null, null, null, '#,##0', '#,##0', '0.00%', '0.00%', '0.00', '#,##0', '#,##0']);
