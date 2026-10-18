@@ -422,7 +422,11 @@
        Executive "by Brand" modal both use this now. -->
   <script defer src="js/sales.js?v=20261013_elimbosis25"></script>
   <script defer src="js/iqvia-growth-config.js?v=20260924_growthv1"></script>
-  <script defer src="js/iqvia.js?v=20260925_blendshare"></script>
+  <!-- 2026-10-18: js/iqvia.js is EXECUTED by js/app.js (ensureDataFiles) only after cache/iqvia.data.js
+       has loaded -- on a slow connection the data file could fail/arrive late, iqvia.js then ran without
+       it, threw, and could never run again (top-level let/const), leaving Market Intelligence blank.
+       The preload below still downloads it in parallel with everything else. Keep the version here. -->
+  <link rel="preload" as="script" id="iqvia-js-src" href="js/iqvia.js?v=20260925_blendshare">
   <script defer src="js/iqvia-filterbar.js?v=20260925_renavfix"></script>
   <script defer src="js/iqvia-sidebar-rail.js?v=20260924_sbrail"></script>
   <script defer src="js/iqvia-fit.js?v=20260925_slimchrome"></script>
@@ -497,7 +501,7 @@
   <script defer src="js/ask-sales.js?v=20260921_askq2"></script>
   <script defer src="js/ask-sfe.js?v=20260921_askq2"></script>
   <script defer src="js/ask-executive.js?v=20260921_askq2"></script>
-  <script defer src="js/app.js?v=20261017_pfdm2"></script>
+  <script defer src="js/app.js?v=20261018_aggplan"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

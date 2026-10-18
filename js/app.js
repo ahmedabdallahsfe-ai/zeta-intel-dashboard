@@ -539,6 +539,27 @@ const DATA_FILE_GUARDS = [
   { g: "SALES_CACHE",       f: "cache/sales.data.js" },
   { g: "IQVIA_CACHE",       f: "cache/iqvia.data.js", mod: "IQVIADashboard", after: "js/iqvia.js" }
 ];
+// 2026-10-18: js/iqvia.js is loaded here (never by a static tag) and only once IQVIA_CACHE exists.
+function _iqviaJsSrc() {
+  const l = document.getElementById("iqvia-js-src");
+  return (l && l.getAttribute("href")) || _guardSrc("js/iqvia.js");
+}
+let _iqviaJsPromise = null;
+function loadIqviaModule() {
+  if (window.IQVIADashboard) return Promise.resolve(true);
+  if (!window.IQVIA_CACHE || !window.IQVIA_CACHE.b64Data) return Promise.resolve(false);
+  if (_iqviaJsPromise) return _iqviaJsPromise;
+  _iqviaJsPromise = (async () => {
+    for (let t = 0; t < 3 && !window.IQVIADashboard; t++) {
+      const s0 = _iqviaJsSrc();
+      await _guardLoad(t === 0 ? s0 : s0 + (s0.indexOf("?") >= 0 ? "&" : "?") + "retry=" + t + "_" + Date.now());
+      if (!window.IQVIADashboard) { console.warn("[DataGuard] js/iqvia.js did not load -- attempt " + (t + 1) + "/3"); await new Promise((r) => setTimeout(r, 800 * (t + 1))); }
+    }
+    _iqviaJsPromise = null;
+    return !!window.IQVIADashboard;
+  })();
+  return _iqviaJsPromise;
+}
 function _guardSrc(f) {
   const el = Array.prototype.find.call(document.scripts, (s) => s.getAttribute("src") && s.getAttribute("src").indexOf(f) === 0);
   return el ? el.getAttribute("src") : f;
@@ -552,6 +573,39 @@ function _guardLoad(src) {
     document.head.appendChild(s);
   });
 }
+/* 2026-10-18 (Ahmed: Market Intelligence opened blank on the live site). On a slow connection
+ * cache/iqvia.data.js (5.5 MB) can fail or be cut; the iqvia tab then had nothing to render.
+ * iqviaRecover() shows a loading panel, re-requests the data (no time limit), loads js/iqvia.js
+ * and opens the page; on failure it offers Retry. Nothing changes when the files loaded. */
+let _iqviaRecovering = false;
+async function iqviaRecover(root) {
+  if (!root) return;
+  const panel = (msg, retry) => {
+    if (currentTab !== "iqvia") return;
+    root.innerHTML = '<div style="max-width:640px;margin:48px auto;padding:24px 28px;border:1px solid #E2E8F0;border-radius:12px;background:#fff;font-family:inherit">' +
+      '<h3 style="margin:0 0 8px;font-size:18px;color:#0F172A">Market Intelligence</h3><p style="margin:0 0 14px;color:#334155;line-height:1.5">' + msg + '</p>' +
+      (retry ? '<button type="button" id="iqv-retry" style="padding:8px 18px;border-radius:8px;border:1px solid #1D4ED8;background:#1D4ED8;color:#fff;font-weight:600;cursor:pointer">Retry</button>'
+        : '<div style="height:6px;background:#E2E8F0;border-radius:4px;overflow:hidden"><div style="width:40%;height:100%;background:#3B82F6;animation:iqvbar 1.2s ease-in-out infinite alternate"></div></div><style>@keyframes iqvbar{from{margin-left:0}to{margin-left:60%}}</style>') + '</div>';
+    const b = document.getElementById("iqv-retry"); if (b) b.onclick = () => iqviaRecover(root);
+  };
+  try { Loader.hide(); } catch (e) {}
+  if (_iqviaRecovering) { panel("Loading the IQVIA market data… this can take a minute on a slow connection.", false); return; }
+  _iqviaRecovering = true;
+  const t0 = Date.now();
+  try {
+    if (!window.IQVIA_CACHE) {
+      panel("Loading the IQVIA market data (about 5 MB)… this can take a minute on a slow connection.", false);
+      const src = _guardSrc("cache/iqvia.data.js");
+      await _guardLoad(src + (src.indexOf("?") >= 0 ? "&" : "?") + "retry=mi_" + Date.now());
+    }
+    if (window.IQVIA_CACHE && !window.IQVIADashboard) { panel("Preparing Market Intelligence…", false); await loadIqviaModule(); }
+  } finally { _iqviaRecovering = false; }
+  console.warn("[DataGuard] Market Intelligence recovery: data " + !!window.IQVIA_CACHE + ", module " + !!window.IQVIADashboard + " after " + Math.round((Date.now() - t0) / 1000) + " s");
+  if (currentTab !== "iqvia") return;   // the user moved on; the page opens normally next time
+  if (window.IQVIA_CACHE && window.IQVIADashboard) { root.innerHTML = ""; window.IQVIADashboard.init("app-root"); return; }
+  panel("The IQVIA market data could not be loaded (the connection dropped or is very slow). Check the connection and press Retry. Other pages keep working.", true);
+}
+
 async function ensureDataFiles() {
   const report = [];
   for (const x of DATA_FILE_GUARDS) {
@@ -564,10 +618,9 @@ async function ensureDataFiles() {
       await _guardLoad(src + (src.indexOf("?") >= 0 ? "&" : "?") + "retry=" + tries + "_" + Date.now());
       if (!window[x.g]) await new Promise((r) => setTimeout(r, 800 * tries));
     }
-    if (tries > 0 && window[x.g] && x.mod && !window[x.mod] && x.after) { // only after a real retry
-      console.warn("[DataGuard] " + x.mod + " missing after " + x.f + " loaded -- re-running " + x.after);
-      const src = _guardSrc(x.after);
-      await _guardLoad(src + (src.indexOf("?") >= 0 ? "&" : "?") + "retry=" + Date.now());
+    if (window[x.g] && x.mod === "IQVIADashboard" && !window[x.mod]) {   // 2026-10-18: first and only run of js/iqvia.js
+      try { Loader.setMessage("Preparing market data..."); } catch (e) {}
+      await loadIqviaModule();
     }
     report.push({ file: x.f, ok: !!window[x.g] && (!x.mod || !!window[x.mod]), retries: tries });
   }
@@ -1087,6 +1140,8 @@ function startAppBody() {
             }
             if (window.IQVIADashboard) {
               window.IQVIADashboard.init("app-root");
+            } else {
+              iqviaRecover(document.getElementById("app-root"));   // 2026-10-18: data still loading / transfer failed
             }
           } else if (tab === "executive") {
             if (window.SFEDashboard) {
@@ -1539,7 +1594,7 @@ async function renderMarketForecastTab(container) {
     return;
   }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Growth Forecast…</div>';
-  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261017_layout"), loadLocalAsset("js/market-forecast.js?v=20261017_pfdm2"),
+  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261017_layout"), loadLocalAsset("js/market-forecast.js?v=20261018_aggplan"),
     window.CacheLoader ? window.CacheLoader.ensure("market_forecast") : Promise.resolve(false)]);
   if (currentTab !== "marketforecast") return;
   if (window.MarketForecastDashboard) window.MarketForecastDashboard.init("app-root");
