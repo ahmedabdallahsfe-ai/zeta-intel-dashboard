@@ -607,6 +607,75 @@
       return JSON.parse(v || '{}') || {};
     } catch (e) { return {}; }
   }
+
+  // 2026-10-19 (Ahmed: "all what I saved yesterday in forecast I didn't find").
+  // (1) Plans saved at BU / Line / Egypt level (before 2026-10-18 the totals were planned on their own) are no longer
+  //     read there: totals now add up the DM1 plans. migrateAggPlans() moves each saved item share down to its DM1
+  //     market (same SU, re-expressed as a share of that market), only where the DM1 has no share for the item, and
+  //     keeps the original record (flag "migrated") plus a one-time backup of the whole plan store.
+  // (2) Plans are kept per login on this computer: planInventory() finds plans saved under another login (e.g. while
+  //     using "Act As") so they can be copied into the current one.
+  var MIGR = { moved: 0, from: [] };
+  function migrateAggPlans() {
+    var a = bex2All(), keys = Object.keys(a).filter(function (k) { var v = a[k]; return /^(BU|Line|Total)\|/.test(k) && v && !v.migrated && Object.keys(v.items || {}).some(function (i) { return i !== '__total__' && fin(v.items[i]); }); });
+    if (!keys.length) return 0;
+    try { var bk = bex2Key() + '|backup_before_dm1_move'; if (!localStorage.getItem(bk)) localStorage.setItem(bk, JSON.stringify(a)); } catch (e) { }
+    var rank = { Line: 0, BU: 1, Total: 2 }, moved = 0;
+    keys.sort(function (x, y) { return rank[x.split('|')[0]] - rank[y.split('|')[0]]; }).forEach(function (k) {
+      var ty = k.split('|')[0], nm = k.slice(ty.length + 1), seg = D.segments.find(function (q) { return q.type === ty && q.name === nm; }), v = a[k];
+      if (!seg) return;
+      var ms = aggMembers(seg).map(function (q) { return q.name; }), aggMkt = fin(v.mkt) && v.mkt > 0 ? v.mkt : (seg.forecast || {}).fy_target, n0 = moved;
+      if (!fin(aggMkt)) return;
+      Object.keys(v.items || {}).forEach(function (it) {
+        var sh = v.items[it]; if (it === '__total__' || !fin(sh)) return;
+        var d1 = dmOf('DM1', [it]); if (!d1 || ms.indexOf(d1) < 0) return;
+        var q = D.segments.find(function (x) { return x.type === 'DM1' && x.name === d1; }); if (!q) return;
+        var lk = 'DM1|' + d1, leaf = a[lk] || { mkt: null, items: {}, saved: v.saved, by: 'moved from ' + nm };
+        leaf.items = leaf.items || {};
+        if (fin(leaf.items[it])) return;   // the DM1 plan already has this item: it wins
+        var mq = fin(leaf.mkt) && leaf.mkt > 0 ? leaf.mkt : (q.forecast || {}).fy_target; if (!(mq > 0)) return;
+        leaf.items[it] = Math.round(sh / 100 * aggMkt / mq * 100 * 10000) / 10000;
+        if (!leaf.saved) leaf.saved = v.saved;
+        a[lk] = leaf; moved++;
+      });
+      v.migrated = new Date().toLocaleString();
+      if (moved > n0) MIGR.from.push(nm);
+    });
+    bex2Put(a); MIGR.moved = moved; return moved;
+  }
+  function planInventory() {
+    var pre = bex2Legacy() + '|', mine = bex2Key(), out = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i); if (!k || k.indexOf(pre) !== 0 || k === mine || /\|(claimed|backup_[^|]*)$/.test(k)) continue;
+        var m = {}; try { m = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { }
+        var n = Object.keys(m).filter(function (x) { return /^(DM1|DM2)\|/.test(x) && Object.keys((m[x] || {}).items || {}).length; }).length;
+        var nAgg = Object.keys(m).filter(function (x) { return /^(BU|Line|Total)\|/.test(x) && Object.keys((m[x] || {}).items || {}).length; }).length;
+        if (n + nAgg) out.push({ key: k, who: k.slice(pre.length), n: n, nAgg: nAgg });
+      }
+    } catch (e) { }
+    return out;
+  }
+  function copyPlansFrom(key) {   // other login -> mine; my own shares win; BU/Line records are moved down to DM1 afterwards
+    var src = {}; try { src = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { return 0; }
+    var a = bex2All(), n = 0;
+    Object.keys(src).forEach(function (k) {
+      var v = src[k]; if (!v || !v.items) return;
+      var t = a[k] || { mkt: v.mkt, items: {}, saved: v.saved, by: (v.by || '') + ' (copied)' }; t.items = t.items || {};
+      Object.keys(v.items).forEach(function (it) { if (!fin(t.items[it]) && fin(v.items[it])) { t.items[it] = v.items[it]; n++; } });
+      if (!fin(t.mkt) && fin(v.mkt)) t.mkt = v.mkt;
+      if (/^(BU|Line|Total)\|/.test(k)) delete t.migrated;
+      a[k] = t;
+    });
+    bex2Put(a); DRAFT = {}; migrateAggPlans(); return n;
+  }
+  function planRecoveryNote() {
+    var h = '';
+    if (MIGR.moved) h += '<p class="note" style="border-left:3px solid var(--hi);padding-left:8px"><b>' + MIGR.moved + ' item shares you saved at BU / Line level' + (MIGR.from.length ? ' (' + esc(MIGR.from.join(', ')) + ')' : '') + ' were moved into their DM1 markets</b>, so the totals add them up again. Nothing was deleted (a backup of your saved plans is kept on this computer).</p>';
+    var inv = planInventory();
+    if (inv.length) h += '<p class="note" style="border-left:3px solid var(--warn-bd);padding-left:8px">Plans saved on this computer under another login: ' + inv.map(function (x) { return '<b>' + esc(x.who) + '</b> (' + x.n + ' market' + (x.n === 1 ? '' : 's') + (x.nAgg ? ' + ' + x.nAgg + ' totals' : '') + ') <button type="button" class="xbtn ghost mf-bcopy" data-k="' + esc(x.key) + '">Copy into my plan</button>'; }).join(' · ') + '</p>';
+    return h;
+  }
   function bex2Put(map) { try { localStorage.setItem(bex2Key(), JSON.stringify(map)); return true; } catch (e) { return false; } }
   var LIVE_T = null;
   var DRAFT = {};   // unsaved edits per market (segKey -> {mkt, items})
@@ -980,14 +1049,15 @@
     var P = zplan(r);
     var B = P.bex || {}, st = bexSaved(r), dirty = bexDirty(r);
     var msg = dirty ? '<b class="warnt">Unsaved changes</b> — press Save.' : st && st.saved ? 'Saved ' + esc(st.saved) + (st.by ? ' by ' + esc(st.by) : '') + '.' : 'Plan bottom-up: type the ' + PN() + ' share for each item in the table below (brand and total add up). Edit the market only if ' + PN() + ' disagrees with the forecast.';
+    var rec = planRecoveryNote();
     if (isAgg(r)) {
       var ap = aggPlan(r), ms = aggMembers(r), notp = ms.filter(function (q) { var d = DRAFT[segKey(q)] || bexSavedOwn(q); return !(d && Object.keys(d.items || {}).some(function (k) { return k !== '__total__' && fin(d.items[k]); })) && (((q.scorecard || {}).zeta || {}).items || []).length; });
-      return '<div class="bexbar agg"><span><b>' + esc(PN()) + ' forecast here = the sum of its defined markets (DM1).</b> Plan each DM1 market (choose it in the DM1 filter); this total adds them up item by item' +
+      return rec + '<div class="bexbar agg"><span><b>' + esc(PN()) + ' forecast here = the sum of its defined markets (DM1).</b> Plan each DM1 market (choose it in the DM1 filter); this total adds them up item by item' +
         (ap ? ' — ' + ap.planned + ' of ' + ms.length + ' markets planned' + (ap.saved ? ', last saved ' + esc(ap.saved) : '') : ' — no market planned yet') + '.</span>' +
         (notp.length ? '<br><span class="mut small">Zeta markets without a ' + esc(PN()) + ' plan: ' + notp.map(function (q) { return esc(q.name); }).join(', ') + '.</span>' : '') + '</div>' +
         '<p class="note mut">' + esc(zProd(r)) + ' SU = sum of the DM1 plans. Share = that SU ÷ this total\'s market (' + fmtM(P.mktSU, false) + '). Value = each item\'s SU × its own price per SU today.</p>';
     }
-    return '<div class="bexbar"><button type="button" class="xbtn" id="mf-bsave"' + (dirty ? '' : ' disabled') + '>Save ' + PN() + ' forecast</button>' +
+    return rec + '<div class="bexbar"><button type="button" class="xbtn" id="mf-bsave"' + (dirty ? '' : ' disabled') + '>Save ' + PN() + ' forecast</button>' +
       '<button type="button" class="xbtn ghost" id="mf-bfill" title="Pre-fill every item with its system objective share">Fill items with objective</button>' +
       '<button type="button" class="xbtn ghost" id="mf-bundo"' + (dirty ? '' : ' disabled') + '>Undo changes</button>' +
       '<button type="button" class="xbtn danger" id="mf-bclear"' + (st || dirty ? '' : ' disabled') + '>Clear ' + PN() + ' forecast</button>' +
@@ -1030,6 +1100,7 @@
       var ok = bex2Put(a); overview();
       if (!ok) { var m2 = ROOT.querySelector('#mf-bmsg'); if (m2) m2.textContent = 'Could not save in this browser — use the Excel export.'; } };
     var bu = el.querySelector('#mf-bundo'); if (bu) bu.onclick = function () { delete DRAFT[segKey(r)]; overview(); };
+    el.querySelectorAll('.mf-bcopy').forEach(function (b) { b.onclick = function () { var n = copyPlansFrom(b.getAttribute('data-k')); overview(); var m4 = ROOT.querySelector('#mf-bmsg'); if (m4) m4.textContent = n + ' item shares copied into your plan.'; }; });
     var bc = el.querySelector('#mf-bclear'); if (bc) bc.onclick = function () {
       if (bc.getAttribute('data-arm') !== '1') { bc.setAttribute('data-arm', '1'); bc.textContent = 'Click again to clear'; setTimeout(function () { if (bc.isConnected) { bc.removeAttribute('data-arm'); bc.textContent = 'Clear ' + PN() + ' forecast'; } }, 4000); return; }
       var a = bex2All(); delete a[segKey(r)]; bex2Put(a); delete DRAFT[segKey(r)]; overview();
@@ -1184,6 +1255,101 @@
   function xBorder(c) { var b = { style: 'thin', color: { argb: c || XC.line } }; return { top: b, left: b, bottom: b, right: b }; }
   function colL(n) { var s = ''; while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
   function qs(name) { return "'" + String(name).replace(/'/g, "''") + "'"; }
+
+  // 2026-10-18 (Ahmed: "why data not written in Excel when I download"): a downloaded file opens in Protected View,
+  // where Excel shows only the values saved in the file and does not calculate. Some formula cells (plan rows of the
+  // year table, Summary plan lines, growth bridge) were written without a saved value, so they looked empty.
+  // xFillCache() computes those values before saving: a small evaluator for the formula subset these workbooks use
+  // (cell refs incl. other sheets, + - * / &, comparisons, IF, IFERROR, OR). Anything else is left to Excel.
+  function xFillCache(wb) {
+    var BL = { blank: true }, ER = function (c) { return { err: c }; }, isE = function (v) { return v && v.err; };
+    var colN = function (c) { var n = 0; for (var i = 0; i < c.length; i++) n = n * 26 + c.charCodeAt(i) - 64; return n; };
+    var PEND = {};
+    function cellVal(ws, addr) {
+      var m = /^\$?([A-Z]+)\$?(\d+)$/.exec(addr); if (!m) throw PEND;
+      var v = ws.getRow(+m[2]).getCell(colN(m[1])).value;
+      if (v == null || v === '') return BL;
+      if (typeof v === 'object' && !(v instanceof Date)) {
+        if (v.formula != null || v.sharedFormula != null) { if (v.result === undefined) throw PEND; return v.result === '' ? '' : (v.result && v.result.error ? ER(v.result.error) : v.result); }
+        if (v.richText) return v.richText.map(function (t) { return t.text; }).join('');
+        if (v.text != null) return v.text;
+        return BL;
+      }
+      return v;
+    }
+    function tok(f) {
+      var t = [], i = 0, m;
+      while (i < f.length) {
+        var c = f[i];
+        if (c === ' ') { i++; continue; }
+        if (c === '"') { var j = i + 1, s = ''; while (j < f.length) { if (f[j] === '"') { if (f[j + 1] === '"') { s += '"'; j += 2; continue; } break; } s += f[j++]; } t.push({ k: 's', v: s }); i = j + 1; continue; }
+        if ((m = /^('(?:[^']|'')+'|[A-Za-z_][A-Za-z0-9_ .()]*?)!(\$?[A-Z]+\$?\d+)(?![:A-Za-z0-9])/.exec(f.slice(i)))) { var sh = m[1].replace(/^'|'$/g, '').replace(/''/g, "'"); t.push({ k: 'r', sh: sh, a: m[2] }); i += m[0].length; continue; }
+        if ((m = /^\$?[A-Z]{1,3}\$?\d+(?![:A-Za-z0-9(])/.exec(f.slice(i)))) { t.push({ k: 'r', a: m[0] }); i += m[0].length; continue; }
+        if ((m = /^\d+(\.\d+)?(E[+-]?\d+)?/i.exec(f.slice(i)))) { t.push({ k: 'n', v: +m[0] }); i += m[0].length; continue; }
+        if ((m = /^[A-Z][A-Z0-9.]*(?=\()/.exec(f.slice(i)))) { t.push({ k: 'f', v: m[0] }); i += m[0].length; continue; }
+        if ((m = /^(<=|>=|<>|[-+*\/&=<>(),%])/.exec(f.slice(i)))) { t.push({ k: 'o', v: m[0] }); i += m[0].length; continue; }
+        throw PEND;   // ranges, unknown syntax
+      }
+      return t;
+    }
+    function evalF(ws, f) {
+      var t = tok(f), p = 0;
+      var peek = function () { return t[p]; }, eat = function (v) { if (t[p] && t[p].v === v) { p++; return true; } return false; };
+      var num = function (v) { if (isE(v)) throw v; if (v === BL || v === '') return 0; if (typeof v === 'number') return v; if (typeof v === 'boolean') return v ? 1 : 0; var n = +v; if (isNaN(n)) throw ER('#VALUE!'); return n; };
+      var str = function (v) { if (isE(v)) throw v; if (v === BL) return ''; if (typeof v === 'number') return String(+v.toPrecision(15)); if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE'; return String(v); };
+      function cmpV(a, b, op) {
+        if (isE(a)) throw a; if (isE(b)) throw b;
+        if (a === BL) a = typeof b === 'number' ? 0 : ''; if (b === BL) b = typeof a === 'number' ? 0 : '';
+        var r; if (typeof a === 'number' && typeof b === 'number') r = a - b; else if (typeof a === 'string' && typeof b === 'string') r = a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : 0; else r = typeof a === 'number' ? -1 : 1;
+        return op === '=' ? r === 0 : op === '<>' ? r !== 0 : op === '<' ? r < 0 : op === '>' ? r > 0 : op === '<=' ? r <= 0 : r >= 0;
+      }
+      function E0() { var a = E1(); while (peek() && /^(=|<>|<=|>=|<|>)$/.test(peek().v) && peek().k === 'o') { var op = t[p++].v; a = cmpV(a, E1(), op); } return a; }
+      function E1() { var a = E2(); while (peek() && peek().v === '&' && peek().k === 'o') { p++; a = str(a) + str(E2()); } return a; }
+      function E2() { var a = E3(); while (peek() && peek().k === 'o' && (peek().v === '+' || peek().v === '-')) { var op = t[p++].v, b = E3(); a = op === '+' ? num(a) + num(b) : num(a) - num(b); } return a; }
+      function E3() { var a = E4(); while (peek() && peek().k === 'o' && (peek().v === '*' || peek().v === '/')) { var op = t[p++].v, b = E4(); if (op === '*') a = num(a) * num(b); else { var d = num(b); if (d === 0) throw ER('#DIV/0!'); a = num(a) / d; } } return a; }
+      function E4() { if (peek() && peek().k === 'o' && peek().v === '-') { p++; return -num(E4()); } if (peek() && peek().k === 'o' && peek().v === '+') { p++; return num(E4()); } var v = E5(); if (peek() && peek().v === '%' && peek().k === 'o') { p++; v = num(v) / 100; } return v; }
+      function args() { var a = []; if (eat(')')) return a; for (;;) { a.push(p); skip(); if (eat(',')) continue; if (eat(')')) return a; throw PEND; } }
+      function skip() { var d = 0; while (p < t.length) { var x = t[p]; if (x.k === 'o' && x.v === '(') d++; else if (x.k === 'o' && x.v === ')') { if (d === 0) return; d--; } else if (x.k === 'o' && x.v === ',' && d === 0) return; p++; } }
+      function at(pos) { var keep = p; p = pos; try { return E0(); } finally { p = keep; } }
+      function E5() {
+        var x = t[p++]; if (!x) throw PEND;
+        if (x.k === 'n') return x.v; if (x.k === 's') return x.v;
+        if (x.k === 'r') { var w2 = x.sh ? wb.getWorksheet(x.sh) : ws; if (!w2) throw PEND; return cellVal(w2, x.a); }
+        if (x.k === 'o' && x.v === '(') { var v = E0(); if (!eat(')')) throw PEND; return v; }
+        if (x.k === 'f') {
+          p++;   // '('
+          var A = args(), fn = x.v;
+          var safe = function (pos) { try { return at(pos); } catch (e) { if (e === PEND) throw e; return isE(e) ? e : ER('#VALUE!'); } };
+          if (fn === 'IF') { var c = safe(A[0]); if (isE(c)) return c; var tr = c === BL ? false : typeof c === 'number' ? c !== 0 : typeof c === 'boolean' ? c : (function () { throw ER('#VALUE!'); })(); return tr ? (A.length > 1 ? safe(A[1]) : true) : (A.length > 2 ? safe(A[2]) : false); }
+          if (fn === 'IFERROR') { var v1 = safe(A[0]); return isE(v1) ? safe(A[1]) : v1; }
+          if (fn === 'OR' || fn === 'AND') { var any = false, all = true; A.forEach(function (q) { var v2 = safe(q); if (isE(v2)) throw v2; var b = v2 === BL ? false : typeof v2 === 'number' ? v2 !== 0 : !!v2; any = any || b; all = all && b; }); return fn === 'OR' ? any : all; }
+          throw PEND;
+        }
+        throw PEND;
+      }
+      var r;
+      try { r = E0(); if (p < t.length) throw PEND; } catch (e) { if (e === PEND) throw e; r = isE(e) ? e : ER('#VALUE!'); }
+      return r;
+    }
+    for (var pass = 0; pass < 6; pass++) {
+      var done = 0;
+      wb.eachSheet(function (ws) {
+        ws.eachRow({ includeEmpty: false }, function (row) {
+          row.eachCell({ includeEmpty: false }, function (cell) {
+            var v = cell.value;
+            if (!v || typeof v !== 'object' || v.formula == null || v.result !== undefined) return;
+            try {
+              var res = evalF(ws, v.formula);
+              if (isE(res)) return;   // leave errors to Excel
+              cell.value = { formula: v.formula, result: res === BL ? 0 : res };
+              done++;
+            } catch (e) { /* pending or unsupported: Excel calculates it when editing is enabled */ }
+          });
+        });
+      });
+      if (!done) break;
+    }
+  }
   function fx(f, res) { return (fin(res) || (typeof res === 'string' && res !== '')) ? { formula: f, result: res } : { formula: f }; }
   function xInput(cell, fmt, kind) {
     cell.fill = xFill(XC.inFill); cell.font = { size: 10, bold: true, color: { argb: XC.inFont } }; if (fmt) cell.numFmt = fmt;
@@ -1248,7 +1414,7 @@
         } },
       { key: 'pvo', h: pn + ' vs objective' + U, w: 14, fmt: XF.d, cls: 'plan', val: function (x) { var B = bx(x), o = obj(x); return B && fin(o) && (x.kind === 'item' || B.n >= B.nItems) ? (k ? B.val : B.su) - o : null; },
         f: function (x, c, R) { return 'IF(OR(' + R.ref('pfc') + '="",' + R.ref('obj') + '=""' + (agg(x) ? ',' + nI(R) + '<' + NI(R) : '') + '),"",' + R.ref('pfc') + '-' + R.ref('obj') + ')'; } },
-      { key: 'pitems', h: pn + ' items planned', w: 10, cls: 'plan', val: function (x) { var B = bx(x); return B && agg(x) ? B.n + ' of ' + B.nItems : ''; },
+      { key: 'pitems', h: pn + ' items planned', w: 10, cls: 'plan', val: function (x) { var B = bx(x), N = B ? B.nItems : (x.n || 0); return agg(x) && N > 0 ? (B ? B.n : 0) + ' of ' + N : ''; },
         f: function (x, c, R) { return agg(x) ? 'IF(' + NI(R) + '=0,"",' + nI(R) + '&" of "&' + NI(R) + ')' : null; } },
       { key: 'packs', h: 'Packs (IQVIA items)', w: 30, val: function (x) { return x.kind === 'item' ? (x.packs || []).join(' | ') : ''; } }
     ];
@@ -1513,6 +1679,7 @@
         var AS = xAllSheet(wb, r, 0, ty, py, 'All markets SU');
         if (hasVal()) xAllSheet(wb, r, 1, ty, py, 'All markets SU', AS.L);
         xNotes(wb, ty, py);
+        try { xFillCache(wb); } catch (e) { console.warn('[MarketForecast] cache fill', e); }
         var fn = 'Zeta_FY' + ty + '_Plan_' + PN() + '_' + safeName(r.name) + '.xlsx';
         wb.xlsx.writeBuffer().then(function (buf) {
           if (window.__MF_XLSX_SINK) return window.__MF_XLSX_SINK(buf, fn);
@@ -1752,6 +1919,7 @@
       D = D || decode();
       if (!D) { ROOT.innerHTML = '<div style="padding:24px">Market forecast data not loaded (cache/market_forecast.data.js). Run UPDATE_DASHBOARD.bat or <code>python etl/build_market_forecast.py --cache</code>.</div>'; return; }
       computeScope();
+      try { migrateAggPlans(); } catch (e) { console.warn('[MarketForecast] plan move', e); }
       var sv = loadState(); if (sv && sv.level) { ST.level = sv.level; ST.seg = sv.seg || {}; ST.meas = sv.meas === 'val' ? 'val' : 'su'; }
       if (!segs(ST.level).length) ST.level = (LEVELS.find(function (l) { return segs(l[0]).length; }) || ['DM1'])[0];
       if (sv && sv.f) { ST.f = { BU: sv.f.BU || '', Line: sv.f.Line || '', DM1: sv.f.DM1 || '', DM2: sv.f.DM2 || '' }; fFix(); fView(); }
