@@ -2034,18 +2034,50 @@
     var t = ws.getCell('A1'); t.value = 'Market Growth Forecast — FY' + ty + ' plan · all Zeta'; t.font = { bold: true, size: 16, color: { argb: XC.white } }; ws.getRow(1).height = 30;
     var t2 = ws.getCell('A2'); t2.value = 'Choose the filters below (All = every Zeta market). Every number is a formula over the "Summary data" sheet, so it changes with the filters.'; t2.font = { size: 9, color: { argb: XC.grey } };
     ws.getCell('A3').value = pn + ' forecast of ' + userLabel() + ' (plans saved on this computer) · IQVIA data to ' + per(D.meta.data_period) + ' · exported ' + new Date().toLocaleString(); ws.getCell('A3').font = { size: 9, color: { argb: XC.grey } };
-    var uniq = function (key, split) { var out = []; rows.forEach(function (x) { (split ? String(x[key] || '').split(' / ') : [x[key]]).forEach(function (v) { if (v && out.indexOf(v) < 0) out.push(v); }); }); return out.sort(); };
-    var lists = [['Business unit', uniq('bu', true)], ['Line', uniq('line', true)], ['Market (DM1)', uniq('dm1')], ['DM2', uniq('dm2')]];
-    var ls = wb.addWorksheet('Lists', { state: 'hidden' });
-    lists.forEach(function (l, i) { ls.getRow(1).getCell(i + 1).value = l[0]; ['All'].concat(l[1]).forEach(function (v, j) { ls.getRow(j + 2).getCell(i + 1).value = v; }); });
-    band(4, 'Filters (choose from the list in the yellow cells)');
+    // 2026-10-19 (Ahmed: "when I choose any filter only the related ones appear"): cascading drop-downs.
+    // Hidden sheet "Lists": one row per (BU, Line, DM1, DM2) combination; for each filter a live list of the values that
+    // match the OTHER three choices (ok -> first occurrence -> rank -> INDEX/MATCH list), used by the drop-down via OFFSET.
+    var lb = (D.meta.links || {}).line_bu || {}, combos = [], seen = {};
+    rows.forEach(function (x) {
+      var bus = String(x.bu || '').split(' / ').filter(Boolean), lns = String(x.line || '').split(' / ').filter(Boolean);
+      if (!bus.length) bus = ['']; if (!lns.length) lns = [''];
+      lns.forEach(function (l) {
+        var bl = bus.filter(function (b) { return !l || !lb[l] || lb[l].indexOf(b) >= 0; }); if (!bl.length) bl = bus;
+        bl.forEach(function (b) { var key = [b, l, x.dm1, x.dm2].join('\u0001'); if (!seen[key]) { seen[key] = 1; combos.push([b, l, x.dm1, x.dm2]); } });
+      });
+    });
+    combos.sort(function (a, b) { for (var i = 0; i < 4; i++) { var c = String(a[i]).localeCompare(String(b[i])); if (c) return c; } return 0; });
+    var ls = wb.addWorksheet('Lists', { state: 'hidden' }), N = combos.length, e2 = N + 1, NAMES = ['Business unit', 'Line', 'Market (DM1)', 'DM2'], SEL = ['$B$5', '$B$6', '$B$7', '$B$8'];
+    ['Business unit', 'Line', 'Market (DM1)', 'DM2'].forEach(function (h, i) { ls.getRow(1).getCell(i + 1).value = h; });
+    combos.forEach(function (c, r) { c.forEach(function (v, i) { ls.getRow(r + 2).getCell(i + 1).value = v || null; }); });
+    var LC = [];   // per filter: { ok, first, rank, list } column letters
+    for (var di = 0; di < 4; di++) { var b0 = 6 + di * 4; LC.push({ ok: colL(b0), first: colL(b0 + 1), rank: colL(b0 + 2), list: colL(b0 + 3) }); }
+    LC.forEach(function (C4, di) {
+      var X = colL(di + 1), firstSeen = {}, rk = 0, listVals = [];
+      ['ok', 'first', 'rank', 'list'].forEach(function (k, j) { ls.getRow(1).getCell(6 + di * 4 + j).value = NAMES[di] + ' · ' + k; });
+      ls.getRow(2).getCell(6 + di * 4 + 3).value = 'All';
+      combos.forEach(function (c, r) {
+        var R = r + 2, others = [0, 1, 2, 3].filter(function (o) { return o !== di; });
+        var okF = 'IF(AND(' + others.map(function (o) { return 'OR(Summary!' + SEL[o] + '="All",Summary!' + SEL[o] + '="",Summary!' + SEL[o] + '=$' + colL(o + 1) + R + ')'; }).join(',') + '),1,0)';
+        var v = c[di], isFirst = !!v && !firstSeen[v]; if (isFirst) { firstSeen[v] = 1; rk++; listVals.push(v); }
+        ls.getCell(C4.ok + R).value = fx(okF, 1);
+        ls.getCell(C4.first + R).value = fx('IF(AND(' + C4.ok + R + '=1,$' + X + R + '<>"",COUNTIFS($' + X + '$2:$' + X + R + ',$' + X + R + ',$' + C4.ok + '$2:$' + C4.ok + R + ',1)=1),1,0)', isFirst ? 1 : 0);
+        ls.getCell(C4.rank + R).value = fx('IF(' + C4.first + R + '=1,COUNTIF($' + C4.first + '$2:$' + C4.first + R + ',1),"")', isFirst ? rk : '');
+      });
+      for (var k2 = 1; k2 <= N; k2++) ls.getCell(C4.list + (k2 + 2)).value = fx('IFERROR(INDEX($' + X + '$2:$' + X + '$' + e2 + ',MATCH(' + k2 + ',$' + C4.rank + '$2:$' + C4.rank + '$' + e2 + ',0)),"")', listVals[k2 - 1] || '');
+      C4.n = listVals.length;
+    });
+    band(4, 'Filters (choose from the list in the yellow cells — each list shows only what fits the other choices)');
     var FR = [5, 6, 7, 8], FK = ['buK', 'lnK', 'dm1', 'dm2'];
-    lists.forEach(function (l, i) {
-      var row = FR[i]; A(row, l[0], { bold: true });
+    var TIP = ['', '', 'Filters combine (AND)', 'DM2 markets add up to their DM1: pick a DM2 to see that part of the DM1 only'];
+    NAMES.forEach(function (nm, i) {
+      var row = FR[i], C4 = LC[i]; A(row, nm, { bold: true });
       var c = ws.getCell('B' + row); c.value = 'All'; xInput(c, null);
-      c.dataValidation = { type: 'list', allowBlank: true, formulae: ['Lists!$' + colL(i + 1) + '$2:$' + colL(i + 1) + '$' + (l[1].length + 2)], showErrorMessage: true, errorTitle: l[0], error: 'Choose a value from the list (or All).' };
+      c.dataValidation = { type: 'list', allowBlank: true, formulae: ['OFFSET(Lists!$' + C4.list + '$2,0,0,1+MAX(Lists!$' + C4.rank + '$2:$' + C4.rank + '$' + e2 + '),1)'], showErrorMessage: true, errorTitle: nm, error: 'Choose a value from the list (or All). The list shows only the values that fit the other filters.' };
       var cr = ws.getCell('F' + row); cr.value = fx(i < 2 ? 'IF(OR(B' + row + '="",B' + row + '="All"),"*","*|"&B' + row + '&"|*")' : 'IF(OR(B' + row + '="",B' + row + '="All"),"*",B' + row + ')', '*');
-      var cm = ws.getCell('D' + row); cm.value = i === 3 ? 'DM2 markets add up to their DM1: pick a DM2 to see that part of the DM1 only' : i === 2 ? 'Filters combine (AND); a combination that matches nothing shows 0 / blanks' : ''; cm.font = { size: 9, color: { argb: XC.grey } };
+      var cm = ws.getCell('D' + row);
+      cm.value = fx('IF(OR(B' + row + '="",B' + row + '="All",COUNTIF(Lists!$' + C4.list + '$3:$' + C4.list + '$' + (N + 2) + ',B' + row + ')>0),"' + TIP[i] + '","⚠ Does not fit the other filters — set it back to All")', TIP[i]);
+      cm.font = { size: 9, color: { argb: XC.grey } };
     });
     var S = function (key) { return 'SUMIFS(' + DS + '$' + L[key] + '$' + r0 + ':$' + L[key] + '$' + last + ',' + FK.map(function (k2, i) { return DS + '$' + L[k2] + '$' + r0 + ':$' + L[k2] + '$' + last + ',$F$' + FR[i]; }).join(',') + ')'; };
     var tot = function (key) { return rows.reduce(function (a, x) { return a + (fin(x[key]) ? x[key] : 0); }, 0); };
