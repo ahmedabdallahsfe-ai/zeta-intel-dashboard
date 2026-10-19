@@ -1168,11 +1168,13 @@
     var out = []; (items || []).forEach(function (it) { var n = DM_MAP[level][it]; if (n && out.indexOf(n) < 0) out.push(n); });
     return out.join(' / ');
   }
-  function dm2Mkt(r, x, k, what) {   // DM2 market total(s) for a table row (SU k=0 / value k=1): mat | le | fc
-    if (!r || r.type === 'DM2') return null;
-    var names = (dmOf('DM2', rowItems(r, x)) || '').split(' / ').filter(Boolean), t = 0, ok = false;
+  // the "other" defined market of a row: DM2 market(s) in a DM1 (or any non-DM2) workbook, the parent DM1 in a DM2 workbook
+  function dm2Mkt(r, x, k, what) { return r && r.type === 'DM2' ? upMkt('DM1', r, x, k, what) : upMkt('DM2', r, x, k, what); }
+  function upMkt(level, r, x, k, what) {   // market total(s) of that level for a table row (SU k=0 / value k=1): mat | le | fc
+    if (!r || r.type === level) return null;
+    var names = (dmOf(level, rowItems(r, x)) || '').split(' / ').filter(Boolean), t = 0, ok = false;
     names.forEach(function (nm) {
-      var q = D.segments.find(function (s) { return s.type === 'DM2' && s.name === nm; }); if (!q) return;
+      var q = D.segments.find(function (s) { return s.type === level && s.name === nm; }); if (!q) return;
       var mm = (q.scorecard || {}).market_mat || {}, f = q.forecast || {}, vv = q.value || {};
       var v = what === 'mat' ? mm[k ? 'val' : 'su'] : what === 'le' ? (k ? vv.fy_le : f.fy_le) : (k ? vv.fy_target : f.fy_target);
       if (fin(v)) { t += v; ok = true; }
@@ -1548,7 +1550,8 @@
     if (kind === 'num') cell.dataValidation = { type: 'decimal', operator: 'greaterThanOrEqual', allowBlank: false, formulae: [0], showErrorMessage: true, errorTitle: 'Market', error: 'Enter a number (Standard Units).' };
   }
   // columns of the brand / item table. val(x,c) = number written / cached; f(x,c,R) = Excel formula (no "=")
-  function proCols(k, ty, py) {
+  function proCols(k, ty, py, lvl) {
+    var UP = lvl === 'DM2' ? 'DM1' : 'DM2';
     var U = k ? ' (EGP)' : ' (SU)', n = function (v) { return fin(v) ? v : null; }, f = function (pp) { return fin(pp) ? pp / 100 : null; }, mk = k ? 'val' : 'su', pn = PN();
     var bx = function (x) { var B = x.P && x.P.bex; return B && fin(B.su) ? B : null; };
     var est = function (x, c) { var L = zLE(c.r, (x.ytd || [0, 0])[0], (x.ytd || [0, 0])[1]); return n(L[mk]); };
@@ -1559,17 +1562,19 @@
       { key: 'lbl', h: 'Brand / item', w: 44, val: function (x) { return x.label; } },
       { key: 'lvl', h: 'Level', w: 8, val: function (x) { return x.kind === 'total' ? 'Total' : x.kind === 'brand' ? 'Brand' : 'Item'; } },
       { key: 'atc', h: 'ATC4', w: 9, val: function (x) { return / ATC4$/.test(x.atc || '') ? x.atc : (x.atc || '').split(' ')[0]; } },
+      { key: 'bu', h: 'Business unit', w: 16, val: function (x, c) { return orgOf('BU', (dmOf('DM1', rowItems(c.r, x)) || '').split(' / ').filter(Boolean)); } },
+      { key: 'line', h: 'Line', w: 18, val: function (x, c) { return orgOf('Line', (dmOf('DM1', rowItems(c.r, x)) || '').split(' / ').filter(Boolean)); } },
       { key: 'dm', h: 'Defined market (DM1)', w: 26, val: function (x, c) { var d = dmOf('DM1', rowItems(c.r, x)), a = d ? d.split(' / ') : []; return a.length > 2 ? a.length + ' defined markets' : d; } },
       { key: 'dm2', h: 'Defined market (DM2)', w: 30, val: function (x, c) { var d = dmOf('DM2', rowItems(c.r, x)), a = d ? d.split(' / ') : []; return a.length > 2 ? a.length + ' DM2 markets' : d; } },
       // 2026-10-19 (Ahmed: "I need to see the ELEMBOSIS total market in DM2 APIXPAN LOW DOSE / 5 MG and NEXICURE PLUS SACH / CAPS"):
       // the DM2 market(s) of the row next to its DM2 name. Brand rows spanning several DM2 = sum of those DM2 markets.
       // Blank on a DM2 workbook (the market columns are already the DM2 market there).
-      { key: 'd2mat', h: 'DM2 market ' + matLbl() + U, w: 15, fmt: XF.n, cls: 'mkt', val: function (x, c) { return dm2Mkt(c.r, x, k, 'mat'); } },
-      { key: 'd2le', h: 'DM2 market ' + py + ' (estimate)' + U, w: 15, fmt: XF.n, cls: 'mkt', val: function (x, c) { return dm2Mkt(c.r, x, k, 'le'); } },
-      { key: 'd2fc', h: 'DM2 market FY' + ty + ' — system forecast' + U, w: 15, fmt: XF.n, cls: 'mkt', val: function (x, c) { return dm2Mkt(c.r, x, k, 'fc'); } },
-      { key: 'd2g', h: 'DM2 market growth FY' + ty + ' vs ' + py, w: 12, fmt: XF.g, cls: 'mkt', val: function (x, c) { var a = dm2Mkt(c.r, x, k, 'fc'), b = dm2Mkt(c.r, x, k, 'le'); return fin(a) && b > 0 ? a / b - 1 : null; },
+      { key: 'd2mat', h: UP + ' market ' + matLbl() + U, w: 15, fmt: XF.n, cls: 'mkt', val: function (x, c) { return dm2Mkt(c.r, x, k, 'mat'); } },
+      { key: 'd2le', h: UP + ' market ' + py + ' (estimate)' + U, w: 15, fmt: XF.n, cls: 'mkt', val: function (x, c) { return dm2Mkt(c.r, x, k, 'le'); } },
+      { key: 'd2fc', h: UP + ' market FY' + ty + ' — system forecast' + U, w: 15, fmt: XF.n, cls: 'mkt', val: function (x, c) { return dm2Mkt(c.r, x, k, 'fc'); } },
+      { key: 'd2g', h: UP + ' market growth FY' + ty + ' vs ' + py, w: 12, fmt: XF.g, cls: 'mkt', val: function (x, c) { var a = dm2Mkt(c.r, x, k, 'fc'), b = dm2Mkt(c.r, x, k, 'le'); return fin(a) && b > 0 ? a / b - 1 : null; },
         f: function (x, c, R) { return 'IF(OR(' + R.ref('d2fc') + '="",' + R.ref('d2le') + '=""),"",IFERROR(' + R.ref('d2fc') + '/' + R.ref('d2le') + '-1,""))'; } },
-      { key: 'd2sh', h: 'Zeta share of DM2 market ' + matLbl(), w: 11, fmt: XF.p2, val: function (x, c) { var m = dm2Mkt(c.r, x, k, 'mat'); return m > 0 && fin(x.mat[k]) ? x.mat[k] / m : null; } },
+      { key: 'd2sh', h: 'Zeta share of ' + UP + ' market ' + matLbl(), w: 11, fmt: XF.p2, val: function (x, c) { var m = dm2Mkt(c.r, x, k, 'mat'); return m > 0 && fin(x.mat[k]) ? x.mat[k] / m : null; } },
       { key: 'mmat', h: 'Market ' + matLbl() + U, w: 15, fmt: XF.n, val: function (x, c) { return n(c.mm[mk]); } },
       { key: 'mg', h: 'Market growth vs previous MAT', w: 12, fmt: XF.g, val: function (x, c) { return c.mm[mk + '_py'] > 0 ? c.mm[mk] / c.mm[mk + '_py'] - 1 : null; } },
       { key: 'zmat', h: 'Zeta ' + matLbl() + U, w: 15, fmt: XF.n, val: function (x) { return n(x.mat[k]); } },
@@ -1605,7 +1610,7 @@
           if (k) return 'IF(' + R.tw('pfc') + '="","",' + R.tw('pfc') + '*' + R.ref('price') + '*(1+' + c.pRef + '))';
           return 'IF(' + R.ref('psh') + '="","",' + R.ref('psh') + '*' + R.ref('mfc') + ')';
         } },
-      { key: 'pd2', h: pn + ' share of DM2 market', w: 11, fmt: XF.p2, cls: 'plan', val: function (x, c) { var B = bx(x), m = dm2Mkt(c.r, x, k, 'fc'), sc = fin(c.mfc) && c.msys > 0 ? c.mfc / c.msys : 1; return B && m > 0 && fin(k ? B.val : B.su) ? (k ? B.val : B.su) / (m * sc) : null; },
+      { key: 'pd2', h: pn + ' share of ' + UP + ' market', w: 11, fmt: XF.p2, cls: 'plan', val: function (x, c) { var B = bx(x), m = dm2Mkt(c.r, x, k, 'fc'), sc = fin(c.mfc) && c.msys > 0 ? c.mfc / c.msys : 1; return B && m > 0 && fin(k ? B.val : B.su) ? (k ? B.val : B.su) / (m * sc) : null; },
         // DM2 market moves with the plan's market view (same % as the DM1 market edit), like the DM2 page
         f: function (x, c, R) { return 'IF(OR(' + R.ref('pfc') + '="",' + R.ref('d2fc') + '=""),"",IFERROR(' + R.ref('pfc') + '/(' + R.ref('d2fc') + '*' + R.ref('mfc') + '/' + R.ref('msys') + '),""))'; } },
       { key: 'pg', h: pn + ' growth vs ' + py, w: 12, fmt: XF.g, cls: 'plan', val: function (x, c) { return bx(x) ? n(bexGrowth(c.r, x, k)) : null; },
@@ -1705,7 +1710,7 @@
   function xMeasureSheet(wb, r, k, ty, py, suName, twinL) {
     var name = k ? 'Value (EGP)' : 'SU', pn = PN(), f = r.forecast || {}, vv = r.value || {}, P = withAll(r, function () { return zplan(r); }), B = P.bex && fin(P.bex.su) ? P.bex : null;
     var ws = wb.addWorksheet(name, { properties: { tabColor: { argb: k ? 'FF15803D' : XC.navy }, outlineLevelRow: 1 }, views: [{ showGridLines: false }] });
-    var cols = proCols(k, ty, py).map(function (c) { return c.h.indexOf('{MC}') >= 0 ? Object.assign({}, c, { h: c.h.replace('{MC}', mktCagr(r, k).span) }) : c; });
+    var cols = proCols(k, ty, py, r.type).map(function (c) { return c.h.indexOf('{MC}') >= 0 ? Object.assign({}, c, { h: c.h.replace('{MC}', mktCagr(r, k).span) }) : c; });
     cols.forEach(function (c, i) { ws.getColumn(i + 1).width = c.w || 14; });
     var t = ws.getCell('A1'); t.value = r.name + ' — FY' + ty + ' plan · ' + (k ? 'Value (EGP)' : 'Standard Units'); t.font = { bold: true, size: 15, color: { argb: XC.navy } };
     ws.getCell('A2').value = 'Yellow cells with blue numbers are INPUTS — change them and every forecast, value, share, growth and total recalculates. ' + pn + ' forecast of ' + userLabel() + ' · IQVIA data to ' + per(D.meta.data_period) + ' · exported ' + new Date().toLocaleString();
@@ -1746,7 +1751,7 @@
   function xAllSheet(wb, r, k, ty, py, suName, twinL) {
     var lvl = (LEVELS.find(function (l) { return l[0] === r.type; }) || [0, r.type])[1], pn = PN(), name = k ? 'All markets Value' : 'All markets SU';
     var ws = wb.addWorksheet(name, { properties: { tabColor: { argb: k ? 'FF86EFAC' : 'FF93C5FD' }, outlineLevelRow: 2 } });
-    var cols = proCols(k, ty, py).map(function (c) { return c.h.indexOf('{MC}') >= 0 ? Object.assign({}, c, { h: 'Market CAGR (hist.)' }) : c; });
+    var cols = proCols(k, ty, py, r.type).map(function (c) { return c.h.indexOf('{MC}') >= 0 ? Object.assign({}, c, { h: 'Market CAGR (hist.)' }) : c; });
     ws.getColumn(1).width = 30; cols.forEach(function (c, i) { ws.getColumn(i + 2).width = c.w || 14; });
     var t = ws.getCell('A1'); t.value = 'All ' + lvl + ' markets with Zeta — ' + (k ? 'Value (EGP)' : 'Standard Units') + ' · FY' + ty; t.font = { bold: true, size: 15, color: { argb: XC.navy } };
     ws.getCell('A2').value = 'Each market starts with a ▸ row holding its inputs (yellow). Items are grouped under brand and market: use the 1 / 2 / 3 buttons at the top-left to collapse. ' + pn + ' columns = your own plan on this computer.'; ws.getCell('A2').font = { size: 9, color: { argb: XC.grey } };
@@ -1765,6 +1770,8 @@
         for (var ci = 1; ci <= cols.length + 1; ci++) { var cc0 = R0.getCell(ci); cc0.fill = xFill(XC.mkt); cc0.border = xBorder(); cc0.font = { size: 10, bold: true, color: { argb: XC.navy } }; }
         R0.getCell(1).value = q.name; R0.getCell(2).value = '▸ ' + q.name;
         R0.getCell(cols.findIndex(function (c) { return c.key === 'lvl'; }) + 2).value = 'Market';
+        (function () { var d1 = q.type === 'DM1' ? [q.name] : (dmOf('DM1', ((((q.scorecard || {}).zeta) || {}).items || []).map(function (i) { return i.item; })) || '').split(' / ').filter(Boolean);   // BU / Line on the ▸ row too (filters)
+          [['bu', orgOf('BU', d1)], ['line', orgOf('Line', d1)], ['dm', q.type === 'DM1' ? q.name : d1.join(' / ')], ['dm2', q.type === 'DM2' ? q.name : '']].forEach(function (p) { var i = cols.findIndex(function (c) { return c.key === p[0]; }); if (i >= 0 && p[1]) R0.getCell(i + 2).value = p[1]; }); })();
         var cm = R0.getCell(cols.findIndex(function (c) { return c.key === 'mmat'; }) + 2); cm.value = fin(ctx.mm[k ? 'val' : 'su']) ? ctx.mm[k ? 'val' : 'su'] : null; cm.numFmt = XF.n;
         var cl = R0.getCell(cols.findIndex(function (c) { return c.key === 'mle'; }) + 2); cl.value = fin(ctx.mle) ? ctx.mle : null; cl.numFmt = XF.n;
         var cf = R0.getCell(cols.findIndex(function (c) { return c.key === 'mfc'; }) + 2);
@@ -1777,11 +1784,52 @@
         var cg = R0.getCell(cols.findIndex(function (c) { return c.key === 'mfg'; }) + 2); cg.value = fx('IFERROR(' + L.mfc + mh + '/' + L.mle + mh + '-1,"")', fin(ctx.mfc) && ctx.mle > 0 ? ctx.mfc / ctx.mle - 1 : null); cg.numFmt = XF.g;
         ctx.mfcRef = '$' + L.mfc + '$' + mh; ctx.mleRef = '$' + L.mle + '$' + mh; ctx.msysRef = '$' + L.msys + '$' + mh; ctx.pRef = pRef || '0';
         row = xTableRows(ws, mh + 1, q, k, cols, ctx, { prefix: q.name, twin: suName, twinL: twinL }).next;
+        try { row = xCtxRows(ws, row, q, k, cols, ctx, L, mh); } catch (e) { console.warn('[MarketForecast] context rows', e); }
       });
     ws.autoFilter = { from: { row: hr, column: 1 }, to: { row: Math.max(hr, row - 1), column: H.length } };
     ws.views = [{ state: 'frozen', xSplit: 2, ySplit: hr, showGridLines: false }];
     xPrint(ws, hr);
     return { L: L };
+  }
+  // 2026-10-19 (Ahmed: "add row for APIX total"): after each market block of the All markets sheets, one row per related
+  // market — in a DM1 workbook the DM2 markets the DM1 is split into, in a DM2 workbook the DM1 total it belongs to.
+  // Level "DM2 market" / "DM1 total": not an item, so brand / total formulas and Import ignore it.
+  function xCtxRows(ws, row, q, k, cols, ctx, L, mh) {
+    var up = q.type === 'DM2' ? 'DM1' : 'DM2', its = ((((q.scorecard || {}).zeta) || {}).items || []).map(function (i) { return i.item; });
+    var names = up === 'DM2' ? ((((D.meta.links || {}).dm1_dm2 || {})[q.name]) || (dmOf('DM2', its) || '').split(' / ')).filter(Boolean) : (dmOf('DM1', its) || '').split(' / ').filter(Boolean);
+    if (up === 'DM2' && names.length === 1 && names[0] === q.name) return row;
+    if (up === 'DM1' && names.every(function (n) { return n === q.name; })) return row;
+    var G = up === 'DM2' ? withAll(q, function () { return itemGroups(q); }).filter(function (x) { return x.kind === 'item'; }) : [];
+    var ci = function (key) { return cols.findIndex(function (c) { return c.key === key; }) + 2; }, has = function (key) { return ci(key) > 1; };
+    names.forEach(function (nm) {
+      var s = D.segments.find(function (x) { return x.type === up && x.name === nm; }); if (!s) return;
+      var f = s.forecast || {}, vv = s.value || {}, mm = (s.scorecard || {}).market_mat || {}, mk = k ? 'val' : 'su', R = ws.getRow(row);
+      var mat = mm[mk], matPy = mm[mk + '_py'], le = k ? vv.fy_le : f.fy_le, sys = k ? vv.fy_target : f.fy_target, sc = fin(ctx.mfc) && ctx.msys > 0 ? ctx.mfc / ctx.msys : 1;
+      var zm = null, pfc = null;
+      if (up === 'DM2') { var mine = G.filter(function (x) { return dmOf('DM2', [x.item]) === nm; }); zm = mine.length ? mine.reduce(function (a, x) { return a + (x.mat[k] || 0); }, 0) : null; }
+      else { var Pz = withAll(s, function () { return zplan(s); }); zm = ((((s.scorecard || {}).zeta) || {}).mat || {})[mk]; pfc = Pz.bex && fin(Pz.bex.su) ? (k ? Pz.bex.val : Pz.bex.su) : null; }
+      for (var c0 = 1; c0 <= cols.length + 1; c0++) { var cc = R.getCell(c0); cc.border = xBorder(); cc.fill = xFill('FFF5F3FF'); cc.font = { size: 10, italic: true, color: { argb: 'FF5B21B6' } }; }
+      var put = function (key, v, fmt) { if (!has(key)) return; var cl = R.getCell(ci(key)); cl.value = v; if (fmt) cl.numFmt = fmt; };
+      R.getCell(1).value = q.name;
+      put('lbl', (up === 'DM2' ? '◦ DM2 market: ' : '◦ DM1 total: ') + nm);
+      put('lvl', up === 'DM2' ? 'DM2 market' : 'DM1 total');
+      put('bu', orgOf('BU', up === 'DM1' ? [nm] : (dmOf('DM1', its) || '').split(' / '))); put('line', orgOf('Line', up === 'DM1' ? [nm] : (dmOf('DM1', its) || '').split(' / ')));
+      put('dm', up === 'DM1' ? nm : q.name); put('dm2', up === 'DM2' ? nm : '');
+      put('mmat', fin(mat) ? mat : null, XF.n);
+      put('mg', matPy > 0 && fin(mat) ? mat / matPy - 1 : null, XF.g);
+      put('mle', fin(le) ? le : null, XF.n); put('msys', fin(sys) ? sys : null, XF.n);
+      if (has('mfc')) put('mfc', fx(String(sys) + '*$' + L.mfc + '$' + mh + '/$' + L.msys + '$' + mh, fin(sys) ? sys * sc : null), XF.n);
+      if (has('mfg')) put('mfg', fx('IFERROR(' + L.mfc + row + '/' + L.mle + row + '-1,"")', fin(sys) && le > 0 ? sys * sc / le - 1 : ''), XF.g);
+      put('zmat', fin(zm) ? zm : null, XF.n);
+      if (has('sh')) put('sh', fx('IF(' + L.zmat + row + '="","",IFERROR(' + L.zmat + row + '/' + L.mmat + row + ',""))', fin(zm) && mat > 0 ? zm / mat : ''), XF.p2);
+      if (up === 'DM2') {   // SFE forecast of the items of this DM2 = live sum of the item rows above
+        var top = mh + 1, bot = row - 1, mineP = G.filter(function (x) { return dmOf('DM2', [x.item]) === nm && x.P && x.P.bex && fin(x.P.bex.su); }), cv = mineP.reduce(function (a, x) { return a + (k ? x.P.bex.val || 0 : x.P.bex.su); }, 0);
+        if (has('pfc')) put('pfc', fx('IF(COUNTIFS($' + L.lvl + '$' + top + ':$' + L.lvl + '$' + bot + ',"Item",$' + L.dm2 + '$' + top + ':$' + L.dm2 + '$' + bot + ',"' + nm.replace(/"/g, '""') + '",$' + L.pfc + '$' + top + ':$' + L.pfc + '$' + bot + ',">=0")=0,"",SUMIFS($' + L.pfc + '$' + top + ':$' + L.pfc + '$' + bot + ',$' + L.lvl + '$' + top + ':$' + L.lvl + '$' + bot + ',"Item",$' + L.dm2 + '$' + top + ':$' + L.dm2 + '$' + bot + ',"' + nm.replace(/"/g, '""') + '"))', mineP.length ? cv : ''), XF.n);
+      } else if (has('pfc')) put('pfc', fin(pfc) ? pfc : null, XF.n);
+      if (has('psh')) put('psh', fx('IF(' + L.pfc + row + '="","",IFERROR(' + L.pfc + row + '/' + L.mfc + row + ',""))', (up === 'DM2' ? (mineP.length ? cv : null) : pfc) != null && fin(sys) && sys * sc > 0 ? (up === 'DM2' ? cv : pfc) / (sys * sc) : ''), XF.p2);
+      R.outlineLevel = 1; row++;
+    });
+    return row;
   }
   function xPrint(ws, hr) {
     ws.pageSetup = { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.3, right: 0.3, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }, printTitlesRow: hr + ':' + hr };
@@ -1856,6 +1904,9 @@
     var pn = PN(), rows = [
       ['How to change the plan', 'Change only the YELLOW cells with BLUE numbers: SU sheet → ' + pn + ' market FY' + ty + ' (D6), objective share and ' + pn + ' share per item; Value sheet → price change (D6); All markets sheets → market FY' + ty + ' on each ▸ row, shares on item rows, price change (B3 on All markets Value). Everything else is a formula: forecasts, value, shares, growth, brand and total rows, the year-by-year plan rows and the Summary.'],
       ['Formulas', 'Item objective SU = objective share × the SYSTEM market forecast (as on the dashboard). Item ' + pn + ' forecast SU = ' + pn + ' share × YOUR market view (input). Item value = forecast SU × the item\'s own price per SU today × (1 + price change). Brand / total = SUM of their items. ' + pn + ' growth on brand / total rows is like-for-like (only items with a share).'],
+      ['Summary sheet', 'All Zeta in the one-market layout (Market / Zeta / FY plan). Choose Business unit, Line, Market (DM1) and DM2 in the yellow filter cells (All = everything); every number is a SUMIFS over the "Summary data" sheet. Zeta, objective and ' + pn + ' come from the DM1 item plan saved on the page (a snapshot: edits on the SU / Value sheets do not change it).'],
+      ['Summary data', 'One row per DM2 market inside each Zeta DM1 market, with Business unit and Line; filter buttons on row 5 and a TOTAL row 4 that adds up only the visible rows (SUBTOTAL).'],
+      ['This market', 'The summary of the market you exported (' + 'growth bridge, objective and ' + pn + ' forecast, formulas linked to the SU / Value sheets).'],
       ['Standard Units (SU)', 'IQVIA standard units. Market = the whole defined market; Zeta = Zeta items in it.'],
       ['Value (EGP)', 'Market value = market SU × market price per SU today × (1 + price change). With 0% price change this equals the dashboard\'s value forecast.'],
       ['MAT', matLbl() + ' = the 12 months to ' + per(D.meta.data_period) + '; growth vs the 12 months before.'],
@@ -1868,17 +1919,182 @@
     var t = ws.getCell('A1'); t.value = 'Notes and definitions'; t.font = { bold: true, size: 15, color: { argb: XC.navy } };
     rows.forEach(function (x, i) { var R = ws.getRow(i + 3); R.getCell(1).value = x[0]; R.getCell(1).font = { bold: true, size: 10 }; R.getCell(2).value = x[1]; R.getCell(2).alignment = { wrapText: true, vertical: 'top' }; R.getCell(2).font = { size: 10 }; R.getCell(1).alignment = { vertical: 'top' }; });
   }
+  // 2026-10-19 (Ahmed: "Summary to be for all Zeta and filter BU / Line / market / DM1 / DM2"): first sheet of the plan
+  // workbook = every Zeta DM1 market split into its DM2 markets (DM2s add up to their DM1, so every column is additive).
+  // Row 4 = SUBTOTAL of the rows left visible by the filter. Market = IQVIA forecast; Zeta / objective / plan = DM1 item plan.
+  function orgOf(type, dm1s) {   // BU / Line names whose members include any of these DM1 markets
+    var out = [];
+    D.segments.forEach(function (s) { if (s.type === type && (s.members || []).some(function (m) { return dm1s.indexOf(m) >= 0; }) && out.indexOf(s.name) < 0) out.push(s.name); });
+    return out.join(' / ');
+  }
+  function xZetaSummary(ws, ty, py) {
+    var pn = PN(), V = hasVal(), n = function (v) { return fin(v) ? v : null; };
+    var C = [
+      { k: 'bu', h: 'Business unit', w: 16 }, { k: 'line', h: 'Line', w: 18 }, { k: 'dm1', h: 'Market (DM1)', w: 30 }, { k: 'dm2', h: 'DM2', w: 30 }, { k: 'br', h: 'Zeta brand(s)', w: 22 },
+      { k: 'mmat', h: 'Market ' + matLbl() + ' (SU)', w: 15, f: XF.n, s: 1, c: 'mkt' }, { k: 'mle', h: 'Market ' + py + ' (estimate, SU)', w: 15, f: XF.n, s: 1, c: 'mkt' },
+      { k: 'mfc', h: 'Market FY' + ty + ' — system forecast (SU)', w: 15, f: XF.n, s: 1, c: 'mkt' }, { k: 'mg', h: 'Market growth FY' + ty + ' vs ' + py, w: 11, f: XF.g, c: 'mkt' },
+      { k: 'mview', h: 'Market FY' + ty + ' — ' + pn + ' view (SU)', w: 15, f: XF.n, s: 1, c: 'mkt' },
+      { k: 'zmat', h: 'Zeta ' + matLbl() + ' (SU)', w: 14, f: XF.n, s: 1 }, { k: 'zsh', h: 'Zeta share ' + matLbl(), w: 10, f: XF.p2 }, { k: 'zle', h: 'Zeta ' + py + ' (estimate, SU)', w: 14, f: XF.n, s: 1 },
+      { k: 'obj', h: 'Objective FY' + ty + ' (SU)', w: 14, f: XF.n, s: 1 }, { k: 'objsh', h: 'Objective share', w: 10, f: XF.p2 },
+      { k: 'sfe', h: pn + ' forecast FY' + ty + ' (SU)', w: 14, f: XF.n, s: 1, c: 'plan' }, { k: 'sfesh', h: pn + ' share', w: 10, f: XF.p2, c: 'plan' },
+      { k: 'sfeg', h: pn + ' growth vs ' + py + ' (like-for-like)', w: 11, f: XF.g, c: 'plan' }, { k: 'gap', h: pn + ' vs objective (SU, planned items)', w: 13, f: XF.d, s: 1, c: 'plan' },
+      { k: 'sfele', h: 'Zeta ' + py + ' estimate of planned items (SU)', w: 14, f: XF.n, s: 1, c: 'plan' }, { k: 'np', h: pn + ' items planned', w: 10, c: 'plan' }
+    ];
+    if (V) C = C.concat([{ k: 'vmat', h: 'Market ' + matLbl() + ' (EGP)', w: 16, f: XF.n, s: 1, c: 'mkt' }, { k: 'vfc', h: 'Market FY' + ty + ' (EGP)', w: 16, f: XF.n, s: 1, c: 'mkt' },
+      { k: 'zvmat', h: 'Zeta ' + matLbl() + ' (EGP)', w: 15, f: XF.n, s: 1 }, { k: 'vobj', h: 'Objective FY' + ty + ' (EGP)', w: 15, f: XF.n, s: 1 }, { k: 'vsfe', h: pn + ' forecast FY' + ty + ' (EGP)', w: 15, f: XF.n, s: 1, c: 'plan' }]);
+    // helper columns (hidden) used by the Summary sheet's filter formulas
+    C = C.concat([{ k: 'buK', h: 'BU key', w: 10, hid: 1 }, { k: 'lnK', h: 'Line key', w: 10, hid: 1 }, { k: 'mmatpy', h: 'Market previous MAT (SU)', w: 12, f: XF.n, hid: 1 }, { k: 'vmatpy', h: 'Market previous MAT (EGP)', w: 12, f: XF.n, hid: 1 },
+      { k: 'vle', h: 'Market ' + py + ' estimate (EGP)', w: 12, f: XF.n, hid: 1 }, { k: 'vview', h: 'Market FY' + ty + ' ' + pn + ' view (EGP)', w: 12, f: XF.n, hid: 1 }, { k: 'zvle', h: 'Zeta ' + py + ' estimate (EGP)', w: 12, f: XF.n, hid: 1 },
+      { k: 'vsfele', h: 'Zeta ' + py + ' estimate of planned items (EGP)', w: 12, f: XF.n, hid: 1 }, { k: 'vgap', h: pn + ' vs objective (EGP, planned items)', w: 12, f: XF.n, hid: 1 }, { k: 'npn', h: 'Items planned', w: 8, hid: 1 }, { k: 'ni', h: 'Zeta items', w: 8, hid: 1 }]);
+    var L = {}; C.forEach(function (c, i) { L[c.k] = colL(i + 1); ws.getColumn(i + 1).width = c.w; });
+    var t = ws.getCell('A1'); t.value = 'Summary data — all Zeta markets by BU, Line, DM1 and DM2 (FY' + ty + ')'; t.font = { bold: true, size: 15, color: { argb: XC.navy } };
+    ws.getCell('A2').value = 'One row per DM2 market inside each Zeta DM1 market (the DM2 markets add up to their DM1). Filter Business unit / Line / Market (DM1) / DM2 in row 5 — the TOTAL row 4 follows the filter. ' +
+      'Market = IQVIA forecast; Zeta, objective and ' + pn + ' = the DM1 item plan (' + pn + ' plan of ' + userLabel() + ' on this computer) · IQVIA data to ' + per(D.meta.data_period) + ' · exported ' + new Date().toLocaleString();
+    ws.getCell('A2').font = { size: 9, color: { argb: XC.grey } };
+    var HR = 5, TR = 4, r0 = 6, rows = [];
+    segs('DM1').filter(function (q) { var it = ((((q.scorecard || {}).zeta) || {}).items || []); return it.length && (it[0] || {}).years; })
+      .sort(function (a, b) { return ((((b.scorecard || {}).zeta) || {}).mat || {}).su - ((((a.scorecard || {}).zeta) || {}).mat || {}).su || 0; })
+      .forEach(function (q) {
+        var G = withAll(q, function () { return itemGroups(q); }).filter(function (x) { return x.kind === 'item'; });
+        var P = withAll(q, function () { return zplan(q); }), fq = q.forecast || {}, view = P.bex && fin(P.bex.mkt) ? P.bex.mkt : fq.fy_target, sc = fq.fy_target > 0 && fin(view) ? view / fq.fy_target : 1;
+        var kids = ((D.meta.links || {}).dm1_dm2 || {})[q.name] || [];
+        G.forEach(function (x) { var d2 = dmOf('DM2', [x.item]); if (d2 && kids.indexOf(d2) < 0) kids.push(d2); });
+        if (!kids.length) kids = [q.name];
+        var bu = orgOf('BU', [q.name]), ln = orgOf('Line', [q.name]);
+        kids.forEach(function (d2) {
+          var s2 = D.segments.find(function (s) { return s.type === 'DM2' && s.name === d2; }) || (kids.length === 1 ? q : null), f2 = (s2 || {}).forecast || {}, mm = ((s2 || {}).scorecard || {}).market_mat || {}, v2 = (s2 || {}).value || {};
+          var its = G.filter(function (x) { return (dmOf('DM2', [x.item]) || d2) === d2; }), z = { zmat: 0, zle: 0, obj: 0, sfe: 0, sfele: 0, zvmat: 0, vobj: 0, vsfe: 0, np: 0, nobj: 0, zvle: 0, vsfele: 0, gap: 0, vgap: 0, ng: 0 };
+          its.forEach(function (x) {
+            var e = zLE(q, (x.ytd || [0, 0])[0], (x.ytd || [0, 0])[1]), B = x.P && x.P.bex && fin(x.P.bex.su) ? x.P.bex : null;
+            z.zmat += x.mat[0] || 0; z.zvmat += x.mat[1] || 0; z.zle += e.su || 0; z.zvle += e.val || 0;
+            var hasObj = x.P && x.P.present && fin(x.P.objSU);
+            if (hasObj) { z.obj += x.P.objSU; z.vobj += x.P.objVal || 0; z.nobj++; }
+            if (B) { z.sfe += B.su; z.vsfe += B.val || 0; z.sfele += e.su || 0; z.vsfele += e.val || 0; z.np++; }
+            if (B && hasObj) { z.gap += B.su - x.P.objSU; z.vgap += (B.val || 0) - (x.P.objVal || 0); z.ng++; }
+          });
+          rows.push({ bu: bu, line: ln, dm1: q.name, dm2: d2, br: its.map(function (x) { return x.brand; }).filter(function (b, i, a) { return a.indexOf(b) === i; }).join(', '),
+            mmat: n(mm.su), mle: n(f2.fy_le), mfc: n(f2.fy_target), mview: fin(f2.fy_target) ? f2.fy_target * sc : null,
+            zmat: its.length ? z.zmat : null, zle: its.length ? z.zle : null, obj: z.nobj ? z.obj : null, sfe: z.np ? z.sfe : null, sfele: z.np ? z.sfele : null, np: its.length ? z.np + ' of ' + its.length : '',
+            vmat: n(mm.val), vfc: n(v2.fy_target), zvmat: its.length ? z.zvmat : null, vobj: z.nobj ? z.vobj : null, vsfe: z.np ? z.vsfe : null,
+            gap: z.ng ? z.gap : null, buK: '|' + bu.split(' / ').join('|') + '|', lnK: '|' + ln.split(' / ').join('|') + '|', mmatpy: n(mm.su_py), vmatpy: n(mm.val_py), vle: n(v2.fy_le), vview: fin(v2.fy_target) ? v2.fy_target * sc : null,
+            zvle: its.length ? z.zvle : null, vsfele: z.np ? z.vsfele : null, vgap: z.ng ? z.vgap : null, npn: z.np, ni: its.length });
+        });
+      });
+    var last = r0 + rows.length - 1;
+    var ratio = function (R, x) {   // formula + cached value of the ratio columns on row R (x = numbers of that row)
+      var q = function (a, b) { return fin(a) && fin(b) && b !== 0 ? a / b : null; };
+      return {
+        mg: fx('IFERROR(' + L.mfc + R + '/' + L.mle + R + '-1,"")', fin(q(x.mfc, x.mle)) ? q(x.mfc, x.mle) - 1 : ''),
+        zsh: fx('IF(' + L.zmat + R + '="","",IFERROR(' + L.zmat + R + '/' + L.mmat + R + ',""))', fin(q(x.zmat, x.mmat)) ? q(x.zmat, x.mmat) : ''),
+        objsh: fx('IF(' + L.obj + R + '="","",IFERROR(' + L.obj + R + '/' + L.mfc + R + ',""))', fin(x.obj) && fin(q(x.obj, x.mfc)) ? q(x.obj, x.mfc) : ''),
+        sfesh: fx('IF(' + L.sfe + R + '="","",IFERROR(' + L.sfe + R + '/' + L.mview + R + ',""))', fin(x.sfe) && fin(q(x.sfe, x.mview)) ? q(x.sfe, x.mview) : ''),
+        sfeg: fx('IF(' + L.sfe + R + '="","",IFERROR(' + L.sfe + R + '/' + L.sfele + R + '-1,""))', fin(x.sfe) && fin(q(x.sfe, x.sfele)) ? q(x.sfe, x.sfele) - 1 : '')
+      };
+    };
+    var style = function (cell, c, tot) {
+      if (c.f) cell.numFmt = c.f;
+      cell.border = xBorder(); cell.font = { size: 10, bold: !!tot, color: { argb: XC.ink } };
+      if (tot) cell.fill = xFill(XC.tot); else if (c.c === 'plan') cell.fill = xFill(XC.plan); else if (c.c === 'mkt') cell.fill = xFill(XC.mkt);
+    };
+    xHeader(ws, HR, C);
+    rows.forEach(function (x, i) {
+      var R = r0 + i, row = ws.getRow(R), rt = ratio(R, x);
+      C.forEach(function (c, j) { var cell = row.getCell(j + 1); cell.value = rt[c.k] !== undefined ? rt[c.k] : (x[c.k] == null ? null : x[c.k]); style(cell, c); });
+    });
+    // TOTAL row (SUBTOTAL 109 = sum of visible rows only)
+    var T = {}; C.forEach(function (c) { if (c.s) T[c.k] = rows.reduce(function (a, x) { return a + (fin(x[c.k]) ? x[c.k] : 0); }, 0); });
+    ['obj', 'sfe', 'sfele', 'vobj', 'vsfe'].forEach(function (k2) { if (!rows.some(function (x) { return fin(x[k2]); })) T[k2] = null; });
+    var tr = ws.getRow(TR), trt = ratio(TR, T);
+    C.forEach(function (c, j) {
+      var cell = tr.getCell(j + 1);
+      if (j === 0) cell.value = 'TOTAL (filtered rows)';
+      else if (c.s) cell.value = rows.length ? fx('SUBTOTAL(109,' + L[c.k] + r0 + ':' + L[c.k] + last + ')', fin(T[c.k]) ? T[c.k] : 0) : null;
+      else if (trt[c.k] !== undefined) cell.value = trt[c.k];
+      style(cell, c, true);
+    });
+    ['obj', 'sfe', 'sfele', 'vobj', 'vsfe'].forEach(function (k2) {   // blank (not 0) when nothing planned, so the ratios stay blank
+      if (L[k2]) { var cl = tr.getCell(C.findIndex(function (c) { return c.k === k2; }) + 1); cl.value = rows.length ? fx('IF(SUBTOTAL(103,' + L[k2] + r0 + ':' + L[k2] + last + ')=0,"",SUBTOTAL(109,' + L[k2] + r0 + ':' + L[k2] + last + '))', fin(T[k2]) ? T[k2] : '') : null; }
+    });
+    C.forEach(function (c, j) { if (c.hid) ws.getColumn(j + 1).hidden = true; });
+    ws.autoFilter = { from: { row: HR, column: 1 }, to: { row: Math.max(HR, last), column: C.filter(function (c) { return !c.hid; }).length } };
+    ws.views = [{ state: 'frozen', xSplit: 4, ySplit: HR, showGridLines: false }];
+    return { rows: rows, L: L, r0: r0, last: last };
+  }
+
+  // 2026-10-19 (Ahmed: "Summary with this format"): Summary sheet = the one-market layout (Market / Zeta / FY plan, SU and
+  // EGP side by side) for ALL Zeta, with 4 filters (BU, Line, Market DM1, DM2: pick from the list, All = everything).
+  // Every number is SUMIFS over 'Summary data' with the chosen filters, so it changes as soon as a filter is changed.
+  function xZetaFront(ws, wb, Dt, ty, py) {
+    var pn = PN(), V = hasVal(), DS = "'Summary data'!", rows = Dt.rows, L = Dt.L, r0 = Dt.r0, last = Math.max(Dt.r0, Dt.last);
+    ws.getColumn(1).width = 44; ws.getColumn(2).width = 20; ws.getColumn(3).width = 20; ws.getColumn(4).width = 70; ws.getColumn(6).width = 4; ws.getColumn(6).hidden = true;
+    var A = function (row, txt, o) { var c = ws.getCell('A' + row); c.value = txt; c.font = Object.assign({ size: 10, color: { argb: XC.ink } }, o || {}); return c; };
+    var band = function (row, txt) { for (var cI = 1; cI <= 4; cI++) ws.getRow(row).getCell(cI).fill = xFill(XC.navy); var c1 = ws.getCell('A' + row); c1.value = txt; c1.font = { bold: true, size: 12, color: { argb: XC.white } }; };
+    var sub = function (row) { ['Standard Units', V ? 'Value (EGP)' : '', 'Comment'].forEach(function (h, i) { var c = ws.getRow(row).getCell(i + 2); c.value = h || null; c.font = { size: 9, bold: true, color: { argb: XC.grey } }; c.alignment = { horizontal: 'right' }; c.border = { bottom: { style: 'thin', color: { argb: XC.line } } }; }); };
+    for (var cI = 1; cI <= 4; cI++) ws.getRow(1).getCell(cI).fill = xFill(XC.navy);
+    var t = ws.getCell('A1'); t.value = 'Market Growth Forecast — FY' + ty + ' plan · all Zeta'; t.font = { bold: true, size: 16, color: { argb: XC.white } }; ws.getRow(1).height = 30;
+    var t2 = ws.getCell('A2'); t2.value = 'Choose the filters below (All = every Zeta market). Every number is a formula over the "Summary data" sheet, so it changes with the filters.'; t2.font = { size: 9, color: { argb: XC.grey } };
+    ws.getCell('A3').value = pn + ' forecast of ' + userLabel() + ' (plans saved on this computer) · IQVIA data to ' + per(D.meta.data_period) + ' · exported ' + new Date().toLocaleString(); ws.getCell('A3').font = { size: 9, color: { argb: XC.grey } };
+    var uniq = function (key, split) { var out = []; rows.forEach(function (x) { (split ? String(x[key] || '').split(' / ') : [x[key]]).forEach(function (v) { if (v && out.indexOf(v) < 0) out.push(v); }); }); return out.sort(); };
+    var lists = [['Business unit', uniq('bu', true)], ['Line', uniq('line', true)], ['Market (DM1)', uniq('dm1')], ['DM2', uniq('dm2')]];
+    var ls = wb.addWorksheet('Lists', { state: 'hidden' });
+    lists.forEach(function (l, i) { ls.getRow(1).getCell(i + 1).value = l[0]; ['All'].concat(l[1]).forEach(function (v, j) { ls.getRow(j + 2).getCell(i + 1).value = v; }); });
+    band(4, 'Filters (choose from the list in the yellow cells)');
+    var FR = [5, 6, 7, 8], FK = ['buK', 'lnK', 'dm1', 'dm2'];
+    lists.forEach(function (l, i) {
+      var row = FR[i]; A(row, l[0], { bold: true });
+      var c = ws.getCell('B' + row); c.value = 'All'; xInput(c, null);
+      c.dataValidation = { type: 'list', allowBlank: true, formulae: ['Lists!$' + colL(i + 1) + '$2:$' + colL(i + 1) + '$' + (l[1].length + 2)], showErrorMessage: true, errorTitle: l[0], error: 'Choose a value from the list (or All).' };
+      var cr = ws.getCell('F' + row); cr.value = fx(i < 2 ? 'IF(OR(B' + row + '="",B' + row + '="All"),"*","*|"&B' + row + '&"|*")' : 'IF(OR(B' + row + '="",B' + row + '="All"),"*",B' + row + ')', '*');
+      var cm = ws.getCell('D' + row); cm.value = i === 3 ? 'DM2 markets add up to their DM1: pick a DM2 to see that part of the DM1 only' : i === 2 ? 'Filters combine (AND); a combination that matches nothing shows 0 / blanks' : ''; cm.font = { size: 9, color: { argb: XC.grey } };
+    });
+    var S = function (key) { return 'SUMIFS(' + DS + '$' + L[key] + '$' + r0 + ':$' + L[key] + '$' + last + ',' + FK.map(function (k2, i) { return DS + '$' + L[k2] + '$' + r0 + ':$' + L[k2] + '$' + last + ',$F$' + FR[i]; }).join(',') + ')'; };
+    var tot = function (key) { return rows.reduce(function (a, x) { return a + (fin(x[key]) ? x[key] : 0); }, 0); };
+    var g = function (a, b) { return fin(a) && fin(b) && b !== 0 ? a / b - 1 : ''; }, d = function (a, b) { return fin(a) && fin(b) && b !== 0 ? a / b : ''; };
+    var row = 10, put = function (lbl, su, val, fmt, cmt, o) {
+      A(row, lbl, o && o.bold ? { bold: true } : null);
+      [su, val].forEach(function (v, i) { if (i === 1 && !V) return; var c = ws.getRow(row).getCell(i + 2); c.value = v; c.numFmt = fmt; c.font = { size: 10, bold: !!(o && o.bold), color: { argb: XC.ink } }; c.alignment = { horizontal: 'right' }; });
+      if (cmt) { var cc = ws.getCell('D' + row); cc.value = cmt; cc.font = { size: 9, color: { argb: XC.grey } }; cc.alignment = { wrapText: true }; }
+      if (o && o.fill) for (var q = 1; q <= 4; q++) ws.getRow(row).getCell(q).fill = xFill(o.fill);
+      return row++;
+    };
+    var nz = function (f) { return 'IF(' + f + '=0,"",' + f + ')'; };
+    band(row++, 'Market'); sub(row++);
+    var rM = put('Market ' + matLbl(), fx(S('mmat'), tot('mmat')), fx(S('vmat'), tot('vmat')), XF.n);
+    put('Market growth vs previous MAT', fx('IFERROR(B' + rM + '/' + S('mmatpy') + '-1,"")', g(tot('mmat'), tot('mmatpy'))), fx('IFERROR(C' + rM + '/' + S('vmatpy') + '-1,"")', g(tot('vmat'), tot('vmatpy'))), XF.g);
+    var rL = put('Market ' + py + ' full year (estimate)', fx(S('mle'), tot('mle')), fx(S('vle'), tot('vle')), XF.n, 'Actual Jan-' + MON[D.meta.partial_months - 1] + ' + forecast to December');
+    var rS = put('Market FY' + ty + ' forecast — system (objective basis)', fx(S('mfc'), tot('mfc')), fx(S('vfc'), tot('vfc')), XF.n, 'IQVIA forecast; DM2 markets are aligned to add up to their DM1');
+    var rV = put(pn + ' market FY' + ty + ' (' + pn + ' view)', fx(S('mview'), tot('mview')), fx(S('vview'), tot('vview')), XF.n, 'The system forecast, moved where ' + pn + ' edited a market on the page', { bold: true });
+    put('Market growth FY' + ty + ' vs ' + py, fx('IFERROR(B' + rV + '/B' + rL + '-1,"")', g(tot('mview'), tot('mle'))), fx('IFERROR(C' + rV + '/C' + rL + '-1,"")', g(tot('vview'), tot('vle'))), XF.g, null, { bold: true });
+    row++; band(row++, 'Zeta'); sub(row++);
+    var rZ = put('Zeta ' + matLbl(), fx(S('zmat'), tot('zmat')), fx(S('zvmat'), tot('zvmat')), XF.n);
+    put('Zeta share ' + matLbl(), fx('IFERROR(B' + rZ + '/B' + rM + ',"")', d(tot('zmat'), tot('mmat'))), fx('IFERROR(C' + rZ + '/C' + rM + ',"")', d(tot('zvmat'), tot('vmat'))), XF.p2);
+    var rE = put('Zeta ' + py + ' full year (estimate)', fx(S('zle'), tot('zle')), fx(S('zvle'), tot('zvle')), XF.n, 'Actual YTD + remaining months at the YTD share of the market estimate');
+    row++; band(row++, 'FY' + ty + ' plan'); sub(row++);
+    var rO = put('Objective FY' + ty, fx(nz(S('obj')), tot('obj') || ''), fx(nz(S('vobj')), tot('vobj') || ''), XF.n, 'Sum of the item objectives (system rule: Defend / Grow) of the selected markets', { fill: XC.obj });
+    put('Objective share', fx('IF(B' + rO + '="","",IFERROR(B' + rO + '/B' + rS + ',""))', tot('obj') ? d(tot('obj'), tot('mfc')) : ''), fx('IF(C' + rO + '="","",IFERROR(C' + rO + '/C' + rS + ',""))', tot('vobj') ? d(tot('vobj'), tot('vfc')) : ''), XF.p2, null, { fill: XC.obj });
+    put('Objective growth vs ' + py, fx('IF(B' + rO + '="","",IFERROR(B' + rO + '/B' + rE + '-1,""))', tot('obj') ? g(tot('obj'), tot('zle')) : ''), fx('IF(C' + rO + '="","",IFERROR(C' + rO + '/C' + rE + '-1,""))', tot('vobj') ? g(tot('vobj'), tot('zvle')) : ''), XF.g, null, { fill: XC.obj });
+    var rP = put(pn + ' forecast', fx(nz(S('sfe')), tot('sfe') || ''), fx(nz(S('vsfe')), tot('vsfe') || ''), XF.n, null, { bold: true, fill: XC.plan });
+    ws.getCell('D' + rP).value = fx('"' + pn + ' planned "&' + S('npn') + '&" of "&' + S('ni') + '&" items"', pn + ' planned ' + tot('npn') + ' of ' + tot('ni') + ' items'); ws.getCell('D' + rP).font = { size: 9, color: { argb: XC.grey } };
+    put(pn + ' share', fx('IF(B' + rP + '="","",IFERROR(B' + rP + '/B' + rV + ',""))', tot('sfe') ? d(tot('sfe'), tot('mview')) : ''), fx('IF(C' + rP + '="","",IFERROR(C' + rP + '/C' + rV + ',""))', tot('vsfe') ? d(tot('vsfe'), tot('vview')) : ''), XF.p2, null, { fill: XC.plan });
+    put(pn + ' growth vs ' + py + ' (like-for-like)', fx('IF(B' + rP + '="","",IFERROR(B' + rP + '/' + S('sfele') + '-1,""))', tot('sfe') ? g(tot('sfe'), tot('sfele')) : ''), fx('IF(C' + rP + '="","",IFERROR(C' + rP + '/' + S('vsfele') + '-1,""))', tot('vsfe') ? g(tot('vsfe'), tot('vsfele')) : ''), XF.g, 'Compared with the ' + py + ' estimate of the planned items only', { fill: XC.plan });
+    put(pn + ' vs objective', fx('IF(B' + rP + '="","",' + S('gap') + ')', tot('sfe') ? tot('gap') : ''), fx('IF(C' + rP + '="","",' + S('vgap') + ')', tot('vsfe') ? tot('vgap') : ''), XF.d, 'Planned items only (' + pn + ' forecast minus their objective)', { fill: XC.plan });
+    row++; var nt = ws.getCell('A' + row); nt.value = 'Detail by market: "Summary data" sheet (one row per DM2 market inside each DM1, own filters and TOTAL row). The market you exported: "This market" sheet.'; nt.font = { size: 9, italic: true, color: { argb: XC.grey } };
+    ws.pageSetup = { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+  }
   function exportPro(r) {
     loadExcelJS(function () {
       try {
         var m = D.meta, ty = m.target_year, py = m.partial_year, wb = new window.ExcelJS.Workbook();
         wb.creator = 'Zeta Intel Dashboard'; wb.created = new Date(); wb.title = 'Market Growth Forecast FY' + ty + ' — ' + r.name;
         wb.calcProperties = { fullCalcOnLoad: true };
-        var sum = wb.addWorksheet('Summary', { properties: { tabColor: { argb: XC.navy } }, views: [{ showGridLines: false }] });
+        var zf = wb.addWorksheet('Summary', { properties: { tabColor: { argb: 'FF7C3AED' } }, views: [{ showGridLines: false }] });
+        var sum = wb.addWorksheet('This market', { properties: { tabColor: { argb: XC.navy } }, views: [{ showGridLines: false }] });
         var S = xMeasureSheet(wb, r, 0, ty, py, 'SU'), V = hasVal() ? xMeasureSheet(wb, r, 1, ty, py, 'SU', S.T.L) : null;
         xSummary(sum, r, ty, py, S, V);
         var AS = xAllSheet(wb, r, 0, ty, py, 'All markets SU');
         if (hasVal()) xAllSheet(wb, r, 1, ty, py, 'All markets SU', AS.L);
+        var zs = wb.addWorksheet('Summary data', { properties: { tabColor: { argb: 'FFA78BFA' } }, views: [{ showGridLines: false }] });
+        xZetaFront(zf, wb, xZetaSummary(zs, ty, py), ty, py);
         xNotes(wb, ty, py);
         try { xFillCache(wb); } catch (e) { console.warn('[MarketForecast] cache fill', e); }
         var fn = 'Zeta_FY' + ty + '_Plan_' + PN() + '_' + safeName(r.name) + '.xlsx';
