@@ -1144,6 +1144,17 @@
     var out = []; (items || []).forEach(function (it) { var n = DM_MAP[level][it]; if (n && out.indexOf(n) < 0) out.push(n); });
     return out.join(' / ');
   }
+  function dm2Mkt(r, x, k, what) {   // DM2 market total(s) for a table row (SU k=0 / value k=1): mat | le | fc
+    if (!r || r.type === 'DM2') return null;
+    var names = (dmOf('DM2', rowItems(r, x)) || '').split(' / ').filter(Boolean), t = 0, ok = false;
+    names.forEach(function (nm) {
+      var q = D.segments.find(function (s) { return s.type === 'DM2' && s.name === nm; }); if (!q) return;
+      var mm = (q.scorecard || {}).market_mat || {}, f = q.forecast || {}, vv = q.value || {};
+      var v = what === 'mat' ? mm[k ? 'val' : 'su'] : what === 'le' ? (k ? vv.fy_le : f.fy_le) : (k ? vv.fy_target : f.fy_target);
+      if (fin(v)) { t += v; ok = true; }
+    });
+    return ok ? t : null;
+  }
   function rowItems(r, x) {
     var all = (((r.scorecard || {}).zeta) || {}).items || [];
     if (x.kind === 'item') return [x.item];
@@ -1522,6 +1533,15 @@
       { key: 'atc', h: 'ATC4', w: 9, val: function (x) { return / ATC4$/.test(x.atc || '') ? x.atc : (x.atc || '').split(' ')[0]; } },
       { key: 'dm', h: 'Defined market (DM1)', w: 26, val: function (x, c) { var d = dmOf('DM1', rowItems(c.r, x)), a = d ? d.split(' / ') : []; return a.length > 2 ? a.length + ' defined markets' : d; } },
       { key: 'dm2', h: 'Defined market (DM2)', w: 30, val: function (x, c) { var d = dmOf('DM2', rowItems(c.r, x)), a = d ? d.split(' / ') : []; return a.length > 2 ? a.length + ' DM2 markets' : d; } },
+      // 2026-10-19 (Ahmed: "I need to see the ELEMBOSIS total market in DM2 APIXPAN LOW DOSE / 5 MG and NEXICURE PLUS SACH / CAPS"):
+      // the DM2 market(s) of the row next to its DM2 name. Brand rows spanning several DM2 = sum of those DM2 markets.
+      // Blank on a DM2 workbook (the market columns are already the DM2 market there).
+      { key: 'd2mat', h: 'DM2 market ' + matLbl() + U, w: 15, fmt: XF.n, cls: 'mkt', val: function (x, c) { return dm2Mkt(c.r, x, k, 'mat'); } },
+      { key: 'd2le', h: 'DM2 market ' + py + ' (estimate)' + U, w: 15, fmt: XF.n, cls: 'mkt', val: function (x, c) { return dm2Mkt(c.r, x, k, 'le'); } },
+      { key: 'd2fc', h: 'DM2 market FY' + ty + ' — system forecast' + U, w: 15, fmt: XF.n, cls: 'mkt', val: function (x, c) { return dm2Mkt(c.r, x, k, 'fc'); } },
+      { key: 'd2g', h: 'DM2 market growth FY' + ty + ' vs ' + py, w: 12, fmt: XF.g, cls: 'mkt', val: function (x, c) { var a = dm2Mkt(c.r, x, k, 'fc'), b = dm2Mkt(c.r, x, k, 'le'); return fin(a) && b > 0 ? a / b - 1 : null; },
+        f: function (x, c, R) { return 'IF(OR(' + R.ref('d2fc') + '="",' + R.ref('d2le') + '=""),"",IFERROR(' + R.ref('d2fc') + '/' + R.ref('d2le') + '-1,""))'; } },
+      { key: 'd2sh', h: 'Zeta share of DM2 market ' + matLbl(), w: 11, fmt: XF.p2, val: function (x, c) { var m = dm2Mkt(c.r, x, k, 'mat'); return m > 0 && fin(x.mat[k]) ? x.mat[k] / m : null; } },
       { key: 'mmat', h: 'Market ' + matLbl() + U, w: 15, fmt: XF.n, val: function (x, c) { return n(c.mm[mk]); } },
       { key: 'mg', h: 'Market growth vs previous MAT', w: 12, fmt: XF.g, val: function (x, c) { return c.mm[mk + '_py'] > 0 ? c.mm[mk] / c.mm[mk + '_py'] - 1 : null; } },
       { key: 'zmat', h: 'Zeta ' + matLbl() + U, w: 15, fmt: XF.n, val: function (x) { return n(x.mat[k]); } },
