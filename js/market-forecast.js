@@ -852,7 +852,31 @@
     Object.keys(items).forEach(function (k) { out[k] = base > 0 ? items[k] / base * 100 : 0; });
     return { mkt: useMkt ? mktSum : null, items: out, saved: last, by: by, agg: true, planned: planned, markets: ms.length };
   }
-  function bexSaved(r) { return isAgg(r) ? aggPlan(r) : bexSavedOwn(r); }
+  // 2026-10-19 (Ahmed: "ELEMBOSIS 5 MKT TOTAL is ok but not shown for APIX 5 DM2, also for 2.5"): a DM2 market without
+  // its own saved plan shows the plan of its DM1 market(s): same item SU (DM1 share x DM1 market), re-expressed as a share
+  // of the DM2 market. Read-only there (edit it on the DM1). A DM2 with its own saved plan keeps it (own plan wins).
+  function dm2FromDM1(r) {
+    if (!r || r.type !== 'DM2') return null;
+    var its = (((r.scorecard || {}).zeta) || {}).items || [], f2 = r.forecast || {}, items = {}, n = 0, scale = 0, base = 0, last = null, by = null, from = [];
+    if (!its.length || !(f2.fy_target > 0)) return null;
+    (dmOf('DM1', its.map(function (i) { return i.item; })) || '').split(' / ').filter(Boolean).forEach(function (nm) {
+      var q = D.segments.find(function (x) { return x.type === 'DM1' && x.name === nm; }); if (!q) return;
+      var d = DRAFT[segKey(q)] || bexSavedOwn(q), sv = bexSavedOwn(q), fq = (q.forecast || {}).fy_target;
+      if (!d || !(fq > 0)) return;
+      var mq = fin(d.mkt) && d.mkt > 0 ? d.mkt : fq, any = false;
+      its.forEach(function (i) { var sh = (d.items || {})[i.item]; if (fin(sh)) { items[i.item] = sh / 100 * mq; n++; any = true; } });
+      if (any) { from.push(nm); scale += mq / fq; base++; }
+      if (sv && sv.saved && (!last || String(sv.saved) > String(last))) { last = sv.saved; by = sv.by; }
+    });
+    if (!n) return null;
+    var k = base ? scale / base : 1, mkt2 = f2.fy_target * k, out = {};   // DM1 market edited by x% -> its DM2 market moves by the same x%
+    Object.keys(items).forEach(function (it) { out[it] = Math.round(items[it] / mkt2 * 100 * 10000) / 10000; });
+    return { mkt: Math.abs(k - 1) > 1e-9 ? mkt2 : null, items: out, saved: last, by: by, derived: true, from: from };
+  }
+  function isDm2Derived(r) { return !!r && r.type === 'DM2' && !bex2All()[segKey(r)] && !!dm2FromDM1(r); }
+  function isRO(r) { return isAgg(r) || isDm2Derived(r); }
+  function roPlan(r) { return isAgg(r) ? aggPlan(r) : dm2FromDM1(r); }
+  function bexSaved(r) { return isAgg(r) ? aggPlan(r) : (r && r.type === 'DM2' && !bex2All()[segKey(r)] ? dm2FromDM1(r) : bexSavedOwn(r)); }
   function bexSavedOwn(r) {
     var sv = bex2All()[segKey(r)]; if (!sv) return null;
     var its = (((r.scorecard || {}).zeta) || {}).items || [], names = {}, pk = {}, moved = false, out = {};
@@ -866,13 +890,13 @@
     return moved || Object.keys(out).length !== Object.keys(sv.items || {}).length ? Object.assign({}, sv, { items: out }) : sv;
   }
   function bexDraft(r) {
-    if (isAgg(r)) return aggPlan(r) || { mkt: null, items: {} };   // computed, never edited at this level
+    if (isRO(r)) return roPlan(r) || { mkt: null, items: {} };   // computed, never edited at this level
     var k = segKey(r);
     if (!DRAFT[k]) { var sv = bexSaved(r) || {}; DRAFT[k] = { mkt: fin(sv.mkt) ? sv.mkt : null, items: JSON.parse(JSON.stringify(sv.items || {})) }; }
     return DRAFT[k];
   }
   function bexDirty(r) {
-    if (isAgg(r)) return false;
+    if (isRO(r)) return false;
     var d = DRAFT[segKey(r)]; if (!d) return false;
     var sv = bexSaved(r) || { mkt: null, items: {} };
     return JSON.stringify({ m: d.mkt, i: d.items }) !== JSON.stringify({ m: fin(sv.mkt) ? sv.mkt : null, i: sv.items || {} });
@@ -880,7 +904,7 @@
   function itemPrice(i) { return i.s6 && i.s6[0] > 0 ? i.s6[1] / i.s6[0] : (i.mat && i.mat[0] > 0 ? i.mat[1] / i.mat[0] : null); }
   // BEX numbers for the current Zeta selection of market r (sum of the selected items' BEX)
   function bexCalc(r, z) {
-    var f = r.forecast || {}, vv = r.value || {}, d = isAgg(r) ? aggPlan(r) : ZF_OFF || !segKey(r) ? (DRAFT[segKey(r)] || (bexSaved(r) ? bexDraft(r) : null)) : bexDraft(r);
+    var f = r.forecast || {}, vv = r.value || {}, d = isRO(r) ? roPlan(r) : ZF_OFF || !segKey(r) ? (DRAFT[segKey(r)] || (bexSaved(r) ? bexDraft(r) : null)) : bexDraft(r);
     if (!d || !fin(f.fy_target)) return null;
     var mkt = fin(d.mkt) && d.mkt > 0 ? d.mkt : f.fy_target, pm = f.fy_target > 0 && fin(vv.fy_target) ? vv.fy_target / f.fy_target : null, mktVal = fin(pm) ? mkt * pm : null;
     var its = zItems(r), su = 0, val = 0, n = 0, hasDetail = its.length && (its[0] || {}).years;
@@ -1196,7 +1220,7 @@
       var name = x.kind === 'item' ? '<span class="ind">↳</span> <span title="' + esc('Packs: ' + ((x.packs || []).join(' · ') || x.label)) + '">' + esc(x.label) + '</span>' + ((x.packs || []).length > 1 ? ' <small class="mut">(' + x.packs.length + ' packs)</small>' : '') : '<b>' + esc(x.label) + '</b>' + (x.n ? ' <span class="mut small">(' + x.n + ' item' + (x.n > 1 ? 's' : '') + ')</span>' : '');
       return '<tr class="' + cls + (sel ? ' sel' : '') + '" data-kind="' + x.kind + '" data-br="' + esc(x.brand) + '" data-it="' + esc(x.item || '') + '"><td>' + name + '</td><td class="mut">' + esc(x.kind === 'total' ? '' : x.brand) + '</td><td class="mut small">' + esc((x.atc || '').split(' ')[0]) + '</td>' + (showDM ? '<td class="mut small">' + esc(x.kind === 'item' ? dmOf('DM1', [x.item]) : '') + '</td>' : '') + mmCell +
         '<td class="num r">' + fmtM(x.mat[k], val) + '</td><td class="num r">' + fmtP(g) + '</td><td class="num r mut">' + fmtP(MC.pct) + '</td><td class="num r" title="' + esc(ZC.span) + '">' + fmtP(ZC.pct) + (ZC.span && ZC.span !== MC.span ? ' <small class="mut">(' + esc(ZC.span) + ')</small>' : '') + '</td><td class="num r">' + (fin(sh) ? (sh * 100).toFixed(2) + '%' : '—') + '</td><td class="num r ' + (d == null ? '' : d >= 0.05 ? 'pos' : d <= -0.05 ? 'neg' : '') + '">' + (d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(2) + ' pts') + '</td>' +
-        mfcCell + '<td>' + (P.present ? chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') : '<span class="mut">—</span>') + '</td><td class="num r">' + (P.present ? (P.objShare * 100).toFixed(2) + '%' : '—') + '</td><td class="num r">' + (fin(obj) ? fmtM(obj, val) : '—') + '</td><td class="num r bexc">' + (x.kind === 'item' && !isAgg(r) ? '<input type="text" inputmode="decimal" class="bexi" data-item="' + esc(x.item) + '" min="0" max="100" step="0.01" placeholder="share %" value="' + (fin(dd.items[x.item]) ? dd.items[x.item] : '') + '"> %<br>' : '') + (fin(bx) ? '<b>' + fmtM(bx, val) + '</b> <span class="mut">(' + ((val ? P.bex.valShare : P.bex.share) * 100).toFixed(2) + '%' + (x.kind !== 'item' ? ', ' + P.bex.n + '/' + P.bex.nItems + ' items' : '') + ')</span>' : '<span class="mut">—</span>') + '</td>' +
+        mfcCell + '<td>' + (P.present ? chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') : '<span class="mut">—</span>') + '</td><td class="num r">' + (P.present ? (P.objShare * 100).toFixed(2) + '%' : '—') + '</td><td class="num r">' + (fin(obj) ? fmtM(obj, val) : '—') + '</td><td class="num r bexc">' + (x.kind === 'item' && !isRO(r) ? '<input type="text" inputmode="decimal" class="bexi" data-item="' + esc(x.item) + '" min="0" max="100" step="0.01" placeholder="share %" value="' + (fin(dd.items[x.item]) ? dd.items[x.item] : '') + '"> %<br>' : '') + (fin(bx) ? '<b>' + fmtM(bx, val) + '</b> <span class="mut">(' + ((val ? P.bex.valShare : P.bex.share) * 100).toFixed(2) + '%' + (x.kind !== 'item' ? ', ' + P.bex.n + '/' + P.bex.nItems + ' items' : '') + ')</span>' : '<span class="mut">—</span>') + '</td>' +
         '<td class="num r bexg">' + (function (q) { return fin(q) ? fmtP(q * 100) + (x.kind !== 'item' && P.bex.n < P.bex.nItems ? ' <small class="mut" title="Like-for-like: only the items with a ' + PN() + ' share">(' + P.bex.n + '/' + P.bex.nItems + ')</small>' : '') : '<span class="mut">—</span>'; })(bexGrowth(r, x, k)) + '</td>' + (isSFEView() ? '<td class="num r">' + vCell(P) + '</td>' : '') + '</tr>';
     });
     return '<div class="h2row"><h3 class="mt">By brand and item — ' + matLbl() + ' and FY' + D.meta.target_year + ' objective <span class="mut small">(click a brand or an item to plan it above)</span></h3>' +
@@ -1207,6 +1231,10 @@
     var B = P.bex || {}, st = bexSaved(r), dirty = bexDirty(r);
     var msg = dirty ? '<b class="warnt">Unsaved changes</b> — press Save.' : st && st.saved ? 'Saved ' + esc(st.saved) + (st.by ? ' by ' + esc(st.by) : '') + '.' : 'Plan bottom-up: type the ' + PN() + ' share for each item in the table below (brand and total add up). Edit the market only if ' + PN() + ' disagrees with the forecast.';
     var rec = sfBar() + planRecoveryNote();
+    if (isDm2Derived(r)) {
+      var dp = dm2FromDM1(r);
+      return rec + '<div class="bexbar agg"><span><b>' + esc(PN()) + ' forecast here comes from the DM1 plan of ' + esc(dp.from.join(' / ')) + '.</b> Same item SU, shown as a share of this DM2 market (' + fmtM(fin(dp.mkt) ? dp.mkt : (r.forecast || {}).fy_target, false) + (fin(dp.mkt) ? ', moved with the DM1 ' + esc(PN()) + ' market' : '') + ')' + (dp.saved ? ' — last saved ' + esc(dp.saved) : '') + '. To change it, choose the DM1 market with DM2 = All and edit the shares there.</span></div>';
+    }
     if (isAgg(r)) {
       var ap = aggPlan(r), ms = aggMembers(r), notp = ms.filter(function (q) { var d = DRAFT[segKey(q)] || bexSavedOwn(q); return !(d && Object.keys(d.items || {}).some(function (k) { return k !== '__total__' && fin(d.items[k]); })) && (((q.scorecard || {}).zeta || {}).items || []).length; });
       return rec + '<div class="bexbar agg"><span><b>' + esc(PN()) + ' forecast here = the sum of its defined markets (DM1).</b> Plan each DM1 market (choose it in the DM1 filter); this total adds them up item by item' +
@@ -1577,6 +1605,9 @@
           if (k) return 'IF(' + R.tw('pfc') + '="","",' + R.tw('pfc') + '*' + R.ref('price') + '*(1+' + c.pRef + '))';
           return 'IF(' + R.ref('psh') + '="","",' + R.ref('psh') + '*' + R.ref('mfc') + ')';
         } },
+      { key: 'pd2', h: pn + ' share of DM2 market', w: 11, fmt: XF.p2, cls: 'plan', val: function (x, c) { var B = bx(x), m = dm2Mkt(c.r, x, k, 'fc'), sc = fin(c.mfc) && c.msys > 0 ? c.mfc / c.msys : 1; return B && m > 0 && fin(k ? B.val : B.su) ? (k ? B.val : B.su) / (m * sc) : null; },
+        // DM2 market moves with the plan's market view (same % as the DM1 market edit), like the DM2 page
+        f: function (x, c, R) { return 'IF(OR(' + R.ref('pfc') + '="",' + R.ref('d2fc') + '=""),"",IFERROR(' + R.ref('pfc') + '/(' + R.ref('d2fc') + '*' + R.ref('mfc') + '/' + R.ref('msys') + '),""))'; } },
       { key: 'pg', h: pn + ' growth vs ' + py, w: 12, fmt: XF.g, cls: 'plan', val: function (x, c) { return bx(x) ? n(bexGrowth(c.r, x, k)) : null; },
         f: function (x, c, R) {
           return agg(x) ? 'IF(' + R.ref('pfc') + '="","",IFERROR(' + R.ref('pfc') + '/SUMPRODUCT((' + R.rng('lvl') + '="Item")*ISNUMBER(' + R.rng('pfc') + ')*' + R.rng('est') + ')-1,""))'
@@ -1976,7 +2007,7 @@
     YR.rows.forEach(function (x, i) {
       if (x.fc !== 3) return;
       var rr = rows[i], Bx = PL.bex || {}, d = bexDraft(r), f0 = r.forecast || {}, noItems = !((((r.scorecard || {}).zeta) || {}).items || []).length;
-      if (isAgg(r)) { rr[2] = fmtM(fin(Bx.mkt) ? Bx.mkt : f0.fy_target, false) + (Bx.mktEdited ? ' <small class="mut">(sum of ' + PN() + ' markets)</small>' : ''); rr[6] = fin(Bx.share) ? ((val ? Bx.valShare : Bx.share) * 100).toFixed(1) + '% <small class="mut">(' + Bx.n + '/' + Bx.nItems + ' items)</small>' : '<small class="mut">no DM1 plan yet</small>'; return; }
+      if (isRO(r)) { rr[2] = fmtM(fin(Bx.mkt) ? Bx.mkt : f0.fy_target, false) + (Bx.mktEdited ? ' <small class="mut">(' + (isAgg(r) ? 'sum of ' + PN() + ' markets' : 'moved with the DM1 ' + PN() + ' market') + ')</small>' : ''); rr[6] = fin(Bx.share) ? ((val ? Bx.valShare : Bx.share) * 100).toFixed(1) + '% <small class="mut">(' + Bx.n + '/' + Bx.nItems + ' items)</small>' : '<small class="mut">no DM1 plan yet</small>'; return; }
       rr[2] = '<input type="text" inputmode="decimal" id="mf-bmkt" class="bexm" title="' + PN() + ' view of the FY market in million SU — leave empty to use the forecast" placeholder="' + (fin(f0.fy_target) ? (f0.fy_target / 1e6).toFixed(1) : '') + '" value="' + (fin(d.mkt) ? (d.mkt / 1e6).toFixed(1) : '') + '"> M SU' + (val && fin(x.mval) ? '<br><small class="mut">' + fmtM(x.mval, true) + '</small>' : '');
       if (noItems) rr[6] = '<input type="text" inputmode="decimal" class="bexi" data-item="__total__" min="0" max="100" step="0.1" placeholder="share" value="' + (fin(d.items.__total__) ? d.items.__total__ : '') + '"> %';
       else rr[6] = fin(Bx.share) ? ((val ? Bx.valShare : Bx.share) * 100).toFixed(1) + '% <small class="mut">(' + Bx.n + '/' + Bx.nItems + ' items)</small>' : '<small class="mut">enter item shares below</small>';
