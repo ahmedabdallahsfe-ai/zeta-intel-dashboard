@@ -676,7 +676,153 @@
     if (inv.length) h += '<p class="note" style="border-left:3px solid var(--warn-bd);padding-left:8px">Plans saved on this computer under another login: ' + inv.map(function (x) { return '<b>' + esc(x.who) + '</b> (' + x.n + ' market' + (x.n === 1 ? '' : 's') + (x.nAgg ? ' + ' + x.nAgg + ' totals' : '') + ') <button type="button" class="xbtn ghost mf-bcopy" data-k="' + esc(x.key) + '">Copy into my plan</button>'; }).join(' · ') + '</p>';
     return h;
   }
-  function bex2Put(map) { try { localStorage.setItem(bex2Key(), JSON.stringify(map)); return true; } catch (e) { return false; } }
+  function bex2Put(map) { try { localStorage.setItem(bex2Key(), JSON.stringify(map)); } catch (e) { return false; } try { sfMirror(map); } catch (e) { } return true; }
+  // 2026-10-19 (Ahmed: "STILL NO DATA ... I DIDN'T HAVE ANY BACKUP"): Edge rebuilt its Local Storage and the plans were lost.
+  // Three safety layers, all automatic after every save:
+  //  (1) a mirror copy in this browser's IndexedDB (separate store) -- restored automatically if Local Storage comes back empty;
+  //  (2) a JSON backup file in a folder Ahmed chooses once (File System Access API, Edge / Chrome): latest + one copy per day;
+  //  (3) "Download backup" / "Restore from backup" (backup .json, or any FY plan Excel exported from this page).
+  var SAFE = { db: null, dir: null, dirName: '', last: null, err: '', restored: 0, T: null, perm: '' };
+  function sfDB(cb) {
+    if (SAFE.db) return cb(SAFE.db);
+    try {
+      var rq = indexedDB.open('zeta_mf_safe', 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore('kv'); };
+      rq.onsuccess = function () { SAFE.db = rq.result; cb(SAFE.db); };
+      rq.onerror = function () { cb(null); };
+    } catch (e) { cb(null); }
+  }
+  function sfGet(k, cb) { sfDB(function (db) { if (!db) return cb(null); try { var q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { cb(q.result || null); }; q.onerror = function () { cb(null); }; } catch (e) { cb(null); } }); }
+  function sfPut(k, v) { sfDB(function (db) { if (!db) return; try { db.transaction('kv', 'readwrite').objectStore('kv').put(v, k); } catch (e) { } }); }
+  function planCount(map) { return Object.keys(map || {}).filter(function (k) { var v = map[k]; return /^(DM1|DM2|BU|Line|Total)\|/.test(k) && v && (fin(v.mkt) || Object.keys(v.items || {}).some(function (i) { return fin(v.items[i]); })); }).length; }
+  function sfWho() { var u = curUser(); return String((u && u.email) || 'local').toLowerCase(); }
+  function sfPayload(map) { return { app: 'zeta-market-forecast-plans', version: 1, target_year: D.meta.target_year, email: sfWho(), title: PN(), exported: new Date().toISOString(), markets: planCount(map), plans: map }; }
+  function sfFile(day) { return 'Zeta_FY' + D.meta.target_year + '_plans_' + sfWho().replace(/[^a-z0-9._-]+/g, '_') + (day ? '_' + new Date().toISOString().slice(0, 10) : '') + '.json'; }
+  function sfMirror(map) {   // called after every successful save of the plan store
+    sfPut('plans|' + bex2Key(), { ts: Date.now(), map: map });
+    clearTimeout(SAFE.T); SAFE.T = setTimeout(function () { sfWriteFile(map); }, 600);
+  }
+  function sfWriteFile(map) {
+    var d = SAFE.dir; if (!d) return;
+    var go = function () {
+      var txt = JSON.stringify(sfPayload(map), null, 1), n = planCount(map);
+      // never lose a fuller backup: if the file on disk has more planned markets than now, keep it under a time-stamped name first
+      d.getFileHandle(sfFile(false)).then(function (fh) { return fh.getFile(); }).then(function (f) { return f.text(); }).then(function (t) {
+        var old = JSON.parse(t); if (!(old && old.markets > n)) return;
+        return d.getFileHandle(sfFile(false).replace(/\.json$/, '_kept_' + new Date().toISOString().replace(/[:.]/g, '-') + '.json'), { create: true }).then(function (h) { return h.createWritable(); }).then(function (w) { return w.write(t).then(function () { return w.close(); }); });
+      }).catch(function () { }).then(function () { return [sfFile(false), sfFile(true)].reduce(function (p, nm) {
+        return p.then(function () { return d.getFileHandle(nm, { create: true }); }).then(function (fh) { return fh.createWritable(); }).then(function (w) { return w.write(txt).then(function () { return w.close(); }); });
+      }, Promise.resolve()); }).then(function () { SAFE.last = new Date(); SAFE.err = ''; sfPut('last|' + bex2Key(), SAFE.last.toISOString()); sfStatus(); })
+        .catch(function (e) { SAFE.err = 'backup file not written (' + (e && e.message || e) + ')'; sfStatus(); });
+    };
+    try {
+      d.queryPermission({ mode: 'readwrite' }).then(function (s) { SAFE.perm = s; if (s === 'granted') go(); else { SAFE.err = 'press Save once to allow writing to the backup folder'; sfStatus(); } });
+    } catch (e) { }
+  }
+  function sfAsk() {   // must run inside a click: re-allows the backup folder after the browser was restarted
+    var d = SAFE.dir; if (!d || SAFE.perm === 'granted') return;
+    try { d.requestPermission({ mode: 'readwrite' }).then(function (s) { SAFE.perm = s; if (s === 'granted') sfWriteFile(bex2All()); }); } catch (e) { }
+  }
+  function sfChooseDir() {
+    if (!global.showDirectoryPicker) { alert('This browser cannot write to a folder. Use "Download backup" after each planning session.'); return; }
+    global.showDirectoryPicker({ id: 'zeta-plans', mode: 'readwrite' }).then(function (d) {
+      SAFE.dir = d; SAFE.dirName = d.name; SAFE.perm = 'granted'; sfPut('dir|' + sfWho(), d);
+      sfWriteFile(bex2All()); sfStatus();
+    }).catch(function () { });
+  }
+  function sfDownload() {
+    var map = bex2All(), blob = new Blob([JSON.stringify(sfPayload(map), null, 1)], { type: 'application/json' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = sfFile(true); document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  function sfMerge(src, label) {   // backup -> my plan. A market record is taken when I have none, or when the backup's is newer.
+    var a = bex2All(), nM = 0, nI = 0, kept = 0;
+    Object.keys(src || {}).forEach(function (k) {
+      var v = src[k]; if (!/^(DM1|DM2|BU|Line|Total)\|/.test(k) || !v || typeof v !== 'object') return;
+      var c = a[k], has = c && (fin(c.mkt) || Object.keys(c.items || {}).length);
+      if (has && !(fin(v.ts) && (!fin(c.ts) || v.ts > c.ts))) { kept++; return; }
+      a[k] = JSON.parse(JSON.stringify(v)); if (!a[k].by) a[k].by = label; nM++; nI += Object.keys(v.items || {}).filter(function (i) { return fin(v.items[i]); }).length;
+    });
+    bex2Put(a); DRAFT = {}; migrateAggPlans();
+    return { m: nM, i: nI, kept: kept };
+  }
+  function sfStatus() {
+    var s = ROOT && ROOT.querySelector('#mf-bkst'); if (!s) return;
+    s.innerHTML = sfStatusTxt();
+  }
+  function sfStatusTxt() {
+    var n = planCount(bex2All());
+    if (SAFE.dir) return 'Backup folder <b>' + esc(SAFE.dirName) + '</b>' + (SAFE.last ? ' — last written ' + esc(SAFE.last.toLocaleString()) : '') + (SAFE.err ? ' · <span class="warnt">' + esc(SAFE.err) + '</span>' : '') + ' · ' + n + ' market' + (n === 1 ? '' : 's') + ' planned.';
+    return '<span class="warnt">No backup folder</span> — ' + n + ' planned market' + (n === 1 ? ' is' : 's are') + ' kept only in this browser (plus an automatic copy in its database).' + (global.showDirectoryPicker ? ' Choose a folder once (e.g. OneDrive or Documents) and every save writes a backup file there.' : ' Use "Download backup" after each planning session.');
+  }
+  function sfBar() {
+    return '<div class="bexbar mfsafe" style="flex-wrap:wrap"><span>🛡 <b>Plan backup:</b> <span id="mf-bkst">' + sfStatusTxt() + '</span></span>' +
+      (global.showDirectoryPicker ? '<button type="button" class="xbtn ghost" id="mf-bkdir">' + (SAFE.dir ? 'Change backup folder' : 'Choose backup folder') + '</button>' : '') +
+      '<button type="button" class="xbtn ghost" id="mf-bkdl">⬇ Download backup</button>' +
+      '<label class="xbtn ghost" title="Load a backup .json, or a FY' + D.meta.target_year + ' plan Excel exported from this page">⬆ Restore from backup<input type="file" id="mf-bkfile" accept=".json,.xlsx" hidden></label>' +
+      (SAFE.restored ? '<span class="note" style="flex-basis:100%;border-left:3px solid var(--hi);padding-left:8px"><b>' + SAFE.restored + ' planned market' + (SAFE.restored === 1 ? ' was' : 's were') + ' restored automatically</b> from this browser\'s backup copy (its normal storage was found empty).</span>' : '') + '</div>';
+  }
+  function sfRestoreFile(file) {
+    if (!file) return;
+    if (/\.json$/i.test(file.name)) {
+      var rd = new FileReader();
+      rd.onload = function (e) {
+        try {
+          var j = JSON.parse(e.target.result), src = j && j.plans ? j.plans : j;
+          if (j && j.target_year && j.target_year !== D.meta.target_year) { alert('This backup is for FY' + j.target_year + ', not FY' + D.meta.target_year + '.'); return; }
+          var r = sfMerge(src, file.name);
+          alert(r.m + ' market' + (r.m === 1 ? '' : 's') + ' (' + r.i + ' item shares) restored from ' + file.name + '.' + (r.kept ? ' ' + r.kept + ' markets kept as they are (your current plan is newer).' : '')); overview();
+        } catch (err) { alert('Could not read the backup: ' + (err && err.message || err)); }
+      };
+      rd.readAsText(file); return;
+    }
+    importBex(file);
+  }
+  // A FY plan workbook ("Excel — FY plan (SU & Value)"): its "All markets SU" sheet holds every market of that level with
+  // the item shares (fraction) and the market view on each ▸ row. Returns {a, nI, nM} or null when the sheet is absent.
+  function importProSheet(wb, a, fname) {
+    var shn = wb.SheetNames.find(function (n) { return n === 'All markets SU'; }); if (!shn) return null;
+    var rows = XLSX.utils.sheet_to_json(wb.Sheets[shn], { header: 1, defval: null }), t0 = String((rows[0] || [])[0] || ''), ty = 'DM1';
+    LEVELS.forEach(function (l) { if (t0.indexOf(l[1]) >= 0) ty = l[0]; });
+    var hi = rows.findIndex(function (r) { return r && r.indexOf('Brand / item') >= 0; }); if (hi < 0) return null;
+    var H = rows[hi].map(function (c) { return String(c == null ? '' : c).trim(); });
+    var iM = H.indexOf('Market'), iI = H.indexOf('Brand / item'), iL = H.indexOf('Level');
+    var iS = H.findIndex(function (c) { return /^[A-Za-z]+ share$/.test(c) && c !== 'Objective share'; });
+    var iV = H.findIndex(function (c) { return /^Market FY\d+ — [A-Za-z]+ view/.test(c); }), iY = H.findIndex(function (c) { return /system forecast/.test(c); });
+    var nI = 0, nM = 0, stamp = 'imported ' + new Date().toLocaleString();
+    var rec = function (k) { if (!a[k]) a[k] = { mkt: null, items: {}, saved: stamp, by: fname, ts: Date.now() }; a[k].items = a[k].items || {}; return a[k]; };
+    rows.slice(hi + 1).forEach(function (r) {
+      if (!r || !r[iM] || !r[iI]) return;
+      var nm = String(r[iM]), it = String(r[iI]), lv = iL >= 0 ? r[iL] : null, k = ty + '|' + nm;
+      if (!D.segments.some(function (q) { return q.type === ty && q.name === nm; })) return;
+      var isMkt = lv === 'Market' || it.charAt(0) === '▸';
+      if (isMkt) {
+        var v = r[iV], y = r[iY];
+        if (iV >= 0 && fin(v) && v > 0 && fin(y) && Math.abs(v - y) > Math.max(1, 1e-6 * y)) { rec(k).mkt = v; nM++; }
+        return;
+      }
+      if (lv ? lv !== 'Item' : /brand total|^Total /i.test(it)) return;
+      var sh = iS >= 0 ? r[iS] : null;
+      if (fin(sh) && sh >= 0 && sh <= 1) { rec(k).items[it] = Math.round(sh * 10000) / 100; nI++; }
+    });
+    return { nI: nI, nM: nM };
+  }
+  function sfBoot() {   // on page open: reconnect the backup folder; refill an empty plan store from the mirror copy
+    var key = bex2Key();
+    sfGet('dir|' + sfWho(), function (d) {
+      if (d && d.queryPermission) { SAFE.dir = d; SAFE.dirName = d.name; try { d.queryPermission({ mode: 'readwrite' }).then(function (s) { SAFE.perm = s; sfStatus(); }); } catch (e) { } }
+      sfGet('last|' + key, function (t) { if (t) SAFE.last = new Date(t); sfStatus(); });
+    });
+    sfGet('plans|' + key, function (m) {
+      var cur0 = bex2All(), raw = null; try { raw = localStorage.getItem(key); } catch (e) { }
+      if (m && m.map && planCount(m.map) && raw == null) {   // store missing (browser wiped it), not merely cleared by the user
+        try { localStorage.setItem(key, JSON.stringify(m.map)); } catch (e) { return; }
+        SAFE.restored = planCount(m.map); DRAFT = {};
+        try { migrateAggPlans(); } catch (e) { }
+        if (ROOT) { try { render(); } catch (e) { } }
+      } else if (planCount(cur0) && !(m && m.map)) sfMirror(cur0);   // first run: seed the mirror from what is saved today
+    });
+  }
   var LIVE_T = null;
   var DRAFT = {};   // unsaved edits per market (segKey -> {mkt, items})
   // 2026-10-15 (Ahmed): items are presentations (brand + form + strength, pack sizes merged). BEX shares saved / imported
@@ -1049,7 +1195,7 @@
     var P = zplan(r);
     var B = P.bex || {}, st = bexSaved(r), dirty = bexDirty(r);
     var msg = dirty ? '<b class="warnt">Unsaved changes</b> — press Save.' : st && st.saved ? 'Saved ' + esc(st.saved) + (st.by ? ' by ' + esc(st.by) : '') + '.' : 'Plan bottom-up: type the ' + PN() + ' share for each item in the table below (brand and total add up). Edit the market only if ' + PN() + ' disagrees with the forecast.';
-    var rec = planRecoveryNote();
+    var rec = sfBar() + planRecoveryNote();
     if (isAgg(r)) {
       var ap = aggPlan(r), ms = aggMembers(r), notp = ms.filter(function (q) { var d = DRAFT[segKey(q)] || bexSavedOwn(q); return !(d && Object.keys(d.items || {}).some(function (k) { return k !== '__total__' && fin(d.items[k]); })) && (((q.scorecard || {}).zeta || {}).items || []).length; });
       return rec + '<div class="bexbar agg"><span><b>' + esc(PN()) + ' forecast here = the sum of its defined markets (DM1).</b> Plan each DM1 market (choose it in the DM1 filter); this total adds them up item by item' +
@@ -1096,9 +1242,13 @@
       overview(); };
     var bs = el.querySelector('#mf-bsave'); if (bs) bs.onclick = function () {
       var a = bex2All(), has = fin(D_.mkt) || Object.keys(D_.items).length;
-      if (has) a[segKey(r)] = { mkt: fin(D_.mkt) ? D_.mkt : null, items: JSON.parse(JSON.stringify(D_.items)), saved: new Date().toLocaleString(), by: who }; else delete a[segKey(r)];
+      if (has) a[segKey(r)] = { mkt: fin(D_.mkt) ? D_.mkt : null, items: JSON.parse(JSON.stringify(D_.items)), saved: new Date().toLocaleString(), by: who, ts: Date.now() }; else delete a[segKey(r)];
+      sfAsk();
       var ok = bex2Put(a); overview();
       if (!ok) { var m2 = ROOT.querySelector('#mf-bmsg'); if (m2) m2.textContent = 'Could not save in this browser — use the Excel export.'; } };
+    var kd = el.querySelector('#mf-bkdir'); if (kd) kd.onclick = sfChooseDir;
+    var kl = el.querySelector('#mf-bkdl'); if (kl) kl.onclick = sfDownload;
+    var kf = el.querySelector('#mf-bkfile'); if (kf) kf.onchange = function () { sfRestoreFile(kf.files && kf.files[0]); kf.value = ''; };
     var bu = el.querySelector('#mf-bundo'); if (bu) bu.onclick = function () { delete DRAFT[segKey(r)]; overview(); };
     el.querySelectorAll('.mf-bcopy').forEach(function (b) { b.onclick = function () { var n = copyPlansFrom(b.getAttribute('data-k')); overview(); var m4 = ROOT.querySelector('#mf-bmsg'); if (m4) m4.textContent = n + ' item shares copied into your plan.'; }; });
     var bc = el.querySelector('#mf-bclear'); if (bc) bc.onclick = function () {
@@ -1741,13 +1891,18 @@
     rd.onload = function (e) {
       try {
         var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' }), shn = wb.SheetNames.find(function (n) { return /^[A-Za-z]+ by item/.test(n); });
-        if (!shn) { alert('No "' + PN() + ' by item" sheet in ' + file.name + '. Export "Excel — all markets" first, fill the ' + PN() + ' columns there, then import it.'); return; }
+        if (!shn) {
+          var a0 = bex2All(), pr = importProSheet(wb, a0, file.name);
+          if (!pr) { alert('No "' + PN() + ' by item" or "All markets SU" sheet in ' + file.name + '. Use a file exported from this page ("Excel — all markets" or "Excel — FY plan (SU & Value)").'); return; }
+          bex2Put(a0); DRAFT = {}; try { migrateAggPlans(); } catch (e) { }
+          alert(pr.nI + ' item shares and ' + pr.nM + ' market edits loaded from ' + file.name + '.'); overview(); return;
+        }
         var rows = XLSX.utils.sheet_to_json(wb.Sheets[shn], { defval: null }), a = bex2All(), lvl = {}, nI = 0, nM = 0, touched = {};
         LEVELS.forEach(function (l) { lvl[l[1]] = l[0]; });
         rows.forEach(function (x) {
           var t = lvl[x['Level']] || x['Level'], nm = x['Market'], it = x['Item']; if (!t || !nm || !it) return;
           var k = t + '|' + nm, sh = parseFloat(x[Object.keys(x).find(function (c) { return /^[A-Za-z]+ share %$/.test(c); })]), mk = parseFloat(String(x[Object.keys(x).find(function (c) { return /^[A-Za-z]+ market SU/.test(c); })] || '').replace(/,/g, ''));
-          if (!touched[k]) { touched[k] = 1; a[k] = { mkt: null, items: {}, saved: 'imported ' + new Date().toLocaleString(), by: file.name }; }
+          if (!touched[k]) { touched[k] = 1; a[k] = { mkt: null, items: {}, saved: 'imported ' + new Date().toLocaleString(), by: file.name, ts: Date.now() }; }
           if (fin(mk) && mk > 0 && !fin(a[k].mkt)) { a[k].mkt = mk; nM++; }
           if (fin(sh) && sh >= 0 && sh <= 100) { a[k].items[it] = Math.round(sh * 100) / 100; nI++; }
         });
@@ -1920,6 +2075,7 @@
       if (!D) { ROOT.innerHTML = '<div style="padding:24px">Market forecast data not loaded (cache/market_forecast.data.js). Run UPDATE_DASHBOARD.bat or <code>python etl/build_market_forecast.py --cache</code>.</div>'; return; }
       computeScope();
       try { migrateAggPlans(); } catch (e) { console.warn('[MarketForecast] plan move', e); }
+      try { sfBoot(); } catch (e) { console.warn('[MarketForecast] backup', e); }
       var sv = loadState(); if (sv && sv.level) { ST.level = sv.level; ST.seg = sv.seg || {}; ST.meas = sv.meas === 'val' ? 'val' : 'su'; }
       if (!segs(ST.level).length) ST.level = (LEVELS.find(function (l) { return segs(l[0]).length; }) || ['DM1'])[0];
       if (sv && sv.f) { ST.f = { BU: sv.f.BU || '', Line: sv.f.Line || '', DM1: sv.f.DM1 || '', DM2: sv.f.DM2 || '' }; fFix(); fView(); }

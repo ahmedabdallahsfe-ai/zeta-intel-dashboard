@@ -102,7 +102,7 @@
       file: "cache/market_forecast.data.js",
       globalVar: "MARKET_FORECAST_CACHE",
       label: "Market growth forecast",
-      version: "20261017_cascade",
+      version: "20261019_dm2align",
     },
     // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache (source: Total Market Intelligence)
     market_dynamics: {
