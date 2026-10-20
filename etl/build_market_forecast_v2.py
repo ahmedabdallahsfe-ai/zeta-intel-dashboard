@@ -1379,6 +1379,8 @@ def publish(n_jobs=1):
             add_value()
             from market_forecast_rationale import add_rationale
             add_rationale()
+            from market_forecast_packs import add_packs        # 2026-10-20: packs view (SU / IQVIA pack size)
+            add_packs()
         except Exception as e:                                      # noqa: BLE001
             import traceback; traceback.print_exc()
             print(f"rationale step failed ({type(e).__name__}); forecast cache kept without rationale")
