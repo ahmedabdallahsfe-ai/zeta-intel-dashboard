@@ -1296,6 +1296,8 @@
     };
     var mi = el.querySelector('#mf-bmkt');
     if (mi) live(mi, '#mf-bmkt', function () { var v = num(mi.value); D_.mkt = fin(v) && v > 0 ? v * 1e6 : null; });
+    var mg = el.querySelector('#mf-bmg');   // growth % -> market SU = FY landing estimate x (1 + %)
+    if (mg) live(mg, '#mf-bmg', function () { var v = num(mg.value), le = (r.forecast || {}).fy_le; D_.mkt = fin(v) && v > -100 && le > 0 ? Math.round(le * (1 + v / 100)) : null; });
     // item shares (and the one-share fallback)
     el.querySelectorAll('input.bexi').forEach(function (inp) {
       var key = inp.getAttribute('data-item');
@@ -1574,6 +1576,7 @@
     cell.fill = xFill(XC.inFill); cell.font = { size: 10, bold: true, color: { argb: XC.inFont } }; if (fmt) cell.numFmt = fmt;
     cell.border = xBorder('FFB45309');
     if (kind === 'share') cell.dataValidation = { type: 'decimal', operator: 'between', allowBlank: true, formulae: [0, 1], showErrorMessage: true, errorTitle: 'Share', error: 'Enter a share between 0% and 100% (e.g. 4.5%).' };
+    if (kind === 'gr') cell.dataValidation = { type: 'decimal', operator: 'between', allowBlank: false, formulae: [-0.95, 20], showErrorMessage: true, errorTitle: 'Market growth', error: 'Enter the market growth as a % (e.g. 12% or -5%).' };
     if (kind === 'pct') cell.dataValidation = { type: 'decimal', operator: 'between', allowBlank: true, formulae: [-0.5, 2], showErrorMessage: true, errorTitle: 'Price change', error: 'Enter a % between -50% and +200%.' };
     if (kind === 'num') cell.dataValidation = { type: 'decimal', operator: 'greaterThanOrEqual', allowBlank: false, formulae: [0], showErrorMessage: true, errorTitle: 'Market', error: 'Enter a number (Standard Units).' };
   }
@@ -1749,9 +1752,15 @@
     var ctx = proCtx(r, k);
     if (!k) {
       lab(5, 'Market FY' + ty + ' forecast — system (SU)'); ws.getCell('D5').value = fin(f.fy_target) ? f.fy_target : null; ws.getCell('D5').numFmt = XF.n;
-      lab(6, pn + ' market FY' + ty + ' (SU) — INPUT (default = system forecast)', true); ws.getCell('D6').value = fin(B && B.mktEdited ? B.mkt : f.fy_target) ? (B && B.mktEdited ? B.mkt : f.fy_target) : null; xInput(ws.getCell('D6'), XF.n, 'num');
+      var mk0 = fin(B && B.mktEdited ? B.mkt : f.fy_target) ? (B && B.mktEdited ? B.mkt : f.fy_target) : null;
       lab(7, 'Market ' + py + ' full year (estimate, SU)'); ws.getCell('D7').value = fin(f.fy_le) ? f.fy_le : null; ws.getCell('D7').numFmt = XF.n;
-      lab(8, 'Market growth FY' + ty + ' vs ' + py + ' (' + pn + ' view)'); ws.getCell('D8').value = fx('IFERROR(D6/D7-1,"")', fin(f.fy_le) && f.fy_le > 0 ? ws.getCell('D6').value / f.fy_le - 1 : null); ws.getCell('D8').numFmt = XF.g;
+      if (fin(f.fy_le) && f.fy_le > 0 && fin(mk0)) {   // 2026-10-20 (Ahmed): type the market growth %, the market SU follows
+        lab(6, pn + ' market FY' + ty + ' (SU) = ' + py + ' estimate × (1 + growth)', true); ws.getCell('D6').value = fx('D7*(1+D8)', mk0); ws.getCell('D6').numFmt = XF.n; ws.getCell('D6').font = { bold: true, size: 10 };
+        lab(8, 'Market growth FY' + ty + ' vs ' + py + ' (' + pn + ' view) — INPUT (default = system forecast)', true); ws.getCell('D8').value = mk0 / f.fy_le - 1; xInput(ws.getCell('D8'), XF.g, 'gr');
+      } else {
+        lab(6, pn + ' market FY' + ty + ' (SU) — INPUT (default = system forecast)', true); ws.getCell('D6').value = mk0; xInput(ws.getCell('D6'), XF.n, 'num');
+        lab(8, 'Market growth FY' + ty + ' vs ' + py + ' (' + pn + ' view)'); ws.getCell('D8').value = fx('IFERROR(D6/D7-1,"")', fin(f.fy_le) && f.fy_le > 0 && fin(mk0) ? mk0 / f.fy_le - 1 : null); ws.getCell('D8').numFmt = XF.g;
+      }
       lab(9, 'Price change: see the Value (EGP) sheet'); ws.getCell('A9').font = { size: 9, italic: true, color: { argb: XC.grey } };
       ctx.mfcRef = '$D$6'; ctx.mleRef = '$D$7'; ctx.msysRef = '$D$5'; ctx.mfc = ws.getCell('D6').value;
     } else {
@@ -1785,7 +1794,7 @@
     ws.getCell('A2').value = 'Each market starts with a ▸ row holding its inputs (yellow). Items are grouped under brand and market: use the 1 / 2 / 3 buttons at the top-left to collapse. ' + pn + ' columns = your own plan on this computer.'; ws.getCell('A2').font = { size: 9, color: { argb: XC.grey } };
     var pRef = null;
     if (k) { ws.getCell('A3').value = 'Price change FY' + ty + ' vs today — INPUT'; ws.getCell('A3').font = { size: 10, bold: true }; ws.getCell('B3').value = 0; xInput(ws.getCell('B3'), XF.p1, 'pct'); pRef = '$B$3'; }
-    else { ws.getCell('A3').value = 'Inputs: market FY' + ty + ' on each ▸ row, objective share and ' + pn + ' share on item rows.'; ws.getCell('A3').font = { size: 10, bold: true }; }
+    else { ws.getCell('A3').value = 'Inputs: market growth FY' + ty + ' % on each ▸ row (the market SU follows), objective share and ' + pn + ' share on item rows.'; ws.getCell('A3').font = { size: 10, bold: true }; }
     var hr = 5, H = [{ h: 'Market', w: 30 }].concat(cols); xHeader(ws, hr, H);
     var L = {}; cols.forEach(function (cc, i) { L[cc.key] = colL(i + 2); });
     var row = hr + 1;
@@ -1803,13 +1812,16 @@
         var cm = R0.getCell(cols.findIndex(function (c) { return c.key === 'mmat'; }) + 2); cm.value = fin(ctx.mm[k ? 'val' : 'su']) ? ctx.mm[k ? 'val' : 'su'] : null; cm.numFmt = XF.n;
         var cl = R0.getCell(cols.findIndex(function (c) { return c.key === 'mle'; }) + 2); cl.value = fin(ctx.mle) ? ctx.mle : null; cl.numFmt = XF.n;
         var cf = R0.getCell(cols.findIndex(function (c) { return c.key === 'mfc'; }) + 2);
-        if (!k) { cf.value = fin(mkt) ? mkt : null; xInput(cf, XF.n, 'num'); ctx.mfc = mkt; }
+        var grIn = !k && fin(mkt) && ctx.mle > 0;   // 2026-10-20 (Ahmed): growth % is the input, market SU = estimate x (1 + growth)
+        if (!k) { if (grIn) { cf.value = fx(L.mle + mh + '*(1+' + L.mfg + mh + ')', mkt); cf.numFmt = XF.n; } else { cf.value = fin(mkt) ? mkt : null; xInput(cf, XF.n, 'num'); } ctx.mfc = mkt; }
         else {
           var cp = R0.getCell(cols.findIndex(function (c) { return c.key === 'price'; }) + 2); cp.value = mp; cp.numFmt = XF.px;
           cf.value = fx(qs(suName) + '!' + (twinL || L).mfc + mh + '*' + L.price + mh + '*(1+' + pRef + ')', fin(mp) && fin(mkt) ? mkt * mp : null); cf.numFmt = XF.n; ctx.mfc = fin(mp) && fin(mkt) ? mkt * mp : null;
         }
         var cs = R0.getCell(cols.findIndex(function (c) { return c.key === 'msys'; }) + 2); cs.value = fin(ctx.msys) ? ctx.msys : null; cs.numFmt = XF.n;
-        var cg = R0.getCell(cols.findIndex(function (c) { return c.key === 'mfg'; }) + 2); cg.value = fx('IFERROR(' + L.mfc + mh + '/' + L.mle + mh + '-1,"")', fin(ctx.mfc) && ctx.mle > 0 ? ctx.mfc / ctx.mle - 1 : null); cg.numFmt = XF.g;
+        var cg = R0.getCell(cols.findIndex(function (c) { return c.key === 'mfg'; }) + 2);
+        if (grIn) { cg.value = mkt / ctx.mle - 1; xInput(cg, XF.g, 'gr'); }
+        else { cg.value = fx('IFERROR(' + L.mfc + mh + '/' + L.mle + mh + '-1,"")', fin(ctx.mfc) && ctx.mle > 0 ? ctx.mfc / ctx.mle - 1 : null); cg.numFmt = XF.g; }
         ctx.mfcRef = '$' + L.mfc + '$' + mh; ctx.mleRef = '$' + L.mle + '$' + mh; ctx.msysRef = '$' + L.msys + '$' + mh; ctx.pRef = pRef || '0';
         row = xTableRows(ws, mh + 1, q, k, cols, ctx, { prefix: q.name, twin: suName, twinL: twinL }).next;
         try { row = xCtxRows(ws, row, q, k, cols, ctx, L, mh); } catch (e) { console.warn('[MarketForecast] context rows', e); }
@@ -1942,7 +1954,7 @@
     var ws = wb.addWorksheet('Notes', { properties: { tabColor: { argb: 'FF94A3B8' } }, views: [{ showGridLines: false }] });
     ws.getColumn(1).width = 26; ws.getColumn(2).width = 120;
     var pn = PN(), rows = [
-      ['How to change the plan', 'Change only the YELLOW cells with BLUE numbers: SU sheet → ' + pn + ' market FY' + ty + ' (D6), objective share and ' + pn + ' share per item; Value sheet → price change (D6); All markets sheets → market FY' + ty + ' on each ▸ row, shares on item rows, price change (B3 on All markets Value). Everything else is a formula: forecasts, value, shares, growth, brand and total rows, the year-by-year plan rows and the Summary.'],
+      ['How to change the plan', 'Change only the YELLOW cells with BLUE numbers: SU sheet → ' + pn + ' market growth FY' + ty + ' % (D8; the market SU in D6 = ' + D.meta.partial_year + ' estimate × (1 + growth)), objective share and ' + pn + ' share per item; Value sheet → price change (D6); All markets SU → market growth % on each ▸ row (market SU, value and packs follow), shares on item rows, price change (B3 on All markets Value). Everything else is a formula: forecasts, value, shares, growth, brand and total rows, the year-by-year plan rows and the Summary.'],
       ['Formulas', 'Item objective SU = objective share × the SYSTEM market forecast (as on the dashboard). Item ' + pn + ' forecast SU = ' + pn + ' share × YOUR market view (input). Item value = forecast SU × the item\'s own price per SU today × (1 + price change). Brand / total = SUM of their items. ' + pn + ' growth on brand / total rows is like-for-like (only items with a share).'],
       ['Summary sheet', 'All Zeta in the one-market layout (Market / Zeta / FY plan, SU and EGP). Below it, one row per DM2 market inside each Zeta DM1 with Business unit and Line: use the ▼ filter buttons on its header to tick / untick any BU, Line, Market (DM1) or DM2; every number in the summary (SUBTOTAL) and the TOTAL row add up only the rows you keep. Zeta, objective and ' + pn + ' come from the DM1 item plan saved on the page (a snapshot: edits on the SU / Value sheets do not change it).'],
       ['This market', 'The summary of the market you exported (' + 'growth bridge, objective and ' + pn + ' forecast, formulas linked to the SU / Value sheets).'],
@@ -2353,6 +2365,9 @@
       var rr = rows[i], Bx = PL.bex || {}, d = bexDraft(r), f0 = r.forecast || {}, noItems = !((((r.scorecard || {}).zeta) || {}).items || []).length;
       if (isRO(r)) { rr[2] = fmtM(fin(Bx.mkt) ? Bx.mkt : f0.fy_target, false) + (Bx.mktEdited ? ' <small class="mut">(' + (isAgg(r) ? 'sum of ' + PN() + ' markets' : 'moved with the DM1 ' + PN() + ' market') + ')</small>' : ''); rr[6] = fin(Bx.share) ? ((val ? Bx.valShare : Bx.share) * 100).toFixed(1) + '% <small class="mut">(' + Bx.n + '/' + Bx.nItems + ' items)</small>' : '<small class="mut">no DM1 plan yet</small>'; return; }
       rr[2] = '<input type="text" inputmode="decimal" id="mf-bmkt" class="bexm" title="' + PN() + ' view of the FY market in million SU — leave empty to use the forecast" placeholder="' + (fin(f0.fy_target) ? (f0.fy_target / 1e6).toFixed(1) : '') + '" value="' + (fin(d.mkt) ? (d.mkt / 1e6).toFixed(1) : '') + '"> M SU' + (val && fin(x.mval) ? '<br><small class="mut">' + fmtM(x.mval, true) + '</small>' : '');
+      // 2026-10-20 (Ahmed: "in edit market 2027 put the % and then update SU and value"): growth % vs the FY landing estimate
+      if (fin(f0.fy_le) && f0.fy_le > 0) { var gNow = fin(d.mkt) ? (d.mkt / f0.fy_le - 1) * 100 : null;
+        rr[3] = '<input type="text" inputmode="decimal" id="mf-bmg" class="bexm" title="' + PN() + ' market growth FY' + D.meta.target_year + ' vs ' + D.meta.partial_year + ' (Standard Units) — type a % and the market SU, value and packs update; leave empty to use the forecast" placeholder="' + (fin(f0.growth_vs_le_pct) ? f0.growth_vs_le_pct.toFixed(1) : '') + '" value="' + (fin(gNow) ? gNow.toFixed(1) : '') + '"> %' + (val && fin(x[kk[1]]) ? '<br><small class="mut">' + fmtP(x[kk[1]]) + ' ' + (isPK() ? 'packs' : 'value') + '</small>' : ''); }
       if (noItems) rr[6] = '<input type="text" inputmode="decimal" class="bexi" data-item="__total__" min="0" max="100" step="0.1" placeholder="share" value="' + (fin(d.items.__total__) ? d.items.__total__ : '') + '"> %';
       else rr[6] = fin(Bx.share) ? ((val ? Bx.valShare : Bx.share) * 100).toFixed(1) + '% <small class="mut">(' + Bx.n + '/' + Bx.nItems + ' items)</small>' : '<small class="mut">enter item shares below</small>';
     });
