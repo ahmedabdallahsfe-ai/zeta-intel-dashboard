@@ -1143,7 +1143,7 @@
   function planCard(r) {   // 2026-10-15: header, strategy and notes; the objective + BEX rows are in the year-by-year table
     var P = zplan(r), m = D.meta, ty = m.target_year;
     var h = '<div class="h2row"><h3 class="mt">Year by year — market and ' + esc(zProd(r)) + ' · FY' + ty + ' objective & ' + PN() + ' forecast</h3>' +
-      '<div class="btns"><button type="button" class="xbtn pro" id="mf-xpro" title="Formatted workbook: Summary, SU sheet, Value sheet, all markets, notes">⬇ Excel — FY' + ty + ' plan (SU & Value)</button><button type="button" class="xbtn" id="mf-xone">⬇ Excel — this market</button><button type="button" class="xbtn" id="mf-xall">⬇ Excel — all markets (FY' + ty + ' plan)</button><label class="xbtn" title="Load ' + PN() + ' shares from an exported all-markets file">⬆ Import ' + PN() + ' file<input type="file" id="mf-ximp" accept=".xlsx,.xls" hidden></label></div></div>';
+      '<div class="btns"><button type="button" class="xbtn pro" id="mf-xpro" title="Formatted workbook: Summary, SU sheet, Value sheet, all markets, notes">⬇ Excel — FY' + ty + ' plan (SU & Value)</button><button type="button" class="xbtn pro" id="mf-xsfe" title="Template: total market SU, Value and Packs for every Zeta market — type market growth, Zeta share or Zeta growth FY' + ty + '">⬇ Excel — ' + PN() + ' FCST template</button><button type="button" class="xbtn" id="mf-xone">⬇ Excel — this market</button><button type="button" class="xbtn" id="mf-xall">⬇ Excel — all markets (FY' + ty + ' plan)</button><label class="xbtn" title="Load ' + PN() + ' shares from an exported all-markets file">⬆ Import ' + PN() + ' file<input type="file" id="mf-ximp" accept=".xlsx,.xls" hidden></label></div></div>';
     h += zfBar(r);
     h += '<p class="pstrat">' + chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') + ' ' + esc(P.reason) + '</p>';
     return h;
@@ -1343,6 +1343,7 @@
     var x1 = el.querySelector('#mf-xone'); if (x1) x1.onclick = function () { try { withMeasD(false, function () { exportOne(suSeg(r)); }); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
     var xa = el.querySelector('#mf-xall'); if (xa) xa.onclick = function () { try { withMeasD(false, exportAll); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
     var xp = el.querySelector('#mf-xpro'); if (xp) xp.onclick = function () { exportPro(r); };
+    var xsf = el.querySelector('#mf-xsfe'); if (xsf) xsf.onclick = function () { exportSfeTpl(); };
     var xt = el.querySelector('#mf-xtbl'); if (xt) xt.onclick = function () { try { withMeasD(false, function () { exportTable(suSeg(r)); }); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
     var xi = el.querySelector('#mf-ximp'); if (xi) xi.onchange = function () { importBex(xi.files && xi.files[0]); };
   }
@@ -1577,6 +1578,7 @@
     cell.border = xBorder('FFB45309');
     if (kind === 'share') cell.dataValidation = { type: 'decimal', operator: 'between', allowBlank: true, formulae: [0, 1], showErrorMessage: true, errorTitle: 'Share', error: 'Enter a share between 0% and 100% (e.g. 4.5%).' };
     if (kind === 'gr') cell.dataValidation = { type: 'decimal', operator: 'between', allowBlank: false, formulae: [-0.95, 20], showErrorMessage: true, errorTitle: 'Market growth', error: 'Enter the market growth as a % (e.g. 12% or -5%).' };
+    if (kind === 'zg') cell.dataValidation = { type: 'decimal', operator: 'between', allowBlank: true, formulae: [-1, 20], showErrorMessage: true, errorTitle: 'Zeta growth', error: 'Enter the Zeta growth as a % (e.g. 15% or -5%), or leave it empty to use the share.' };
     if (kind === 'pct') cell.dataValidation = { type: 'decimal', operator: 'between', allowBlank: true, formulae: [-0.5, 2], showErrorMessage: true, errorTitle: 'Price change', error: 'Enter a % between -50% and +200%.' };
     if (kind === 'num') cell.dataValidation = { type: 'decimal', operator: 'greaterThanOrEqual', allowBlank: false, formulae: [0], showErrorMessage: true, errorTitle: 'Market', error: 'Enter a number (Standard Units).' };
   }
@@ -2243,6 +2245,169 @@
           a.href = URL.createObjectURL(blob); a.download = fn; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
         }).catch(function (e) { console.error('[MarketForecast] pro export', e); alert('Excel export failed: ' + (e && e.message || e)); });
       } catch (e) { console.error('[MarketForecast] pro export', e); alert('Excel export failed: ' + (e && e.message || e)); }
+    }); });
+  }
+  // 2026-10-20 (Ahmed: "Excel download template: SFE FCST in 3 sheets — total market SU, Value, Packs; value and packs
+  // calculated from SU; BU / Line filters dynamic with each other; market YTD, estimate 2026, market growth, Zeta share,
+  // market 2027 + growth, Zeta target share 2027 + growth; change market growth %, Zeta share %, Zeta growth %"):
+  // one row per Zeta market (DM1). Markets split into DM2 markets (NEXICURE PLUS = capsules + sachets, ELEMBOSIS 5 / 2.5)
+  // get one row per DM2 market under the total: the inputs sit on the DM2 rows and the total row adds them up.
+  // Inputs (SU sheet only): market growth 2027 %, Zeta target share 2027 %, Zeta growth 2027 % (optional, wins when filled).
+  // Value / Packs = SU x price per SU / packs per SU (today, as on the dashboard) of each row. TOTAL row = visible rows only.
+  function sfeTplRows() {   // rows of the active data (SU + value slots; with the packs data the value slots hold packs)
+    var m = D.meta, ly = String(m.full_years[m.full_years.length - 1]), dd = ((m.links || {}).dm1_dm2) || {}, out = [];
+    var one = function (q, lvl, dm1, dm2, bu, line) {
+      var f = q.forecast || {}, vv = q.value || {}, yt = q.ytd || {}, vy = vv.ytd || {};
+      var z = withAll(q, function () { return zdata(q); }), P = withAll(q, function () { return zplan(q); }), B = P.bex && fin(P.bex.su) ? P.bex : null;
+      var zy = (z.ytd || {}).su || 0, zyv = (z.ytd || {}).val || 0, le = withAll(q, function () { return zLE(q, zy, zyv); });
+      var mk = B && B.mktEdited ? B.mkt : f.fy_target, z27 = B ? B.su : (P.present && fin(P.objSU) ? P.objSU : null);
+      var zpx = B && B.su > 0 && fin(B.val) ? B.val / B.su : (P.present && P.objSU > 0 && fin(P.objVal) ? P.objVal / P.objSU : z.price_su);
+      return { lvl: lvl, dm1: dm1, dm2: dm2, bu: bu, line: line, br: ((z.brands && z.brands.length ? z.brands : ((((q.scorecard || {}).zeta) || {}).brands || [])) || []).join(', '),
+        src: B ? PN() + ' plan' + (B.saved ? ' (saved ' + B.saved + ')' : '') : P.present ? 'Objective (' + P.strategy + ')' : (zy > 0 ? 'No plan — type the share' : 'No Zeta sales'),
+        su: { y25: yt.py, y26: yt.cur, a25: (f.fy_last_actual || {}).su, le: f.fy_le, m27: mk, zy: zy, zle: le.su, z27: z27 },
+        v: { y25: vy.py, y26: vy.cur, a25: (vv.history || {})[ly], le: vv.fy_le, mpx: f.fy_target > 0 && fin(vv.fy_target) ? vv.fy_target / f.fy_target : null, zy: zyv, zle: le.val, zpx: zpx } };
+    };
+    segs('DM1').filter(function (q) { var it = ((((q.scorecard || {}).zeta) || {}).items || []); return it.length && (it[0] || {}).years; }).forEach(function (q) {
+      var bu = orgOf('BU', [q.name]), line = orgOf('Line', [q.name]), subs = (dd[q.name] || []).filter(function (n) { return n !== q.name; })
+        .map(function (n) { return D.segments.find(function (x) { return x.type === 'DM2' && x.name === n; }); }).filter(Boolean);
+      var g = { tot: one(q, 'Market total', q.name, subs.length >= 2 ? '(total of DM2 markets)' : '—', bu, line), subs: [] };
+      if (subs.length >= 2) g.subs = subs.map(function (s) { return one(s, 'Sub-market', q.name, s.name, bu, line); });
+      out.push(g);
+    });
+    out.sort(function (a, b) { return (a.tot.bu || '~').localeCompare(b.tot.bu || '~') || (a.tot.line || '~').localeCompare(b.tot.line || '~') || ((b.tot.su.le || 0) - (a.tot.su.le || 0)); });
+    return out;
+  }
+  function exportSfeTpl() {
+    loadExcelJS(function () { withMeasD(false, function () {
+      try {
+        var m = D.meta, ty = m.target_year, py = m.partial_year, ly = m.full_years[m.full_years.length - 1], pn = PN(), mon = 'Jan-' + MON[m.partial_months - 1];
+        var G = sfeTplRows(), PKon = hasPK(), GP = PKon ? withMeasD(true, function () { return sfeTplRows(); }) : null;
+        if (GP && (GP.length !== G.length || GP.some(function (g, i) { return g.tot.dm1 !== G[i].tot.dm1 || g.subs.length !== G[i].subs.length; }))) GP = null;   // safety: rows must match 1:1
+        var wb = new window.ExcelJS.Workbook(); wb.creator = 'Zeta Intel Dashboard'; wb.created = new Date(); wb.title = pn + ' FCST FY' + ty; wb.calcProperties = { fullCalcOnLoad: true };
+        var n0 = function (v) { return fin(v) ? v : null; }, gr = function (a, b) { var q = fin(a) && fin(b) && b !== 0 ? a / b : null; return q == null ? null : q - 1; }, dv = function (a, b) { return fin(a) && fin(b) && b !== 0 ? a / b : null; }, sum = function (a, k, s) { var t = 0, any = false; a.forEach(function (x) { var v = x[s][k]; if (fin(v)) { t += v; any = true; } }); return any ? t : null; };
+        // plan model in SU (defaults) -> cached values
+        var flat = []; G.forEach(function (g) { flat.push({ r: g.tot, g: g, total: true }); g.subs.forEach(function (s) { flat.push({ r: s, g: g, total: false }); }); });
+        flat.forEach(function (x) { var s = x.r.su; x.mg = s.le > 0 && fin(s.m27) ? s.m27 / s.le - 1 : null; x.tsh = fin(s.z27) && s.m27 > 0 ? s.z27 / s.m27 : null; });
+        var HR = 5, R0 = HR + 1, RN = R0 + flat.length - 1;
+        var mk = function (k) {   // k: 0 SU, 1 value, 2 packs
+          var nm = ['Total market SU', 'Total market Value', 'Total market Packs'][k], U = ['SU', 'EGP', 'packs'][k], S = k ? (k === 2 ? 'v' : 'v') : 'su';
+          var ws = wb.addWorksheet(nm, { properties: { tabColor: { argb: ['FF2563EB', 'FF16A34A', 'FF0E7490'][k] } } });
+          var C = [['bu', 'Business unit', 16], ['line', 'Line', 18], ['dm1', 'Market (DM1)', 30], ['dm2', 'Sub-market (DM2)', 30], ['lvl', 'Level', 12], ['br', 'Zeta brand(s)', 18],
+            ['y25', 'Market YTD ' + (py - 1) + ' (' + mon + ')', 15, 'm'], ['y26', 'Market YTD ' + py + ' (' + mon + ')', 15, 'm'], ['yg', 'Market YTD growth', 10, 'm'],
+            ['a25', 'Market ' + ly + ' (actual)', 15, 'm'], ['le', 'Market ' + py + ' estimate', 15, 'm'], ['leg', 'Market growth ' + py + ' (estimate)', 11, 'm']]
+            .concat(k ? [['mpx', (k === 2 ? 'Packs per SU' : 'Price per SU (EGP)') + ' — market', 11, 'm']] : [])
+            .concat([['mg', 'Market growth ' + ty + (k ? '' : ' — INPUT'), 11, 'p'], ['m27', 'Market ' + ty, 15, 'p'],
+              ['zy', 'Zeta YTD ' + py + ' (' + mon + ')', 14, 'z'], ['zle', 'Zeta ' + py + ' estimate', 14, 'z'], ['zsh', 'Zeta share ' + py + ' (estimate)', 11, 'z']])
+            .concat(k ? [['zpx', (k === 2 ? 'Packs per SU' : 'Price per SU (EGP)') + ' — Zeta', 11, 'z']] : [['tsh', 'Zeta target share ' + ty + ' — INPUT', 11, 'p'], ['tg', 'Zeta growth ' + ty + ' — INPUT (optional, wins)', 13, 'p']])
+            .concat([['z27', 'Zeta ' + ty + ' (' + pn + ' FCST)', 15, 'p'], ['zsh27', 'Zeta share ' + ty, 11, 'p'], ['zg27', 'Zeta growth ' + ty + ' vs ' + py, 11, 'p'], ['dp', 'Share change (pts)', 10, 'p']])
+            .concat(k ? [] : [['src', 'Pre-filled from', 26]]).concat([['vis', 'visible (helper)', 6], ['inc', 'in TOTAL (helper)', 6]]);
+          var L = {}; C.forEach(function (c, i) { L[c[0]] = colL(i + 1); ws.getColumn(i + 1).width = c[2]; });
+          ws.getColumn(C.length - 1).hidden = true; ws.getColumn(C.length).hidden = true;
+          var t = ws.getCell('A1'); t.value = pn + ' FCST FY' + ty + ' — total market ' + ['Standard Units', 'Value (EGP)', 'Packs'][k] + ' · Zeta markets'; t.font = { bold: true, size: 15, color: { argb: XC.navy } };
+          ws.getCell('A2').value = k ? (k === 2 ? 'Packs' : 'Value') + ' is calculated from the "Total market SU" sheet: SU × ' + (k === 2 ? 'packs per SU (last 6 months pack mix)' : 'price per SU (today, no new price increase)') + ' of each row. Change the inputs on the SU sheet.'
+            : 'Type in the YELLOW cells: market growth ' + ty + ' %, Zeta target share ' + ty + ' %, and optionally Zeta growth ' + ty + ' % (when filled it overrides the share). Value and Packs sheets follow. Markets split into DM2 markets: type on the DM2 rows; the total row adds them up.';
+          ws.getCell('A2').font = { size: 9, color: { argb: XC.grey } };
+          ws.getCell('A3').value = '▼ Filter Business unit / Line / Market on the header row (tick / untick; each list shows only what fits the other filters). The TOTAL row adds up only the visible rows (no double counting of total and DM2 rows). IQVIA data to ' + per(m.data_period) + '.';
+          ws.getCell('A3').font = { size: 9, color: { argb: XC.grey } };
+          var H = ws.getRow(HR); C.forEach(function (c, i) { var cell = H.getCell(i + 1); cell.value = c[1]; cell.font = { bold: true, color: { argb: XC.white }, size: 10 };
+            cell.fill = xFill(/INPUT/.test(c[1]) ? 'FFB45309' : c[3] === 'p' ? XC.planH : c[3] === 'z' ? 'FF7C3AED' : c[3] === 'm' ? 'FF3B5B8C' : XC.navy);
+            cell.alignment = { wrapText: true, vertical: 'middle', horizontal: i < 6 ? 'left' : 'center' }; cell.border = xBorder(XC.navy); }); H.height = 58;
+          var FM = { y25: XF.n, y26: XF.n, yg: XF.g, a25: XF.n, le: XF.n, leg: XF.g, mpx: k === 2 ? '0.0000' : XF.px, mg: XF.g, m27: XF.n, zy: XF.n, zle: XF.n, zsh: XF.p2, zpx: k === 2 ? '0.0000' : XF.px, tsh: XF.p2, tg: XF.g, z27: XF.n, zsh27: XF.p2, zg27: XF.g, dp: XF.pts };
+          var ref = function (key, row) { return L[key] + row; }, su = function (key, row) { return qs('Total market SU') + '!' + L0[key] + row; };
+          var row = R0, vals = [];
+          G.forEach(function (g, gi) {
+            var a = row + 1, b = row + g.subs.length, gp = GP ? GP[gi] : null;
+            [g.tot].concat(g.subs).forEach(function (r, j) {
+              var x = flat[row - R0], R = ws.getRow(row), split = j === 0 && g.subs.length > 0, rv = k === 2 ? (j ? gp.subs[j - 1] : gp.tot).v : r.v, s = r.su, V = {};
+              var put = function (key, v, fmt) { if (!L[key]) return null; var c = R.getCell(L[key]); c.value = v; if (fmt || FM[key]) c.numFmt = fmt || FM[key]; return c; };
+              ['bu', 'line', 'dm1', 'dm2', 'lvl', 'br'].forEach(function (kk) { put(kk, r[kk] || null); });
+              var src = k ? rv : s, base = ['y25', 'y26', 'a25', 'le', 'zy', 'zle'];
+              // numbers of this row (for cached results)
+              if (!k) { V.mg = x.mg; V.m27 = s.m27; V.tsh = x.tsh; V.z27 = s.z27; }
+              else { var mp = rv.mpx, zp = rv.zpx; V.m27 = fin(s.m27) && fin(mp) ? s.m27 * mp : null; V.z27 = fin(s.z27) && fin(zp) ? s.z27 * zp : null; V.mpx = mp; V.zpx = zp; }
+              base.forEach(function (kk) { V[kk] = src[kk]; });
+              x['V' + k] = V;
+              if (split) { R.getCell(1).value = r.bu || null; row++; return; }   // written after its sub-rows (needs their values)
+              base.forEach(function (kk) { put(kk, n0(V[kk])); });
+              if (!k) {
+                if (s.le > 0) { var ci = put('mg', fin(x.mg) ? x.mg : 0); xInput(ci, XF.g, 'gr'); put('m27', fx(ref('le', row) + '*(1+' + ref('mg', row) + ')', s.m27)); }
+                else { put('mg', fx('IFERROR(' + ref('m27', row) + '/' + ref('le', row) + '-1,"")', '')); var cm = put('m27', n0(s.m27)); xInput(cm, XF.n, 'num'); }
+                var ct = put('tsh', n0(x.tsh)); xInput(ct, XF.p2, 'share'); var cg = put('tg', null); xInput(cg, XF.g, 'zg');
+                put('z27', fx('IF(' + ref('tg', row) + '<>"",' + ref('zle', row) + '*(1+' + ref('tg', row) + '),IF(' + ref('tsh', row) + '="","",' + ref('m27', row) + '*' + ref('tsh', row) + '))', fin(s.z27) ? s.z27 : ''));
+                put('src', r.src);
+              } else {
+                put('mpx', n0(V.mpx)); put('zpx', n0(V.zpx));
+                put('m27', fx(su('m27', row) + '*' + ref('mpx', row), V.m27));
+                put('mg', fx('IFERROR(' + ref('m27', row) + '/' + ref('le', row) + '-1,"")', dv(V.m27, V.le) != null ? dv(V.m27, V.le) - 1 : ''));
+                put('z27', fx('IF(' + su('z27', row) + '="","",' + su('z27', row) + '*' + ref('zpx', row) + ')', fin(V.z27) ? V.z27 : ''));
+              }
+              row++;
+            });
+            // the split total row (above its DM2 rows): sums
+            if (g.subs.length) {
+              var tr = a - 1, R = ws.getRow(tr), x = flat[tr - R0], V = x['V' + k], subs = flat.slice(a - R0, b - R0 + 1);
+              var put2 = function (key, v, fmt) { if (!L[key]) return null; var c = R.getCell(L[key]); c.value = v; if (fmt || FM[key]) c.numFmt = fmt || FM[key]; return c; };
+              ['bu', 'line', 'dm1', 'dm2', 'lvl', 'br'].forEach(function (kk) { put2(kk, g.tot[kk] || null); });
+              ['y25', 'y26', 'a25', 'le', 'm27', 'zy', 'zle', 'z27'].forEach(function (kk) {
+                var t0 = 0, any = false; subs.forEach(function (sx) { var v = sx['V' + k][kk]; if (fin(v)) { t0 += v; any = true; } }); V[kk] = any ? t0 : (kk === 'z27' || kk === 'm27' ? 0 : null);
+                put2(kk, fx('SUM(' + ref(kk, a) + ':' + ref(kk, b) + ')', fin(V[kk]) ? V[kk] : 0));
+              });
+              put2('mg', fx('IFERROR(' + ref('m27', tr) + '/' + ref('le', tr) + '-1,"")', dv(V.m27, V.le) != null ? dv(V.m27, V.le) - 1 : ''));
+              if (k) { put2('mpx', fx('IFERROR(' + ref('m27', tr) + '/' + su('m27', tr) + ',"")', dv(V.m27, x.V0.m27) != null ? dv(V.m27, x.V0.m27) : ''));
+                put2('zpx', fx('IFERROR(' + ref('z27', tr) + '/' + su('z27', tr) + ',"")', dv(V.z27, x.V0.z27) != null ? dv(V.z27, x.V0.z27) : '')); }
+              else { put2('tsh', fx('IFERROR(' + ref('z27', tr) + '/' + ref('m27', tr) + ',"")', dv(V.z27, V.m27) != null ? dv(V.z27, V.m27) : '')); put2('tg', fx('IFERROR(' + ref('z27', tr) + '/' + ref('zle', tr) + '-1,"")', dv(V.z27, V.zle) != null ? dv(V.z27, V.zle) - 1 : '')); put2('src', 'Sum of the DM2 rows below'); }
+              for (var c0 = 1; c0 <= C.length - 2; c0++) { var cc = R.getCell(c0); cc.font = Object.assign({}, cc.font || {}, { bold: true }); if (!(cc.fill && cc.fill.fgColor && cc.fill.fgColor.argb === XC.inFill)) cc.fill = xFill(XC.tot); }
+            }
+          });
+          // ratio columns + helpers on every row
+          for (var rr = R0; rr <= RN; rr++) {
+            var x = flat[rr - R0], V = x['V' + k], R = ws.getRow(rr), P = function (key, f, v) { var c = R.getCell(L[key]); c.value = fx(f, fin(v) ? v : ''); c.numFmt = FM[key]; };
+            P('yg', 'IFERROR(' + ref('y26', rr) + '/' + ref('y25', rr) + '-1,"")', dv(V.y26, V.y25) != null ? dv(V.y26, V.y25) - 1 : null);
+            P('leg', 'IFERROR(' + ref('le', rr) + '/' + ref('a25', rr) + '-1,"")', dv(V.le, V.a25) != null ? dv(V.le, V.a25) - 1 : null);
+            P('zsh', 'IFERROR(' + ref('zle', rr) + '/' + ref('le', rr) + ',"")', dv(V.zle, V.le));
+            var zs27 = fin(V.z27) ? dv(V.z27, V.m27) : null, zs = dv(V.zle, V.le);
+            P('zsh27', 'IF(' + ref('z27', rr) + '="","",IFERROR(' + ref('z27', rr) + '/' + ref('m27', rr) + ',""))', zs27);
+            P('zg27', 'IF(' + ref('z27', rr) + '="","",IFERROR(' + ref('z27', rr) + '/' + ref('zle', rr) + '-1,""))', fin(V.z27) && dv(V.z27, V.zle) != null ? dv(V.z27, V.zle) - 1 : null);
+            P('dp', 'IF(' + ref('zsh27', rr) + '="","",IFERROR((' + ref('zsh27', rr) + '-' + ref('zsh', rr) + ')*100,""))', fin(zs27) && fin(zs) ? (zs27 - zs) * 100 : null);
+            R.getCell(L.vis).value = fx('SUBTOTAL(103,' + ref('dm1', rr) + ')', 1);
+            var g = x.g, inc;
+            if (x.total && g.subs.length) { var a = rr + 1, b = rr + g.subs.length; inc = fx('IF(AND(' + ref('vis', rr) + '=1,SUM(' + ref('vis', a) + ':' + ref('vis', b) + ')=0),1,0)', 0); }
+            else inc = fx(ref('vis', rr), 1);
+            R.getCell(L.inc).value = inc;
+            for (var c1 = 1; c1 <= C.length - 2; c1++) { var cl = R.getCell(c1); if (!cl.border || !cl.border.top) cl.border = xBorder(); if (!cl.font) cl.font = { size: 10 }; }
+            if (!x.total) { R.getCell(L.dm2).font = { size: 10, italic: true, color: { argb: 'FF5B21B6' } }; R.getCell(L.lvl).font = { size: 10, italic: true, color: { argb: 'FF5B21B6' } }; }
+          }
+          // TOTAL of the visible rows (row 4)
+          var T = ws.getRow(HR - 1), TV = {};
+          ['y25', 'y26', 'a25', 'le', 'm27', 'zy', 'zle', 'z27'].forEach(function (kk) { var t0 = 0; flat.forEach(function (x) { if (!(x.total && x.g.subs.length)) { var v = x['V' + k][kk]; if (fin(v)) t0 += v; } }); TV[kk] = t0;
+            var c = T.getCell(L[kk]); c.value = fx('SUMIFS(' + L[kk] + R0 + ':' + L[kk] + RN + ',' + L.inc + R0 + ':' + L.inc + RN + ',1)', t0); c.numFmt = FM[kk]; });
+          var TP = function (key, f, v) { if (!L[key]) return; var c = T.getCell(L[key]); c.value = fx(f, fin(v) ? v : ''); c.numFmt = FM[key]; };
+          var t4 = function (kk) { return L[kk] + (HR - 1); };
+          TP('yg', 'IFERROR(' + t4('y26') + '/' + t4('y25') + '-1,"")', gr(TV.y26, TV.y25));
+          TP('leg', 'IFERROR(' + t4('le') + '/' + t4('a25') + '-1,"")', gr(TV.le, TV.a25));
+          TP('mg', 'IFERROR(' + t4('m27') + '/' + t4('le') + '-1,"")', gr(TV.m27, TV.le));
+          TP('zsh', 'IFERROR(' + t4('zle') + '/' + t4('le') + ',"")', dv(TV.zle, TV.le));
+          TP('zsh27', 'IFERROR(' + t4('z27') + '/' + t4('m27') + ',"")', dv(TV.z27, TV.m27));
+          TP('zg27', 'IFERROR(' + t4('z27') + '/' + t4('zle') + '-1,"")', gr(TV.z27, TV.zle));
+          TP('dp', 'IFERROR((' + t4('zsh27') + '-' + t4('zsh') + ')*100,"")', (dv(TV.z27, TV.m27) - dv(TV.zle, TV.le)) * 100);
+          if (!k) { TP('tsh', 'IFERROR(' + t4('z27') + '/' + t4('m27') + ',"")', dv(TV.z27, TV.m27)); TP('tg', 'IFERROR(' + t4('z27') + '/' + t4('zle') + '-1,"")', gr(TV.z27, TV.zle)); }
+          T.getCell(1).value = { formula: '"TOTAL — "&SUBTOTAL(103,' + L.dm1 + R0 + ':' + L.dm1 + RN + ')&" rows shown"', result: 'TOTAL — ' + flat.length + ' rows shown' };
+          for (var c2 = 1; c2 <= C.length - 2; c2++) { var tc = T.getCell(c2); tc.font = { bold: true, size: 11, color: { argb: XC.white } }; tc.fill = xFill(XC.navy); tc.border = xBorder(XC.navy); }
+          T.height = 22;
+          ws.autoFilter = { from: { row: HR, column: 1 }, to: { row: RN, column: C.length } };
+          ws.views = [{ state: 'frozen', xSplit: 4, ySplit: HR, showGridLines: false }];
+          xPrint(ws, HR);
+          return L;
+        };
+        var L0 = null; L0 = mk(0); if (hasVal()) mk(1); if (GP) mk(2);
+        try { xFillCache(wb); } catch (e) { console.warn('[MarketForecast] cache fill', e); }
+        var fn = 'Zeta_FY' + ty + '_' + pn + '_FCST_Template.xlsx';
+        wb.xlsx.writeBuffer().then(function (buf) {
+          if (window.__MF_XLSX_SINK) return window.__MF_XLSX_SINK(buf, fn);
+          var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), a = document.createElement('a');
+          a.href = URL.createObjectURL(blob); a.download = fn; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+        }).catch(function (e) { console.error('[MarketForecast] FCST template', e); alert('Excel export failed: ' + (e && e.message || e)); });
+      } catch (e) { console.error('[MarketForecast] FCST template', e); alert('Excel export failed: ' + (e && e.message || e)); }
     }); });
   }
   function exportAll() {
