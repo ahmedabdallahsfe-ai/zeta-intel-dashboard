@@ -2292,20 +2292,21 @@
         var mk = function (k) {   // k: 0 SU, 1 value, 2 packs
           var nm = ['Total market SU', 'Total market Value', 'Total market Packs'][k], U = ['SU', 'EGP', 'packs'][k], S = k ? (k === 2 ? 'v' : 'v') : 'su';
           var ws = wb.addWorksheet(nm, { properties: { tabColor: { argb: ['FF2563EB', 'FF16A34A', 'FF0E7490'][k] } } });
-          var C = [['bu', 'Business unit', 16], ['line', 'Line', 18], ['dm1', 'Market (DM1)', 30], ['dm2', 'Sub-market (DM2)', 30], ['lvl', 'Level', 12], ['br', 'Zeta brand(s)', 18],
-            ['y25', 'Market YTD ' + (py - 1) + ' (' + mon + ')', 15, 'm'], ['y26', 'Market YTD ' + py + ' (' + mon + ')', 15, 'm'], ['yg', 'Market YTD growth', 10, 'm'],
-            ['a25', 'Market ' + ly + ' (actual)', 15, 'm'], ['le', 'Market ' + py + ' estimate', 15, 'm'], ['leg', 'Market growth ' + py + ' (estimate)', 11, 'm']]
+          // 2026-10-20 (Ahmed): column order = BU, Line (filters first), market, YTD 2026 + growth, market 2026, Zeta share 2026 % + value,
+          // market 2027 + growth, Zeta share 2027 % + value + growth. Inputs (SU sheet): market growth 2027 % and SFE share 2027 %.
+          var C = [['bu', 'Business unit ▼', 16], ['line', 'Line ▼', 18], ['dm1', 'Market (DM1)', 30], ['dm2', 'Sub-market (DM2)', 28], ['lvl', 'Level', 12], ['br', 'Zeta brand(s)', 18],
+            ['y26', 'Market YTD ' + py + ' (' + mon + ')', 15, 'm'], ['yg', 'Market YTD growth vs ' + (py - 1), 11, 'm'], ['le', 'Market size ' + py + ' (estimate)', 15, 'm'],
+            ['zsh', 'Zeta share ' + py + ' (estimate) %', 11, 'z'], ['zle', 'Zeta ' + py + ' (estimate)', 14, 'z']]
             .concat(k ? [['mpx', (k === 2 ? 'Packs per SU' : 'Price per SU (EGP)') + ' — market', 11, 'm']] : [])
-            .concat([['mg', 'Market growth ' + ty + (k ? '' : ' — INPUT'), 11, 'p'], ['m27', 'Market ' + ty, 15, 'p'],
-              ['zy', 'Zeta YTD ' + py + ' (' + mon + ')', 14, 'z'], ['zle', 'Zeta ' + py + ' estimate', 14, 'z'], ['zsh', 'Zeta share ' + py + ' (estimate)', 11, 'z']])
-            .concat(k ? [['zpx', (k === 2 ? 'Packs per SU' : 'Price per SU (EGP)') + ' — Zeta', 11, 'z']] : [['tsh', 'Zeta target share ' + ty + ' — INPUT', 11, 'p'], ['tg', 'Zeta growth ' + ty + ' — INPUT (optional, wins)', 13, 'p']])
-            .concat([['z27', 'Zeta ' + ty + ' (' + pn + ' FCST)', 15, 'p'], ['zsh27', 'Zeta share ' + ty, 11, 'p'], ['zg27', 'Zeta growth ' + ty + ' vs ' + py, 11, 'p'], ['dp', 'Share change (pts)', 10, 'p']])
-            .concat(k ? [] : [['src', 'Pre-filled from', 26]]).concat([['vis', 'visible (helper)', 6], ['inc', 'in TOTAL (helper)', 6]]);
+            .concat([['m27', 'Market size ' + ty, 15, 'p'], ['mg', 'Market growth ' + ty + (k ? '' : ' % — INPUT'), 11, 'p']])
+            .concat(k ? [['zpx', (k === 2 ? 'Packs per SU' : 'Price per SU (EGP)') + ' — Zeta', 11, 'z'], ['zsh27', 'Zeta share ' + ty + ' %', 11, 'p']] : [['tsh', pn + ' Zeta share ' + ty + ' % — INPUT', 12, 'p']])
+            .concat([['z27', 'Zeta ' + ty + ' (' + pn + ' FCST)', 15, 'p'], ['zg27', 'Zeta growth ' + ty + ' vs ' + py, 11, 'p'], ['dp', 'Share change (pts)', 10, 'p']])
+            .concat(k ? [] : [['src', 'Pre-filled from', 26]]).concat([['y25', 'Market YTD ' + (py - 1) + ' (helper)', 6], ['zy', 'Zeta YTD ' + py + ' (helper)', 6], ['vis', 'visible (helper)', 6], ['inc', 'in TOTAL (helper)', 6]]);
           var L = {}; C.forEach(function (c, i) { L[c[0]] = colL(i + 1); ws.getColumn(i + 1).width = c[2]; });
-          ws.getColumn(C.length - 1).hidden = true; ws.getColumn(C.length).hidden = true;
+          for (var hc = C.length - 3; hc <= C.length; hc++) ws.getColumn(hc).hidden = true;
           var t = ws.getCell('A1'); t.value = pn + ' FCST FY' + ty + ' — total market ' + ['Standard Units', 'Value (EGP)', 'Packs'][k] + ' · Zeta markets'; t.font = { bold: true, size: 15, color: { argb: XC.navy } };
           ws.getCell('A2').value = k ? (k === 2 ? 'Packs' : 'Value') + ' is calculated from the "Total market SU" sheet: SU × ' + (k === 2 ? 'packs per SU (last 6 months pack mix)' : 'price per SU (today, no new price increase)') + ' of each row. Change the inputs on the SU sheet.'
-            : 'Type in the YELLOW cells: market growth ' + ty + ' %, Zeta target share ' + ty + ' %, and optionally Zeta growth ' + ty + ' % (when filled it overrides the share). Value and Packs sheets follow. Markets split into DM2 markets: type on the DM2 rows; the total row adds them up.';
+            : 'Type in the YELLOW cells: market growth ' + ty + ' % and ' + pn + ' Zeta share ' + ty + ' %. Market size ' + ty + ', Zeta ' + ty + ' and Zeta growth follow, and so do the Value and Packs sheets. Markets split into DM2 markets: type on the DM2 rows; the total row adds them up.';
           ws.getCell('A2').font = { size: 9, color: { argb: XC.grey } };
           ws.getCell('A3').value = '▼ Filter Business unit / Line / Market on the header row (tick / untick; each list shows only what fits the other filters). The TOTAL row adds up only the visible rows (no double counting of total and DM2 rows). IQVIA data to ' + per(m.data_period) + '.';
           ws.getCell('A3').font = { size: 9, color: { argb: XC.grey } };
@@ -2332,8 +2333,8 @@
               if (!k) {
                 if (s.le > 0) { var ci = put('mg', fin(x.mg) ? x.mg : 0); xInput(ci, XF.g, 'gr'); put('m27', fx(ref('le', row) + '*(1+' + ref('mg', row) + ')', s.m27)); }
                 else { put('mg', fx('IFERROR(' + ref('m27', row) + '/' + ref('le', row) + '-1,"")', '')); var cm = put('m27', n0(s.m27)); xInput(cm, XF.n, 'num'); }
-                var ct = put('tsh', n0(x.tsh)); xInput(ct, XF.p2, 'share'); var cg = put('tg', null); xInput(cg, XF.g, 'zg');
-                put('z27', fx('IF(' + ref('tg', row) + '<>"",' + ref('zle', row) + '*(1+' + ref('tg', row) + '),IF(' + ref('tsh', row) + '="","",' + ref('m27', row) + '*' + ref('tsh', row) + '))', fin(s.z27) ? s.z27 : ''));
+                var ct = put('tsh', n0(x.tsh)); xInput(ct, XF.p2, 'share');
+                put('z27', fx('IF(' + ref('tsh', row) + '="","",' + ref('m27', row) + '*' + ref('tsh', row) + ')', fin(s.z27) ? s.z27 : ''));
                 put('src', r.src);
               } else {
                 put('mpx', n0(V.mpx)); put('zpx', n0(V.zpx));
@@ -2355,31 +2356,31 @@
               put2('mg', fx('IFERROR(' + ref('m27', tr) + '/' + ref('le', tr) + '-1,"")', dv(V.m27, V.le) != null ? dv(V.m27, V.le) - 1 : ''));
               if (k) { put2('mpx', fx('IFERROR(' + ref('m27', tr) + '/' + su('m27', tr) + ',"")', dv(V.m27, x.V0.m27) != null ? dv(V.m27, x.V0.m27) : ''));
                 put2('zpx', fx('IFERROR(' + ref('z27', tr) + '/' + su('z27', tr) + ',"")', dv(V.z27, x.V0.z27) != null ? dv(V.z27, x.V0.z27) : '')); }
-              else { put2('tsh', fx('IFERROR(' + ref('z27', tr) + '/' + ref('m27', tr) + ',"")', dv(V.z27, V.m27) != null ? dv(V.z27, V.m27) : '')); put2('tg', fx('IFERROR(' + ref('z27', tr) + '/' + ref('zle', tr) + '-1,"")', dv(V.z27, V.zle) != null ? dv(V.z27, V.zle) - 1 : '')); put2('src', 'Sum of the DM2 rows below'); }
-              for (var c0 = 1; c0 <= C.length - 2; c0++) { var cc = R.getCell(c0); cc.font = Object.assign({}, cc.font || {}, { bold: true }); if (!(cc.fill && cc.fill.fgColor && cc.fill.fgColor.argb === XC.inFill)) cc.fill = xFill(XC.tot); }
+              else { put2('tsh', fx('IFERROR(' + ref('z27', tr) + '/' + ref('m27', tr) + ',"")', dv(V.z27, V.m27) != null ? dv(V.z27, V.m27) : '')); put2('src', 'Sum of the DM2 rows below'); }
+              for (var c0 = 1; c0 <= C.length - 4; c0++) { var cc = R.getCell(c0); cc.font = Object.assign({}, cc.font || {}, { bold: true }); if (!(cc.fill && cc.fill.fgColor && cc.fill.fgColor.argb === XC.inFill)) cc.fill = xFill(XC.tot); }
             }
           });
           // ratio columns + helpers on every row
           for (var rr = R0; rr <= RN; rr++) {
-            var x = flat[rr - R0], V = x['V' + k], R = ws.getRow(rr), P = function (key, f, v) { var c = R.getCell(L[key]); c.value = fx(f, fin(v) ? v : ''); c.numFmt = FM[key]; };
+            var x = flat[rr - R0], V = x['V' + k], R = ws.getRow(rr), P = function (key, f, v) { if (!L[key]) return; var c = R.getCell(L[key]); c.value = fx(f, fin(v) ? v : ''); c.numFmt = FM[key]; };
             P('yg', 'IFERROR(' + ref('y26', rr) + '/' + ref('y25', rr) + '-1,"")', dv(V.y26, V.y25) != null ? dv(V.y26, V.y25) - 1 : null);
             P('leg', 'IFERROR(' + ref('le', rr) + '/' + ref('a25', rr) + '-1,"")', dv(V.le, V.a25) != null ? dv(V.le, V.a25) - 1 : null);
             P('zsh', 'IFERROR(' + ref('zle', rr) + '/' + ref('le', rr) + ',"")', dv(V.zle, V.le));
             var zs27 = fin(V.z27) ? dv(V.z27, V.m27) : null, zs = dv(V.zle, V.le);
             P('zsh27', 'IF(' + ref('z27', rr) + '="","",IFERROR(' + ref('z27', rr) + '/' + ref('m27', rr) + ',""))', zs27);
             P('zg27', 'IF(' + ref('z27', rr) + '="","",IFERROR(' + ref('z27', rr) + '/' + ref('zle', rr) + '-1,""))', fin(V.z27) && dv(V.z27, V.zle) != null ? dv(V.z27, V.zle) - 1 : null);
-            P('dp', 'IF(' + ref('zsh27', rr) + '="","",IFERROR((' + ref('zsh27', rr) + '-' + ref('zsh', rr) + ')*100,""))', fin(zs27) && fin(zs) ? (zs27 - zs) * 100 : null);
+            P('dp', 'IF(' + ref('z27', rr) + '="","",IFERROR((' + ref('z27', rr) + '/' + ref('m27', rr) + '-' + ref('zsh', rr) + ')*100,""))', fin(zs27) && fin(zs) ? (zs27 - zs) * 100 : null);
             R.getCell(L.vis).value = fx('SUBTOTAL(103,' + ref('dm1', rr) + ')', 1);
             var g = x.g, inc;
             if (x.total && g.subs.length) { var a = rr + 1, b = rr + g.subs.length; inc = fx('IF(AND(' + ref('vis', rr) + '=1,SUM(' + ref('vis', a) + ':' + ref('vis', b) + ')=0),1,0)', 0); }
             else inc = fx(ref('vis', rr), 1);
             R.getCell(L.inc).value = inc;
-            for (var c1 = 1; c1 <= C.length - 2; c1++) { var cl = R.getCell(c1); if (!cl.border || !cl.border.top) cl.border = xBorder(); if (!cl.font) cl.font = { size: 10 }; }
+            for (var c1 = 1; c1 <= C.length - 4; c1++) { var cl = R.getCell(c1); if (!cl.border || !cl.border.top) cl.border = xBorder(); if (!cl.font) cl.font = { size: 10 }; }
             if (!x.total) { R.getCell(L.dm2).font = { size: 10, italic: true, color: { argb: 'FF5B21B6' } }; R.getCell(L.lvl).font = { size: 10, italic: true, color: { argb: 'FF5B21B6' } }; }
           }
           // TOTAL of the visible rows (row 4)
           var T = ws.getRow(HR - 1), TV = {};
-          ['y25', 'y26', 'a25', 'le', 'm27', 'zy', 'zle', 'z27'].forEach(function (kk) { var t0 = 0; flat.forEach(function (x) { if (!(x.total && x.g.subs.length)) { var v = x['V' + k][kk]; if (fin(v)) t0 += v; } }); TV[kk] = t0;
+          ['y25', 'y26', 'a25', 'le', 'm27', 'zy', 'zle', 'z27'].forEach(function (kk) { if (!L[kk]) return; var t0 = 0; flat.forEach(function (x) { if (!(x.total && x.g.subs.length)) { var v = x['V' + k][kk]; if (fin(v)) t0 += v; } }); TV[kk] = t0;
             var c = T.getCell(L[kk]); c.value = fx('SUMIFS(' + L[kk] + R0 + ':' + L[kk] + RN + ',' + L.inc + R0 + ':' + L.inc + RN + ',1)', t0); c.numFmt = FM[kk]; });
           var TP = function (key, f, v) { if (!L[key]) return; var c = T.getCell(L[key]); c.value = fx(f, fin(v) ? v : ''); c.numFmt = FM[key]; };
           var t4 = function (kk) { return L[kk] + (HR - 1); };
@@ -2389,10 +2390,10 @@
           TP('zsh', 'IFERROR(' + t4('zle') + '/' + t4('le') + ',"")', dv(TV.zle, TV.le));
           TP('zsh27', 'IFERROR(' + t4('z27') + '/' + t4('m27') + ',"")', dv(TV.z27, TV.m27));
           TP('zg27', 'IFERROR(' + t4('z27') + '/' + t4('zle') + '-1,"")', gr(TV.z27, TV.zle));
-          TP('dp', 'IFERROR((' + t4('zsh27') + '-' + t4('zsh') + ')*100,"")', (dv(TV.z27, TV.m27) - dv(TV.zle, TV.le)) * 100);
-          if (!k) { TP('tsh', 'IFERROR(' + t4('z27') + '/' + t4('m27') + ',"")', dv(TV.z27, TV.m27)); TP('tg', 'IFERROR(' + t4('z27') + '/' + t4('zle') + '-1,"")', gr(TV.z27, TV.zle)); }
+          TP('dp', 'IFERROR((' + t4('z27') + '/' + t4('m27') + '-' + t4('zsh') + ')*100,"")', (dv(TV.z27, TV.m27) - dv(TV.zle, TV.le)) * 100);
+          if (!k) { TP('tsh', 'IFERROR(' + t4('z27') + '/' + t4('m27') + ',"")', dv(TV.z27, TV.m27)); }
           T.getCell(1).value = { formula: '"TOTAL — "&SUBTOTAL(103,' + L.dm1 + R0 + ':' + L.dm1 + RN + ')&" rows shown"', result: 'TOTAL — ' + flat.length + ' rows shown' };
-          for (var c2 = 1; c2 <= C.length - 2; c2++) { var tc = T.getCell(c2); tc.font = { bold: true, size: 11, color: { argb: XC.white } }; tc.fill = xFill(XC.navy); tc.border = xBorder(XC.navy); }
+          for (var c2 = 1; c2 <= C.length - 4; c2++) { var tc = T.getCell(c2); tc.font = { bold: true, size: 11, color: { argb: XC.white } }; tc.fill = xFill(XC.navy); tc.border = xBorder(XC.navy); }
           T.height = 22;
           ws.autoFilter = { from: { row: HR, column: 1 }, to: { row: RN, column: C.length } };
           ws.views = [{ state: 'frozen', xSplit: 4, ySplit: HR, showGridLines: false }];
