@@ -2450,8 +2450,22 @@
           });
         });
         // group: brand x line
+        // 2026-10-22 (Ahmed: "NEXICURE brand related to GIT-I not shown"): a brand with SKUs in two different markets of the same
+        // line (NEXICURE GIT-I = PPI oral solid tablets + esomeprazole sachet 20-40MG) is split by market, named by form + strength,
+        // so each row is one market and its SFE plan shows on its own (a market without a saved SFE share no longer blanks the brand).
+        var FORM = [[/C\.?TABS|\bTABS?\b|\bTAB\b/, 'TABS'], [/\bSAC\b|SACHET/, 'SACHET'], [/\bHGC\b|CAPS?\b|CAPSULE/, 'CAPS'], [/\bSY\b|SYRUP/, 'SYRUP'], [/PO\.?SUS|SUSP/, 'SUSP'], [/DROPS?\b/, 'DROPS'], [/AMP|INJ|VIAL/, 'INJ']];
+        var formOf = function (s) { s = String(s).toUpperCase(); for (var q = 0; q < FORM.length; q++) if (FORM[q][0].test(s)) return FORM[q][1]; return ''; };
+        var strOf = function (s) { var mm = String(s).toUpperCase().match(/\d+(?:\.\d+)?\s*(?:MG|MCG|G|IU|%)/g); return mm ? mm.map(function (t) { return t.replace(/\s+/g, ''); }) : []; };
+        var byBL = {}; items.forEach(function (x) { if (x.sub) return; var k2 = x.brand + '|' + x.line; (byBL[k2] = byBL[k2] || {})[x.dm] = 1; });
+        items.forEach(function (x) {
+          if (x.sub || Object.keys(byBL[x.brand + '|' + x.line] || {}).length < 2) return;
+          var mine = items.filter(function (y) { return !y.sub && y.brand === x.brand && y.line === x.line && y.dm === x.dm; }), fo = [], st = [];
+          mine.forEach(function (y) { var t1 = formOf(y.item.slice(y.brand.length)); if (t1 && fo.indexOf(t1) < 0) fo.push(t1); strOf(y.item.slice(y.brand.length)).forEach(function (t2) { if (st.indexOf(t2) < 0) st.push(t2); }); });
+          x.sub2 = [fo.join('/'), st.join('/')].filter(Boolean).join(' ') || x.dm;
+        });
+        items.forEach(function (x) { if (x.sub2) x.sub = x.sub2; });
         var G = []; items.forEach(function (x) { var g = G.find(function (y) { return y.brand === x.brand && y.line === x.line && y.sub === x.sub; }); if (!g) G.push(g = { brand: x.brand, line: x.line, sub: x.sub, bu: x.bu, its: [] }); g.its.push(x); });
-        var split = {}; G.forEach(function (g) { if (!g.sub) split[g.brand] = (split[g.brand] || 0) + 1; });
+        var split = {}; G.forEach(function (g) { split[g.brand] = (split[g.brand] || 0) + 1; });
         var strength = function (s) { var mm = String(s).toUpperCase().match(/\d+(?:\.\d+)?\s*(?:MG|MCG|G|IU|%)/g); return mm ? mm.map(function (t) { return t.replace(/\s+/g, ''); }) : []; };
         var fin0 = function (v) { return fin(v) ? v : 0; };
         G.forEach(function (g) {
