@@ -1143,7 +1143,7 @@
   function planCard(r) {   // 2026-10-15: header, strategy and notes; the objective + BEX rows are in the year-by-year table
     var P = zplan(r), m = D.meta, ty = m.target_year;
     var h = '<div class="h2row"><h3 class="mt">Year by year — market and ' + esc(zProd(r)) + ' · FY' + ty + ' objective & ' + PN() + ' forecast</h3>' +
-      '<div class="btns"><button type="button" class="xbtn pro" id="mf-xpro" title="Formatted workbook: Summary, SU sheet, Value sheet, all markets, notes">⬇ Excel — FY' + ty + ' plan (SU & Value)</button><button type="button" class="xbtn pro" id="mf-xsfe" title="Template: total market SU, Value and Packs for every Zeta market — type market growth, Zeta share or Zeta growth FY' + ty + '">⬇ Excel — ' + PN() + ' FCST template</button><button type="button" class="xbtn" id="mf-xone">⬇ Excel — this market</button><button type="button" class="xbtn" id="mf-xall">⬇ Excel — all markets (FY' + ty + ' plan)</button><label class="xbtn" title="Load ' + PN() + ' shares from an exported all-markets file">⬆ Import ' + PN() + ' file<input type="file" id="mf-ximp" accept=".xlsx,.xls" hidden></label></div></div>';
+      '<div class="btns"><button type="button" class="xbtn pro" id="mf-xpro" title="Formatted workbook: Summary, SU sheet, Value sheet, all markets, notes">⬇ Excel — FY' + ty + ' plan (SU & Value)</button><button type="button" class="xbtn pro" id="mf-xsfe" title="Template: total market SU, Value and Packs for every Zeta market — type market growth, Zeta share or Zeta growth FY' + ty + '">⬇ Excel — ' + PN() + ' FCST template</button><button type="button" class="xbtn pro" id="mf-xmsz" title="Market sizing by brand and SKU: FY' + D.meta.partial_year + ' and FY' + ty + ', business unit plan vs Business Excellence">⬇ Excel — Market sizing (BU vs BE)</button><button type="button" class="xbtn" id="mf-xone">⬇ Excel — this market</button><button type="button" class="xbtn" id="mf-xall">⬇ Excel — all markets (FY' + ty + ' plan)</button><label class="xbtn" title="Load ' + PN() + ' shares from an exported all-markets file">⬆ Import ' + PN() + ' file<input type="file" id="mf-ximp" accept=".xlsx,.xls" hidden></label></div></div>';
     h += zfBar(r);
     h += '<p class="pstrat">' + chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') + ' ' + esc(P.reason) + '</p>';
     return h;
@@ -1344,6 +1344,7 @@
     var xa = el.querySelector('#mf-xall'); if (xa) xa.onclick = function () { try { withMeasD(false, exportAll); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
     var xp = el.querySelector('#mf-xpro'); if (xp) xp.onclick = function () { exportPro(r); };
     var xsf = el.querySelector('#mf-xsfe'); if (xsf) xsf.onclick = function () { exportSfeTpl(); };
+    var xms = el.querySelector('#mf-xmsz'); if (xms) xms.onclick = function () { exportMktSizing(); };
     var xt = el.querySelector('#mf-xtbl'); if (xt) xt.onclick = function () { try { withMeasD(false, function () { exportTable(suSeg(r)); }); } catch (e) { console.error('[MarketForecast] export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
     var xi = el.querySelector('#mf-ximp'); if (xi) xi.onchange = function () { importBex(xi.files && xi.files[0]); };
   }
@@ -2409,6 +2410,122 @@
           a.href = URL.createObjectURL(blob); a.download = fn; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
         }).catch(function (e) { console.error('[MarketForecast] FCST template', e); alert('Excel export failed: ' + (e && e.message || e)); });
       } catch (e) { console.error('[MarketForecast] FCST template', e); alert('Excel export failed: ' + (e && e.message || e)); }
+    }); });
+  }
+  // 2026-10-22 (Ahmed: "make Excel sheet like this [Zeta Budget > Market Sizing] downloadable with data, with items and brand"):
+  // one row per Zeta brand + its SKUs (items). Blocks as on the budget planner: 2026 Business Excellence (market V / ST +
+  // Zeta share), 2027 business unit plan (INPUTS: target share %, market growth %), 2027 Business Excellence (= the
+  // SFE plan on this page: market forecast + SFE item share, else the objective share), Difference (BU - BE).
+  // V = market value (EGP), ST = market standard units. A SKU's market = its defined market (DM1); a brand's market =
+  // the sum of the distinct DM1 markets of its SKUs. Market growth (BU) is typed once per DM1 (first SKU of that market).
+  function exportMktSizing() {
+    loadExcelJS(function () { withMeasD(false, function () {
+      try {
+        var m = D.meta, ty = m.target_year, py = m.partial_year, pn = PN(), keep = ZF, off = ZF_OFF, items = [];
+        try {
+          segs('DM1').forEach(function (r) {
+            var its = (((r.scorecard || {}).zeta) || {}).items || []; if (!its.length || !(its[0] || {}).years) return;
+            var f = r.forecast || {}, vv = r.value || {}, k = segKey(r), d = DRAFT[k] || bexSaved(r) || { items: {} };
+            var mkt27 = fin(d.mkt) && d.mkt > 0 ? d.mkt : f.fy_target, mp = f.fy_target > 0 && fin(vv.fy_target) ? vv.fy_target / f.fy_target : null;
+            var bu = orgOf('BU', [r.name]), line = orgOf('Line', [r.name]);
+            its.forEach(function (i) {
+              ZF_OFF = false; ZF = { key: k, atc: i.atc4, brand: i.brand, item: i.item }; var Q = zplan(r);
+              var le = zLE(r, (i.ytd || [0, 0])[0], (i.ytd || [0, 0])[1]), sh = (d.items || {})[i.item];
+              // 2026-10-22 (Ahmed: "make as per SFE input"): BE = the SFE input only (saved share per item; no objective fallback)
+              var beSh = fin(sh) ? sh / 100 : null;
+              items.push({ bu: bu, line: line, dm: r.name, brand: i.brand, item: i.item, st26: f.fy_le, v26: vv.fy_le, z26: le.su, mp: mp, st27: mkt27, beSh: beSh,
+                src: fin(sh) ? pn + ' share' + (fin(d.mkt) && d.mkt > 0 ? ' + ' + pn + ' market' : ', market = forecast') : 'No ' + pn + ' share saved' });
+            });
+          });
+        } finally { ZF = keep; ZF_OFF = off; }
+        items.sort(function (a, b) { return a.brand.localeCompare(b.brand) || a.item.localeCompare(b.item); });
+        var wb = new window.ExcelJS.Workbook(); wb.creator = 'Zeta Intel Dashboard'; wb.created = new Date(); wb.calcProperties = { fullCalcOnLoad: true };
+        var ws = wb.addWorksheet('Market Sizing', { properties: { tabColor: { argb: 'FF2563EB' }, outlineLevelRow: 1 } });
+        // columns: A BU, B Line, C Market, D Brand, E Product/SKU, F Level | G V26 H ST26 I Sh26 | J V27bu K ST27bu L Shbu M Gbu |
+        // N V27be O ST27be P Shbe Q Gbe | R dV S dST T dSh | U from | helpers V first-in-market W price X Z26 Y Zbu Z Zbe
+        var W = [16, 14, 28, 18, 34, 8, 15, 15, 10, 15, 15, 11, 11, 15, 15, 11, 11, 15, 15, 11, 16, 6, 8, 12, 12, 12];
+        W.forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+        [22, 23, 24, 25, 26].forEach(function (c) { ws.getColumn(c).hidden = true; });
+        var t = ws.getCell('A1'); t.value = 'Market Sizing — FY' + py + ' and FY' + ty + ': business unit plan vs Business Excellence'; t.font = { bold: true, size: 16, color: { argb: XC.navy } };
+        ws.getCell('A2').value = 'V = market value (EGP), ST = market standard units. Business unit: type the target share % and the market growth % (yellow; growth once per market, on its first SKU). Business Excellence = your ' + pn + ' input on the dashboard: ' + pn + ' market (or the forecast when the market was not edited) and ' + pn + ' share per item; items without a saved ' + pn + ' share stay blank. Brand rows add up the distinct markets of their SKUs; a brand target share shows when every SKU of the brand has a share.';
+        ws.getCell('A2').font = { size: 9, color: { argb: XC.grey } }; ws.getCell('A2').alignment = { wrapText: true }; ws.mergeCells('A2:U2'); ws.getRow(2).height = 28;
+        var G1 = 4, H = 5, R0 = 6;
+        var groups = [[1, 6, '', XC.navy], [7, 9, py + ' · Business Excellence', 'FF3B5B8C'], [10, 13, ty + ' · business unit plan', 'FFB45309'], [14, 17, ty + ' · Business Excellence', 'FF7C3AED'], [18, 20, 'Difference (BU − BE)', 'FF0E7490'], [21, 21, '', XC.navy]];
+        groups.forEach(function (g) { if (g[1] > g[0]) ws.mergeCells(G1, g[0], G1, g[1]); var c = ws.getCell(G1, g[0]); c.value = g[2] || null; c.font = { bold: true, color: { argb: XC.white } }; c.alignment = { horizontal: 'center' }; for (var j = g[0]; j <= g[1]; j++) ws.getCell(G1, j).fill = xFill(g[3]); });
+        var HD = ['Business unit', 'Line', 'Market (DM1)', 'Brand', 'Product / SKU', 'Level', 'V', 'ST', 'Market share', 'V', 'ST', 'Target share — INPUT', 'Market growth (BU) — INPUT', 'V', 'ST', 'Target share', 'Market growth (BE)', 'V', 'ST', 'Target share (pts)', 'BE source (' + pn + ' input)',
+          'first SKU of market (helper)', 'price per SU (helper)', 'Zeta ST ' + py + ' (helper)', 'Zeta ST ' + ty + ' BU (helper)', 'Zeta ST ' + ty + ' BE (helper)'];
+        HD.forEach(function (h, i) { var c = ws.getCell(H, i + 1); c.value = h; c.font = { bold: true, color: { argb: XC.white }, size: 9 }; c.fill = xFill(i < 6 || i > 19 ? XC.navy : (groups.find(function (g) { return i + 1 >= g[0] && i + 1 <= g[1]; }) || [0, 0, 0, XC.navy])[3]); c.alignment = { wrapText: true, horizontal: 'center', vertical: 'middle' }; c.border = xBorder(XC.navy); });
+        ws.getRow(H).height = 36;
+        // layout: brand row then its SKUs
+        var brands = []; items.forEach(function (x) { var b = brands.find(function (y) { return y.name === x.brand; }); if (!b) brands.push(b = { name: x.brand, its: [] }); b.its.push(x); });
+        var row = R0, firstOfDm = {}, dmGrowthCell = {}, plan = [];
+        brands.forEach(function (b) { plan.push({ brand: b, row: row }); b.row = row; row++; b.its.forEach(function (x) { x.row = row; row++; }); b.last = row - 1; });
+        var RN = row - 1, L = function (c) { return colL(c); }, n0 = function (v) { return fin(v) ? v : null; };
+        var rg = function (c) { return '$' + L(c) + '$' + R0 + ':$' + L(c) + '$' + RN; };
+        brands.forEach(function (b) {
+          var seen = {};
+          b.its.forEach(function (x) {
+            var r = x.row, R = ws.getRow(r), first = !seen[x.dm]; seen[x.dm] = 1;
+            var put = function (c, v, fmt) { var cl = R.getCell(c); cl.value = v; if (fmt) cl.numFmt = fmt; cl.border = xBorder(); cl.font = cl.font || { size: 10 }; return cl; };
+            [x.bu, x.line, x.dm, x.brand, x.item, 'SKU'].forEach(function (v, j) { put(j + 1, v || null); });
+            var sh26 = fin(x.z26) && x.st26 > 0 ? x.z26 / x.st26 : null, be27 = x.st27, beV = fin(x.mp) && fin(be27) ? be27 * x.mp : null;
+            put(7, n0(x.v26), XF.n); put(8, n0(x.st26), XF.n); put(9, sh26, XF.p2);
+            // BU block
+            var gIn = !(x.dm in dmGrowthCell);
+            if (gIn) { dmGrowthCell[x.dm] = L(13) + r; var cg = put(13, null); xInput(cg, XF.g, 'zg'); }
+            else put(13, fx('IF(' + dmGrowthCell[x.dm] + '="","",' + dmGrowthCell[x.dm] + ')', ''), XF.g).font = { size: 10, color: { argb: XC.grey } };
+            put(11, fx('IF(' + L(13) + r + '="","",' + L(8) + r + '*(1+' + L(13) + r + '))', ''), XF.n);
+            put(10, fx('IF(' + L(11) + r + '="","",' + L(11) + r + '*' + L(23) + r + ')', ''), XF.n);
+            var cs = put(12, null); xInput(cs, XF.p2, 'share');
+            // BE block
+            put(15, n0(be27), XF.n); put(14, fx(L(15) + r + '*' + L(23) + r, beV), XF.n); put(16, n0(x.beSh), XF.p2);
+            put(17, fx('IFERROR(' + L(15) + r + '/' + L(8) + r + '-1,"")', fin(be27) && x.st26 > 0 ? be27 / x.st26 - 1 : ''), XF.g);
+            // difference
+            put(18, fx('IF(' + L(10) + r + '="","",' + L(10) + r + '-' + L(14) + r + ')', ''), XF.d);
+            put(19, fx('IF(' + L(11) + r + '="","",' + L(11) + r + '-' + L(15) + r + ')', ''), XF.d);
+            put(20, fx('IF(OR(' + L(12) + r + '="",' + L(16) + r + '=""),"",(' + L(12) + r + '-' + L(16) + r + ')*100)', ''), XF.pts);
+            put(21, x.src || null);
+            put(22, first ? 1 : 0); put(23, n0(x.mp), XF.px); put(24, n0(x.z26), XF.n);
+            put(25, fx('IF(OR(' + L(11) + r + '="",' + L(12) + r + '=""),"",' + L(11) + r + '*' + L(12) + r + ')', ''), XF.n);
+            put(26, fx('IF(' + L(16) + r + '="","",' + L(15) + r + '*' + L(16) + r + ')', fin(x.beSh) && fin(be27) ? be27 * x.beSh : ''), XF.n);
+            x.c = { v26: x.v26, st26: x.st26, z26: x.z26, st27: be27, v27: beV, zbe: fin(x.beSh) && fin(be27) ? be27 * x.beSh : null, first: first };
+          });
+          // brand row = SUMIFS over the brand's SKUs (markets counted once)
+          var r = b.row, R = ws.getRow(r), bq = '"' + b.name.replace(/"/g, '""') + '"';
+          var S = function (c, extra) { return 'SUMIFS(' + rg(c) + ',' + rg(4) + ',' + bq + ',' + rg(6) + ',"SKU"' + (extra || '') + ')'; }, F1 = ',' + rg(22) + ',1';
+          var sum = function (key, firstOnly) { var t = 0, any = false; b.its.forEach(function (x) { if (firstOnly && !x.c.first) return; if (fin(x.c[key])) { t += x.c[key]; any = true; } }); return any ? t : null; };
+          var V26 = sum('v26', 1), ST26 = sum('st26', 1), Z26 = sum('z26'), ST27 = sum('st27', 1), V27 = sum('v27', 1), ZBE = sum('zbe');
+          var put = function (c, v, fmt) { var cl = R.getCell(c); cl.value = v; if (fmt) cl.numFmt = fmt; return cl; };
+          [b.its[0].bu, b.its[0].line, b.its.map(function (x) { return x.dm; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' / '), b.name, b.name + ' (brand total)', 'Brand'].forEach(function (v, j) { put(j + 1, v); });
+          put(7, fx(S(7, F1), V26), XF.n); put(8, fx(S(8, F1), ST26), XF.n); put(24, fx(S(24), Z26), XF.n);
+          put(9, fx('IFERROR(' + L(24) + r + '/' + L(8) + r + ',"")', fin(Z26) && ST26 > 0 ? Z26 / ST26 : ''), XF.p2);
+          var blankBU = 'COUNTIFS(' + rg(4) + ',' + bq + ',' + rg(6) + ',"SKU",' + rg(13) + ',"")>0';
+          put(11, fx('IF(' + blankBU + ',"",' + S(11, F1) + ')', ''), XF.n); put(10, fx('IF(' + L(11) + r + '="","",' + S(10, F1) + ')', ''), XF.n);
+          put(13, fx('IFERROR(' + L(11) + r + '/' + L(8) + r + '-1,"")', ''), XF.g);
+          put(25, fx('IF(COUNTIFS(' + rg(4) + ',' + bq + ',' + rg(6) + ',"SKU",' + rg(12) + ',"")>0,"",' + S(25) + ')', ''), XF.n);
+          put(12, fx('IF(OR(' + L(25) + r + '="",' + L(11) + r + '=""),"",IFERROR(' + L(25) + r + '/' + L(11) + r + ',""))', ''), XF.p2);
+          var allBE = b.its.every(function (x) { return fin(x.beSh); });   // brand BE share only when every SKU has an SFE share
+          put(15, fx(S(15, F1), ST27), XF.n); put(14, fx(S(14, F1), V27), XF.n);
+          put(26, fx('IF(COUNTIFS(' + rg(4) + ',' + bq + ',' + rg(6) + ',"SKU",' + rg(16) + ',"")>0,"",' + S(26) + ')', allBE && fin(ZBE) ? ZBE : ''), XF.n);
+          put(16, fx('IF(' + L(26) + r + '="","",IFERROR(' + L(26) + r + '/' + L(15) + r + ',""))', allBE && fin(ZBE) && ST27 > 0 ? ZBE / ST27 : ''), XF.p2);
+          put(17, fx('IFERROR(' + L(15) + r + '/' + L(8) + r + '-1,"")', fin(ST27) && ST26 > 0 ? ST27 / ST26 - 1 : ''), XF.g);
+          put(18, fx('IF(' + L(10) + r + '="","",' + L(10) + r + '-' + L(14) + r + ')', ''), XF.d);
+          put(19, fx('IF(' + L(11) + r + '="","",' + L(11) + r + '-' + L(15) + r + ')', ''), XF.d);
+          put(20, fx('IF(OR(' + L(12) + r + '="",' + L(16) + r + '=""),"",(' + L(12) + r + '-' + L(16) + r + ')*100)', ''), XF.pts);
+          for (var c = 1; c <= 21; c++) { var cl = R.getCell(c); cl.font = { bold: true, size: 10, color: { argb: XC.navy } }; cl.fill = xFill(XC.tot); cl.border = xBorder(); }
+          for (var rr = b.row + 1; rr <= b.last; rr++) ws.getRow(rr).outlineLevel = 1;
+        });
+        ws.autoFilter = { from: { row: H, column: 1 }, to: { row: RN, column: 21 } };
+        ws.views = [{ state: 'frozen', xSplit: 5, ySplit: H, showGridLines: false }];
+        xPrint(ws, H);
+        try { xFillCache(wb); } catch (e) { console.warn('[MarketForecast] cache fill', e); }
+        var fn = 'Zeta_Market_Sizing_FY' + ty + '_BU_vs_BE.xlsx';
+        wb.xlsx.writeBuffer().then(function (buf) {
+          if (window.__MF_XLSX_SINK) return window.__MF_XLSX_SINK(buf, fn);
+          var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), a = document.createElement('a');
+          a.href = URL.createObjectURL(blob); a.download = fn; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+        }).catch(function (e) { console.error('[MarketForecast] market sizing', e); alert('Excel export failed: ' + (e && e.message || e)); });
+      } catch (e) { console.error('[MarketForecast] market sizing', e); alert('Excel export failed: ' + (e && e.message || e)); }
     }); });
   }
   function exportAll() {
