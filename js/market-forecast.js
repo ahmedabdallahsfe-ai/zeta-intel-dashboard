@@ -904,7 +904,35 @@
   function isRO(r) { return isAgg(r) || isDm2Derived(r); }
   function roPlan(r) { return isAgg(r) ? aggPlan(r) : dm2FromDM1(r); }
   function bexSaved(r) { return isAgg(r) ? aggPlan(r) : (r && r.type === 'DM2' && !bex2All()[segKey(r)] ? dm2FromDM1(r) : bexSavedOwn(r)); }
+  // 2026-10-22 (Ahmed: DM1 and DM2 plans disagreed -> "DM2 plan wins"): a DM1 market takes the item shares of the DM2
+  // markets that have their own saved plan (item SU = DM2 share x DM2 market, re-expressed as a share of the DM1 market).
+  // Everything that reads DM1 plans (page, BU / Line / Egypt roll-ups, Excel exports) therefore follows the DM2 plans;
+  // on the DM1 page those items are read-only (edit them on the DM2). Storage is unchanged.
+  function dm2Overlay(r) {
+    if (!r || r.type !== 'DM1' || !D || !D.meta) return null;
+    var links = (((D.meta.links || {}).dm1_dm2) || {})[r.name] || [], a = bex2All(), res = {}, n = 0, last = null, by = null;
+    links.forEach(function (nm) {
+      if (!a['DM2|' + nm]) return;
+      var s2 = D.segments.find(function (x) { return x.type === 'DM2' && x.name === nm; }); if (!s2) return;
+      var raw = bexSavedOwnRaw(s2); if (!raw) return;
+      var m2 = fin(raw.mkt) && raw.mkt > 0 ? raw.mkt : (s2.forecast || {}).fy_target; if (!(m2 > 0)) return;
+      Object.keys(raw.items || {}).forEach(function (it) { var sh = raw.items[it]; if (it === '__total__' || !fin(sh)) return; res[it] = (res[it] || 0) + sh / 100 * m2; n++; });
+      if (raw.saved && (!last || String(raw.saved) > String(last))) { last = raw.saved; by = raw.by; }
+    });
+    return n ? { su: res, saved: last, by: by } : null;
+  }
   function bexSavedOwn(r) {
+    var raw = bexSavedOwnRaw(r);
+    if (!r || r.type !== 'DM1') return raw;
+    var ov = dm2Overlay(r); if (!ov) return raw;
+    var names = {}; ((((r.scorecard || {}).zeta) || {}).items || []).forEach(function (i) { names[i.item] = 1; });
+    var base = raw && fin(raw.mkt) && raw.mkt > 0 ? raw.mkt : (r.forecast || {}).fy_target; if (!(base > 0)) return raw;
+    var items = Object.assign({}, raw ? raw.items || {} : {}), from = {}, any = false;
+    Object.keys(ov.su).forEach(function (it) { if (!names[it]) return; items[it] = Math.round(ov.su[it] / base * 100 * 10000) / 10000; from[it] = 1; any = true; });
+    if (!any) return raw;
+    return Object.assign({}, raw || { mkt: null, saved: ov.saved, by: ov.by }, { items: items, fromDM2: from });
+  }
+  function bexSavedOwnRaw(r) {
     var sv = bex2All()[segKey(r)]; if (!sv) return null;
     var its = (((r.scorecard || {}).zeta) || {}).items || [], names = {}, pk = {}, moved = false, out = {};
     its.forEach(function (i) { names[i.item] = 1; (i.packs || []).forEach(function (p) { pk[p] = i.item; }); });
@@ -1249,7 +1277,7 @@
       var name = x.kind === 'item' ? '<span class="ind">↳</span> <span title="' + esc('Packs: ' + ((x.packs || []).join(' · ') || x.label)) + '">' + esc(x.label) + '</span>' + ((x.packs || []).length > 1 ? ' <small class="mut">(' + x.packs.length + ' packs)</small>' : '') : '<b>' + esc(x.label) + '</b>' + (x.n ? ' <span class="mut small">(' + x.n + ' item' + (x.n > 1 ? 's' : '') + ')</span>' : '');
       return '<tr class="' + cls + (sel ? ' sel' : '') + '" data-kind="' + x.kind + '" data-br="' + esc(x.brand) + '" data-it="' + esc(x.item || '') + '"><td>' + name + '</td><td class="mut">' + esc(x.kind === 'total' ? '' : x.brand) + '</td><td class="mut small">' + esc((x.atc || '').split(' ')[0]) + '</td>' + (showDM ? '<td class="mut small">' + esc(x.kind === 'item' ? dmOf('DM1', [x.item]) : '') + '</td>' : '') + mmCell +
         '<td class="num r">' + fmtM(x.mat[k], val) + '</td><td class="num r">' + fmtP(g) + '</td><td class="num r mut">' + fmtP(MC.pct) + '</td><td class="num r" title="' + esc(ZC.span) + '">' + fmtP(ZC.pct) + (ZC.span && ZC.span !== MC.span ? ' <small class="mut">(' + esc(ZC.span) + ')</small>' : '') + '</td><td class="num r">' + (fin(sh) ? (sh * 100).toFixed(2) + '%' : '—') + '</td><td class="num r ' + (d == null ? '' : d >= 0.05 ? 'pos' : d <= -0.05 ? 'neg' : '') + '">' + (d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(2) + ' pts') + '</td>' +
-        mfcCell + '<td>' + (P.present ? chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') : '<span class="mut">—</span>') + '</td><td class="num r">' + (P.present ? (P.objShare * 100).toFixed(2) + '%' : '—') + '</td><td class="num r">' + (fin(obj) ? fmtM(obj, val) : '—') + '</td><td class="num r bexc">' + (x.kind === 'item' && !isRO(r) ? '<input type="text" inputmode="decimal" class="bexi" data-item="' + esc(x.item) + '" min="0" max="100" step="0.01" placeholder="share %" value="' + (fin(dd.items[x.item]) ? dd.items[x.item] : '') + '"> %<br>' : '') + (fin(bx) ? '<b>' + fmtM(bx, val) + '</b> <span class="mut">(' + ((val ? P.bex.valShare : P.bex.share) * 100).toFixed(2) + '%' + (x.kind !== 'item' ? ', ' + P.bex.n + '/' + P.bex.nItems + ' items' : '') + ')</span>' : '<span class="mut">—</span>') + '</td>' +
+        mfcCell + '<td>' + (P.present ? chip(P.strategy, P.strategy === 'Grow' ? 'up' : 'n') : '<span class="mut">—</span>') + '</td><td class="num r">' + (P.present ? (P.objShare * 100).toFixed(2) + '%' : '—') + '</td><td class="num r">' + (fin(obj) ? fmtM(obj, val) : '—') + '</td><td class="num r bexc">' + (x.kind === 'item' && !isRO(r) && (((bexSaved(r) || {}).fromDM2) || {})[x.item] ? '<span class="mut" title="From the DM2 market plan (DM2 plan wins) — change it on the DM2 market">' + (fin(dd.items[x.item]) ? dd.items[x.item].toFixed(2) : '—') + ' % · DM2</span><br>' : x.kind === 'item' && !isRO(r) ? '<input type="text" inputmode="decimal" class="bexi" data-item="' + esc(x.item) + '" min="0" max="100" step="0.01" placeholder="share %" value="' + (fin(dd.items[x.item]) ? dd.items[x.item] : '') + '"> %<br>' : '') + (fin(bx) ? '<b>' + fmtM(bx, val) + '</b> <span class="mut">(' + ((val ? P.bex.valShare : P.bex.share) * 100).toFixed(2) + '%' + (x.kind !== 'item' ? ', ' + P.bex.n + '/' + P.bex.nItems + ' items' : '') + ')</span>' : '<span class="mut">—</span>') + '</td>' +
         '<td class="num r bexg">' + (function (q) { return fin(q) ? fmtP(q * 100) + (x.kind !== 'item' && P.bex.n < P.bex.nItems ? ' <small class="mut" title="Like-for-like: only the items with a ' + PN() + ' share">(' + P.bex.n + '/' + P.bex.nItems + ')</small>' : '') : '<span class="mut">—</span>'; })(bexGrowth(r, x, k)) + '</td>' + (isSFEView() ? '<td class="num r">' + vCell(P) + '</td>' : '') + '</tr>';
     });
     return '<div class="h2row"><h3 class="mt">By brand and item — ' + matLbl() + ' and FY' + D.meta.target_year + ' objective <span class="mut small">(click a brand or an item to plan it above)</span></h3>' +
@@ -2445,8 +2473,8 @@
               sub = ({ CAP: 'CAPSULES', CAPS: 'CAPSULES', SACH: 'SACHETS', SAC: 'SACHETS' })[tail.toUpperCase()] || tail;
             }
             var le = zLE(rr, (ii.ytd || [0, 0])[0], (ii.ytd || [0, 0])[1]), sh = (dd.items || {})[i.item];
-            items.push({ bu: bu, line: line, dm: rr.name, sub: sub, brand: i.brand, item: i.item, st26: ff.fy_le, v26: v2.fy_le, z26: le.su, zv26: le.val, mp: mp2, st27: m27,
-              mktEd: fin(dd.mkt) && dd.mkt > 0, sh: fin(sh) ? sh / 100 : null, s6: ii.s6 || [0, 0], zp: itemPrice(ii) });
+            items.push({ fromDM2: !!(s2 && i2 ? bex2All()[segKey(s2)] : ((bexSaved(r) || {}).fromDM2 || {})[i.item]), bu: bu, line: line, dm: rr.name, sub: sub, brand: i.brand, item: i.item, st26: ff.fy_le, v26: v2.fy_le, z26: le.su, zv26: le.val, mp: mp2, st27: m27,
+              mktEd: fin(dd.mkt) && dd.mkt > 0, sh: fin(sh) ? sh / 100 : null, s6: ii.s6 || [0, 0], zp: itemPrice(ii), seg: rr, fyT: ff.fy_target });
           });
         });
         // group: brand x line
@@ -2486,60 +2514,145 @@
           g.zst27e = g.nSh === g.its.length ? g.its.reduce(function (a, x) { return a + x.sh * fin0(x.st27); }, 0) : null;
           g.zv27e = fin(g.zst27e) ? g.its.reduce(function (a, x) { return a + x.sh * fin0(x.st27) * (fin(x.zp) ? x.zp : (g.zp || 0)); }, 0) : null;
           g.mktEd = g.its.some(function (x) { return x.mktEd; });
-          g.src = g.nSh === g.its.length ? pn + ' share' + (g.mktEd ? ' + ' + pn + ' market' : ', market = forecast') : (g.nSh ? g.nSh + ' of ' + g.its.length + ' SKUs have an ' + pn + ' share' : 'No ' + pn + ' share saved');
+          g.src = g.nSh === g.its.length ? pn + ' share' + (g.its.some(function (x) { return x.fromDM2; }) ? ' (DM2 plan)' : '') + (g.mktEd ? ' + ' + pn + ' market' : ', market = forecast') : (g.nSh ? g.nSh + ' of ' + g.its.length + ' SKUs have an ' + pn + ' share' : 'No ' + pn + ' share saved');
+          // 2026-10-22 (Ahmed: "instead of source column mention why market and why Zeta target share, simply"): plain-English rationale
+          g.why = (function () {
+            var pc = function (v) { return (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%'; };
+            var yc = 0, yp = 0, ft = 0; D1.forEach(function (x) { var y = x.seg.ytd || {}; yc += fin0(y.cur); yp += fin0(y.py); ft += fin0(x.fyT); });
+            var gM = g.st26 > 0 ? g.st27 / g.st26 - 1 : null, gY = yp > 0 ? yc / yp - 1 : null, gF = g.st26 > 0 && ft > 0 ? ft / g.st26 - 1 : null, ytl = 'YTD ' + py;
+            var yt = function () { return ytl + ' ' + (gY >= 10 ? 'new market' : pc(gY)); }, mk;
+            if (!fin(gM)) mk = 'Market: no ' + py + ' base to compare.';
+            else if (g.mktEd) mk = 'Market ' + pc(gM) + ': set by ' + pn + (fin(gF) ? ' (system forecast ' + pc(gF) + (fin(gY) ? ', ' + ytl + ' ' + pc(gY) : '') + ')' : '') + '.';
+            else if (!fin(gY)) mk = 'Market ' + pc(gM) + ': system forecast (no ' + ytl + ' trend).';
+            else if (Math.abs(gM) < 0.0005) mk = 'Market flat (0.0%): forecast holds it at the ' + py + ' level (' + yt() + ').';
+            else if (gM < 0 && gY >= 0) mk = 'Market ' + pc(gM) + ': forecast expects a decline (' + yt() + ').';
+            else if (gY >= 10) mk = 'Market ' + pc(gM) + ': new market in ' + py + ' (launch year); forecast assumes it settles.';
+            else if (gY > 0.75 && gM < gY) mk = 'Market ' + pc(gM) + ': ' + yt() + ' is boosted by new launches / a small base; forecast assumes it settles.';
+            else if (Math.abs(gM - gY) <= 0.03) mk = 'Market ' + pc(gM) + ': keeps the ' + ytl + ' pace (' + pc(gY) + ').';
+            else if (gM < gY) mk = 'Market ' + pc(gM) + ': slower than ' + ytl + ' (' + pc(gY) + '), forecast expects growth to ease.';
+            else mk = 'Market ' + pc(gM) + ': faster than ' + ytl + ' (' + pc(gY) + '), forecast expects growth to speed up.';
+            var main = D1.slice().sort(function (a, b) { return fin0(b.st26) - fin0(a.st26); })[0].seg, P = null, keep = ZF, off = ZF_OFF;
+            try { ZF_OFF = false; ZF = { key: segKey(main), atc: '', brand: g.brand, item: '' }; P = zplanRaw(main); } catch (e) { P = null; } finally { ZF = keep; ZF_OFF = off; }
+            var why = !P ? '' : !P.present ? 'brand is very small in this market today'
+              : P.lead ? 'brand leads the market, defend it'
+              : P.s >= OBJ_RULES.dominant ? 'brand already holds ' + (P.s * 100).toFixed(1) + '% of the market, defend it'
+              : fin(P.d) && P.d <= OBJ_RULES.losing ? 'brand lost ' + Math.abs(P.d).toFixed(1) + ' pts (' + matLbl() + '), stop the loss'
+              : fin(P.d) && P.d >= 0.05 ? 'brand is gaining share (+' + P.d.toFixed(1) + ' pts, ' + matLbl() + '), room to grow'
+              : 'brand is holding share without leading, room to grow';
+            var obj = P && P.present && fin(P.objShare) ? 'system objective ' + (P.objShare * 100).toFixed(1) + '%' : '';
+            var ms = g.st26 > 0 ? g.z26 / g.st26 : null, sh2 = fin(g.zst27e) && g.st27 > 0 ? g.zst27e / g.st27 : null, zs;
+            if (g.nSh < g.its.length) zs = 'Target share: ' + (g.nSh ? 'only ' + g.nSh + ' of ' + g.its.length + ' SKUs have an ' + pn + ' share' : 'no ' + pn + ' share saved yet') + (obj ? ' (' + obj + ')' : '') + '.' + (why ? ' Why: ' + why + '.' : '');
+            else {
+              var dd = fin(ms) ? (sh2 - ms) * 100 : null, act = !fin(dd) ? '' : dd > 0.1 ? 'gain ' : dd < -0.1 ? 'give back ' : 'hold ';
+              zs = 'Target share ' + (sh2 * 100).toFixed(1) + '%' + (fin(ms) ? ' vs ' + (ms * 100).toFixed(1) + '% in ' + py + ' (' + act + (dd >= 0 ? '+' : '') + dd.toFixed(1) + ' pts)' : '') +
+                (g.its.some(function (x) { return x.fromDM2; }) ? ', from the DM2 plan' : '') + '.' + (why ? ' Why: ' + why + '.' : '') + (obj ? ' ' + obj.charAt(0).toUpperCase() + obj.slice(1) + '.' : '');
+            }
+            return mk + '\n' + zs;
+          })();
         });
         G.sort(function (a, b) { return (a.bu || '~').localeCompare(b.bu || '~') || (a.line || '~').localeCompare(b.line || '~') || a.name.localeCompare(b.name); });
         var wb = new window.ExcelJS.Workbook(); wb.creator = 'Zeta Intel Dashboard'; wb.created = new Date(); wb.calcProperties = { fullCalcOnLoad: true };
         var ws = wb.addWorksheet('Market Sizing', { properties: { tabColor: { argb: 'FF2563EB' } } });
-        var K = ['bu', 'line', 'brand', 'dm', 'skus', 'mv26', 'mst26', 'zv26', 'zst26', 'ms26', 'mv27u', 'mst27u', 'shu', 'gu', 'zv27u', 'zst27u',
-          'mv27e', 'mst27e', 'she', 'ge', 'zv27e', 'zst27e', 'dmv', 'dmst', 'dsh', 'dzv', 'dzst', 'src', 'mp', 'zp'];
+        // 2026-10-22 (Ahmed, file "BU_vs_BE 5"): layout = Zeta insights (rows 2-3), totals of the visible rows (row 4), 2026 BE estimate
+        // and 2027 BE (SFE input) blocks; the BU plan / difference blocks are gone; column Q = why this market growth and target share.
+        var K = ['bu', 'line', 'brand', 'dm', 'skus', 'mv26', 'mst26', 'zv26', 'zst26', 'ms26', 'mv27e', 'mst27e', 'she', 'ge', 'zv27e', 'zst27e', 'why', 'mp', 'zp'];
         var C = {}; K.forEach(function (k, i) { C[k] = i + 1; });
         var L = function (k) { return colL(C[k]); };
-        var Wd = { bu: 12, line: 11, brand: 24, dm: 30, skus: 34, src: 26, mp: 8, zp: 8 };
-        K.forEach(function (k) { ws.getColumn(C[k]).width = Wd[k] || 14; });
+        var NF = '#,##0;\\(#,##0\\);"-"', PF = '0.0%;\\(0.0%\\);"-"', GF = '[Color10]\\+0.0%;[Red]\\-0.0%;0.0%', PPF = '[Color10]\\+0.00" pp";[Red]\\-0.00" pp";0.00" pp"';
+        var NAVY = XC.navy, B26 = 'FF3B5B8C', B27 = 'FF0E7490', INK = 'FF1F2937', GREY = XC.grey, TOT = 'FFE2E8F0', SEP = 'FFE2E8F0';
+        var Wd = { bu: 13.3, line: 11, brand: 28.6, dm: 32.4, skus: 23.9, mv26: 16.9, mv27e: 16.9, zst27e: 18.1, why: 70, mp: 8, zp: 8 };
+        K.forEach(function (k) { ws.getColumn(C[k]).width = Wd[k] || 15.6; });
         ['mp', 'zp'].forEach(function (k) { ws.getColumn(C[k]).hidden = true; });
-        var t = ws.getCell('A1'); t.value = 'Market Sizing by brand — FY' + py + ' and FY' + ty + ': business unit plan vs Business Excellence'; t.font = { bold: true, size: 16, color: { argb: XC.navy } };
-        ws.getCell('A2').value = 'One row per brand and line (a brand promoted by two lines is split, named by its strengths; a brand whose SKUs sit in two DM2 markets of one DM1 is split by DM2, e.g. NEXICURE PLUS capsules / sachets). V = value (EGP), ST = standard units; market = the defined market(s) of the brand\'s SKUs, Zeta = the brand. Business unit: type the target share % and the market growth % (yellow). Business Excellence = your ' + pn + ' input on the dashboard (' + pn + ' market, or the forecast when not edited, and ' + pn + ' share per SKU, added up to the brand). Zeta FY' + ty + ' = market ST × target share; Zeta value at the brand\'s price per SU (last 6 months). Other markets are left out.';
-        ws.getCell('A2').font = { size: 9, color: { argb: XC.grey } }; ws.getCell('A2').alignment = { wrapText: true, vertical: 'top' }; ws.mergeCells(2, 1, 2, C.src); ws.getRow(2).height = 40;
-        var G1 = 4, H = 5, R0 = 6;
-        var groups = [['bu', 'skus', '', XC.navy], ['mv26', 'ms26', py + ' · Business Excellence (estimate)', 'FF3B5B8C'], ['mv27u', 'zst27u', ty + ' · business unit plan', 'FFB45309'], ['mv27e', 'zst27e', ty + ' · Business Excellence (' + pn + ' input)', 'FF7C3AED'], ['dmv', 'dzst', 'Difference (BU − BE)', 'FF0E7490'], ['src', 'src', '', XC.navy]];
-        var colOf = {}; groups.forEach(function (g) { for (var j = C[g[0]]; j <= C[g[1]]; j++) { colOf[j] = g[3]; ws.getCell(G1, j).fill = xFill(g[3]); } if (C[g[1]] > C[g[0]]) ws.mergeCells(G1, C[g[0]], G1, C[g[1]]); var c = ws.getCell(G1, C[g[0]]); c.value = g[2] || null; c.font = { bold: true, color: { argb: XC.white } }; c.alignment = { horizontal: 'center' }; });
+        var t = ws.getCell('A1'); t.value = 'Market Sizing by brand — FY' + py + ' and FY' + ty + ': business unit plan vs Business Excellence'; t.font = { bold: true, size: 16, color: { argb: NAVY } }; t.alignment = { vertical: 'middle' };
+        ws.getRow(1).height = 26.1;
+        var H = 6, R0 = 7, RN = R0 + Math.max(G.length, 1) - 1, TR = 4;
+        var S = function (k) { return 'SUBTOTAL(109,' + L(k) + R0 + ':' + L(k) + RN + ')'; };
+        // totals of all rows (cached results; Excel recalculates with the filter)
+        var T = {}; ['mv26', 'mst26', 'zv26', 'zst26', 'mv27e', 'mst27e', 'zv27e', 'zst27e'].forEach(function (k) { T[k] = 0; });
+        G.forEach(function (g) { T.mv26 += fin0(g.v26); T.mst26 += fin0(g.st26); T.zv26 += fin0(g.zv26); T.zst26 += fin0(g.z26); T.mv27e += fin0(g.v27); T.mst27e += fin0(g.st27); T.zv27e += fin0(g.zv27e); T.zst27e += fin0(g.zst27e); });
+        var dv = function (a, b) { return b > 0 ? a / b : ''; };
+        // row 2-3: Zeta insights (each label spans two columns, centred)
+        var e2 = ws.getCell(2, C.skus); e2.value = 'Zeta insights'; e2.font = { bold: true, size: 11, color: { argb: NAVY } }; e2.alignment = { horizontal: 'right', vertical: 'middle' };
+        var e3 = ws.getCell(3, C.skus); e3.value = 'visible rows only'; e3.font = { size: 9, color: { argb: GREY } }; e3.alignment = { horizontal: 'right', vertical: 'middle' };
+        var thk = { style: 'thick', color: { argb: XC.white } };
+        var INS = [['Zeta ST growth', 'IFERROR(' + L('zst27e') + TR + '/' + L('zst26') + TR + '-1,"")', dv(T.zst27e, T.zst26) === '' ? '' : T.zst27e / T.zst26 - 1, GF],
+          ['Zeta value growth', 'IFERROR(' + L('zv27e') + TR + '/' + L('zv26') + TR + '-1,"")', T.zv26 > 0 ? T.zv27e / T.zv26 - 1 : '', GF],
+          ['Market value growth', 'IFERROR(' + L('mv27e') + TR + '/' + L('mv26') + TR + '-1,"")', T.mv26 > 0 ? T.mv27e / T.mv26 - 1 : '', GF],
+          ['Zeta value share ' + py, 'IFERROR(' + L('zv26') + TR + '/' + L('mv26') + TR + ',"")', dv(T.zv26, T.mv26), '0.0%'],
+          ['Zeta value share ' + ty, 'IFERROR(' + L('zv27e') + TR + '/' + L('mv27e') + TR + ',"")', dv(T.zv27e, T.mv27e), '0.0%'],
+          ['Value share change (pp)', 'IFERROR((' + L('zv27e') + TR + '/' + L('mv27e') + TR + '-' + L('zv26') + TR + '/' + L('mv26') + TR + ')*100,"")', T.mv27e > 0 && T.mv26 > 0 ? (T.zv27e / T.mv27e - T.zv26 / T.mv26) * 100 : '', PPF]];
+        INS.forEach(function (q, qi) {
+          var c0 = C.mv26 + qi * 2;
+          [0, 1].forEach(function (o) {
+            var h = ws.getCell(2, c0 + o), v = ws.getCell(3, c0 + o), last = qi === INS.length - 1 && o === 1;
+            h.fill = xFill(NAVY); h.font = { bold: true, size: 9, color: { argb: XC.white } }; h.alignment = { horizontal: 'centerContinuous', vertical: 'middle' };
+            h.border = { top: thk, left: o ? undefined : thk, right: last ? thk : undefined };
+            v.fill = xFill('FFF1F5F9'); v.font = { bold: true, size: 14, color: { argb: NAVY } }; v.alignment = { horizontal: 'centerContinuous', vertical: 'middle' };
+            v.border = { left: o ? undefined : thk, right: last ? thk : undefined };
+          });
+          ws.getCell(2, c0).value = q[0];
+          var vc = ws.getCell(3, c0); vc.value = fx(q[1], q[2]); vc.numFmt = q[3];
+        });
+        ws.getRow(2).height = 18; ws.getRow(3).height = 26.1;
+        // row 4: totals of the visible rows
+        var e4 = ws.getCell(TR, C.skus); e4.value = 'Total (visible rows)';
+        var TF = { mv26: NF, mst26: NF, zv26: NF, zst26: NF, ms26: PF, mv27e: NF, mst27e: NF, she: PF, ge: GF, zv27e: NF, zst27e: NF };
+        for (var tc = C.skus; tc <= C.why; tc++) { var c4 = ws.getCell(TR, tc); c4.fill = xFill(TOT); c4.font = { bold: true, size: 10, color: { argb: INK } }; c4.alignment = { horizontal: tc === C.skus ? 'right' : undefined, vertical: 'middle' }; c4.border = { top: { style: 'thin', color: { argb: NAVY } } }; }
+        Object.keys(TF).forEach(function (k) { var c4 = ws.getCell(TR, C[k]); c4.numFmt = TF[k]; if (T[k] != null) c4.value = fx(S(k), T[k]); });
+        ws.getCell(TR, C.ms26).value = fx('IFERROR(' + L('zst26') + TR + '/' + L('mst26') + TR + ',"")', dv(T.zst26, T.mst26));
+        ws.getCell(TR, C.she).value = fx('IFERROR(' + L('zst27e') + TR + '/' + L('mst27e') + TR + ',"")', dv(T.zst27e, T.mst27e));
+        ws.getCell(TR, C.ge).value = fx('IFERROR(' + L('mst27e') + TR + '/' + L('mst26') + TR + '-1,"")', T.mst26 > 0 ? T.mst27e / T.mst26 - 1 : '');
+        ws.getRow(TR).height = 20.1;
+        // row 5: group headers, row 6: column headers
+        var groups = [['bu', 'skus', 'Brand details', NAVY], ['mv26', 'ms26', py + ' · Business Excellence (estimate)', B26], ['mv27e', 'zst27e', ty + ' · Business Excellence (' + pn + ' input)', B27], ['why', 'why', 'Rationale', NAVY]];
+        var colOf = {}, edge = {};
+        groups.forEach(function (g) {
+          for (var j = C[g[0]]; j <= C[g[1]]; j++) colOf[j] = g[3];
+          if (g[0] !== 'bu') edge[C[g[0]]] = g[3];
+          if (C[g[1]] > C[g[0]]) ws.mergeCells(5, C[g[0]], 5, C[g[1]]);
+          var c = ws.getCell(5, C[g[0]]); c.value = g[2]; c.fill = xFill(g[3]); c.font = { bold: true, size: 11, color: { argb: XC.white } }; c.alignment = { horizontal: 'center', vertical: 'middle' };
+          if (g[0] !== 'bu') c.border = { left: { style: 'medium', color: { argb: g[3] } }, top: { style: 'double', color: { argb: NAVY } } };
+        });
+        ws.getRow(5).height = 20.1;
+        [C.mv26, C.mv27e, C.why].forEach(function (j) { var c4 = ws.getCell(TR, j); c4.border = { top: { style: 'thin', color: { argb: NAVY } }, left: { style: 'medium', color: { argb: edge[j] } } }; });
         var HD = { bu: 'Business unit', line: 'Line', brand: 'Brand', dm: 'Market (DM1 / DM2)', skus: 'SKUs included',
           mv26: 'Market V', mst26: 'Market ST', zv26: 'Zeta V (estimate)', zst26: 'Zeta ST (estimate)', ms26: 'Market share (estimate)',
-          mv27u: 'Market V', mst27u: 'Market ST', shu: 'Target share — INPUT', gu: 'Market growth (BU) — INPUT', zv27u: 'Zeta V', zst27u: 'Zeta ST',
           mv27e: 'Market V', mst27e: 'Market ST', she: 'Target share', ge: 'Market growth (BE)', zv27e: 'Zeta V', zst27e: 'Zeta ST',
-          dmv: 'Market V', dmst: 'Market ST', dsh: 'Target share (pts)', dzv: 'Zeta V', dzst: 'Zeta ST', src: 'BE source (' + pn + ' input)',
-          mp: 'market price per SU (helper)', zp: 'Zeta price per SU (helper)' };
-        K.forEach(function (k) { var c = ws.getCell(H, C[k]); c.value = HD[k]; c.font = { bold: true, color: { argb: XC.white }, size: 9 }; c.fill = xFill(colOf[C[k]] || XC.navy); c.alignment = { wrapText: true, horizontal: 'center', vertical: 'middle' }; c.border = xBorder(XC.navy); });
-        ws.getRow(H).height = 36;
-        var FMT = { mv26: XF.n, mst26: XF.n, zv26: XF.n, zst26: XF.n, ms26: XF.p2, mv27u: XF.n, mst27u: XF.n, shu: XF.p2, gu: XF.g, zv27u: XF.n, zst27u: XF.n,
-          mv27e: XF.n, mst27e: XF.n, she: XF.p2, ge: XF.g, zv27e: XF.n, zst27e: XF.n, dmv: XF.d, dmst: XF.d, dsh: XF.pts, dzv: XF.d, dzst: XF.d, mp: XF.px, zp: XF.px };
+          why: 'Why: market growth and Zeta target share', mp: 'market price per SU (helper)', zp: 'Zeta price per SU (helper)' };
+        K.forEach(function (k) {
+          var c = ws.getCell(H, C[k]), j = C[k]; c.value = HD[k]; c.font = { bold: true, color: { argb: XC.white }, size: 9 }; c.fill = xFill(colOf[j] || NAVY);
+          c.alignment = { wrapText: true, horizontal: j <= C.skus || k === 'why' ? 'left' : 'center', vertical: 'middle' };
+          if (edge[j]) c.border = { left: { style: 'medium', color: { argb: edge[j] } } };
+        });
+        ws.getRow(H).height = 32.1;
+        var FMT = { mv26: NF, mst26: NF, zv26: NF, zst26: NF, ms26: PF, mv27e: NF, mst27e: NF, she: PF, ge: GF, zv27e: NF, zst27e: NF, mp: XF.px, zp: XF.px };
         var n0 = function (v) { return fin(v) ? v : null; };
         G.forEach(function (g, gi) {
           var r = R0 + gi, R = ws.getRow(r);
-          var put = function (k, v) { var cl = R.getCell(C[k]); cl.value = v; if (FMT[k]) cl.numFmt = FMT[k]; cl.border = xBorder(); cl.font = { size: 10 }; return cl; };
+          var put = function (k, v) {
+            var cl = R.getCell(C[k]); cl.value = v; if (FMT[k]) cl.numFmt = FMT[k];
+            var bd = { bottom: { style: 'thin', color: { argb: SEP } } }; if (edge[C[k]]) bd.left = { style: 'medium', color: { argb: edge[C[k]] } }; cl.border = bd;
+            cl.font = { size: 10, color: { argb: FMT[k] && k !== 'mp' && k !== 'zp' ? INK : GREY } };
+            cl.alignment = { vertical: 'middle', horizontal: FMT[k] ? 'right' : undefined }; return cl;
+          };
           var ms26 = g.st26 > 0 ? g.z26 / g.st26 : null, she = fin(g.zst27e) && g.st27 > 0 ? g.zst27e / g.st27 : null;
           put('bu', g.bu || null); put('line', g.line || null); put('brand', g.name); put('dm', g.dms);
-          put('skus', g.its.length + ': ' + g.its.map(function (x) { return x.item; }).join(' | ')).alignment = { wrapText: false };
-          R.getCell(C.brand).font = { size: 10, bold: true, color: { argb: XC.navy } };
+          put('skus', g.its.length + ': ' + g.its.map(function (x) { return x.item; }).join(' | '));
+          R.getCell(C.brand).font = { size: 10, bold: true, color: { argb: NAVY } };
           put('mv26', n0(g.v26)); put('mst26', n0(g.st26)); put('zv26', n0(g.zv26)); put('zst26', n0(g.z26));
           put('ms26', fx('IFERROR(' + L('zst26') + r + '/' + L('mst26') + r + ',"")', fin(ms26) ? ms26 : ''));
-          xInput(put('gu', null), XF.g, 'zg'); xInput(put('shu', null), XF.p2, 'share');
-          put('mst27u', fx('IF(' + L('gu') + r + '="","",' + L('mst26') + r + '*(1+' + L('gu') + r + '))', ''));
-          put('mv27u', fx('IF(' + L('mst27u') + r + '="","",' + L('mst27u') + r + '*' + L('mp') + r + ')', ''));
-          put('zst27u', fx('IF(OR(' + L('mst27u') + r + '="",' + L('shu') + r + '=""),"",' + L('mst27u') + r + '*' + L('shu') + r + ')', ''));
-          put('zv27u', fx('IF(' + L('zst27u') + r + '="","",' + L('zst27u') + r + '*' + L('zp') + r + ')', ''));
-          put('mst27e', n0(g.st27)); put('mv27e', n0(g.v27));
-          put('ge', fx('IFERROR(' + L('mst27e') + r + '/' + L('mst26') + r + '-1,"")', g.st26 > 0 ? g.st27 / g.st26 - 1 : ''));
-          put('zst27e', n0(g.zst27e)); put('zv27e', n0(g.zv27e));
+          put('mv27e', n0(g.v27)); put('mst27e', n0(g.st27));
           put('she', fx('IF(' + L('zst27e') + r + '="","",IFERROR(' + L('zst27e') + r + '/' + L('mst27e') + r + ',""))', fin(she) ? she : ''));
-          var dif = function (k, a, b) { put(k, fx('IF(OR(' + L(a) + r + '="",' + L(b) + r + '=""),"",' + L(a) + r + '-' + L(b) + r + ')', '')); };
-          dif('dmv', 'mv27u', 'mv27e'); dif('dmst', 'mst27u', 'mst27e'); dif('dzv', 'zv27u', 'zv27e'); dif('dzst', 'zst27u', 'zst27e');
-          put('dsh', fx('IF(OR(' + L('shu') + r + '="",' + L('she') + r + '=""),"",(' + L('shu') + r + '-' + L('she') + r + ')*100)', ''));
-          put('src', g.src); put('mp', n0(g.mp)); put('zp', n0(g.zp));
+          put('ge', fx('IFERROR(' + L('mst27e') + r + '/' + L('mst26') + r + '-1,"")', g.st26 > 0 ? g.st27 / g.st26 - 1 : ''));
+          put('zv27e', n0(g.zv27e)); put('zst27e', n0(g.zst27e));
+          var wc = put('why', g.why); wc.alignment = { vertical: 'middle', wrapText: true };
+          put('mp', n0(g.mp)); put('zp', n0(g.zp));
+          var ln = String(g.why).split('\n').reduce(function (a, s2) { return a + Math.max(1, Math.ceil(s2.length / 72)); }, 0);
+          R.height = Math.max(18, ln * 13 + 4);
         });
-        var RN = R0 + G.length - 1;
-        ws.autoFilter = { from: { row: H, column: 1 }, to: { row: RN, column: C.src } };
+        ws.addConditionalFormatting({ ref: 'A' + (R0 + 1) + ':' + L('why') + RN, rules: [{ type: 'expression', priority: 1, formulae: ['$A' + (R0 + 1) + '<>$A' + R0], style: { border: { top: { style: 'thin', color: { argb: NAVY } } } } }] });
+        ws.addConditionalFormatting({ ref: L('zv27e') + R0 + ':' + L('zst27e') + RN, rules: [{ type: 'expression', priority: 2, formulae: [L('zv27e') + R0 + '=""'], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFEF3C7' } } } }] });
+        ws.autoFilter = { from: { row: H, column: 1 }, to: { row: RN, column: C.why } };
         ws.views = [{ state: 'frozen', xSplit: 3, ySplit: H, showGridLines: false }];
         xPrint(ws, H);
         try { xFillCache(wb); } catch (e) { console.warn('[MarketForecast] cache fill', e); }
