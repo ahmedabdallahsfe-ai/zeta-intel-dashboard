@@ -6,29 +6,141 @@
       "id": "LACOSAMIDE-TABLETS",
       "why": "IQVIA_SOURCE of 2026-10-09 mapped every lacosamide competitor to OTHER MARKET (row-majority mapping), leaving Epilosamide alone in LACOSAMIDE_MKT (~100% share). Market = all lacosamide tablets, all brands, all periods.",
       "molecule_contains": "LACOSAMIDE",
-      "doses": ["TABLET"],
-      "dm1": "LACOSAMIDE_MKT", "dm2": "LACOSAMIDE_MKT", "line": "CNS", "bu": "GIT"
+      "doses": [
+        "TABLET"
+      ],
+      "dm1": "LACOSAMIDE_MKT",
+      "dm2": "LACOSAMIDE_MKT",
+      "line": "CNS",
+      "bu": "GIT"
     },
     {
       "id": "DOZOVA-ASHWAGANDHA",
       "why": "IQVIA_SOURCE of 2026-10-09 moved DOZOVA A KSM66 from ONLY_DOZOVA_ASHW to OTHER MARKET (CHC Zeta share fell 7.1% -> 4.4%).",
-      "products": ["DOZOVA A KSM66"],
-      "dm1": "ONLY_DOZOVA_ASHW", "dm2": "ONLY_DOZOVA_ASHW", "line": "CHC", "bu": "CHC"
+      "products": [
+        "DOZOVA A KSM66"
+      ],
+      "dm1": "ONLY_DOZOVA_ASHW",
+      "dm2": "ONLY_DOZOVA_ASHW",
+      "line": "CHC",
+      "bu": "CHC"
     },
     {
       "id": "DOZOVA-WOMAN-MAX",
       "why": "The new 60-tablet pack of DOZOVA WOMAN MAX (Jul-Aug 2026) came in as OTHER MARKET.",
-      "products": ["DOZOVA WOMAN MAX"],
-      "dm1": "MAN_WOMEN_MULTI_VIT", "dm2": "WOMEN_MULTI_VIT", "line": "CHC", "bu": "CHC"
+      "products": [
+        "DOZOVA WOMAN MAX"
+      ],
+      "dm1": "MAN_WOMEN_MULTI_VIT",
+      "dm2": "WOMEN_MULTI_VIT",
+      "line": "CHC",
+      "bu": "CHC"
     },
     {
       "id": "ESOMEPRAZOLE-SACHET-ADULT",
       "why": "2026-10-16 (Ahmed): adult esomeprazole sachets (20/40 MG) were in OTHER MARKET, so NEXICURE 20MG sachet could not be planned. New defined market for adult sachets; the paediatric ESOMEPRAZOLE SACHET market (2.5-10 MG, PEDIA) is unchanged. Brands today: NEXICURE 20MG, ESMORAP 20/40MG.",
       "molecule_contains": "ESOMEPRAZOLE",
-      "products": ["NEXICURE", "ESMORAP"],
-      "doses": ["SACHET / ORAL POWDER"],
-      "strengths": ["20MG", "40MG"],
-      "dm1": "ESOMEPRAZOLE SACHET 20-40MG", "dm2": "ESOMEPRAZOLE SACHET 20-40MG", "line": "GIT-I", "bu": "GIT"
+      "products": [
+        "NEXICURE",
+        "ESMORAP"
+      ],
+      "doses": [
+        "SACHET / ORAL POWDER"
+      ],
+      "strengths": [
+        "20MG",
+        "40MG"
+      ],
+      "dm1": "ESOMEPRAZOLE SACHET 20-40MG",
+      "dm2": "ESOMEPRAZOLE SACHET 20-40MG",
+      "line": "GIT-I",
+      "bu": "GIT"
+    },
+    {
+      "id": "CLUSTER-KULYAFIN-FINERENONE",
+      "why": "2026-10-26 (Ahmed): \"Cluster - Launch Products Defined Market.xlsx\". Kulyafin (CVM-I launch) market = C03A1 finerenone tablets, all brands, all periods. Brands today: FINOXLAB, KERENDIA. Kulyafin not yet in IQVIA.",
+      "atc4_prefixes": [
+        "C03A1"
+      ],
+      "molecule_contains": "FINERENONE",
+      "dm1": "Kulyafin_Market",
+      "dm2": "Kulyafin_Market",
+      "line": "CVM-I",
+      "bu": "Cluster"
+    },
+    {
+      "id": "CLUSTER-DOZOVA-KIDS-MAX",
+      "why": "2026-10-26 (Ahmed): \"Cluster - Launch Products Defined Market.xlsx\". Dozova Kids Max (PEDIA launch) = A11A2 paediatric MVIT+MIN, ordinary liquid (syrup / oral solution / suspension). Not yet in IQVIA.",
+      "atc4_prefixes": [
+        "A11A2"
+      ],
+      "doses": [
+        "Syrup",
+        "Oral Solution",
+        "Suspension"
+      ],
+      "dm1": "Dozova Kids Max_Market",
+      "dm2": "Dozova Kids Max_Market",
+      "line": "PEDIA",
+      "bu": "Cluster"
+    },
+    {
+      "id": "CLUSTER-DOZOVA-KIDS-DROPS",
+      "why": "2026-10-26 (Ahmed): \"Cluster - Launch Products Defined Market.xlsx\". Dozova Kids Drops (PEDIA launch) = A11A2 paediatric MVIT+MIN, oral drops. Not yet in IQVIA.",
+      "atc4_prefixes": [
+        "A11A2"
+      ],
+      "doses": [
+        "Oral Drops"
+      ],
+      "dm1": "Dozova Kids Drops_Market",
+      "dm2": "Dozova Kids Drops_Market",
+      "line": "PEDIA",
+      "bu": "Cluster"
+    },
+    {
+      "id": "CLUSTER-DOZOVA-KIDS-GUMMIES",
+      "why": "2026-10-26 (Ahmed): \"Cluster - Launch Products Defined Market.xlsx\". Dozova Kids Gummies (PEDIA launch) = A11A2 paediatric MVIT+MIN, gummies. Not yet in IQVIA.",
+      "atc4_prefixes": [
+        "A11A2"
+      ],
+      "doses": [
+        "Lozenge / Gummy"
+      ],
+      "dm1": "Dozova Kids Gummies_Market",
+      "dm2": "Dozova Kids Gummies_Market",
+      "line": "PEDIA",
+      "bu": "Cluster"
+    },
+    {
+      "id": "CLUSTER-DOZOVA-BRAIN-BOOST",
+      "why": "2026-10-26 (Ahmed): \"Cluster - Launch Products Defined Market.xlsx\". Dozova Brain Boost (PEDIA launch, syrup) = the named C04A1 competitor brands, liquid forms only (capsule/tablet/ampoule/sachet packs of the same brands excluded), plus DOZOVA BRAINBOOST. Name mapping: Cerberoprove=CEREBROPROVE, Cenravita Colin=CENTRAVITA COLIN, Memo pUra=MEMO PURA.",
+      "atc4_prefixes": [
+        "C04A1"
+      ],
+      "doses": [
+        "Syrup",
+        "Oral Solution"
+      ],
+      "products": [
+        "DOZOVA BRAINBOOST",
+        "CERVETOLKA",
+        "SOMAZINA SUPRA",
+        "CERVETOLKA FORTE",
+        "FORTAMIND",
+        "CEREBROPROVE",
+        "FOCUSTIN",
+        "CENTRAVITA COLIN",
+        "COLIFLY",
+        "LETRACITOLIN",
+        "CHOLINAZOR",
+        "MEMO PURA",
+        "Q SYRUP"
+      ],
+      "dm1": "Dozova Brain Boost_Market",
+      "dm2": "Dozova Brain Boost_Market",
+      "line": "PEDIA",
+      "bu": "Cluster"
     }
   ]
 }

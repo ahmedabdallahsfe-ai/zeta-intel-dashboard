@@ -277,6 +277,7 @@ if os.path.exists(PRODUCT_MARKET_OVERRIDES_FILE):
                 _mol = (_r.get('molecule_contains') or '').upper()
                 _doses = set(str(x).upper() for x in (_r.get('doses') or []))
                 _strs = set(str(x).upper() for x in (_r.get('strengths') or []))   # 2026-10-16: optional strength filter (e.g. adult 20/40MG sachets)
+                _atcs = tuple(str(x).upper().strip() for x in (_r.get('atc4_prefixes') or []))   # 2026-10-26: optional ATC4 filter (prefix, e.g. 'A11A2')
                 _pf = _r.get('period_from') or ''; _pt = _r.get('period_to') or ''
                 _n = 0; _v = 0; _moved = 0
                 for _i in range(len(prods_r)):
@@ -284,6 +285,7 @@ if os.path.exists(PRODUCT_MARKET_OVERRIDES_FILE):
                     if _mol and _mol not in str(molecules_r[_i]).upper(): continue
                     if _doses and str(doses_r[_i]).upper() not in _doses: continue  # source says 'Tablet', cache shows 'TABLET'
                     if _strs and str(strengths_r[_i]).upper() not in _strs: continue
+                    if _atcs and not str(atc4s_r[_i]).upper().startswith(_atcs): continue
                     _per = str(periods_r[_i])[:7]
                     if _pf and _per < _pf: continue
                     if _pt and _per > _pt: continue
