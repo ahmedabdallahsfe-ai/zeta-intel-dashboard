@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="css/dashboard.css?v=20261013_bm" />
   <!-- Fully scoped under .iqvia-dashboard-wrap (namespaced 2026-07-26) — safe to load
        on every tab; cannot leak into Coverage/Organogram/Sales styling. -->
-  <link rel="stylesheet" href="css/iqvia.css?v=20260925_slimchrome" />
+  <link rel="stylesheet" href="css/iqvia.css?v=20261026_calib" />
   <!-- Shared Design System (Phase 3 foundation) — tokens/animations/layout/components/
        utilities, all under a .ds- prefix guaranteed not to collide with the existing
        .sc-*/.sfe-*/.iqvia-* class families. Consumer: Executive Command Center
@@ -352,7 +352,7 @@
        there by the time someone opens the Customer Health drill; also
        re-fixed the sentinel-latch bug this regression brought back (see
        decompressCustomerAnalyticsCache() in js/sales.js). -->
-  <script defer src="cache/iqvia.data.js?v=20261022_1255_auto"></script>
+  <script defer src="cache/iqvia.data.js?v=20261026_calib"></script>
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
        from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Aug31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's
@@ -382,7 +382,7 @@
   <script defer src="js/semantic-model.js?v=20261012_linememo"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20261026_launch"></script>
+  <script defer src="js/cache-loader.js?v=20261026_2254_auto"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
@@ -426,7 +426,7 @@
        has loaded -- on a slow connection the data file could fail/arrive late, iqvia.js then ran without
        it, threw, and could never run again (top-level let/const), leaving Market Intelligence blank.
        The preload below still downloads it in parallel with everything else. Keep the version here. -->
-  <link rel="preload" as="script" id="iqvia-js-src" href="js/iqvia.js?v=20260925_blendshare">
+  <link rel="preload" as="script" id="iqvia-js-src" href="js/iqvia.js?v=20261026_calib">
   <script defer src="js/iqvia-filterbar.js?v=20260925_renavfix"></script>
   <script defer src="js/iqvia-sidebar-rail.js?v=20260924_sbrail"></script>
   <script defer src="js/iqvia-fit.js?v=20260925_slimchrome"></script>
@@ -501,7 +501,7 @@
   <script defer src="js/ask-sales.js?v=20260921_askq2"></script>
   <script defer src="js/ask-sfe.js?v=20260921_askq2"></script>
   <script defer src="js/ask-executive.js?v=20260921_askq2"></script>
-  <script defer src="js/app.js?v=20261026_launch"></script>
+  <script defer src="js/app.js?v=20261026_calib"></script>
 
   <!-- Not-Seen Customers Modal -->
   <div id="ns-modal-overlay" class="ns-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ns-modal-title-text">

@@ -157,7 +157,8 @@
         "iqvia_source/config/Zeta_Dashboard_User_Config.xlsx",
         "iqvia_source/config/corp_restatements.json",
         "iqvia_source/config/dm1_corrections.json",
-        "iqvia_source/config/product_market_overrides.json"
+        "iqvia_source/config/product_market_overrides.json",
+        "iqvia_source/config/iqvia_calibrations.json"
       ],
       "depends_on": [],
       "outputs": ["cache/iqvia.data.js"],
