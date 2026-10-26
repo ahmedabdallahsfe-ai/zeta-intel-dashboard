@@ -502,6 +502,32 @@ def add_rationale(cache_path=None, iqvia_path=None, write=True):
     for a, b in np.unique(flat[flat[:, CI] == zi_][:, [LINEI, BUI]], axis=0).tolist():
         lb.setdefault(L["lines"][a], []).append(L["bus"][b])
     meta["links"] = {"dm1_dm2": {k: sorted(set(v)) for k, v in dd.items()}, "line_bu": {k: sorted(set(v)) for k, v in lb.items()}}
+    # 2026-10-26 (Ahmed, "filters only"): launch markets = defined DM1s with no Zeta row yet (e.g. the Cluster
+    # launch markets from product_market_overrides.json). They are listed under the BU / Line written on their own
+    # IQVIA rows so the cascading filters can reach them. FILTERS ONLY: BU / Line segment members and totals are
+    # NOT changed (BU / Line market = DM1s where Zeta sells, unchanged); once Zeta sells, the DM1 joins normally.
+    in_org = set()
+    for seg in obj["segments"]:
+        if seg["type"] in ("BU", "Line"):
+            in_org.update(seg.get("members") or [])
+    skip_l = {"other markets", "(none)", ""} | HIDDEN_LINES
+    launch = {"BU": {}, "Line": {}}
+    for seg in obj["segments"]:
+        if seg["type"] != "DM1" or seg["name"] in in_org or seg["name"] == "OTHER MARKET" or seg["name"] not in d1:
+            continue
+        rr = flat[flat[:, D1I] == d1[seg["name"]]]
+        for typ, col, lk in (("BU", BUI, "bus"), ("Line", LINEI, "lines")):
+            for i in np.unique(rr[:, col]).tolist():
+                nm = L[lk][i]
+                if str(nm).strip().lower() in skip_l:
+                    continue
+                launch[typ].setdefault(nm, []).append(seg["name"])
+    for typ in ("Line",):   # a launch Line must still find its BU in the cascade
+        for ln in launch[typ]:
+            if ln not in meta["links"]["line_bu"]:
+                rr = flat[np.isin(flat[:, D1I], [d1[m] for m in launch[typ][ln]]) & (flat[:, LINEI] == L["lines"].index(ln))]
+                meta["links"]["line_bu"][ln] = sorted({L["bus"][x] for x in np.unique(rr[:, BUI]).tolist()})
+    meta["links"]["launch"] = {t: {k: sorted(set(v)) for k, v in m.items()} for t, m in launch.items()}
     meta["rationale_built"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     if write:
         size = write_cache(obj, cache_path)

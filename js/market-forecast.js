@@ -56,6 +56,9 @@
     var dm1 = {};
     bus.forEach(function (r) { if (buOk(r.name)) (r.members || []).forEach(function (m) { dm1[m] = 1; }); });
     lines.forEach(function (r) { if (lineOk(r.name)) (r.members || []).forEach(function (m) { dm1[m] = 1; }); });
+    var LN0 = (D.meta && D.meta.links && D.meta.links.launch) || {};   // 2026-10-26: launch markets follow their BU / Line access
+    Object.keys(LN0.BU || {}).forEach(function (b) { if (buOk(b)) LN0.BU[b].forEach(function (m) { dm1[m] = 1; }); });
+    Object.keys(LN0.Line || {}).forEach(function (l) { if (lineOk(l)) LN0.Line[l].forEach(function (m) { dm1[m] = 1; }); });
     ALLOWED = function (r) {
       if (unrestricted) return true;
       if (r.type === 'BU') return buOk(r.name);
@@ -146,7 +149,9 @@
     if (d12) Object.keys(d12).forEach(function (a) { d12[a].forEach(function (b) { (d21[b] = d21[b] || []).push(a); }); });
     else segs('DM2').forEach(function (r) { if (segs('DM1').some(function (q) { return q.name === r.name; })) d21[r.name] = [r.name]; });   // fallback: same-name twin
     if (!lb) { lb = {}; segs('Line').forEach(function (l) { segs('BU').forEach(function (b) { if ((l.members || []).length && l.members.every(function (m) { return (b.members || []).indexOf(m) >= 0; })) (lb[l.name] = lb[l.name] || []).push(b.name); }); }); }
-    return (LK = { d21: d21, lb: lb });
+    var ln = L0.launch || {}, lnSet = {};   // 2026-10-26 (Ahmed): launch markets (no Zeta sales yet) - filters only, BU / Line totals unchanged
+    ['BU', 'Line'].forEach(function (t) { Object.keys(ln[t] || {}).forEach(function (n) { ln[t][n].forEach(function (m) { lnSet[m] = 1; }); }); });
+    return (LK = { d21: d21, lb: lb, ln: ln, lnSet: lnSet });
   }
   function bySize(a) { return a.slice().sort(function (x, y) { return size(y) - size(x); }); }
   function segOf(k, n) { return segs(k).find(function (q) { return q.name === n; }); }
@@ -155,6 +160,8 @@
     if (k === 'BU') return bySize(segs('BU'));
     if (k === 'Line') return bySize(segs('Line').filter(function (l) { return !F.BU || (X.lb[l.name] || []).indexOf(F.BU) >= 0; }));
     var base = F.Line && segOf('Line', F.Line) ? segOf('Line', F.Line).members : F.BU && segOf('BU', F.BU) ? segOf('BU', F.BU).members : null;
+    var lx = F.Line ? ((X.ln.Line || {})[F.Line] || []) : F.BU ? ((X.ln.BU || {})[F.BU] || []) : [];
+    if (base && lx.length) base = base.concat(lx);   // launch markets listed under their BU / Line (navigation only)
     if (k === 'DM1') return bySize(segs('DM1').filter(function (q) { return !base || base.indexOf(q.name) >= 0; }));
     var d1 = F.DM1 ? [F.DM1] : base ? fOpts('DM1').map(function (q) { return q.name; }) : null;
     return bySize(segs('DM2').filter(function (q) { return !d1 || (X.d21[q.name] || []).some(function (a) { return d1.indexOf(a) >= 0; }); }));
@@ -191,7 +198,8 @@
     FK.forEach(function (k) {
       var sel = ROOT.querySelector('#mf-f' + k); if (!sel) return;
       var list = fOpts(k), all = k === 'BU' ? 'All business units' : k === 'Line' ? 'All lines' : 'All ' + k + ' markets';
-      sel.innerHTML = '<option value="">' + esc(all) + ' (' + list.length + ')</option>' + list.map(function (r) { return '<option value="' + esc(r.name) + '"' + (r.name === F[k] ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join('');
+      var LS = links().lnSet;
+      sel.innerHTML = '<option value="">' + esc(all) + ' (' + list.length + ')</option>' + list.map(function (r) { return '<option value="' + esc(r.name) + '"' + (r.name === F[k] ? ' selected' : '') + '>' + esc(r.name) + (k === 'DM1' && LS[r.name] ? ' (launch)' : '') + '</option>'; }).join('');
       sel.parentNode.classList.toggle('on', !!F[k] && ST.level === k);
       sel.parentNode.classList.toggle('set', !!F[k]);
     });
