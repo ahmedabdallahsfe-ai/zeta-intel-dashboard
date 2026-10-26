@@ -1,0 +1,24 @@
+{
+  "_comment": "IQVIA calibration (2026-10-26, Ahmed). IQVIA_SOURCE over-reports some Zeta brands in 2026. Each rule deducts deduct_pct x excess_packs (IQVIA pack units, not SU) from the product's rows in period_from..period_to, spread pro-rata to IQVIA's own monthly volume (one factor per rule; LCV scaled by the same factor). Applied by refresh_iqvia.py step 2e AFTER restatements and market overrides. The calibrated figures go into the main cache (every page, Market Growth Forecast included, reads calibrated data); the raw IQVIA values of the touched rows are kept in cache 'calibration.raw' so Market Intelligence can switch Data basis: Calibrated / IQVIA raw. Raw IQVIA_SOURCE.xlsx is NOT edited. Set enabled=false (whole file or one rule) and re-run UPDATE_DASHBOARD to remove.",
+  "enabled": true,
+  "rules": [
+    {
+      "id": "EMPACOZA-PLUS-2026",
+      "enabled": true,
+      "product": "EMPACOZA PLUS",
+      "corporation": "ZETA PHARM*",
+      "period_from": "2026-01", "period_to": "2026-08",
+      "excess_packs": 188000, "deduct_pct": 0.75, "su_per_pack": 30,
+      "why": "Ahmed: IQVIA_SOURCE 2026 shows ~188k extra packs (units, not SU) for EMPACOZA PLUS; fix by deducting 75% of them (141,000 packs = 4,230,000 SU), spread Jan-Aug 2026 pro-rata to IQVIA monthly packs."
+    },
+    {
+      "id": "EMPACOZA-TRIO-XR-2026",
+      "enabled": true,
+      "product": "EMPACOZA TRIO XR",
+      "corporation": "ZETA PHARM*",
+      "period_from": "2026-01", "period_to": "2026-08",
+      "excess_packs": 133000, "deduct_pct": 0.75, "su_per_pack": 30,
+      "why": "Ahmed: IQVIA_SOURCE 2026 shows ~133k extra packs for EMPACOZA TRIO XR; deduct 75% (99,750 packs = 2,992,500 SU), spread Jan-Aug 2026 pro-rata."
+    }
+  ]
+}

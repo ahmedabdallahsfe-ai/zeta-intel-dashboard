@@ -1431,3 +1431,6 @@ body.mi-iqvia-mode .main-content-area > .topbar h1 { font-size: 15px; }
 body.mi-iqvia-mode .main-content-area > .topbar .topbar-export-btn { padding-top: 5px; padding-bottom: 5px; }
 body.mi-iqvia-mode .main-content-area > .filter-bar-wrap { display: none; }
 body.mi-iqvia-mode #app-root { margin-top: 0; margin-bottom: 0; }
+
+/* 2026-10-26: Data basis toggle (Calibrated / IQVIA raw) -- same order as the LCV/SU group, right after it */
+.iqvia-dashboard-wrap #topbar #tb-basis{margin-left:4px!important}

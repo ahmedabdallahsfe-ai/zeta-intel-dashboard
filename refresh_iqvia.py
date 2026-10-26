@@ -303,6 +303,51 @@ if os.path.exists(PRODUCT_MARKET_OVERRIDES_FILE):
     except Exception as e:
         log(f'WARNING: product market overrides skipped ({e})')
 
+# -- 2e. IQVIA CALIBRATION (2026-10-26, Ahmed) -----------------------------------
+# iqvia_source/config/iqvia_calibrations.json deducts a fixed share of IQVIA's
+# over-reported packs from named products (e.g. 75% of 188k EMPACOZA PLUS packs
+# in 2026), spread pro-rata to IQVIA's own monthly volume (one factor per rule,
+# LCV scaled by the same factor). The main cache carries CALIBRATED values; the
+# raw values of every touched row go to cache_obj['calibration'] so Market
+# Intelligence can switch back to "IQVIA raw". Raw IQVIA_SOURCE.xlsx untouched.
+IQVIA_CALIBRATIONS_FILE = os.path.join(ROOT_DIR, 'iqvia_source', 'config', 'iqvia_calibrations.json')
+_calib = {'rules': [], 'raw': []}   # raw: [row_index, raw_lcv, raw_su]
+if os.path.exists(IQVIA_CALIBRATIONS_FILE):
+    try:
+        _cc = json.load(open(IQVIA_CALIBRATIONS_FILE, encoding='utf-8'))
+        if _cc.get('enabled', True):
+            print('\n[2e/4] Applying IQVIA calibrations...', flush=True)
+            _touched = {}
+            for _r in _cc.get('rules', []):
+                if not _r.get('enabled', True):
+                    log(f"Calibration {_r.get('id')} disabled -- skipped"); continue
+                _pf, _pt = _r['period_from'], _r['period_to']; _corp = _r.get('corporation')
+                _idx = [i for i in range(len(prods_r)) if prods_r[i] == _r['product'] and (not _corp or corps_r[i] == _corp)
+                        and _pf <= str(periods_r[i])[:7] <= _pt]
+                _su0 = sum(sus_r[i] for i in _idx); _lc0 = sum(lcvs_r[i] for i in _idx)
+                _ded = float(_r['excess_packs']) * float(_r['deduct_pct']) * float(_r.get('su_per_pack', 1))
+                if not _idx or _su0 <= 0:
+                    log(f"WARNING: calibration {_r.get('id')} matched 0 rows / 0 SU -- check product / periods"); continue
+                if _ded >= _su0:
+                    log(f"WARNING: calibration {_r.get('id')} deduction {_ded:,.0f} SU >= IQVIA {_su0:,} SU -- skipped"); continue
+                _f = 1.0 - _ded / _su0
+                for i in _idx:
+                    if i not in _touched: _touched[i] = (lcvs_r[i], sus_r[i])
+                    sus_r[i] = int(round(sus_r[i] * _f)); lcvs_r[i] = int(round(lcvs_r[i] * _f))
+                _su1 = sum(sus_r[i] for i in _idx); _lc1 = sum(lcvs_r[i] for i in _idx)
+                _sp = float(_r.get('su_per_pack', 1))
+                log(f"Calibration {_r.get('id')}: {len(_idx)} rows {_pf}..{_pt}, factor {_f:.4f}; SU {_su0:,} -> {_su1:,} "
+                    f"(-{_su0-_su1:,} SU = -{(_su0-_su1)/_sp:,.0f} packs); LCV {_lc0:,} -> {_lc1:,} (-{_lc0-_lc1:,})")
+                _calib['rules'].append({'id': _r.get('id'), 'product': _r['product'], 'period_from': _pf, 'period_to': _pt,
+                                        'excess_packs': _r['excess_packs'], 'deduct_pct': _r['deduct_pct'], 'su_per_pack': _sp,
+                                        'factor': round(_f, 6), 'rows': len(_idx),
+                                        'su_raw': _su0, 'su_cal': _su1, 'lcv_raw': _lc0, 'lcv_cal': _lc1, 'why': _r.get('why', '')})
+            _calib['raw'] = [[i, v[0], v[1]] for i, v in sorted(_touched.items())]
+        else:
+            log('IQVIA calibrations disabled in config -- skipped')
+    except Exception as e:
+        log(f'WARNING: IQVIA calibrations skipped ({e})')
+
 corp_codes, corps_list   = build_lookup(corps_r)
 prod_codes, prods_list   = build_lookup(prods_r)
 per_codes,  periods_list = build_lookup(periods_r)
@@ -540,7 +585,8 @@ cache_obj = {
     'targets': targets_list,
     'users': zeta_users,
     'kpis': kpi_data,
-    'restatements': _restatement_log
+    'restatements': _restatement_log,
+    'calibration': _calib
 }
 
 # Write JSON

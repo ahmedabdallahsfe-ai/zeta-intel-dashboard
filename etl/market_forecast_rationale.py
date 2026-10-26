@@ -528,6 +528,13 @@ def add_rationale(cache_path=None, iqvia_path=None, write=True):
                 rr = flat[np.isin(flat[:, D1I], [d1[m] for m in launch[typ][ln]]) & (flat[:, LINEI] == L["lines"].index(ln))]
                 meta["links"]["line_bu"][ln] = sorted({L["bus"][x] for x in np.unique(rr[:, BUI]).tolist()})
     meta["links"]["launch"] = {t: {k: sorted(set(v)) for k, v in m.items()} for t, m in launch.items()}
+    # 2026-10-26 (Ahmed): the forecast is built on CALIBRATED IQVIA (refresh_iqvia.py step 2e); carry the rules for the page note
+    try:
+        _cal = (json.load(open(iqvia_path, encoding="utf-8")).get("calibration") or {}).get("rules") or []
+        meta["calibration"] = [{k: r.get(k) for k in ("id", "product", "period_from", "period_to", "excess_packs", "deduct_pct",
+                                                       "su_per_pack", "su_raw", "su_cal", "lcv_raw", "lcv_cal")} for r in _cal]
+    except Exception:
+        meta["calibration"] = []
     meta["rationale_built"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     if write:
         size = write_cache(obj, cache_path)

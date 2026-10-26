@@ -42,6 +42,12 @@
   function fmtP(p, d) { if (!fin(p)) return '—'; if (p >= 1000) return 'New'; return (p > 0 ? '+' : '') + p.toFixed(d == null ? 1 : d) + '%'; }   // p already in %; >= +1000% = launch base -> "New" (2026-10-16)
   function fmtF(x, d) { return fin(x) ? fmtP(x * 100, d) : '—'; }                                                    // x is a fraction
   function per(p) { return MON[+p.slice(5, 7) - 1] + ' ' + p.slice(0, 4); }
+  // 2026-10-26 (Ahmed): forecast built on calibrated IQVIA (iqvia_source/config/iqvia_calibrations.json)
+  function calNote(m) {
+    var c = (m && m.calibration) || []; if (!c.length) return '';
+    var t = c.map(function (r) { var pk = Math.round((r.su_raw - r.su_cal) / (r.su_per_pack || 1)); return r.product + ' ' + r.period_from + '..' + r.period_to + ': -' + pk.toLocaleString() + ' packs (' + Math.round(r.deduct_pct * 100) + '% of ' + Number(r.excess_packs).toLocaleString() + ' excess IQVIA packs)'; }).join('; ');
+    return ' · <b title="' + esc(t + '. Markets, lines, BUs and the Egypt total containing these brands are reduced by the same packs.') + '">Calibrated IQVIA</b> (' + esc(c.map(function (r) { return r.product; }).join(', ')) + ')';
+  }
   function confCls(c) { return c === 'Higher' ? 'hi' : c === 'Moderate' ? 'mo' : 'lo'; }
 
   // ── access scope (page is SFE/Admin only today; scope rules make a later widening safe) ──
@@ -124,7 +130,7 @@
     return '<div class="wrap">' +
       '<header class="top"><div><h1>Market Growth Forecast — FY' + m.target_year + '</h1>' +
       '<div class="sub" id="mf-hsub"></div></div>' +
-      '<div class="sub asof">Actuals to <b>' + esc(per(m.data_period)) + '</b> · built ' + esc(m.generated_at) + '</div></header>' +
+      '<div class="sub asof">Actuals to <b>' + esc(per(m.data_period)) + '</b> · built ' + esc(m.generated_at) + calNote(m) + '</div></header>' +
       '<div class="mfstick" id="mf-stick"><section class="card controls" aria-label="Filters">' +
       FK.filter(function (k) { return segs(k).length; }).map(function (k) { return '<div class="ctl grow fdd"><label for="mf-f' + k + '">' + esc(FLBL[k]) + '</label><select id="mf-f' + k + '" data-f="' + k + '"></select></div>'; }).join('') +
       '<div class="ctl"><label>&nbsp;</label><button type="button" class="xbtn ghost" id="mf-freset" title="Clear all market filters">Reset</button></div>' +
