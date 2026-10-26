@@ -168,11 +168,11 @@
     {
       "id": "market_forecast",
       "label": "Market Growth Forecast (FY next year, IQVIA SU)",
-      "commands": [["etl/build_market_forecast_v2.py", "--publish"]],
+      "commands": [["etl/build_market_forecast_v2.py", "--publish"], ["etl/build_market_forecast_raw.py"]],
       "critical": false,
       "sources": [],
       "depends_on": ["iqvia"],
-      "outputs": ["cache/market_forecast.data.js"],
+      "outputs": ["cache/market_forecast.data.js", "cache/market_forecast_raw.data.js"],
       "pages": ["marketforecast"],
       "_note": "Added 2026-10-12 (Ahmed); champion engine 2026-10-13. Runs v1 (etl/build_market_forecast.py --cache) first, then the champion tournament (v1 + v2 methods per market) overlays it. Needs pip install -r requirements-forecast-v2.txt; without those libraries the champion cache is kept while IQVIA is unchanged, otherwise v1 is published. Several minutes per run. Non-critical: on failure the previous / v1 cache is kept. Review JSON: python etl/build_market_forecast_v2.py -> Claude outputs/Market Forecast v2/."
     },

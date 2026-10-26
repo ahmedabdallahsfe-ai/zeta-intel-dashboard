@@ -1372,15 +1372,16 @@ def publish(n_jobs=1):
         try:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             from market_forecast_cap import cap_alignment        # 2026-10-16: no DM1 moved > 5 pts by the alignment
-            cap_alignment()
+            _cp = os.environ.get("MF_CACHE_DST") or None; _ip = os.environ.get("MF_IQVIA_SRC") or None   # 2026-10-26: Original IQVIA build
+            cap_alignment(cache_path=_cp)
             from market_forecast_dm2_align import align_dm2   # 2026-10-19: every DM2 adds up to its DM1
-            align_dm2()
+            align_dm2(cache_path=_cp, iqvia_path=_ip)
             from market_forecast_value import add_value          # 2026-10-15: EGP view (SU forecast x today's price)
-            add_value()
+            add_value(cache_path=_cp, iqvia_path=_ip)
             from market_forecast_rationale import add_rationale
-            add_rationale()
+            add_rationale(cache_path=_cp, iqvia_path=_ip)
             from market_forecast_packs import add_packs        # 2026-10-20: packs view (SU / IQVIA pack size)
-            add_packs()
+            add_packs(cache_path=_cp, iqvia_path=_ip)
         except Exception as e:                                      # noqa: BLE001
             import traceback; traceback.print_exc()
             print(f"rationale step failed ({type(e).__name__}); forecast cache kept without rationale")
@@ -1397,8 +1398,8 @@ def _publish_forecast(n_jobs=1):
        run the champion tournament and overlay it. If the champion run fails, the fresh v1 cache stays.
     """
     import subprocess, sys
-    src = os.path.join(ROOT, "cache", "iqvia.json")
-    dst = os.path.join(ROOT, "cache", "market_forecast.data.js")
+    src = os.environ.get("MF_IQVIA_SRC") or os.path.join(ROOT, "cache", "iqvia.json")   # 2026-10-26: env override = Original IQVIA build
+    dst = os.environ.get("MF_CACHE_DST") or os.path.join(ROOT, "cache", "market_forecast.data.js")
     v1 = os.path.join(ROOT, "etl", "build_market_forecast.py")
     ok, why = _libs_ok()
     if not ok:

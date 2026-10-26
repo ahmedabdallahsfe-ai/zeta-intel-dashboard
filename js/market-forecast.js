@@ -9,8 +9,8 @@
 (function (global) {
   'use strict';
 
-  function decode() {
-    var c = global.MARKET_FORECAST_CACHE;
+  function decode(gv) {   // gv: 'MARKET_FORECAST_CACHE' (calibrated IQVIA, default) | 'MARKET_FORECAST_RAW_CACHE' (original IQVIA, 2026-10-26)
+    var c = global[gv || 'MARKET_FORECAST_CACHE'];
     if (!c || !c.b64Data || typeof pako === 'undefined') return null;
     var bin = atob(c.b64Data), bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -22,7 +22,7 @@
   }
 
   var D = null, HOST = null, ROOT = null;
-  var ST = { level: 'DM1', seg: {}, sort: 'size', meas: 'su', f: { BU: '', Line: '', DM1: '', DM2: '' } };   // meas: 'su' | 'val' (2026-10-15)
+  var ST = { level: 'DM1', seg: {}, sort: 'size', meas: 'su', basis: 'cal', f: { BU: '', Line: '', DM1: '', DM2: '' } };   // meas: 'su' | 'val' (2026-10-15)
   var KEY = 'zeta_mf_state';
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var LEVELS = [['DM1', 'Defined market (DM1)'], ['DM2', 'Defined market (DM2)'], ['BU', 'Business unit'], ['Line', 'Line'], ['Total', 'Egypt total']];
@@ -44,6 +44,7 @@
   function per(p) { return MON[+p.slice(5, 7) - 1] + ' ' + p.slice(0, 4); }
   // 2026-10-26 (Ahmed): forecast built on calibrated IQVIA (iqvia_source/config/iqvia_calibrations.json)
   function calNote(m) {
+    if (ST.basis === 'raw') return ' · <b title="IQVIA as delivered - the calibration deductions are NOT applied in this view.">Original IQVIA</b> (not calibrated)';
     var c = (m && m.calibration) || []; if (!c.length) return '';
     var t = c.map(function (r) { var pk = Math.round((r.su_raw - r.su_cal) / (r.su_per_pack || 1)); return r.product + ' ' + r.period_from + '..' + r.period_to + ': -' + pk.toLocaleString() + ' packs (' + Math.round(r.deduct_pct * 100) + '% of ' + Number(r.excess_packs).toLocaleString() + ' excess IQVIA packs)'; }).join('; ');
     return ' · <b title="' + esc(t + '. Markets, lines, BUs and the Egypt total containing these brands are reduced by the same packs.') + '">Calibrated IQVIA</b> (' + esc(c.map(function (r) { return r.product; }).join(', ')) + ')';
@@ -90,6 +91,10 @@
   // value slots hold packs (seg.packs / seg.scorecard_pk from etl/market_forecast_packs.py: SU / IQVIA pack size; FY packs =
   // SU forecast x packs per SU of the last 6 months). Plans stay in SU shares; packs follow from each item's own pack mix.
   var D_SU = null, D_PK = null;
+  // 2026-10-26 (Ahmed): Data basis = Calibrated IQVIA (default, iqvia_calibrations.json) or Original IQVIA (as delivered).
+  // Two complete forecast caches; D_SU points at the one in view, so every section, plan and export follows the switch.
+  var D_CAL = null, D_RAW = null;
+  function hasCal() { return !!(D_CAL && D_CAL.meta && (D_CAL.meta.calibration || []).length); }
   function hasPK() { var b = D_SU || D; return !!b && b.segments.some(function (r) { return r.packs && fin(r.packs.fy_target); }); }
   function isPK() { return ST.meas === 'pk' && hasPK(); }
   function pkData() {
@@ -130,11 +135,12 @@
     return '<div class="wrap">' +
       '<header class="top"><div><h1>Market Growth Forecast — FY' + m.target_year + '</h1>' +
       '<div class="sub" id="mf-hsub"></div></div>' +
-      '<div class="sub asof">Actuals to <b>' + esc(per(m.data_period)) + '</b> · built ' + esc(m.generated_at) + calNote(m) + '</div></header>' +
+      '<div class="sub asof">Actuals to <b>' + esc(per(m.data_period)) + '</b> · built ' + esc(m.generated_at) + '<span id="mf-basisnote">' + calNote(m) + '</span></div></header>' +
       '<div class="mfstick" id="mf-stick"><section class="card controls" aria-label="Filters">' +
       FK.filter(function (k) { return segs(k).length; }).map(function (k) { return '<div class="ctl grow fdd"><label for="mf-f' + k + '">' + esc(FLBL[k]) + '</label><select id="mf-f' + k + '" data-f="' + k + '"></select></div>'; }).join('') +
       '<div class="ctl"><label>&nbsp;</label><button type="button" class="xbtn ghost" id="mf-freset" title="Clear all market filters">Reset</button></div>' +
       (hasVal() ? '<div class="ctl"><label>Measure</label><div class="seg" id="mf-meas"><button data-v="su" aria-pressed="' + (ST.meas !== 'val' && ST.meas !== 'pk') + '">Standard Units</button><button data-v="val" aria-pressed="' + (ST.meas === 'val') + '">Value (EGP)</button>' + (hasPK() ? '<button data-v="pk" aria-pressed="' + (ST.meas === 'pk') + '" title="IQVIA Standard Units ÷ pack size of each item">Packs</button>' : '') + '</div></div>' : '') +
+      (hasCal() ? '<div class="ctl"><label>Data basis</label><div class="seg" id="mf-basis"><button data-v="cal" aria-pressed="' + (ST.basis !== 'raw') + '" title="IQVIA after the calibration deductions (iqvia_calibrations.json)">Calibrated</button><button data-v="raw" aria-pressed="' + (ST.basis === 'raw') + '" title="IQVIA exactly as delivered">Original IQVIA</button></div></div>' : '') +
       '</section>' +
       '<nav class="mfnav" id="mf-nav" aria-label="Page sections">' + SECS.map(function (x, i) { return '<a href="#' + x[0] + '" data-t="' + x[0] + '"><span class="secn">' + (i + 1) + '</span>' + esc(x[1]) + '</a>'; }).join('') + '</nav></div>' +
       secHd(1, 'Summary', 'the market, its FY' + m.target_year + ' forecast and where Zeta stands') + '<div id="mf-sum"></div>' +
@@ -2865,6 +2871,28 @@
     el.textContent = isPK() ? 'IQVIA packs (boxes) = Standard Units ÷ each item\'s pack size. Each market\'s volume forecast × its packs per SU of the last 6 months (today\'s pack mix).' : isV() ? 'IQVIA value (EGP). Each market\'s volume forecast × its price per Standard Unit today — one forecast per market, with the reasons behind it. No new price increase assumed.'
       : 'IQVIA Standard Units. One forecast per market, built from its own IQVIA sales history, with the business reasons behind it. Switch the measure to see value (EGP).';
   }
+  function applyBasis(b) {
+    ST.basis = b; D_SU = b === 'raw' ? D_RAW : D_CAL; D_PK = null; LK = null; setD();
+    try { computeScope(); } catch (e) { console.warn('[MarketForecast] scope', e); }
+    var bz = ROOT && ROOT.querySelector('#mf-basis');
+    if (bz) bz.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.v === b)); x.disabled = false; });
+    var bn = ROOT && ROOT.querySelector('#mf-basisnote'); if (bn) bn.innerHTML = calNote(D_SU.meta);
+    fFix(); fView(); render();
+  }
+  function setBasis(b) {
+    b = b === 'raw' ? 'raw' : 'cal'; if (b === ST.basis) return;
+    if (b === 'cal' || D_RAW) { applyBasis(b); return; }
+    var bz = ROOT.querySelector('#mf-basis'); if (bz) bz.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
+    var bn = ROOT.querySelector('#mf-basisnote'); if (bn) bn.innerHTML = ' · loading Original IQVIA forecast…';
+    var p = global.CacheLoader && global.CacheLoader.ensure ? global.CacheLoader.ensure('market_forecast_raw') : Promise.resolve(!!global.MARKET_FORECAST_RAW_CACHE);
+    p.then(function () {
+      D_RAW = D_RAW || decode('MARKET_FORECAST_RAW_CACHE');
+      if (D_RAW) { applyBasis('raw'); return; }
+      if (bz) bz.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
+      if (bn) bn.innerHTML = calNote(D_SU.meta) + ' · <b style="color:#b45309">Original IQVIA forecast not built yet - run UPDATE_DASHBOARD.bat</b>';
+    });
+  }
+
   function render() {
     hsub(); fillSelect(); portfolio();
     var pf = ROOT.querySelector('#mf-pf'), h2 = ROOT.querySelector('#mf-s2'); if (h2) h2.style.display = pf && pf.style.display !== 'none' && pf.innerHTML ? '' : 'none';
@@ -2884,6 +2912,8 @@
     });
     global.addEventListener('scroll', onScroll, { passive: true });
     var rb = ROOT.querySelector('#mf-freset'); if (rb) rb.addEventListener('click', function () { ST.f = { BU: '', Line: '', DM1: '', DM2: '' }; fView(); saveState(); render(); });
+    var bz = ROOT.querySelector('#mf-basis');
+    if (bz) bz.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setBasis(b.dataset.v); });
     var mz = ROOT.querySelector('#mf-meas');
     if (mz) mz.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
@@ -2921,7 +2951,7 @@
     document.body.classList.add('mfc-mode');
     c.innerHTML = '<div class="mfc" id="mfc-host"></div>'; HOST = ROOT = document.getElementById('mfc-host');
     try {
-      D_SU = D_SU || decode(); D = D_SU;
+      D_CAL = D_CAL || decode(); if (ST.basis === 'raw' && D_RAW) D_SU = D_RAW; else { ST.basis = 'cal'; D_SU = D_CAL; } D_PK = null; D = D_SU;
       if (!D) { ROOT.innerHTML = '<div style="padding:24px">Market forecast data not loaded (cache/market_forecast.data.js). Run UPDATE_DASHBOARD.bat or <code>python etl/build_market_forecast.py --cache</code>.</div>'; return; }
       computeScope();
       try { migrateAggPlans(); } catch (e) { console.warn('[MarketForecast] plan move', e); }

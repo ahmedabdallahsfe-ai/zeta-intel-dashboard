@@ -53,7 +53,7 @@ CFG = {
 }
 
 # ── Load existing IQVIA cache ────────────────────────────────────────────────
-SRC = os.path.join(ROOT, 'cache', 'iqvia.json')
+SRC = os.environ.get('MF_IQVIA_SRC') or os.path.join(ROOT, 'cache', 'iqvia.json')   # 2026-10-26: env override = 'Original IQVIA' build (etl/build_market_forecast_raw.py)
 d = json.load(open(SRC, encoding='utf-8'))
 L = d['lookups']; P = L['periods']; T = len(P)
 flat = np.array(json.loads(gzip.decompress(base64.b64decode(d['b64Data']))), dtype=np.int64).reshape(-1, 14)
@@ -522,7 +522,7 @@ if ARGS.cache:
               'measure': 'IQVIA Standard Units', 'config': CFG, 'models': MODEL_LABEL, 'global_checks': glob}
     js = json.dumps({'meta': meta_c, 'segments': slim}, separators=(',', ':'))
     b64 = base64.b64encode(gzip.compress(js.encode('utf-8'), compresslevel=9)).decode('ascii')
-    outp = os.path.join(ROOT, 'cache', 'market_forecast.data.js')
+    outp = os.environ.get('MF_CACHE_DST') or os.path.join(ROOT, 'cache', 'market_forecast.data.js')
     tmp = outp + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as fh:
         fh.write('window.MARKET_FORECAST_CACHE = {b64Data:"' + b64 + '"};\n')

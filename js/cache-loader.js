@@ -104,6 +104,13 @@
       label: "Market growth forecast",
       version: "20261026_2254_auto",
     },
+    // Market Growth Forecast on ORIGINAL IQVIA (2026-10-26) -- etl/build_market_forecast_raw.py; loaded only when the page switches to "Original IQVIA"
+    market_forecast_raw: {
+      file: "cache/market_forecast_raw.data.js",
+      globalVar: "MARKET_FORECAST_RAW_CACHE",
+      label: "Market growth forecast (original IQVIA)",
+      version: "20261026_mfraw",
+    },
     // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache (source: Total Market Intelligence)
     market_dynamics: {
       file: "cache/market_dynamics.data.js",
