@@ -95,6 +95,19 @@
   // Two complete forecast caches; D_SU points at the one in view, so every section, plan and export follows the switch.
   var D_CAL = null, D_RAW = null;
   function hasCal() { return !!(D_CAL && D_CAL.meta && (D_CAL.meta.calibration || []).length); }
+  // 2026-10-27 (Ahmed: SFE forecast must calculate right on Calibrated AND Original IQVIA; chose "keep %, recalc SU"):
+  // a plan keeps its item SHARES and its market GROWTH % vs FY LE. A market typed on one basis (plan.mktBasis) is
+  // re-expressed on the basis in view: mkt x LE(view) / LE(saved basis) (LE of the other basis = meta.other_le, written
+  // by etl/build_market_forecast_raw.py). Plans saved before the calibration went live (UPDATE_DASHBOARD
+  // 20261026_225430 Cairo) were typed on original IQVIA.
+  var CAL_LIVE_TS = Date.parse('2026-10-26T19:54:30Z');
+  function viewBasis() { return (D && D.meta && D.meta.basis) || ST.basis || 'cal'; }
+  function planBasis(sv) { return sv && sv.mktBasis ? sv.mktBasis : (sv && sv.ts && sv.ts >= CAL_LIVE_TS ? 'cal' : 'raw'); }
+  function mktToView(r, mkt, basis) {
+    if (!fin(mkt) || !(mkt > 0) || !basis || !D || !D.meta || !D.meta.other_le || basis === viewBasis()) return mkt;
+    var o = D.meta.other_le[segKey(r)], a = o && o[0], b = (r.forecast || {}).fy_le;
+    return fin(a) && a > 0 && fin(b) && b > 0 ? Math.round(mkt * b / a) : mkt;
+  }
   function hasPK() { var b = D_SU || D; return !!b && b.segments.some(function (r) { return r.packs && fin(r.packs.fy_target); }); }
   function isPK() { return ST.meas === 'pk' && hasPK(); }
   function pkData() {
@@ -710,7 +723,7 @@
       var v = src[k]; if (!v || !v.items) return;
       var t = a[k] || { mkt: v.mkt, items: {}, saved: v.saved, by: (v.by || '') + ' (copied)' }; t.items = t.items || {};
       Object.keys(v.items).forEach(function (it) { if (!fin(t.items[it]) && fin(v.items[it])) { t.items[it] = v.items[it]; n++; } });
-      if (!fin(t.mkt) && fin(v.mkt)) t.mkt = v.mkt;
+      if (!fin(t.mkt) && fin(v.mkt)) { t.mkt = v.mkt; t.mktBasis = planBasis(v); }
       if (/^(BU|Line|Total)\|/.test(k)) delete t.migrated;
       a[k] = t;
     });
@@ -837,7 +850,7 @@
     var iS = H.findIndex(function (c) { return /^[A-Za-z]+ share$/.test(c) && c !== 'Objective share'; });
     var iV = H.findIndex(function (c) { return /^Market FY\d+ — [A-Za-z]+ view/.test(c); }), iY = H.findIndex(function (c) { return /system forecast/.test(c); });
     var nI = 0, nM = 0, stamp = 'imported ' + new Date().toLocaleString();
-    var rec = function (k) { if (!a[k]) a[k] = { mkt: null, items: {}, saved: stamp, by: fname, ts: Date.now() }; a[k].items = a[k].items || {}; return a[k]; };
+    var rec = function (k) { if (!a[k]) a[k] = { mkt: null, mktBasis: viewBasis(), items: {}, saved: stamp, by: fname, ts: Date.now() }; a[k].items = a[k].items || {}; return a[k]; };
     rows.slice(hi + 1).forEach(function (r) {
       if (!r || !r[iM] || !r[iI]) return;
       var nm = String(r[iM]), it = String(r[iI]), lv = iL >= 0 ? r[iL] : null, k = ty + '|' + nm;
@@ -953,7 +966,8 @@
     return Object.assign({}, raw || { mkt: null, saved: ov.saved, by: ov.by }, { items: items, fromDM2: from });
   }
   function bexSavedOwnRaw(r) {
-    var sv = bex2All()[segKey(r)]; if (!sv) return null;
+    var sv0 = bex2All()[segKey(r)]; if (!sv0) return null;
+    var sv = fin(sv0.mkt) && sv0.mkt > 0 ? Object.assign({}, sv0, { mkt: mktToView(r, sv0.mkt, planBasis(sv0)) }) : sv0;
     var its = (((r.scorecard || {}).zeta) || {}).items || [], names = {}, pk = {}, moved = false, out = {};
     its.forEach(function (i) { names[i.item] = 1; (i.packs || []).forEach(function (p) { pk[p] = i.item; }); });
     Object.keys(sv.items || {}).forEach(function (k) {
@@ -1360,7 +1374,7 @@
       overview(); };
     var bs = el.querySelector('#mf-bsave'); if (bs) bs.onclick = function () {
       var a = bex2All(), has = fin(D_.mkt) || Object.keys(D_.items).length;
-      if (has) a[segKey(r)] = { mkt: fin(D_.mkt) ? D_.mkt : null, items: JSON.parse(JSON.stringify(D_.items)), saved: new Date().toLocaleString(), by: who, ts: Date.now() }; else delete a[segKey(r)];
+      if (has) a[segKey(r)] = { mkt: fin(D_.mkt) ? D_.mkt : null, mktBasis: viewBasis(), items: JSON.parse(JSON.stringify(D_.items)), saved: new Date().toLocaleString(), by: who, ts: Date.now() }; else delete a[segKey(r)];
       sfAsk();
       var ok = bex2Put(a); overview();
       if (!ok) { var m2 = ROOT.querySelector('#mf-bmsg'); if (m2) m2.textContent = 'Could not save in this browser — use the Excel export.'; } };
@@ -2754,7 +2768,7 @@
         rows.forEach(function (x) {
           var t = lvl[x['Level']] || x['Level'], nm = x['Market'], it = x['Item']; if (!t || !nm || !it) return;
           var k = t + '|' + nm, sh = parseFloat(x[Object.keys(x).find(function (c) { return /^[A-Za-z]+ share %$/.test(c); })]), mk = parseFloat(String(x[Object.keys(x).find(function (c) { return /^[A-Za-z]+ market SU/.test(c); })] || '').replace(/,/g, ''));
-          if (!touched[k]) { touched[k] = 1; a[k] = { mkt: null, items: {}, saved: 'imported ' + new Date().toLocaleString(), by: file.name, ts: Date.now() }; }
+          if (!touched[k]) { touched[k] = 1; a[k] = { mkt: null, mktBasis: viewBasis(), items: {}, saved: 'imported ' + new Date().toLocaleString(), by: file.name, ts: Date.now() }; }
           if (fin(mk) && mk > 0 && !fin(a[k].mkt)) { a[k].mkt = mk; nM++; }
           if (fin(sh) && sh >= 0 && sh <= 100) { a[k].items[it] = Math.round(sh * 100) / 100; nI++; }
         });
@@ -2872,7 +2886,21 @@
       : 'IQVIA Standard Units. One forecast per market, built from its own IQVIA sales history, with the business reasons behind it. Switch the measure to see value (EGP).';
   }
   function applyBasis(b) {
-    ST.basis = b; D_SU = b === 'raw' ? D_RAW : D_CAL; D_PK = null; LK = null; setD();
+    // unsaved edits follow the switch (market re-expressed with the same growth %); untouched drafts are dropped and
+    // rebuilt from the saved plan on the new basis. The cascaded-objective memo belongs to one basis: reset it.
+    var D0 = D_SU, keep = {};
+    Object.keys(DRAFT).forEach(function (k) {
+      var r0 = D0 && D0.segments.find(function (q) { return segKey(q) === k; }); if (!r0) return;
+      var dirty = false; try { D = D0; dirty = bexDirty(r0); } catch (e) { }
+      if (dirty) keep[k] = { d: DRAFT[k], le: (r0.forecast || {}).fy_le };
+    });
+    ST.basis = b; D_SU = b === 'raw' ? D_RAW : D_CAL; D_PK = null; LK = null; CASC = {}; setD();
+    DRAFT = {};
+    Object.keys(keep).forEach(function (k) {
+      var r1 = D_SU.segments.find(function (q) { return segKey(q) === k; }), d = keep[k].d, le1 = r1 && (r1.forecast || {}).fy_le;
+      if (r1 && fin(d.mkt) && d.mkt > 0 && keep[k].le > 0 && le1 > 0) d.mkt = Math.round(d.mkt * le1 / keep[k].le);
+      DRAFT[k] = d;
+    });
     try { computeScope(); } catch (e) { console.warn('[MarketForecast] scope', e); }
     var bz = ROOT && ROOT.querySelector('#mf-basis');
     if (bz) bz.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.v === b)); x.disabled = false; });

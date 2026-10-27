@@ -22,6 +22,19 @@ RAW_SRC = os.path.join(ROOT, "cache", "iqvia_raw.json")
 DST = os.path.join(ROOT, "cache", "market_forecast_raw.data.js")
 
 
+def _read(path):
+    import re
+    txt = open(path, encoding="utf-8").read()
+    return json.loads(gzip.decompress(base64.b64decode(re.search(r'b64Data:"([^"]+)"', txt).group(1))))
+
+
+def _write(obj, path, gvar):
+    b64 = base64.b64encode(gzip.compress(json.dumps(obj, separators=(",", ":"), default=float).encode("utf-8"), compresslevel=9)).decode("ascii")
+    with open(path + ".tmp", "w", encoding="utf-8") as fh:
+        fh.write("window." + gvar + ' = {b64Data:"' + b64 + '"};\n')
+    os.replace(path + ".tmp", path)
+
+
 def main():
     d = json.load(open(SRC, encoding="utf-8"))
     cal = d.get("calibration") or {}
@@ -43,12 +56,16 @@ def main():
     if rc != 0 or not os.path.exists(DST):
         # never fail the market_forecast step (that would roll back the calibrated forecast too): keep the previous raw cache
         print(f"WARNING: Original-IQVIA forecast failed (rc={rc}); previous cache/market_forecast_raw.data.js kept, calibrated forecast unaffected"); return 0
-    txt = open(DST, encoding="utf-8").read()
-    if txt.startswith("window.MARKET_FORECAST_CACHE"):
-        txt = "window.MARKET_FORECAST_RAW_CACHE" + txt[len("window.MARKET_FORECAST_CACHE"):]
-        with open(DST + ".tmp", "w", encoding="utf-8") as fh:
-            fh.write(txt)
-        os.replace(DST + ".tmp", DST)
+    # 2026-10-27 (Ahmed: "SFE forecast ... right calculation after calibration and IQVIA raw"): each cache carries the
+    # FY LE of every market in the OTHER basis (meta.other_le) and its own basis (meta.basis), so a saved plan market
+    # typed on one basis is re-expressed on the other with the same growth % vs LE (js/market-forecast.js mktToView).
+    cal_p = os.path.join(ROOT, "cache", "market_forecast.data.js")
+    cal, rawc = _read(cal_p), _read(DST)
+    le = lambda o: {f"{s['type']}|{s['name']}": [(s.get("forecast") or {}).get("fy_le"), (s.get("value") or {}).get("fy_le")] for s in o["segments"]}
+    cal["meta"]["basis"], rawc["meta"]["basis"] = "cal", "raw"
+    cal["meta"]["other_le"], rawc["meta"]["other_le"] = le(rawc), le(cal)
+    _write(cal, cal_p, "MARKET_FORECAST_CACHE")
+    _write(rawc, DST, "MARKET_FORECAST_RAW_CACHE")
     print(f"Original-IQVIA forecast OK -> cache/market_forecast_raw.data.js ({os.path.getsize(DST) / 1e6:.2f} MB)")
     return 0
 
