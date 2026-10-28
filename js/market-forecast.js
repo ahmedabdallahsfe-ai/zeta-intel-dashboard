@@ -2947,13 +2947,30 @@
     for (var i = 1; i <= n; i++) mon.push(yr + '-' + (i < 10 ? '0' : '') + i);
     var have = ((IHD.meta || {}).months || []).filter(function (x) { return mon.indexOf(x) >= 0; }), adj = have.length ? n / have.length : 1;
     var inp = ihAll(), S = ihScope(), out = [];
+    // 2026-10-28 (Ahmed: "NEXICURE PLUS work for CAP and SACHETS separately"): as in the Market Sizing export, a brand whose
+    // SKUs fall into two or more DM2 markets of its DM1 is planned per DM2 (own market, forecast, value, packs); the DM1 keeps the rest.
+    var units = [], L12 = ((D_CAL.meta || {}).links || {}).dm1_dm2 || {};
     S.list.forEach(function (r) {
-      var its = (((r.scorecard || {}).zeta) || {}).items || [], B = {}, ord = [];
+      var its0 = (((r.scorecard || {}).zeta) || {}).items || [], d2b = {}, segs2 = {};
+      (L12[r.name] || []).forEach(function (n2) {
+        if (n2 === r.name) return;
+        var s2 = D_CAL.segments.find(function (q) { return q.type === 'DM2' && q.name === n2; }); if (!s2) return; segs2[n2] = s2;
+        ((((s2.scorecard || {}).zeta) || {}).items || []).forEach(function (i) { if (its0.some(function (x) { return x.item === i.item; })) (d2b[i.brand] = d2b[i.brand] || {})[n2] = 1; });
+      });
+      var split = Object.keys(d2b).filter(function (b) { return Object.keys(d2b[b]).length > 1; });
+      split.forEach(function (b) { Object.keys(d2b[b]).forEach(function (n2) {
+        units.push({ seg: segs2[n2], dm1: r.name, split: split, items: ((((segs2[n2].scorecard || {}).zeta) || {}).items || []).filter(function (i) { return i.brand === b; }) });
+      }); });
+      units.push({ seg: r, dm1: r.name, split: split, rest: true, items: its0.filter(function (i) { return split.indexOf(i.brand) < 0; }) });
+    });
+    units.forEach(function (u) {
+      var r = u.seg, its = u.items, B = {}, ord = [];
       var bOf = function (b) { if (!B[b]) { B[b] = { brand: b, iq: 0, ih: 0, ihPk: 0, ihVal: 0, items: [] }; ord.push(b); } return B[b]; };
       its.forEach(function (it) { var b = bOf(it.brand); b.iq += (it.ytd || [0])[0] || 0; b.items.push(it.item); });
       Object.keys(IHD.items || {}).forEach(function (k) {
-        if (k.slice(0, r.name.length + 2) !== r.name + '||') return;
-        var o = IHD.items[k], itn = k.slice(r.name.length + 2), it = its.find(function (x) { return x.item === itn; });
+        if (k.slice(0, u.dm1.length + 2) !== u.dm1 + '||') return;
+        var o = IHD.items[k], itn = k.slice(u.dm1.length + 2), it = its.find(function (x) { return x.item === itn; });
+        if (!it && (!u.rest || u.split.indexOf(o.brand) >= 0)) return;   // that SKU is planned on its DM2 row
         var b = bOf(it ? it.brand : o.brand);
         have.forEach(function (mm) { var v = (o.months || {})[mm]; if (v) { b.ihPk += v[0] * adj; b.ih += v[1] * adj; b.ihVal += v[2] * adj; } });
       });
@@ -2965,7 +2982,7 @@
       var g = Mle > 0 && fin(M27) ? M27 / Mle - 1 : null;
       var pLE = Mle > 0 && fin(v.fy_le) ? v.fy_le / Mle : null, p27 = M27 > 0 && fin(v.fy_target) ? v.fy_target / M27 : null;
       var k27 = M27 > 0 && fin(pk.fy_target) ? pk.fy_target / M27 : null;
-      var mk = { r: r, name: r.name, ok: ok, why: !(iq > 0) ? 'no Zeta sales in IQVIA - market not re-sized' : !(ih > 0) ? 'no in-house sales mapped - market not re-sized' : '',
+      var mk = { r: r, name: r.name, dm1: u.dm1, isDM2: r.type === 'DM2', ok: ok, why: !(iq > 0) ? 'no Zeta sales in IQVIA - market not re-sized' : !(ih > 0) ? 'no in-house sales mapped - market not re-sized' : '',
         k: k, shareIQ: My > 0 ? iq / My : null, iq: iq, ih: ih, My: My, cMy: My * k, cLE: Mle * k, c27: fin(M27) ? M27 * k : null, g: g,
         cLEv: fin(pLE) ? Mle * k * pLE : null, c27v: fin(p27) && fin(M27) ? M27 * k * p27 : null, c27pk: fin(k27) && fin(M27) ? M27 * k * k27 : null, brands: [] };
       brands.forEach(function (b) {
@@ -3008,7 +3025,7 @@
       '<th class="r">Market SU<br>FY' + py + ' LE</th><th class="r">Market EGP<br>FY' + py + ' LE</th><th class="r">Market growth<br>FY' + ty + '</th><th class="r">Market SU<br>FY' + ty + '</th><th class="r">Market EGP<br>FY' + ty + '</th>' +
       '<th class="r">Target share SU<br>FY' + ty + '</th><th class="r">Target SU</th><th class="r">Target EGP</th><th class="r">Target packs</th><th class="r">Zeta growth<br>vs FY' + py + ' LE</th></tr></thead><tbody>';
     M.rows.forEach(function (x) {
-      h += '<tr class="ihm"><td><b>' + esc(x.name) + '</b>' + (x.ok ? '' : ' <span class="mut" title="' + esc(x.why) + '">· IQVIA as is</span>') + '</td><td class="num r">' + ihC(x.iq) + '</td><td class="num r">' + ihC(x.ih) + '</td><td class="num r">' + (x.ok ? '×' + x.k.toFixed(2) : '—') + '</td><td class="num r">' + ihPct(x.sh0, 2) + '</td>' +
+      h += '<tr class="ihm"><td><b>' + esc(x.name) + '</b>' + (x.isDM2 ? ' <span class="mut">· DM2 of ' + esc(x.dm1) + '</span>' : '') + (x.ok ? '' : ' <span class="mut" title="' + esc(x.why) + '">· IQVIA as is</span>') + '</td><td class="num r">' + ihC(x.iq) + '</td><td class="num r">' + ihC(x.ih) + '</td><td class="num r">' + (x.ok ? '×' + x.k.toFixed(2) : '—') + '</td><td class="num r">' + ihPct(x.sh0, 2) + '</td>' +
         '<td class="num r">' + ihC(x.cLE) + '</td><td class="num r">' + ihC(x.cLEv) + '</td><td class="num r">' + fmtF(x.g) + '</td><td class="num r"><b>' + ihC(x.c27) + '</b></td><td class="num r"><b>' + ihC(x.c27v) + '</b></td>' +
         '<td class="num r"><b>' + ihPct(x.t, 2) + '</b></td><td class="num r"><b>' + ihC(x.tSU) + '</b></td><td class="num r"><b>' + ihC(x.tVal) + '</b></td><td class="num r"><b>' + ihC(x.tPk) + '</b></td><td class="num r">' + fmtF(x.gr) + '</td></tr>';
       x.brands.forEach(function (b) {
@@ -3073,7 +3090,7 @@
         var mlab = T.mon.length ? MON[+T.mon[0].slice(5, 7) - 1] + '–' + MON[+T.mon[T.mon.length - 1].slice(5, 7) - 1] + ' ' + py : '';
         var G = [];
         M.rows.forEach(function (x) {
-          var bu = orgOf('BU', [x.name]), ln = orgOf('Line', [x.name]), p27 = x.c27 > 0 && fin(x.c27v) ? x.c27v / x.c27 : null;
+          var bu = orgOf('BU', [x.dm1 || x.name]), ln = orgOf('Line', [x.dm1 || x.name]), p27 = x.c27 > 0 && fin(x.c27v) ? x.c27v / x.c27 : null;
           x.brands.forEach(function (b, bi) { G.push({ x: x, b: b, first: bi === 0, bu: bu, line: ln, mp: p27 }); });
         });
         G.sort(function (a, b) { return (a.bu || '~').localeCompare(b.bu || '~') || (a.line || '~').localeCompare(b.line || '~') || a.x.name.localeCompare(b.x.name) || (a.first ? -1 : b.first ? 1 : 0); });
@@ -3144,7 +3161,7 @@
         });
         ws.getRow(5).height = 20.1;
         [C.ziq, C.ge, C.note].forEach(function (j) { var c4 = ws.getCell(TR, j); c4.border = { top: { style: 'thin', color: { argb: NAVY } }, left: { style: 'medium', color: { argb: edge[j] } } }; });
-        var HD = { bu: 'Business unit', line: 'Line', dm: 'Market (DM1)', brand: 'Zeta brand',
+        var HD = { bu: 'Business unit', line: 'Line', dm: 'Market (DM1 / DM2)', brand: 'Zeta brand',
           ziq: 'Zeta IQVIA SU ' + mlab, zih: 'Zeta in-house SU ' + mlab, fac: 'Calibration factor', sh26: 'Est. market share SU ' + py,
           mst26: 'Market SU FY' + py + ' LE', mv26: 'Market EGP FY' + py + ' LE', zst26: 'Zeta SU FY' + py + ' LE', zv26: 'Zeta EGP FY' + py + ' LE',
           ge: 'Market growth FY' + ty + ' (input)', mst27: 'Market SU FY' + ty, mv27: 'Market EGP FY' + ty, she: 'Target share SU (input)',
@@ -3215,6 +3232,7 @@
           ['3. Market SU FY' + ty + ' = Market SU FY' + py + ' LE × (1 + market growth). Market growth (yellow, first row of each market) is pre-filled with the IQVIA forecast growth.'],
           ['4. Target SU = Market SU FY' + ty + ' × target share (yellow, each brand; pre-filled with the dashboard share or the estimated ' + py + ' share).'],
           ['5. Target EGP = Target SU × Zeta in-house net EGP per SU (YTD). Target packs = Target SU ÷ Zeta in-house SU per pack (YTD pack mix).'],
+          ['5b. A brand whose SKUs sit in two DM2 markets of one DM1 (NEXICURE PLUS capsules / sachets) is planned on each DM2 market separately (own market size, growth and target).'],
           ['6. A market with two Zeta brands shows its market figures on its first row only, so totals of the visible rows never count a market twice.'],
           ['Business unit / Line = the forecast\'s BU and Line market membership (a market shared by two lines lists both).']].forEach(function (l, i) {
           var c = wm.getCell(i + 1, 1); c.value = l[0]; c.font = l[1] ? { bold: true, size: 14, color: { argb: NAVY } } : { size: 10, color: { argb: INK } }; c.alignment = { wrapText: true, vertical: 'top' };
