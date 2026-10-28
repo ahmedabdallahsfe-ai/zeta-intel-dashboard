@@ -177,6 +177,17 @@
       "_note": "Added 2026-10-12 (Ahmed); champion engine 2026-10-13. Runs v1 (etl/build_market_forecast.py --cache) first, then the champion tournament (v1 + v2 methods per market) overlays it. Needs pip install -r requirements-forecast-v2.txt; without those libraries the champion cache is kept while IQVIA is unchanged, otherwise v1 is published. Several minutes per run. Non-critical: on failure the previous / v1 cache is kept. Review JSON: python etl/build_market_forecast_v2.py -> Claude outputs/Market Forecast v2/."
     },
     {
+      "id": "market_forecast_inhouse",
+      "label": "Market Growth Forecast - in-house calibrated market (Sales Performance x IQVIA items)",
+      "commands": [["etl/build_market_forecast_inhouse.py"]],
+      "critical": false,
+      "sources": ["config/inhouse_iqvia_item_map.json"],
+      "depends_on": ["sales", "market_forecast"],
+      "outputs": ["cache/market_forecast_inhouse.data.js"],
+      "pages": ["marketforecast"],
+      "_note": "Added 2026-10-28 (Ahmed): Data basis In-house calibrated tab. Maps Sales Performance net sales (cache/sales.json) to the forecast IQVIA items per month (packs, SU, EGP). Stdlib only, about 10 s. Never fails the run; on error the previous cache is kept."
+    },
+    {
       "id": "auth",
       "label": "Sign-in roster",
       "commands": [["etl/build_auth_cache.py"]],

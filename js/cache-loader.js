@@ -111,6 +111,13 @@
       label: "Market growth forecast (original IQVIA)",
       version: "20261027_basisplan",
     },
+    // Market Growth Forecast - in-house calibrated tab (2026-10-28) -- etl/build_market_forecast_inhouse.py; loaded when the page switches to "In-house calibrated"
+    market_forecast_inhouse: {
+      file: "cache/market_forecast_inhouse.data.js",
+      globalVar: "MARKET_FORECAST_INHOUSE",
+      label: "Market growth forecast (in-house sales)",
+      version: "20261028_1409_auto",
+    },
     // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache (source: Total Market Intelligence)
     market_dynamics: {
       file: "cache/market_dynamics.data.js",
