@@ -3021,20 +3021,20 @@
       '<section class="kpis">' + kp.map(function (c) { return '<div class="kpi"><div class="kl">' + esc(c[0]) + '</div><div class="kv">' + c[1] + '</div><div class="ks">' + esc(c[2]) + '</div></div>'; }).join('') + '</section>' +
       '<section class="card"><div class="ihbar"><p class="note" style="margin:0">Market = calibrated IQVIA × (Zeta in-house SU ÷ Zeta IQVIA SU, ' + esc(mlab) + '): Zeta\'s estimated share ' + py + ' and the IQVIA market growth % ' + ty + ' are kept. Type the <b>target market share (SU)</b> per brand; target SU, EGP and packs follow. Market EGP = IQVIA price per SU; Zeta EGP = in-house net price per SU.' + (T.adj !== 1 ? ' <b>In-house months ' + T.mon.length + ' of ' + m.partial_months + ' — annualised to the IQVIA months.</b>' : '') + '</p>' +
       '<div class="btns"><button type="button" class="xbtn ghost" id="mf-ihreset" title="Clear the typed shares in this view (back to the estimated ' + py + ' share)">Reset shares</button><button type="button" class="xbtn pro" id="mf-ihx" title="Formatted workbook (Market Sizing style): Business unit, Line, market, brand; yellow inputs for market growth and target share recalculate everything">⬇ Excel — in-house calibrated targets</button></div></div>' +
-      '<div class="ihwrap"><table class="tbl ih"><thead><tr><th>Market / Zeta brand</th><th class="r">Zeta IQVIA SU<br>' + esc(mlab) + '</th><th class="r">Zeta in-house SU<br>' + esc(mlab) + '</th><th class="r">Factor</th><th class="r">Est. share SU<br>' + py + '</th>' +
+      '<div class="ihwrap"><table class="tbl ih"><thead><tr><th>Market / Zeta brand</th><th class="r">Zeta IQVIA SU<br>' + esc(mlab) + '</th><th class="r">Zeta in-house SU<br>' + esc(mlab) + '</th><th class="r">Zeta in-house EGP<br>' + esc(mlab) + '</th><th class="r">Factor</th><th class="r">Est. share SU<br>' + py + '</th>' +
       '<th class="r">Market SU<br>FY' + py + ' LE</th><th class="r">Market EGP<br>FY' + py + ' LE</th><th class="r">Market growth<br>FY' + ty + '</th><th class="r">Market SU<br>FY' + ty + '</th><th class="r">Market EGP<br>FY' + ty + '</th>' +
       '<th class="r">Target share SU<br>FY' + ty + '</th><th class="r">Target SU</th><th class="r">Target EGP</th><th class="r">Target packs</th><th class="r">Zeta growth<br>vs FY' + py + ' LE</th></tr></thead><tbody>';
     M.rows.forEach(function (x) {
-      h += '<tr class="ihm"><td><b>' + esc(x.name) + '</b>' + (x.isDM2 ? ' <span class="mut">· DM2 of ' + esc(x.dm1) + '</span>' : '') + (x.ok ? '' : ' <span class="mut" title="' + esc(x.why) + '">· IQVIA as is</span>') + '</td><td class="num r">' + ihC(x.iq) + '</td><td class="num r">' + ihC(x.ih) + '</td><td class="num r">' + (x.ok ? '×' + x.k.toFixed(2) : '—') + '</td><td class="num r">' + ihPct(x.sh0, 2) + '</td>' +
+      h += '<tr class="ihm"><td><b>' + esc(x.name) + '</b>' + (x.isDM2 ? ' <span class="mut">· DM2 of ' + esc(x.dm1) + '</span>' : '') + (x.ok ? '' : ' <span class="mut" title="' + esc(x.why) + '">· IQVIA as is</span>') + '</td><td class="num r">' + ihC(x.iq) + '</td><td class="num r">' + ihC(x.ih) + '</td><td class="num r">' + ihC(x.ihVal, 'EGP') + '</td><td class="num r">' + (x.ok ? '×' + x.k.toFixed(2) : '—') + '</td><td class="num r">' + ihPct(x.sh0, 2) + '</td>' +
         '<td class="num r">' + ihC(x.cLE) + '</td><td class="num r">' + ihC(x.cLEv) + '</td><td class="num r">' + fmtF(x.g) + '</td><td class="num r"><b>' + ihC(x.c27) + '</b></td><td class="num r"><b>' + ihC(x.c27v) + '</b></td>' +
         '<td class="num r"><b>' + ihPct(x.t, 2) + '</b></td><td class="num r"><b>' + ihC(x.tSU) + '</b></td><td class="num r"><b>' + ihC(x.tVal) + '</b></td><td class="num r"><b>' + ihC(x.tPk) + '</b></td><td class="num r">' + fmtF(x.gr) + '</td></tr>';
       x.brands.forEach(function (b) {
-        h += '<tr class="ihb"><td>' + esc(b.brand) + '</td><td class="num r">' + ihC(b.iq) + '</td><td class="num r">' + ihC(b.ih) + '</td><td class="num r">' + (fin(b.k) ? '×' + b.k.toFixed(2) : '—') + '</td><td class="num r">' + ihPct(b.sh0, 2) + '</td><td colspan="5"></td>' +
+        h += '<tr class="ihb"><td>' + esc(b.brand) + '</td><td class="num r">' + ihC(b.iq) + '</td><td class="num r">' + ihC(b.ih) + '</td><td class="num r">' + ihC(b.ihVal, 'EGP') + '</td><td class="num r">' + (fin(b.k) ? '×' + b.k.toFixed(2) : '—') + '</td><td class="num r">' + ihPct(b.sh0, 2) + '</td><td colspan="5"></td>' +
           '<td class="num r"><input type="text" inputmode="decimal" class="bexi ihi" data-k="' + esc(b.key) + '" value="' + (b.set ? +(b.t * 100).toFixed(4) : '') + '" placeholder="' + (fin(b.sh0) ? (b.sh0 * 100).toFixed(2) : '') + '" title="Target market share SU FY' + ty + ' (%). Empty = estimated ' + py + ' share"> %</td>' +
           '<td class="num r">' + ihC(b.tSU) + '</td><td class="num r">' + ihC(b.tVal) + '</td><td class="num r">' + ihC(b.tPk) + '</td><td class="num r">' + fmtF(b.gr) + '</td></tr>';
       });
     });
-    h += '<tr class="ihm tot"><td><b>Total (' + T.n + ' markets)</b></td><td class="num r">' + ihC(T.iq) + '</td><td class="num r">' + ihC(T.ih) + '</td><td></td><td></td><td class="num r">' + ihC(T.cLE) + '</td><td class="num r">' + ihC(T.cLEv) + '</td><td class="num r">' + fmtF(T.gM) + '</td><td class="num r"><b>' + ihC(T.c27) + '</b></td><td class="num r"><b>' + ihC(T.c27v) + '</b></td><td class="num r"><b>' + ihPct(T.t, 2) + '</b></td><td class="num r"><b>' + ihC(T.tSU) + '</b></td><td class="num r"><b>' + ihC(T.tVal) + '</b></td><td class="num r"><b>' + ihC(T.tPk) + '</b></td><td class="num r">' + fmtF(T.gZ) + '</td></tr>';
+    h += '<tr class="ihm tot"><td><b>Total (' + T.n + ' markets)</b></td><td class="num r">' + ihC(T.iq) + '</td><td class="num r">' + ihC(T.ih) + '</td><td class="num r">' + ihC(T.ihVal, 'EGP') + '</td><td></td><td></td><td class="num r">' + ihC(T.cLE) + '</td><td class="num r">' + ihC(T.cLEv) + '</td><td class="num r">' + fmtF(T.gM) + '</td><td class="num r"><b>' + ihC(T.c27) + '</b></td><td class="num r"><b>' + ihC(T.c27v) + '</b></td><td class="num r"><b>' + ihPct(T.t, 2) + '</b></td><td class="num r"><b>' + ihC(T.tSU) + '</b></td><td class="num r"><b>' + ihC(T.tVal) + '</b></td><td class="num r"><b>' + ihC(T.tPk) + '</b></td><td class="num r">' + fmtF(T.gZ) + '</td></tr>';
     h += '</tbody></table></div>';
     var um = (IHD.meta || {}).unmapped || [];
     h += '<p class="note mut">In-house sales: Sales Performance (net of returns; CHC_SALES duplicate and Non-Promoted lines excluded), built ' + esc((IHD.meta || {}).built || '') + '. Product → IQVIA item mapping: ' + esc((IHD.meta || {}).map_file || '') + (um.length ? ' · <b>' + um.length + ' product(s) not mapped</b>: ' + um.map(function (u) { return esc(u.product); }).join(', ') : '') + '.</p></section>';
@@ -3094,23 +3094,23 @@
           x.brands.forEach(function (b, bi) { G.push({ x: x, b: b, first: bi === 0, bu: bu, line: ln, mp: p27 }); });
         });
         G.sort(function (a, b) { return (a.bu || '~').localeCompare(b.bu || '~') || (a.line || '~').localeCompare(b.line || '~') || a.x.name.localeCompare(b.x.name) || (a.first ? -1 : b.first ? 1 : 0); });
-        var K = ['bu', 'line', 'dm', 'brand', 'ziq', 'zih', 'fac', 'sh26', 'mst26', 'mv26', 'zst26', 'zv26', 'ge', 'mst27', 'mv27', 'she', 'zst27', 'zv27', 'zpk', 'zg', 'note', 'mp', 'zp', 'spp', 'mp26', 'qs', 'mleiq'];
+        var K = ['bu', 'line', 'dm', 'brand', 'ziq', 'zih', 'zihv', 'fac', 'sh26', 'mst26', 'mv26', 'zst26', 'zv26', 'ge', 'mst27', 'mv27', 'she', 'zst27', 'zv27', 'zpk', 'zg', 'note', 'mp', 'zp', 'spp', 'mp26', 'qs', 'mleiq'];
         var C = {}; K.forEach(function (k, i) { C[k] = i + 1; });
         var L = function (k) { return colL(C[k]); };
         var NF = '#,##0;\\(#,##0\\);"-"', P2 = '0.00%;\\(0.00%\\);"-"', GF = '[Color10]\\+0.0%;[Red]\\-0.0%;0.0%', PPF = '[Color10]\\+0.00" pp";[Red]\\-0.00" pp";0.00" pp"', FF = '0.00"×"';
         var NAVY = XC.navy, B26 = 'FF3B5B8C', B27 = 'FF0E7490', INK = 'FF1F2937', GREY = XC.grey, TOT = 'FFE2E8F0', SEP = 'FFE2E8F0';
         var wb = new window.ExcelJS.Workbook(); wb.creator = 'Zeta Intel Dashboard'; wb.created = new Date(); wb.calcProperties = { fullCalcOnLoad: true };
         var ws = wb.addWorksheet('In-house calibrated', { properties: { tabColor: { argb: 'FF2563EB' } } });
-        var Wd = { bu: 11, line: 11, dm: 32, brand: 22, ziq: 14, zih: 14, fac: 9, sh26: 11, note: 46, mp: 8, zp: 8, spp: 8 };
+        var Wd = { bu: 11, line: 11, dm: 32, brand: 22, ziq: 14, zih: 14, zihv: 15, fac: 9, sh26: 11, note: 46, mp: 8, zp: 8, spp: 8 };
         K.forEach(function (k) { ws.getColumn(C[k]).width = Wd[k] || 14.5; });
         ['mp', 'zp', 'spp', 'mp26', 'qs', 'mleiq'].forEach(function (k) { ws.getColumn(C[k]).hidden = true; });
         var t = ws.getCell('A1'); t.value = 'In-house calibrated market — FY' + py + ' and FY' + ty + ' · Zeta brands (' + T.label + ')'; t.font = { bold: true, size: 16, color: { argb: NAVY } }; t.alignment = { vertical: 'middle' };
         ws.getRow(1).height = 26.1;
         var H = 6, R0 = 7, RN = R0 + Math.max(G.length, 1) - 1, TR = 4;
         var S = function (k) { return 'SUBTOTAL(109,' + L(k) + R0 + ':' + L(k) + RN + ')'; };
-        var Tv = {}; ['ziq', 'zih', 'mst26', 'mv26', 'zst26', 'zv26', 'mst27', 'mv27', 'zst27', 'zv27', 'zpk'].forEach(function (k) { Tv[k] = 0; });
+        var Tv = {}; ['ziq', 'zih', 'zihv', 'mst26', 'mv26', 'zst26', 'zv26', 'mst27', 'mv27', 'zst27', 'zv27', 'zpk'].forEach(function (k) { Tv[k] = 0; });
         var rowV = G.map(function (g) {
-          var x = g.x, b = g.b, v = { ziq: b.iq, zih: b.ih, zst26: b.le, zv26: fin(b.le) && fin(b.pSU) ? b.le * b.pSU : null, zst27: b.tSU, zv27: b.tVal, zpk: b.tPk };
+          var x = g.x, b = g.b, v = { ziq: b.iq, zih: b.ih, zihv: b.ihVal, zst26: b.le, zv26: fin(b.le) && fin(b.pSU) ? b.le * b.pSU : null, zst27: b.tSU, zv27: b.tVal, zpk: b.tPk };
           if (g.first) { v.mst26 = x.cLE; v.mv26 = x.cLEv; v.mst27 = x.c27; v.mv27 = x.c27v; }
           Object.keys(Tv).forEach(function (k) { if (fin(v[k])) Tv[k] += v[k]; });
           return v;
@@ -3141,7 +3141,7 @@
         });
         ws.getRow(2).height = 18; ws.getRow(3).height = 26.1;
         var e4 = ws.getCell(TR, C.brand); e4.value = 'Total (visible rows)';
-        var TF = { ziq: NF, zih: NF, fac: FF, sh26: P2, mst26: NF, mv26: NF, zst26: NF, zv26: NF, ge: GF, mst27: NF, mv27: NF, she: P2, zst27: NF, zv27: NF, zpk: NF, zg: GF };
+        var TF = { ziq: NF, zih: NF, zihv: NF, fac: FF, sh26: P2, mst26: NF, mv26: NF, zst26: NF, zv26: NF, ge: GF, mst27: NF, mv27: NF, she: P2, zst27: NF, zv27: NF, zpk: NF, zg: GF };
         for (var tc = C.brand; tc <= C.note; tc++) { var c4 = ws.getCell(TR, tc); c4.fill = xFill(TOT); c4.font = { bold: true, size: 10, color: { argb: INK } }; c4.alignment = { horizontal: tc === C.brand ? 'right' : undefined, vertical: 'middle' }; c4.border = { top: { style: 'thin', color: { argb: NAVY } } }; }
         Object.keys(TF).forEach(function (k) { var c4 = ws.getCell(TR, C[k]); c4.numFmt = TF[k]; if (Tv[k] != null) c4.value = fx(S(k), Tv[k]); });
         ws.getCell(TR, C.fac).value = fx('IFERROR(' + L('zih') + TR + '/' + L('ziq') + TR + ',"")', dv(Tv.zih, Tv.ziq));
@@ -3162,7 +3162,7 @@
         ws.getRow(5).height = 20.1;
         [C.ziq, C.ge, C.note].forEach(function (j) { var c4 = ws.getCell(TR, j); c4.border = { top: { style: 'thin', color: { argb: NAVY } }, left: { style: 'medium', color: { argb: edge[j] } } }; });
         var HD = { bu: 'Business unit', line: 'Line', dm: 'Market (DM1 / DM2)', brand: 'Zeta brand',
-          ziq: 'Zeta IQVIA SU ' + mlab, zih: 'Zeta in-house SU ' + mlab, fac: 'Calibration factor', sh26: 'Est. market share SU ' + py,
+          ziq: 'Zeta IQVIA SU ' + mlab, zih: 'Zeta in-house SU ' + mlab, zihv: 'Zeta in-house EGP ' + mlab, fac: 'Calibration factor', sh26: 'Est. market share SU ' + py,
           mst26: 'Market SU FY' + py + ' LE', mv26: 'Market EGP FY' + py + ' LE', zst26: 'Zeta SU FY' + py + ' LE', zv26: 'Zeta EGP FY' + py + ' LE',
           ge: 'Market growth FY' + ty + ' (input)', mst27: 'Market SU FY' + ty, mv27: 'Market EGP FY' + ty, she: 'Target share SU (input)',
           zst27: 'Target SU', zv27: 'Target EGP', zpk: 'Target packs', zg: 'Zeta SU growth vs FY' + py + ' LE',
@@ -3175,7 +3175,7 @@
           if (edge[j]) c.border = { left: { style: 'medium', color: { argb: edge[j] } } };
         });
         ws.getRow(H).height = 32.1;
-        var FMT = { ziq: NF, zih: NF, fac: FF, sh26: P2, mst26: NF, mv26: NF, zst26: NF, zv26: NF, ge: GF, mst27: NF, mv27: NF, she: P2, zst27: NF, zv27: NF, zpk: NF, zg: GF, mp: XF.px, zp: XF.px, spp: '0.0', mp26: XF.px, qs: '0.0000%', mleiq: NF };
+        var FMT = { ziq: NF, zih: NF, zihv: NF, fac: FF, sh26: P2, mst26: NF, mv26: NF, zst26: NF, zv26: NF, ge: GF, mst27: NF, mv27: NF, she: P2, zst27: NF, zv27: NF, zpk: NF, zg: GF, mp: XF.px, zp: XF.px, spp: '0.0', mp26: XF.px, qs: '0.0000%', mleiq: NF };
         var n0 = function (v) { return fin(v) ? v : null; }, firstRow = {}, lastRow = {};
         G.forEach(function (g, gi) { if (g.first) firstRow[g.x.name] = R0 + gi; lastRow[g.x.name] = R0 + gi; });
         G.forEach(function (g, gi) {
@@ -3191,7 +3191,7 @@
           // 2026-10-28 (Ahmed: "if I change Zeta SU FY2026 LE, auto-calculate the related figures"): Zeta SU FY LE is an input.
           // Market FY LE = sum of the market's Zeta SU LE / Zeta IQVIA share (kept), so share, factor, market SU/EGP 2026-2027 and targets follow.
           var lr = lastRow[x.name] || r, Zr = '$' + L('zst26') + '$' + fr + ':$' + L('zst26') + '$' + lr, M26 = '$' + L('mst26') + '$' + fr;
-          put('ziq', n0(b.iq)); put('zih', n0(b.ih));
+          put('ziq', n0(b.iq)); put('zih', n0(b.ih)); put('zihv', n0(b.ihVal));
           put('sh26', fx('IFERROR(' + L('zst26') + r + '/' + M26 + ',"")', fin(b.sh0) ? b.sh0 : ''));
           xInput(put('zst26', n0(v.zst26)), NF, 'num');
           put('zv26', fx('IF(OR(' + L('zst26') + r + '="",' + L('zp') + r + '=""),"",' + L('zst26') + r + '*' + L('zp') + r + ')', fin(v.zv26) ? v.zv26 : ''));
