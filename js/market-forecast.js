@@ -153,13 +153,14 @@
       FK.filter(function (k) { return segs(k).length; }).map(function (k) { return '<div class="ctl grow fdd"><label for="mf-f' + k + '">' + esc(FLBL[k]) + '</label><select id="mf-f' + k + '" data-f="' + k + '"></select></div>'; }).join('') +
       '<div class="ctl"><label>&nbsp;</label><button type="button" class="xbtn ghost" id="mf-freset" title="Clear all market filters">Reset</button></div>' +
       (hasVal() ? '<div class="ctl"><label>Measure</label><div class="seg" id="mf-meas"><button data-v="su" aria-pressed="' + (ST.meas !== 'val' && ST.meas !== 'pk') + '">Standard Units</button><button data-v="val" aria-pressed="' + (ST.meas === 'val') + '">Value (EGP)</button>' + (hasPK() ? '<button data-v="pk" aria-pressed="' + (ST.meas === 'pk') + '" title="IQVIA Standard Units ÷ pack size of each item">Packs</button>' : '') + '</div></div>' : '') +
-      (hasCal() ? '<div class="ctl"><label>Data basis</label><div class="seg" id="mf-basis"><button data-v="cal" aria-pressed="' + (ST.basis !== 'raw') + '" title="IQVIA after the calibration deductions (iqvia_calibrations.json)">Calibrated</button><button data-v="raw" aria-pressed="' + (ST.basis === 'raw') + '" title="IQVIA exactly as delivered">Original IQVIA</button></div></div>' : '') +
+      '<div class="ctl"><label>Data basis</label><div class="seg" id="mf-basis"><button data-v="cal" aria-pressed="' + (!ST.ih && ST.basis !== 'raw') + '" title="IQVIA after the calibration deductions (iqvia_calibrations.json)">Calibrated</button>' + (hasCal() ? '<button data-v="raw" aria-pressed="' + (!ST.ih && ST.basis === 'raw') + '" title="IQVIA exactly as delivered">Original IQVIA</button>' : '') + '<button data-v="ih" aria-pressed="' + !!ST.ih + '" title="Calibrated IQVIA market re-sized by Zeta in-house sales (Sales Performance). Type the target share SU per brand: target SU, EGP and packs follow.">In-house calibrated</button></div></div>' +
       '</section>' +
       '<nav class="mfnav" id="mf-nav" aria-label="Page sections">' + SECS.map(function (x, i) { return '<a href="#' + x[0] + '" data-t="' + x[0] + '"><span class="secn">' + (i + 1) + '</span>' + esc(x[1]) + '</a>'; }).join('') + '</nav></div>' +
       secHd(1, 'Summary', 'the market, its FY' + m.target_year + ' forecast and where Zeta stands') + '<div id="mf-sum"></div>' +
       secHd(2, 'Zeta portfolio', 'where FY' + m.target_year + ' is won or lost (SFE view)') + '<section class="card pf" id="mf-pf"></section>' +
       secHd(3, 'Market forecast', 'why this number, history and monthly path') + '<div id="mf-detail"></div>' +
       secHd(4, 'Competition', 'who wins the market and what moves it') + '<div id="mf-comp"></div>' +
+      '<div id="mf-ih"></div>' +
       secHd(5, 'Zeta FY' + m.target_year + ' plan', 'objective, ' + PN() + ' forecast' + (isSFEView() ? ' and share verdict' : '')) + '<div id="mf-ov"></div>' +
       '</div>';
   }
@@ -2903,7 +2904,7 @@
     });
     try { computeScope(); } catch (e) { console.warn('[MarketForecast] scope', e); }
     var bz = ROOT && ROOT.querySelector('#mf-basis');
-    if (bz) bz.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.v === b)); x.disabled = false; });
+    if (bz) bz.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(ST.ih ? x.dataset.v === 'ih' : x.dataset.v === b)); x.disabled = false; });
     var bn = ROOT && ROOT.querySelector('#mf-basisnote'); if (bn) bn.innerHTML = calNote(D_SU.meta);
     fFix(); fView(); render();
   }
@@ -2921,7 +2922,162 @@
     });
   }
 
+  // ── 2026-10-28 (Ahmed): Data basis "In-house calibrated" tab ──────────────────────────────────────────────────────
+  // IQVIA market re-sized with Zeta's in-house sales (Sales Performance, cache/market_forecast_inhouse.data.js built by
+  // etl/build_market_forecast_inhouse.py). Rules (per market, calibrated IQVIA forecast underneath):
+  //   k              = Zeta in-house SU YTD / Zeta IQVIA SU YTD                 (same months, Jan..last IQVIA month)
+  //   market 2026    = IQVIA market x k  -> Zeta's IQVIA share 2026 is KEPT (in-house SU = share x calibrated market)
+  //   market 2027    = calibrated market 2026 LE x (1 + IQVIA forecast growth % 2027)   -> growth % is KEPT
+  //   market EGP     = calibrated SU x IQVIA market price per SU (LE 2026 / FY2027, as the Value view)
+  //   target SU      = market 2027 SU x target share (input per Zeta brand; default = estimated share 2026)
+  //   target EGP     = target SU x the brand's in-house net price per SU (YTD); target packs = target SU / in-house SU per pack
+  // Only Zeta brands are shown. Inputs are kept in this browser per login (localStorage).
+  function ihData() { return global.MARKET_FORECAST_INHOUSE || null; }
+  function ihKey() { var u = curUser(); return 'zeta_mf_ihshare_fy' + D_CAL.meta.target_year + '|' + String((u && u.email) || 'local').toLowerCase(); }
+  function ihAll() { try { return JSON.parse(localStorage.getItem(ihKey()) || '{}') || {}; } catch (e) { return {}; } }
+  function ihPut(m) { try { localStorage.setItem(ihKey(), JSON.stringify(m)); return true; } catch (e) { return false; } }
+  function ihScope() {
+    var r = cur(), all = D_CAL.segments.filter(function (q) { return q.type === 'DM1' && q.name !== 'OTHER MARKET' && ALLOWED(q); });
+    if (!r || r.type === 'Total') return { list: all, label: 'all defined markets' };
+    var names = r.type === 'DM1' ? [r.name] : r.type === 'DM2' ? (links().d21[r.name] || [r.name]) : (r.members || []);
+    return { list: all.filter(function (q) { return names.indexOf(q.name) >= 0; }), label: r.name };
+  }
+  function ihModel() {
+    var IHD = ihData(), m = D_CAL.meta, yr = String(m.partial_year), n = m.partial_months, mon = [];
+    for (var i = 1; i <= n; i++) mon.push(yr + '-' + (i < 10 ? '0' : '') + i);
+    var have = ((IHD.meta || {}).months || []).filter(function (x) { return mon.indexOf(x) >= 0; }), adj = have.length ? n / have.length : 1;
+    var inp = ihAll(), S = ihScope(), out = [];
+    S.list.forEach(function (r) {
+      var its = (((r.scorecard || {}).zeta) || {}).items || [], B = {}, ord = [];
+      var bOf = function (b) { if (!B[b]) { B[b] = { brand: b, iq: 0, ih: 0, ihPk: 0, ihVal: 0, items: [] }; ord.push(b); } return B[b]; };
+      its.forEach(function (it) { var b = bOf(it.brand); b.iq += (it.ytd || [0])[0] || 0; b.items.push(it.item); });
+      Object.keys(IHD.items || {}).forEach(function (k) {
+        if (k.slice(0, r.name.length + 2) !== r.name + '||') return;
+        var o = IHD.items[k], itn = k.slice(r.name.length + 2), it = its.find(function (x) { return x.item === itn; });
+        var b = bOf(it ? it.brand : o.brand);
+        have.forEach(function (mm) { var v = (o.months || {})[mm]; if (v) { b.ihPk += v[0] * adj; b.ih += v[1] * adj; b.ihVal += v[2] * adj; } });
+      });
+      var brands = ord.map(function (b) { return B[b]; }).filter(function (b) { return b.iq > 0 || b.ih > 0; });
+      if (!brands.length) return;
+      var f = r.forecast || {}, v = r.value || {}, pk = r.packs || {}, My = (r.ytd || {}).cur, Mle = f.fy_le, M27 = f.fy_target;
+      var iq = brands.reduce(function (a, b) { return a + b.iq; }, 0), ih = brands.reduce(function (a, b) { return a + b.ih; }, 0);
+      var ok = iq > 0 && ih > 0 && My > 0, k = ok ? ih / iq : 1;
+      var g = Mle > 0 && fin(M27) ? M27 / Mle - 1 : null;
+      var pLE = Mle > 0 && fin(v.fy_le) ? v.fy_le / Mle : null, p27 = M27 > 0 && fin(v.fy_target) ? v.fy_target / M27 : null;
+      var k27 = M27 > 0 && fin(pk.fy_target) ? pk.fy_target / M27 : null;
+      var mk = { r: r, name: r.name, ok: ok, why: !(iq > 0) ? 'no Zeta sales in IQVIA - market not re-sized' : !(ih > 0) ? 'no in-house sales mapped - market not re-sized' : '',
+        k: k, shareIQ: My > 0 ? iq / My : null, iq: iq, ih: ih, My: My, cMy: My * k, cLE: Mle * k, c27: fin(M27) ? M27 * k : null, g: g,
+        cLEv: fin(pLE) ? Mle * k * pLE : null, c27v: fin(p27) && fin(M27) ? M27 * k * p27 : null, c27pk: fin(k27) && fin(M27) ? M27 * k * k27 : null, brands: [] };
+      brands.forEach(function (b) {
+        var key = r.name + '||' + b.brand, sh0 = mk.cMy > 0 ? ((ok || ih > 0) ? b.ih : b.iq) / mk.cMy : null;
+        var t = fin(inp[key]) ? inp[key] / 100 : sh0, le = fin(sh0) ? sh0 * mk.cLE : null;
+        var tSU = fin(t) && fin(mk.c27) ? t * mk.c27 : null, pSU = b.ih > 0 ? b.ihVal / b.ih : null, spp = b.ihPk > 0 ? b.ih / b.ihPk : null;
+        mk.brands.push({ brand: b.brand, key: key, iq: b.iq, ih: b.ih, ihPk: b.ihPk, ihVal: b.ihVal, k: b.iq > 0 ? b.ih / b.iq : null, sh0: sh0, le: le, set: fin(inp[key]), t: t,
+          tSU: tSU, tVal: fin(tSU) && fin(pSU) ? tSU * pSU : null, tPk: fin(tSU) && spp > 0 ? tSU / spp : null, pSU: pSU, spp: spp, gr: fin(tSU) && le > 0 ? tSU / le - 1 : null });
+      });
+      ['tSU', 'tVal', 'tPk', 'le', 'iq', 'ih', 'ihVal', 'ihPk'].forEach(function (c) { mk[c] = mk.brands.reduce(function (a, b) { return a + (fin(b[c]) ? b[c] : 0); }, 0); });
+      mk.sh0 = mk.cMy > 0 ? mk.brands.reduce(function (a, b) { return a + (fin(b.sh0) ? b.sh0 : 0); }, 0) : null;
+      mk.t = mk.c27 > 0 ? mk.tSU / mk.c27 : null; mk.gr = mk.le > 0 ? mk.tSU / mk.le - 1 : null;
+      out.push(mk);
+    });
+    out.sort(function (a, b) { return (b.c27v || 0) - (a.c27v || 0); });
+    var T = { n: out.length, label: S.label, mon: have, adj: adj };
+    ['cLE', 'c27', 'cLEv', 'c27v', 'tSU', 'tVal', 'tPk', 'le', 'iq', 'ih', 'ihVal'].forEach(function (c) { T[c] = out.reduce(function (a, x) { return a + (fin(x[c]) ? x[c] : 0); }, 0); });
+    T.gM = T.cLE > 0 ? T.c27 / T.cLE - 1 : null; T.gZ = T.le > 0 ? T.tSU / T.le - 1 : null; T.t = T.c27 > 0 ? T.tSU / T.c27 : null;
+    return { rows: out, T: T };
+  }
+  function ihPct(x, d) { return fin(x) ? (x * 100).toFixed(d == null ? 1 : d) + '%' : '—'; }
+  function ihN(v) { return fin(v) ? Math.round(v).toLocaleString('en-US') : ''; }
+  function ihC(v, unit) { return '<span title="' + ihN(v) + (unit ? ' ' + unit : '') + '">' + fmtSU(v) + '</span>'; }
+  function ihRender() {
+    var el = ROOT.querySelector('#mf-ih'); if (!el) return;
+    var IHD = ihData(), m = D_CAL.meta, ty = m.target_year, py = m.partial_year;
+    if (!IHD) { el.innerHTML = '<section class="card"><p class="note">In-house sales mapping not built yet (cache/market_forecast_inhouse.data.js). Run <b>UPDATE_DASHBOARD.bat</b> or <code>python etl/build_market_forecast_inhouse.py</code>.</p></section>'; return; }
+    var M = ihModel(), T = M.T, mlab = T.mon.length ? MON[+T.mon[0].slice(5, 7) - 1] + '–' + MON[+T.mon[T.mon.length - 1].slice(5, 7) - 1] + ' ' + py : '—';
+    var kp = [
+      ['Calibrated market FY' + py + ' LE', ihC(T.cLE, 'SU') + ' SU', 'EGP ' + fmtSU(T.cLEv) + ' · IQVIA re-sized by in-house sales'],
+      ['Expected market FY' + ty, ihC(T.c27, 'SU') + ' SU', 'EGP ' + fmtSU(T.c27v) + ' · growth ' + fmtF(T.gM) + ' (IQVIA forecast %)'],
+      ['Zeta target FY' + ty + ' SU', ihC(T.tSU, 'SU'), 'share ' + ihPct(T.t, 2) + ' · vs FY' + py + ' LE ' + fmtF(T.gZ)],
+      ['Zeta target FY' + ty + ' EGP', 'EGP ' + ihC(T.tVal, 'EGP'), 'at in-house net price per SU'],
+      ['Zeta target FY' + ty + ' packs', ihC(T.tPk, 'packs'), 'in-house pack mix']];
+    var h = '<div class="sechd"><span class="secn">IH</span><h2>In-house calibrated market — FY' + ty + '</h2><span class="sub">' + esc(T.label) + ' · ' + T.n + ' market' + (T.n === 1 ? '' : 's') + ' · Zeta brands only</span></div>' +
+      '<section class="kpis">' + kp.map(function (c) { return '<div class="kpi"><div class="kl">' + esc(c[0]) + '</div><div class="kv">' + c[1] + '</div><div class="ks">' + esc(c[2]) + '</div></div>'; }).join('') + '</section>' +
+      '<section class="card"><div class="ihbar"><p class="note" style="margin:0">Market = calibrated IQVIA × (Zeta in-house SU ÷ Zeta IQVIA SU, ' + esc(mlab) + '): Zeta\'s estimated share ' + py + ' and the IQVIA market growth % ' + ty + ' are kept. Type the <b>target market share (SU)</b> per brand; target SU, EGP and packs follow. Market EGP = IQVIA price per SU; Zeta EGP = in-house net price per SU.' + (T.adj !== 1 ? ' <b>In-house months ' + T.mon.length + ' of ' + m.partial_months + ' — annualised to the IQVIA months.</b>' : '') + '</p>' +
+      '<div class="btns"><button type="button" class="xbtn ghost" id="mf-ihreset" title="Clear the typed shares in this view (back to the estimated ' + py + ' share)">Reset shares</button><button type="button" class="xbtn pro" id="mf-ihx">⬇ Excel — in-house calibrated targets</button></div></div>' +
+      '<div class="ihwrap"><table class="tbl ih"><thead><tr><th>Market / Zeta brand</th><th class="r">Zeta IQVIA SU<br>' + esc(mlab) + '</th><th class="r">Zeta in-house SU<br>' + esc(mlab) + '</th><th class="r">Factor</th><th class="r">Est. share SU<br>' + py + '</th>' +
+      '<th class="r">Market SU<br>FY' + py + ' LE</th><th class="r">Market EGP<br>FY' + py + ' LE</th><th class="r">Market growth<br>FY' + ty + '</th><th class="r">Market SU<br>FY' + ty + '</th><th class="r">Market EGP<br>FY' + ty + '</th>' +
+      '<th class="r">Target share SU<br>FY' + ty + '</th><th class="r">Target SU</th><th class="r">Target EGP</th><th class="r">Target packs</th><th class="r">Zeta growth<br>vs FY' + py + ' LE</th></tr></thead><tbody>';
+    M.rows.forEach(function (x) {
+      h += '<tr class="ihm"><td><b>' + esc(x.name) + '</b>' + (x.ok ? '' : ' <span class="mut" title="' + esc(x.why) + '">· IQVIA as is</span>') + '</td><td class="num r">' + ihC(x.iq) + '</td><td class="num r">' + ihC(x.ih) + '</td><td class="num r">' + (x.ok ? '×' + x.k.toFixed(2) : '—') + '</td><td class="num r">' + ihPct(x.sh0, 2) + '</td>' +
+        '<td class="num r">' + ihC(x.cLE) + '</td><td class="num r">' + ihC(x.cLEv) + '</td><td class="num r">' + fmtF(x.g) + '</td><td class="num r"><b>' + ihC(x.c27) + '</b></td><td class="num r"><b>' + ihC(x.c27v) + '</b></td>' +
+        '<td class="num r"><b>' + ihPct(x.t, 2) + '</b></td><td class="num r"><b>' + ihC(x.tSU) + '</b></td><td class="num r"><b>' + ihC(x.tVal) + '</b></td><td class="num r"><b>' + ihC(x.tPk) + '</b></td><td class="num r">' + fmtF(x.gr) + '</td></tr>';
+      x.brands.forEach(function (b) {
+        h += '<tr class="ihb"><td>' + esc(b.brand) + '</td><td class="num r">' + ihC(b.iq) + '</td><td class="num r">' + ihC(b.ih) + '</td><td class="num r">' + (fin(b.k) ? '×' + b.k.toFixed(2) : '—') + '</td><td class="num r">' + ihPct(b.sh0, 2) + '</td><td colspan="5"></td>' +
+          '<td class="num r"><input type="text" inputmode="decimal" class="bexi ihi" data-k="' + esc(b.key) + '" value="' + (b.set ? +(b.t * 100).toFixed(4) : '') + '" placeholder="' + (fin(b.sh0) ? (b.sh0 * 100).toFixed(2) : '') + '" title="Target market share SU FY' + ty + ' (%). Empty = estimated ' + py + ' share"> %</td>' +
+          '<td class="num r">' + ihC(b.tSU) + '</td><td class="num r">' + ihC(b.tVal) + '</td><td class="num r">' + ihC(b.tPk) + '</td><td class="num r">' + fmtF(b.gr) + '</td></tr>';
+      });
+    });
+    h += '<tr class="ihm tot"><td><b>Total (' + T.n + ' markets)</b></td><td class="num r">' + ihC(T.iq) + '</td><td class="num r">' + ihC(T.ih) + '</td><td></td><td></td><td class="num r">' + ihC(T.cLE) + '</td><td class="num r">' + ihC(T.cLEv) + '</td><td class="num r">' + fmtF(T.gM) + '</td><td class="num r"><b>' + ihC(T.c27) + '</b></td><td class="num r"><b>' + ihC(T.c27v) + '</b></td><td class="num r"><b>' + ihPct(T.t, 2) + '</b></td><td class="num r"><b>' + ihC(T.tSU) + '</b></td><td class="num r"><b>' + ihC(T.tVal) + '</b></td><td class="num r"><b>' + ihC(T.tPk) + '</b></td><td class="num r">' + fmtF(T.gZ) + '</td></tr>';
+    h += '</tbody></table></div>';
+    var um = (IHD.meta || {}).unmapped || [];
+    h += '<p class="note mut">In-house sales: Sales Performance (net of returns; CHC_SALES duplicate and Non-Promoted lines excluded), built ' + esc((IHD.meta || {}).built || '') + '. Product → IQVIA item mapping: ' + esc((IHD.meta || {}).map_file || '') + (um.length ? ' · <b>' + um.length + ' product(s) not mapped</b>: ' + um.map(function (u) { return esc(u.product); }).join(', ') : '') + '.</p></section>';
+    el.innerHTML = h;
+    el.querySelectorAll('input.ihi').forEach(function (inp) {
+      var save = function () {
+        var a = ihAll(), t = String(inp.value || '').replace(',', '.').replace('%', '').trim(), v = parseFloat(t), k = inp.dataset.k, nx = inp._next;
+        if (t === '') delete a[k]; else if (fin(v) && v >= 0 && v <= 100) a[k] = v; else { inp.value = ''; return; }
+        var all0 = [].slice.call(el.querySelectorAll('input.ihi')), i0 = all0.indexOf(inp);
+        ihPut(a); ihRender();
+        if (nx) { var all1 = ROOT.querySelectorAll('#mf-ih input.ihi'); if (all1[i0 + 1]) all1[i0 + 1].focus(); }
+      };
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) inp._next = true; if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      inp.addEventListener('change', save);
+    });
+    var rb = el.querySelector('#mf-ihreset'); if (rb) rb.onclick = function () { var a = ihAll(); M.rows.forEach(function (x) { x.brands.forEach(function (b) { delete a[b.key]; }); }); ihPut(a); ihRender(); };
+    var xb = el.querySelector('#mf-ihx'); if (xb) xb.onclick = function () { try { ihExport(ihModel()); } catch (e) { console.error('[MarketForecast] ih export', e); alert('Excel export failed: ' + (e && e.message || e)); } };
+  }
+  function ihExport(M) {
+    if (!xlsxOk()) return;
+    var m = D_CAL.meta, ty = m.target_year, py = m.partial_year, T = M.T;
+    var H = ['Defined market', 'Zeta brand', 'Row', 'Zeta IQVIA SU YTD ' + py, 'Zeta in-house SU YTD ' + py, 'Zeta in-house EGP YTD ' + py, 'Calibration factor', 'Est. market share SU ' + py,
+      'Market SU FY' + py + ' LE (calibrated)', 'Market EGP FY' + py + ' LE (calibrated)', 'Market growth FY' + ty, 'Market SU FY' + ty, 'Market EGP FY' + ty, 'Market packs FY' + ty,
+      'Target market share SU FY' + ty, 'Target SU FY' + ty, 'Target EGP FY' + ty, 'Target packs FY' + ty, 'Zeta FY' + py + ' LE SU', 'Zeta growth vs FY' + py + ' LE', 'In-house EGP per SU', 'In-house SU per pack', 'Share typed?', 'Note'];
+    var aoa = [H];
+    M.rows.forEach(function (x) {
+      aoa.push([x.name, '(market total)', 'Market', x.iq, x.ih, x.ihVal, x.ok ? x.k : null, x.sh0, x.cLE, x.cLEv, x.g, x.c27, x.c27v, x.c27pk, x.t, x.tSU, x.tVal, x.tPk, x.le, x.gr, null, null, '', x.why]);
+      x.brands.forEach(function (b) { aoa.push([x.name, b.brand, 'Brand', b.iq, b.ih, b.ihVal, b.k, b.sh0, null, null, null, null, null, null, b.t, b.tSU, b.tVal, b.tPk, b.le, b.gr, b.pSU, b.spp, b.set ? 'yes' : 'no (est. ' + py + ' share)', '']); });
+    });
+    aoa.push(['TOTAL', '', 'Total', T.iq, T.ih, T.ihVal, null, null, T.cLE, T.cLEv, T.gM, T.c27, T.c27v, null, T.t, T.tSU, T.tVal, T.tPk, T.le, T.gZ, null, null, '', '']);
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    fmtCells(ws, aoa, 0, [null, null, null, '#,##0', '#,##0', '#,##0', '0.000', '0.00%', '#,##0', '#,##0', '0.0%', '#,##0', '#,##0', '#,##0', '0.00%', '#,##0', '#,##0', '#,##0', '#,##0', '0.0%', '0.00', '0.0']);
+    ws['!cols'] = H.map(function (h, i) { return { wch: i === 0 ? 34 : i === 1 ? 22 : i === 23 ? 50 : Math.max(10, Math.min(20, h.length + 2)) }; });
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: H.length - 1 } }) };
+    var notes = [['In-house calibrated market FY' + ty + ' — method'], ['Scope: ' + T.label + '. Calibrated IQVIA forecast built ' + m.generated_at + '; in-house sales built ' + ((ihData() || {}).meta || {}).built + '.'],
+      ['Calibration factor = Zeta in-house SU ÷ Zeta IQVIA SU, ' + T.mon.join(', ') + '. Market SU = IQVIA market × factor (Zeta share ' + py + ' kept).'],
+      ['Market FY' + ty + ' = calibrated FY' + py + ' LE × (1 + IQVIA forecast growth %). Market EGP = SU × IQVIA price per SU (value view).'],
+      ['Target SU = market FY' + ty + ' SU × target share; target EGP = target SU × in-house net EGP per SU (YTD); target packs = target SU ÷ in-house SU per pack.']];
+    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'In-house calibrated FY' + ty); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(notes), 'Method');
+    XLSX.writeFile(wb, 'Zeta_InHouse_Calibrated_Market_FY' + ty + '.xlsx', { compression: true });
+  }
+  function ihSync() {
+    if (!ROOT) return;
+    ROOT.classList.toggle('ihmode', !!ST.ih);
+    var bz = ROOT.querySelector('#mf-basis');
+    if (bz) bz.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(ST.ih ? x.dataset.v === 'ih' : x.dataset.v === (ST.basis === 'raw' ? 'raw' : 'cal'))); });
+    var bn = ROOT.querySelector('#mf-basisnote'); if (bn) bn.innerHTML = ST.ih ? ' · <b>In-house calibrated</b> (calibrated IQVIA re-sized by Sales Performance)' : calNote(D_SU.meta);
+  }
+  function setIH() {
+    if (ST.ih && ihData()) return;
+    var go = function () { ST.ih = true; saveState(); if (ST.basis === 'raw') applyBasis('cal'); else render(); };
+    if (ihData()) { go(); return; }
+    var bn = ROOT.querySelector('#mf-basisnote'); if (bn) bn.innerHTML = ' · loading in-house sales…';
+    var p = global.CacheLoader && global.CacheLoader.ensure ? global.CacheLoader.ensure('market_forecast_inhouse') : Promise.resolve(false);
+    p.then(go, go);
+  }
+
   function render() {
+    ihSync();
+    if (ST.ih) { hsub(); fillSelect(); ihRender(); return; }   // 2026-10-28 (Ahmed): In-house calibrated tab
     hsub(); fillSelect(); portfolio();
     var pf = ROOT.querySelector('#mf-pf'), h2 = ROOT.querySelector('#mf-s2'); if (h2) h2.style.display = pf && pf.style.display !== 'none' && pf.innerHTML ? '' : 'none';
     detail(); overview(); navSync(); pkLabels(ROOT);
@@ -2941,7 +3097,12 @@
     global.addEventListener('scroll', onScroll, { passive: true });
     var rb = ROOT.querySelector('#mf-freset'); if (rb) rb.addEventListener('click', function () { ST.f = { BU: '', Line: '', DM1: '', DM2: '' }; fView(); saveState(); render(); });
     var bz = ROOT.querySelector('#mf-basis');
-    if (bz) bz.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setBasis(b.dataset.v); });
+    if (bz) bz.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.v === 'ih') { setIH(); return; }   // 2026-10-28 (Ahmed): In-house calibrated tab
+      if (ST.ih) { ST.ih = false; saveState(); if ((b.dataset.v === 'raw') === (ST.basis === 'raw')) { render(); return; } }
+      setBasis(b.dataset.v);
+    });
     var mz = ROOT.querySelector('#mf-meas');
     if (mz) mz.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
@@ -2990,6 +3151,7 @@
       else if (sv && sv.level) { var c0 = cur(); fFrom(c0 ? c0.type : 'Total', c0 ? c0.name : ''); }
       else { fFix(); fView(); }   // first visit: Egypt total (all filters open)
       ROOT.innerHTML = shell(); wire(); methodology(); render();
+      if (ST.ih && !ihData()) { ST.ih = false; setIH(); }   // 2026-10-28: re-open the in-house tab (its cache loads on demand)
     } catch (e) {
       console.error('[MarketForecast]', e);
       ROOT.innerHTML = '<div style="padding:24px">Market Forecast could not render: ' + esc(e && e.message || e) + '</div>';

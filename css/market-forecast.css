@@ -252,3 +252,19 @@ body.mfc-mode #ask-panel-slot:empty{display:none}
 .mfc .sumv{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 2px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface-alt)}
 .mfc .sumv .kl{font-weight:700} .mfc .golink{margin-left:auto;font-weight:600;font-size:12.5px;color:var(--primary);text-decoration:none}
 @media print{.mfc .mfstick{position:static;box-shadow:none} .mfc .mfnav{display:none}}
+
+/* 2026-10-28 (Ahmed): Data basis "In-house calibrated" tab - the regular sections hide, #mf-ih shows */
+.mfc:not(.ihmode) #mf-ih{display:none}
+.mfc.ihmode #mf-nav,.mfc.ihmode .wrap>.sechd,.mfc.ihmode #mf-sum,.mfc.ihmode #mf-pf,.mfc.ihmode #mf-detail,.mfc.ihmode #mf-comp,.mfc.ihmode #mf-ov,.mfc.ihmode #mf-meas{display:none!important}
+.mfc.ihmode .ctl:has(#mf-meas){display:none}
+.mfc #mf-ih .kpis{margin:0 0 14px}
+.mfc #mf-ih .ihbar{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+.mfc #mf-ih .ihbar .note{flex:1 1 420px}
+.mfc #mf-ih .ihbar .btns{display:flex;gap:8px;flex-wrap:wrap}
+.mfc #mf-ih .ihwrap{overflow-x:auto}
+.mfc .tbl.ih th{white-space:normal;vertical-align:bottom;line-height:1.25}
+.mfc .tbl.ih td.num{white-space:nowrap;font-variant-numeric:tabular-nums}
+.mfc .tbl.ih tr.ihm td{background:var(--surface-alt);border-top:1px solid var(--border-strong)}
+.mfc .tbl.ih tr.ihb td:first-child{padding-left:22px}
+.mfc .tbl.ih tr.tot td{background:var(--primary-light);font-weight:600}
+.mfc .tbl.ih input.ihi{width:72px}

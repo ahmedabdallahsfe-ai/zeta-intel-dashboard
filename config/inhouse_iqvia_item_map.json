@@ -1,0 +1,15 @@
+{
+  "_note": "In-house product (Sales Performance, cache/sales.json) -> 'DM1 market||IQVIA item' for the Market Growth Forecast in-house calibrated tab (etl/build_market_forecast_inhouse.py). Products not listed here are matched automatically by brand + strength + form; check meta.auto / meta.unmapped in cache/market_forecast_inhouse.data.js. null = product is not in an IQVIA defined market (left out). Added 2026-10-28.",
+  "map": {
+    "BILASTIGEC SYRUP 120 ML": "ORAL SELECTED ANTIHISTAMIN,LEVOCETRIZIN , EBASTIN .. CETRIZIN , FEXOFENADIN,BILASTIN||BILASTIGEC ORAL SOLUT 2.5MG 1ML 120ML",
+    "NEXIBRONCH SYRUP 200ML": "SELECTED HERBAL PRODUCT||NEXIBRONCH SY W H 200ML",
+    "NEXIBRONCH WITHOUT HONEY 200 ML": "SELECTED HERBAL PRODUCT||NEXIBRONCH SY WO H 200ML",
+    "NEXIBRONCH WITHOUT HONEY 200ML": "SELECTED HERBAL PRODUCT||NEXIBRONCH SY WO H 200ML",
+    "NEXICURE PLUS 20 MG 14 SACHETS": "PPI_SOD BICARB||NEXICURE PLUS PO.SUS 20MG/ 1680MG",
+    "NEXICURE PLUS 40 MG 14 SACHETS": "PPI_SOD BICARB||NEXICURE PLUS PO.SUS 40MG/ 1680MG",
+    "BUTAZORELLA 150 MG 14 CAP": null,
+    "DEZOVA GASTROCOL 30 TAB": null,
+    "DOZOVA NAD 30 CAP": null,
+    "DOZOVA NAD 60 CAP": null
+  }
+}
