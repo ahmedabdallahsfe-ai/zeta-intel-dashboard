@@ -477,7 +477,11 @@
   // also scopes markets with isBuAllowed / isLineAllowed.
   // -------------------------------------------------------------------
   // 2026-10-15 (Ahmed): "share it with CEO and VP" -> CEO and VP added to the Market Growth Forecast only.
-  var MARKET_FORECAST_ROLES = ["SFE Manager", "SFE", "sfe", "BEX", "bex", "Admin", "CEO", "VP"];
+  // 2026-10-29 (Ahmed): "include BU, Brand Manager, Line Manager" -> BU Manager, Brand Manager, Group Brand Manager and
+  // Line Manager added to the Market Growth Forecast AND Market Dynamics. The forecast page scopes their markets with
+  // isBuAllowed / isLineAllowed; Market Dynamics is a total-market view (not scoped by BU / line).
+  var BU_LINE_MGR_ROLES = ["BU Manager", "Brand Manager", "Group Brand Manager", "Line Manager"];
+  var MARKET_FORECAST_ROLES = ["SFE Manager", "SFE", "sfe", "BEX", "bex", "Admin", "CEO", "VP"].concat(BU_LINE_MGR_ROLES);
   var SFE_BEX_ROLES = ["SFE Manager", "SFE", "sfe", "BEX", "bex", "Admin"];
   function roleIn(list) {
     var u = getValidSessionUser();
@@ -489,7 +493,7 @@
   // MARKET DYNAMICS & TREATMENT SHIFT (2026-10-13, Ahmed): same audience as the
   // Market Growth Forecast -- SFE and BEX roles only (+ Admin). js/market-dynamics.js.
   function canViewMarketDynamics() {
-    return roleIn(SFE_BEX_ROLES);   // unchanged audience (not shared with CEO / VP)
+    return roleIn(SFE_BEX_ROLES.concat(BU_LINE_MGR_ROLES));   // 2026-10-29: + BU / Brand / Group Brand / Line Managers (not CEO / VP)
   }
 
   // -------------------------------------------------------------------
