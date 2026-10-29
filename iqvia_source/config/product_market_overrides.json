@@ -141,6 +141,88 @@
       "dm2": "Dozova Brain Boost_Market",
       "line": "PEDIA",
       "bu": "Cluster"
+    },
+    {
+      "id": "DIAB2027-SEITASWAY-MET",
+      "why": "2026-10-29 (Ahmed): \"Defined markets_2027_DIAB.xlsx\". Seitasway Met (DIAB launch) = sitagliptin + metformin combinations within A10N3 DPP-IV INH & BIGUAN COMB, all brands, all periods. Brands today: JANUMET, GLAPTIVIA PLUS, GLEPTOMET, SITAGLIFORM, JANAGLIP PLUS, PHARMABETIC PLUS. Line DIAB-NEW (launch line, Ahmed's choice).",
+      "atc4_prefixes": [
+        "A10N3"
+      ],
+      "molecule_contains": "SITAGLIPTIN",
+      "dm1": "Seitasway Met_Market",
+      "dm2": "Seitasway Met_Market",
+      "line": "DIAB-NEW",
+      "bu": "DIAB"
+    },
+    {
+      "id": "DIAB2027-SEITASWAY",
+      "why": "2026-10-29 (Ahmed): \"Defined markets_2027_DIAB.xlsx\". Seitasway (DIAB launch) = sitagliptin plain within A10N1 DPP-IV INH A-DIAB PLAIN. Brands today: JANUVIA, GLAPTIVIA, JANAGLIP, PHARMABETIC.",
+      "atc4_prefixes": [
+        "A10N1"
+      ],
+      "molecule_contains": "SITAGLIPTIN",
+      "dm1": "Seitasway_Market",
+      "dm2": "Seitasway_Market",
+      "line": "DIAB-NEW",
+      "bu": "DIAB"
+    },
+    {
+      "id": "DIAB2027-VANTAGLIMIN",
+      "why": "2026-10-29 (Ahmed): \"Defined markets_2027_DIAB.xlsx\". Vantaglimin (DIAB launch) = imeglimin within A10X9 OTH DRG USED IN DIABETES. Brands today: IMEGLISPIRE, IMEGLIBRIGHT, IMEGETIC.",
+      "atc4_prefixes": [
+        "A10X9"
+      ],
+      "molecule_contains": "IMEGLIMIN",
+      "dm1": "Vantaglimin_Market",
+      "dm2": "Vantaglimin_Market",
+      "line": "DIAB-NEW",
+      "bu": "DIAB"
+    },
+    {
+      "id": "DIAB2027-THIOMAX-COMPOUND",
+      "why": "2026-10-29 (Ahmed): \"Defined markets_2027_DIAB.xlsx\". Thiomax Compound (DIAB launch) = the 13 named products within A10X9 (their A11D9 packs excluded, per the sheet).",
+      "atc4_prefixes": [
+        "A10X9"
+      ],
+      "products": [
+        "THIOTACID COMPOUND",
+        "ALPHAVIM 600",
+        "THIOTACID PLUS XR",
+        "AXOMYELIN ULTRA",
+        "ALPHAVIM 300",
+        "LIOPATH COMB",
+        "NERVOCITIC",
+        "THIODIO COMB",
+        "XERODOX PLUS",
+        "JENONAL",
+        "THIOTACID LIPOSOMA",
+        "MYLOHANCE",
+        "AXOMYELIN"
+      ],
+      "dm1": "Thiomax Compound_Market",
+      "dm2": "Thiomax Compound_Market",
+      "line": "DIAB-NEW",
+      "bu": "DIAB"
+    },
+    {
+      "id": "DIAB2027-LIPOSOMAL-B-COMPLEX",
+      "why": "2026-10-29 (Ahmed): \"Defined markets_2027_DIAB.xlsx\". Liposomal B-Complex (DIAB launch) = Milga, Milga Advance, Limitless Milga Max, Neurovit tablets, Neuroton (A11D4 / V03X0 / A11E1). Only LIMITLESS MILGA MX is in IQVIA today (Ahmed: market = Limitless Milga Max only); the other names are listed so they map automatically when IQVIA carries them (check exact IQVIA spelling then). NEUROVIT POWER (A11A4) deliberately not included.",
+      "atc4_prefixes": [
+        "A11D4",
+        "V03X0",
+        "A11E1"
+      ],
+      "products": [
+        "LIMITLESS MILGA MX",
+        "MILGA",
+        "MILGA ADVANCE",
+        "NEUROVIT",
+        "NEUROTON"
+      ],
+      "dm1": "Liposomal B-Complex_Market",
+      "dm2": "Liposomal B-Complex_Market",
+      "line": "DIAB-NEW",
+      "bu": "DIAB"
     }
   ]
 }
