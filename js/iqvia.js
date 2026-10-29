@@ -192,7 +192,7 @@ function launchBannerHTML() {
   if (!l && !t && !launchSelected()) return '';
   return '<div style="border-left:3px solid #9775fa;background:#9775fa14;border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--txt1)">'
     + (l || launchSelected() ? '<div><b style="color:#9775fa">New-launch defined market</b> &mdash; shown for sizing only; it is excluded from Zeta / BU market share, rankings and totals everywhere else.</div>' : '')
-    + (t ? '<div style="margin-top:4px"><b style="color:#9775fa">[TM]</b> products come from <b>Total Market Intelligence</b> (IMS annual, spread evenly over the months; 2026 after the last IMS month carried forward) because they are not in the IQVIA extract &mdash; estimates, not IQVIA monthly data.</div>' : '')
+    + (t ? '<div style="margin-top:4px"><b style="color:#9775fa">[TM]</b> products (and <b>[TM]</b> markets) come from <b>Total Market Intelligence</b> because they are not in the IQVIA extract. Each IMS year is spread evenly over its months; the Item name shows the period: <b>[TM 2022]&hellip;[TM 2025]</b> = IMS full-year actuals, <b>[TM 2026]</b> = IMS 2026 (Jan&ndash;Jun), <b>[TM est]</b> = estimated &mdash; months after the IMS data, or 2026 for brands whose IMS 2026 is incomplete (last full-year monthly rate carried forward). Estimates, not IQVIA monthly data.</div>' : '')
     + '</div>';
 }
 function rebuildFlatForOtherMarket() {

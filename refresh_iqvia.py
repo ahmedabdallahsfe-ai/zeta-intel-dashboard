@@ -278,7 +278,8 @@ if os.path.exists(PRODUCT_MARKET_OVERRIDES_FILE):
                 _mol = (_r.get('molecule_contains') or '').upper()
                 _doses = set(str(x).upper() for x in (_r.get('doses') or []))
                 _strs = set(str(x).upper() for x in (_r.get('strengths') or []))   # 2026-10-16: optional strength filter (e.g. adult 20/40MG sachets)
-                _atcs = tuple(str(x).upper().strip() for x in (_r.get('atc4_prefixes') or []))   # 2026-10-26: optional ATC4 filter (prefix, e.g. 'A11A2')
+                _atcs = tuple(str(x).upper().strip() for x in (_r.get('atc4_prefixes') or []))
+                _crps = tuple(str(x).upper().strip() for x in (_r.get('corps_contain') or []))   # 2026-10-29: optional corporation filter (text contained)   # 2026-10-26: optional ATC4 filter (prefix, e.g. 'A11A2')
                 _pf = _r.get('period_from') or ''; _pt = _r.get('period_to') or ''
                 _n = 0; _v = 0; _moved = 0
                 for _i in range(len(prods_r)):
@@ -287,6 +288,7 @@ if os.path.exists(PRODUCT_MARKET_OVERRIDES_FILE):
                     if _doses and str(doses_r[_i]).upper() not in _doses: continue  # source says 'Tablet', cache shows 'TABLET'
                     if _strs and str(strengths_r[_i]).upper() not in _strs: continue
                     if _atcs and not str(atc4s_r[_i]).upper().startswith(_atcs): continue
+                    if _crps and not any(c in str(corps_r[_i]).upper() for c in _crps): continue
                     _per = str(periods_r[_i])[:7]
                     if _pf and _per < _pf: continue
                     if _pt and _per > _pt: continue
@@ -385,27 +387,43 @@ try:
                         _c = _cells.setdefault(_key, {}); _a = _c.setdefault(_y, [0.0, 0.0]); _a[0] += _TV[_k]; _a[1] += _TU[_k]
                 if not _cells: continue
                 _tmi_log['added'].append(_e['brand'] + (' (' + _e['corp'] + ')' if _e.get('corp') else '') + ' -> ' + _dm1)
+                _PY = max(_tyears)   # brand-level test of the IMS partial year (pack-level IMS 2026 cells are erratic)
+                _b25 = sum(v.get(_PY - 1, [0, 0])[0] for v in _cells.values()) / 12.0
+                _b26 = sum(v.get(_PY, [0, 0])[0] for v in _cells.values()) / float(_t26m)
+                _use26 = _b26 > 0 and (_b25 <= 0 or _b26 >= 0.3 * _b25)
+                if not _use26: _tmi_log.setdefault('est2026', []).append(_e['brand'])
                 for (_corp, _pk, _mol, _atc, _form), _ys in _cells.items():
                     _mm = _cnt_re.search(str(_pk)); _cnt = int(_mm.group(1)) if (_mm and _form in ('Solid Oral Form', 'Sachets')) else 1
                     _prod = _e['brand'].upper() + ' [TM]'
-                    _item = str(_pk).upper() + ' [TM]'
-                    for _y, (_v, _u) in _ys.items():
-                        _nm = _t26m if _y == max(_tyears) else 12
-                        _months = ['%d-%02d' % (_y, mo) for mo in range(1, _nm + 1)]
-                        if _y == max(_tyears):   # carry the latest IMS monthly rate up to the last IQVIA month (estimate)
-                            mo = _nm + 1
-                            while '%d-%02d' % (_y, mo) <= _last and mo <= 12: _months.append('%d-%02d' % (_y, mo)); mo += 1
-                        for _p in _months:
-                            if _iq_per and _p < _iq_per[0]: continue
-                            _lv = _v / _nm; _uv = _u / _nm
-                            if _lv <= 0: continue
-                            corps_r.append(_corp); prods_r.append(_prod); periods_r.append(_p); atc4s_r.append(_atc)
-                            dm1s_r.append(_dm1); dm2s_r.append(_dm1); molecules_r.append(_mol); doses_r.append(_form)
-                            items_r.append(_item); strengths_r.append('(none)'); lines_r.append(_line); bus_r.append(_bu)
-                            lcvs_r.append(int(round(_lv))); sus_r.append(int(round(_uv * _cnt)))
-                            _item_su_by_pack[_item][float(_cnt)] += 1
-                            _tmi_log['rows'] += 1; _tmi_log['lcv'] += int(round(_lv))
+                    # 2026-10-29 (Ahmed: "total-market data must be complete; flag the data period"): IMS full years are
+                    # actuals (item "<pack> [TM <year>]"); the partial year is used when it looks complete (monthly rate
+                    # >= 30% of the previous full year), otherwise -- and for the months after the IMS partial year --
+                    # the last reliable monthly rate is carried forward (item "<pack> [TM est]").
+                    _py = max(_tyears); _fy = _py - 1
+                    _v25, _u25 = _ys.get(_fy, [0.0, 0.0]); _v26, _u26 = _ys.get(_py, [0.0, 0.0])
+                    _r25 = (_v25 / 12.0, _u25 / 12.0); _r26 = (_v26 / _t26m, _u26 / _t26m)
+                    _rate_est = _r26 if _use26 else _r25
+                    _plan = []   # (period, value, units, flag)
+                    for _y, (_v, _u) in sorted(_ys.items()):
+                        if _y == _py: continue
+                        for mo in range(1, 13): _plan.append(('%d-%02d' % (_y, mo), _v / 12.0, _u / 12.0, 'TM %d' % _y))
+                    mo = 1
+                    while '%d-%02d' % (_py, mo) <= _last and mo <= 12:
+                        if _use26 and mo <= _t26m: _plan.append(('%d-%02d' % (_py, mo), _r26[0], _r26[1], 'TM %d' % _py))
+                        else: _plan.append(('%d-%02d' % (_py, mo), _rate_est[0], _rate_est[1], 'TM est'))
+                        mo += 1
+                    for _p, _lv, _uv, _fl in _plan:
+                        if _iq_per and _p < _iq_per[0]: continue
+                        if _lv <= 0: continue
+                        _item = str(_pk).upper() + ' [' + _fl + ']'
+                        corps_r.append(_corp); prods_r.append(_prod); periods_r.append(_p); atc4s_r.append(_atc)
+                        dm1s_r.append(_dm1); dm2s_r.append(_dm1); molecules_r.append(_mol); doses_r.append(_form)
+                        items_r.append(_item); strengths_r.append('(none)'); lines_r.append(_line); bus_r.append(_bu)
+                        lcvs_r.append(int(round(_lv))); sus_r.append(int(round(_uv * _cnt)))
+                        _item_su_by_pack[_item][float(_cnt)] += 1
+                        _tmi_log['rows'] += 1; _tmi_log['lcv'] += int(round(_lv))
         log(f"Total-market supplement: {_tmi_log['rows']} rows, LCV {_tmi_log['lcv']:,} -- " + '; '.join(_tmi_log['added']))
+        log("Total-market 2026 estimated from the 2025 run-rate (IMS 2026 incomplete): " + ', '.join(sorted(set(_tmi_log.get('est2026', [])))))
     # launch markets: Line / BU "New Launches" on every row (no BU / Zeta share counts them)
     _nl_rows = 0
     for _i in range(len(dm1s_r)):
@@ -709,7 +727,7 @@ cache_obj = {
     'packSizes': _pack_sizes_arr,
     'itemPackSizes': _item_pack_sizes_arr,
     'launchMarkets': _launch_markets,
-    'tmiSupplement': {'added': _tmi_log['added'], 'rows': _tmi_log['rows'], 'lcv': _tmi_log['lcv'], 'flag': '[TM]', 'source': 'Total Market Intelligence (IMS annual, spread evenly over months; 2026 Jul+ carried forward)'},
+    'tmiSupplement': {'added': _tmi_log['added'], 'est2026': sorted(set(_tmi_log.get('est2026', []))), 'rows': _tmi_log['rows'], 'lcv': _tmi_log['lcv'], 'flag': '[TM]', 'source': 'Total Market Intelligence (IMS annual, spread evenly over months; 2026 Jul+ carried forward)'},
     'targets': targets_list,
     'users': zeta_users,
     'kpis': kpi_data,

@@ -374,6 +374,36 @@
       "launch_bu": "CHC",
       "launch_line": "CHC",
       "line_before_new_launches": "CHC"
+    },
+    {
+      "id": "CHC2027-MELATONIN-NOW",
+      "why": "2026-10-29 (Ahmed): 'Melatonin - Now' from CHC 2027 structure proposal.pdf. IQVIA product MELATONIN rows of corporation NOW* (OTHER MARKET, ~43 M MAT) join the Dozova Melatonin market; the HELIAN / ORGANIC NATION rows of the same product name stay out (not on the list).",
+      "products": [
+        "MELATONIN"
+      ],
+      "corps_contain": [
+        "NOW"
+      ],
+      "dm1": "SELECTED _ MELATONIN",
+      "dm2": "SELECTED _ MELATONIN",
+      "line": "CHC",
+      "bu": "CHC"
+    },
+    {
+      "id": "CHC2027-NERVINOVA",
+      "why": "2026-10-29 (Ahmed): NERVINOVA (Orchidia; benfotiamine + levomefolic acid + mecobalamin) added to the Methyl Folate launch market as the nearest equivalent of 'Orchidia - Methyl Folate' (no Orchidia methyl folate in IQVIA / IMS). It is in IQVIA (OTHER MARKET), so it comes as IQVIA rows, not [TM].",
+      "products": [
+        "NERVINOVA"
+      ],
+      "corps_contain": [
+        "ORCHIDIA"
+      ],
+      "dm1": "Methyl Folate_Market [TM]",
+      "dm2": "Methyl Folate_Market [TM]",
+      "line": "New Launches",
+      "bu": "New Launches",
+      "launch_bu": "CHC",
+      "launch_line": "CHC"
     }
   ],
   "dm1_splits": {

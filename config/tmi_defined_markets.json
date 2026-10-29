@@ -197,7 +197,7 @@
           "brand": "LIMITLESS GLOW HAIR"
         }
       ],
-      "iqvia_dm1_new": "Dozova Beauty Tab_Market",
+      "iqvia_dm1_new": "Dozova Beauty Tab_Market [TM]",
       "launch": true
     },
     {
@@ -217,7 +217,7 @@
           "brand": "MYVI BEAUTY"
         }
       ],
-      "iqvia_dm1_new": "Dozova Beauty Gummies_Market",
+      "iqvia_dm1_new": "Dozova Beauty Gummies_Market [TM]",
       "launch": true
     },
     {
@@ -243,6 +243,11 @@
         {
           "brand": "NERHADOU ORODISP FILM",
           "corp": "NERHADOU"
+        },
+        {
+          "brand": "NERHA D3",
+          "corp": "NERHADOU",
+          "note": "2026-10-29 (Ahmed): nearest equivalent to 'Nerhadou orodispersible film 4000IU' (Nerhadou's D3 product)"
         }
       ],
       "launch": true
@@ -324,9 +329,14 @@
         {
           "brand": "METHYL FOLATE",
           "corp": "ORA LINES"
+        },
+        {
+          "brand": "NERVINOVA",
+          "corp": "ORCHIDIA",
+          "note": "2026-10-29 (Ahmed): nearest equivalent to 'Orchidia - Methyl Folate' (benfotiamine + levomefolic acid + mecobalamin)"
         }
       ],
-      "iqvia_dm1_new": "Methyl Folate_Market",
+      "iqvia_dm1_new": "Methyl Folate_Market [TM]",
       "launch": true
     },
     {
@@ -358,7 +368,7 @@
           "brand": "LIMITLESS OSTEODEN"
         }
       ],
-      "iqvia_dm1_new": "Snapical_Market",
+      "iqvia_dm1_new": "Snapical_Market [TM]",
       "launch": true
     },
     {
@@ -385,7 +395,7 @@
           "brand": "SANSO PREGNA PLUS"
         }
       ],
-      "iqvia_dm1_new": "Dozova Pregna_Market",
+      "iqvia_dm1_new": "Dozova Pregna_Market [TM]",
       "launch": true
     },
     {
@@ -436,7 +446,7 @@
           "corp": "ORGANIC NATION"
         }
       ],
-      "iqvia_dm1_new": "Dozova MACA_Market",
+      "iqvia_dm1_new": "Dozova MACA_Market [TM]",
       "launch": true
     }
   ],
