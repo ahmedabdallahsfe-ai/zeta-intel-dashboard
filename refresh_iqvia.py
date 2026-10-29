@@ -74,6 +74,7 @@ items_r = []
 strengths_r = []
 from collections import defaultdict as _dd
 _prod_su_by_pack = _dd(lambda: _dd(float))
+_item_su_by_pack = _dd(lambda: _dd(float))   # 2026-10-29 (Ahmed: Market Intelligence SU / LCV / Packs): pack size per Item
 
 for row in all_rows[1:]:
     def g(n):
@@ -97,7 +98,7 @@ for row in all_rows[1:]:
     lcvs_r.append(int(lcv)); sus_r.append(int(su))
     try:
         ps = float(g('Pack Size') or 0)
-        if ps > 0: _prod_su_by_pack[prod][ps] += su
+        if ps > 0: _prod_su_by_pack[prod][ps] += su; _item_su_by_pack[g('Item') or '(none)'][ps] += max(su, 1)
     except: pass
 
 log(f'{len(corps_r):,} rows after cleaning')
@@ -394,6 +395,13 @@ for _p in prods_list:
     else:
         _pack_sizes_arr.append(1)
 
+# Pack size per Item (2026-10-29): the source's own "Pack Size" column, most frequent per Item (0 = unknown -> product pack size)
+_item_pack_sizes_arr = []
+for _it in items_list:
+    _packs = _item_su_by_pack.get(_it)
+    _item_pack_sizes_arr.append(float(max(_packs, key=lambda k: _packs[k])) if _packs else 0)
+log(f"Item pack sizes: {sum(1 for x in _item_pack_sizes_arr if x > 0)}/{len(_item_pack_sizes_arr)} items from the Pack Size column")
+
 # ── 4. Load User Permissions ─────────────────────────────────────────────────
 print('\n[4/5] Loading user config...', flush=True)
 import hashlib, subprocess as _sp
@@ -582,6 +590,7 @@ cache_obj = {
     'b64Data': b64_data,
     'lookups': lookups,
     'packSizes': _pack_sizes_arr,
+    'itemPackSizes': _item_pack_sizes_arr,
     'targets': targets_list,
     'users': zeta_users,
     'kpis': kpi_data,
