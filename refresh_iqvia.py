@@ -304,6 +304,24 @@ if os.path.exists(PRODUCT_MARKET_OVERRIDES_FILE):
     except Exception as e:
         log(f'WARNING: product market overrides skipped ({e})')
 
+# -- 2d-bis. DM1 SPLITS (2026-10-29, Ahmed: "MAN_MULTI_VIT and WOMEN_MULTI_VIT as DM1 instead of MAN_WOMEN_MULTI_VIT")
+# product_market_overrides.json "dm1_splits": {"OLD DM1": ["DM2 a", "DM2 b"]} -- a row whose DM1 is the old market takes its
+# own DM2 as DM1 (when that DM2 is listed). Applied after the overrides, and to the target lines below.
+_DM1_SPLITS = {}
+try:
+    if os.path.exists(PRODUCT_MARKET_OVERRIDES_FILE):
+        _DM1_SPLITS = json.load(open(PRODUCT_MARKET_OVERRIDES_FILE, encoding='utf-8')).get('dm1_splits') or {}
+    _DM1_SPLITS = {k: v for k, v in _DM1_SPLITS.items() if not str(k).startswith('_') and isinstance(v, list)}
+    for _old, _news in _DM1_SPLITS.items():
+        _n = 0
+        for _i in range(len(dm1s_r)):
+            if dm1s_r[_i] == _old and dm2s_r[_i] in _news:
+                dm1s_r[_i] = dm2s_r[_i]; _n += 1
+        _left = sum(1 for x in dm1s_r if x == _old)
+        log(f"DM1 split {_old}: {_n} rows -> {', '.join(_news)}" + (f" -- WARNING {_left} rows kept the old DM1 (DM2 not in the split list)" if _left else ''))
+except Exception as e:
+    log(f'WARNING: DM1 splits skipped ({e})')
+
 # -- 2e. IQVIA CALIBRATION (2026-10-26, Ahmed) -----------------------------------
 # iqvia_source/config/iqvia_calibrations.json deducts a fixed share of IQVIA's
 # over-reported packs from named products (e.g. 75% of 188k EMPACOZA PLUS packs
@@ -423,7 +441,11 @@ def parse_list(val, dm1_corrections=None):
     if not s or s.upper() == 'ALL': return None
     items = [x.strip() for x in s.split(',') if x.strip()]
     if dm1_corrections:
-        items = [dm1_corrections.get(x, x) for x in items]
+        _it = []
+        for x in items:   # 2026-10-29: a correction may also be a LIST (one old market split into several)
+            v = dm1_corrections.get(x, x)
+            _it.extend(v if isinstance(v, list) else [v])
+        items = _it
         seen = set()
         items = [x for x in items if not (x in seen or seen.add(x))]
     return items
@@ -517,6 +539,8 @@ try:
             'dm1': tgs(3), 'tgtDm1': tgn(4),
             'dm2': tgs(5), 'tgtDm2': tgn(6)
         })
+    for _t in targets_list:   # 2026-10-29: DM1 splits apply to target lines too
+        if _t.get('dm1') in _DM1_SPLITS and _t.get('dm2') in _DM1_SPLITS[_t['dm1']]: _t['dm1'] = _t['dm2']
     log(f'Targets loaded: {len(targets_list)} lines')
 except Exception as e:
     log(f'WARNING: Targets not loaded ({e})')

@@ -641,7 +641,7 @@ function makeSortable(tableId, tbodyId) {
 // ===================== SECTION: EXECUTIVE COMMAND CENTER =====================
 var TARGETS_2026 = [
   {bu:'CHC',line:'CHC',prod:'DOZOVA A KSM66',dm1:'ONLY_DOZOVA_ASHW',tgtDm1:null,dm2:'ONLY_DOZOVA_ASHW',tgtDm2:null},
-  {bu:'CHC',line:'CHC',prod:'DOZOVA MAN MAX',dm1:'MAN_WOMEN_MULTI_VIT',tgtDm1:null,dm2:'MAN_MULTI_VIT',tgtDm2:null},
+  {bu:'CHC',line:'CHC',prod:'DOZOVA MAN MAX',dm1:'MAN_MULTI_VIT',tgtDm1:null,dm2:'MAN_MULTI_VIT',tgtDm2:null},
   {bu:'CHC',line:'CHC',prod:'DOZOVA MELATONIN',dm1:'SELECTED _ MELATONIN',tgtDm1:null,dm2:'SELECTED _ MELATONIN',tgtDm2:null},
   {bu:'CHC',line:'CHC',prod:'DOZOVA Q10 C E',dm1:'SELECTED _COQ10',tgtDm1:null,dm2:'SELECTED _COQ10',tgtDm2:null},
   {bu:'CHC',line:'CHC',prod:'DOZOVA WOMAN MAX',dm1:'CHC SELECTED ITEMS',tgtDm1:null,dm2:'WOMEN_MULTI_VIT',tgtDm2:null},
@@ -8903,7 +8903,23 @@ function renderGuide() {
 // Data: cache/market_forecast_inhouse.data.js (etl/build_market_forecast_inhouse.py: .items = in-house monthly
 // [packs, SU, EGP] per "DM1||item", .iqvia = IQVIA monthly [SU, LCV] per Zeta item and per DM1 market).
 // ══════════════════════════════════════════════════════════════════════════════
-var ZC_BAND = 0.15;   // |factor - 1| <= 15% = aligned
+var ZC_BAND = 0.15;
+// 2026-10-29 (Ahmed): the tab follows the topbar unit. SU = IQVIA SU vs in-house SU; Packs = IQVIA packs (SU / item pack
+// size) vs in-house packs; LCV = IQVIA LC value vs in-house net EGP. Market calibration: SU / Packs = in-house / actual share
+// in that unit; LCV = IQVIA market value x the VOLUME factor (in-house SU / IQVIA SU), because IQVIA LCV is at pharmacy
+// price and in-house EGP at ex-factory net price (a value factor would also carry that price gap).
+function zcUnit(){
+  if(STATE.unit==='pk')return {k:'pk',qi:2,hi:0,lab:'packs',name:'Packs'};
+  if(STATE.metric==='lcv')return {k:'lcv',qi:1,hi:2,lab:'EGP',name:'Value (IQVIA LCV vs in-house net EGP)'};
+  return {k:'su',qi:0,hi:1,lab:'SU',name:'Standard Units'};
+}
+function zcRelabel(el,U){
+  if(!el||U.k==='su')return;
+  var fix=function(t){return t.replace(/\bSU\b/g,U.lab);};
+  var w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode:function(n){return n.parentElement&&n.parentElement.closest('[data-keep]')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}}),n;
+  while((n=w.nextNode())){if(/\bSU\b/.test(n.nodeValue))n.nodeValue=fix(n.nodeValue);}
+  el.querySelectorAll('[title]').forEach(function(e){var v=e.getAttribute('title');if(/\bSU\b/.test(v))e.setAttribute('title',fix(v));});
+}   // |factor - 1| <= 15% = aligned
 function zcEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function zcN(v){return v==null||!isFinite(v)?'—':Math.round(v).toLocaleString('en-US');}
 function zcC(v){if(v==null||!isFinite(v))return '—';var a=Math.abs(v);return a>=1e6?(v/1e6).toFixed(a>=1e8?0:2)+'M':a>=1e3?(v/1e3).toFixed(0)+'K':Math.round(v).toLocaleString('en-US');}
@@ -8924,7 +8940,7 @@ function zcFacCell(iq,ih,tip){
 }
 // rows: [{dm1, bu[], line[], mk:{m}, brands:[{brand, items:[{item, iq:{m}, ih:{m}, ihv:{m}, pk:{m}}]}]}]
 function zcModel(){
-  var I=window.MARKET_FORECAST_INHOUSE||{},Q=I.iqvia||{},MON=Q.months||[],A=window.AUTH;
+  var I=window.MARKET_FORECAST_INHOUSE||{},Q=I.iqvia||{},MON=Q.months||[],A=window.AUTH,U=zcUnit(),qi=U.qi,hi=U.hi;
   var selName=function(set,arr){var o={};if(set&&set.size)set.forEach(function(i){o[arr[i]]=1;});return set&&set.size?o:null;};
   var fBu=selName(STATE.fBuSel,LOOKUPS.bus||[]),fLn=selName(STATE.fLineSel,LOOKUPS.lines||[]),fD1=selName(STATE.fDm1Sel,LOOKUPS.dm1s||[]);
   var keys={};Object.keys(Q.items||{}).forEach(function(k){keys[k]=1;});Object.keys(I.items||{}).forEach(function(k){keys[k]=1;});
@@ -8937,10 +8953,10 @@ function zcModel(){
     if(A&&typeof A.isBuAllowed==='function'&&mk.bu.length&&!mk.bu.some(function(b){return A.isBuAllowed(b);}))return;
     if(A&&typeof A.isLineAllowed==='function'&&mk.line.length&&!mk.line.some(function(b){return A.isLineAllowed(b);}))return;
     var q=(Q.items||{})[k],h=(I.items||{})[k],brand=(q&&q.brand)||(h&&h.brand)||'?';
-    var row=M[d1]||(M[d1]={dm1:d1,bu:mk.bu,line:mk.line,mk:mk.m||{},brands:{}});
+    var row=M[d1]||(M[d1]={dm1:d1,bu:mk.bu,line:mk.line,mk:mk.m||{},brands:{},iqs:{},ihs:{}});
     var b=row.brands[brand]||(row.brands[brand]={brand:brand,items:[]});
     var iq={},ih={},ihv={},pk={};
-    MON.forEach(function(m){var a=q&&q.m[m],c=h&&h.months[m];iq[m]=a?a[0]:0;ih[m]=c?c[1]:0;ihv[m]=c?c[2]:0;pk[m]=c?c[0]:0;});
+    MON.forEach(function(m){var a=q&&q.m[m],c=h&&h.months[m];iq[m]=a?(a[qi]||0):0;ih[m]=c?c[hi]:0;ihv[m]=c?c[2]:0;pk[m]=c?c[0]:0;row.iqs[m]=(row.iqs[m]||0)+(a?a[0]:0);row.ihs[m]=(row.ihs[m]||0)+(c?c[1]:0);});
     b.items.push({item:it,iq:iq,ih:ih,ihv:ihv,pk:pk,prods:h?h.products.map(function(x){return x.p;}):[]});
   });
   var sum=function(o){return MON.reduce(function(a,m){return a+(o[m]||0);},0);};
@@ -8952,12 +8968,12 @@ function zcModel(){
       b.items.sort(function(a,c){return Math.abs(c.IQ-c.IH)-Math.abs(a.IQ-a.IH);});
       b.IQ=sum(b.iq);b.IH=sum(b.ih);b.IHV=sum(b.ihv);add(r.iq,b.iq);add(r.ih,b.ih);add(r.ihv,b.ihv);return b;});
     r.brands.sort(function(a,c){return Math.abs(c.IQ-c.IH)-Math.abs(a.IQ-a.IH);});
-    r.IQ=sum(r.iq);r.IH=sum(r.ih);r.IHV=sum(r.ihv);r.MK=MON.reduce(function(a,m){return a+((r.mk[m]||[0])[0]||0);},0);
-    r.k=r.IQ>0&&r.IH>0?r.IH/r.IQ:null;r.MKc=r.k!=null?r.MK*r.k:null;
+    r.IQ=sum(r.iq);r.IH=sum(r.ih);r.IHV=sum(r.ihv);r.MK=MON.reduce(function(a,m){return a+((r.mk[m]||[])[qi]||0);},0);r.IQs=sum(r.iqs);r.IHs=sum(r.ihs);
+    r.k=r.IQ>0&&r.IH>0?r.IH/r.IQ:null;r.kc=U.k==='lcv'?(r.IQs>0&&r.IHs>0?r.IHs/r.IQs:null):r.k;r.MKc=r.kc!=null?r.MK*r.kc:null;
     r.shIQ=r.MK>0?r.IQ/r.MK:null;r.shFix=r.MK>0?r.IH/(r.MK-r.IQ+r.IH):null;
     return r;});
   out.sort(function(a,c){return Math.abs(c.IQ-c.IH)-Math.abs(a.IQ-a.IH);});
-  return {rows:out,MON:MON,meta:I.meta||{},basis:Q.basis||''};
+  return {rows:out,MON:MON,meta:I.meta||{},basis:Q.basis||'',U:U};
 }
 function renderZetaCalib(){
   var el=document.getElementById('s-zeta-calib');if(!el)return;
@@ -8978,13 +8994,13 @@ function renderZetaCalib(){
   var cnt={};items.forEach(function(o){cnt[o.st.k]=(cnt[o.st.k]||0)+1;});
   var gap=T.IQ-T.IH,fac=T.IQ>0?T.IH/T.IQ:null,shA=T.MK>0?T.IQ/T.MK:null;
   var h='<div class="section-header"><h2>⚖️ IQVIA vs In-house — Zeta gap and calibrated market</h2>'
-    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-size:12px;color:var(--txt2)">Actuals '+per+' · Standard Units · '+zcEsc(Z.basis)+'</span>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-size:12px;color:var(--txt2)" data-keep="1">Actuals '+per+' · '+zcEsc(Z.U.name)+' · '+zcEsc(Z.basis)+' · switch SU / LCV / Packs in the top bar</span>'
     +'<button onclick="zcExport()" style="background:var(--acc1);color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer">⬇ Excel</button></div></div>';
   h+='<div class="kpi-row" style="margin-bottom:18px">'
     +'<div class="kpi-card"><div class="kpi-label">Zeta SU — IQVIA vs in-house</div><div class="kpi-val" style="font-size:20px"><span style="color:var(--acc1)">'+zcC(T.IQ)+'</span> <span style="color:var(--txt3);font-size:14px">vs</span> '+zcC(T.IH)+'</div><div class="kpi-sub">pharmacy sell-out vs net sell-in · EGP '+zcC(T.IHV)+'</div></div>'
     +'<div class="kpi-card"><div class="kpi-label">Gap (IQVIA − in-house)</div><div class="kpi-val" style="color:'+(gap>0?'var(--acc3)':'#f59e0b')+'">'+(gap>0?'+':'')+zcC(gap)+'</div><div class="kpi-sub">'+(T.IH>0?(gap>0?'+':'')+(gap/T.IH*100).toFixed(1)+'% vs in-house · factor '+(fac!=null?'×'+fac.toFixed(2):'—'):'')+'</div></div>'
     +'<div class="kpi-card"><div class="kpi-label">Zeta actual share (IQVIA)</div><div class="kpi-val">'+(shA!=null?(shA*100).toFixed(2)+'%':'—')+'</div><div class="kpi-sub">kept for the calibration</div></div>'
-    +'<div class="kpi-card"><div class="kpi-label">Market SU — IQVIA → calibrated</div><div class="kpi-val" style="font-size:20px">'+zcC(T.MK)+' <span style="color:var(--txt3);font-size:14px">→</span> <span style="color:var(--acc1)">'+zcC(T.MKc)+'</span></div><div class="kpi-sub">calibrated = in-house ÷ actual share ('+(T.MK>0?((T.MKc/T.MK-1)*100).toFixed(1)+'%':'—')+')</div></div>'
+    +'<div class="kpi-card"><div class="kpi-label">Market SU — IQVIA → calibrated</div><div class="kpi-val" style="font-size:20px">'+zcC(T.MK)+' <span style="color:var(--txt3);font-size:14px">→</span> <span style="color:var(--acc1)">'+zcC(T.MKc)+'</span></div><div class="kpi-sub">'+(Z.U.k==='lcv'?'calibrated = IQVIA value × volume factor (':'calibrated = in-house ÷ actual share (')+(T.MK>0?((T.MKc/T.MK-1)*100).toFixed(1)+'%':'—')+')</div></div>'
     +'<div class="kpi-card"><div class="kpi-label">Items by gap</div><div class="kpi-val" style="font-size:18px"><span style="color:var(--acc3)">'+(cnt.over||0)+'</span> / <span style="color:var(--acc2)">'+(cnt.ok||0)+'</span> / <span style="color:#f59e0b">'+(cnt.under||0)+'</span></div><div class="kpi-sub">IQVIA over / aligned ±'+(ZC_BAND*100)+'% / under'+((cnt.noiq||0)+(cnt.noih||0)?' · '+((cnt.noiq||0)+(cnt.noih||0))+' one-sided':'')+'</div></div>'
     +'</div>';
   h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:16px">'
@@ -8997,21 +9013,23 @@ function renderZetaCalib(){
     +modes.map(function(m){var on=m[0]===mode;return '<button onclick="zcSetMode(\''+m[0]+'\')" style="padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid '+(on?'var(--acc1)':'var(--bdr,var(--border))')+';background:'+(on?'var(--acc1)':'transparent')+';color:'+(on?'#fff':'var(--txt2)')+'">'+m[1]+'</button>';}).join('')
     +'<span style="font-size:11px;color:var(--txt3);margin-left:8px">🟥 IQVIA over-reports · 🟩 aligned ±'+(ZC_BAND*100)+'% · 🟧 IQVIA under-reports</span></div>';
   h+=zcTable(R,MON,mode,mlab);
-  h+='<div style="margin-top:12px;padding:12px 16px;background:rgba(93,103,140,.08);border-radius:8px;font-size:12px;color:var(--txt2)"><strong>How to read:</strong> IQVIA = pharmacy sell-out (calibrated basis); in-house = Zeta net sell-in from Sales Performance (sales − returns; CHC_SALES duplicate and Non-Promoted lines excluded), converted to SU by tablets / capsules / sachets per pack. '
+  h+='<div data-keep="1" style="margin-top:12px;padding:12px 16px;background:rgba(93,103,140,.08);border-radius:8px;font-size:12px;color:var(--txt2)"><strong>How to read ('+zcEsc(Z.U.name)+'):</strong> '+(Z.U.k==='lcv'?'<b>Value view: IQVIA LC value is at pharmacy price, in-house is Zeta net ex-factory EGP, so the value gap also contains the price difference. The calibrated market value = IQVIA market value × the volume factor (in-house SU ÷ IQVIA SU).</b> ':Z.U.k==='pk'?'<b>Packs view: IQVIA packs = SU ÷ each item\'s pack size; in-house packs = boxes sold.</b> ':'')+' IQVIA = pharmacy sell-out (calibrated basis); in-house = Zeta net sell-in from Sales Performance (sales − returns; CHC_SALES duplicate and Non-Promoted lines excluded), converted to SU by tablets / capsules / sachets per pack. '
     +'Factor = in-house ÷ IQVIA (×0.70 = IQVIA shows 43% more than Zeta sold). <b>Calibrated market = Zeta in-house SU ÷ Zeta actual IQVIA market share</b> — Zeta\'s IQVIA share is kept and the market is re-sized so that Zeta\'s volume equals what Zeta really sold (YTD uses the YTD share; the monthly "Calibrated market" view uses each month\'s share). '
     +'A gap can come from stock moving in the channel (sell-in ≠ sell-out), IQVIA panel projection, or a product mapping issue — check months with a sudden change. Actual months only: no landing estimate or forecast.</div>';
   el.innerHTML=h;
+  zcRelabel(el,Z.U);
   zcCharts(R,MON,mlab,tm,brands);
 }
 function zcSetMode(m){STATE.zcMode=m;renderZetaCalib();var el=document.getElementById('s-zeta-calib');if(el)enhanceTables(el);}
 function zcCharts(R,MON,mlab,tm,brands){
   if(typeof Chart==='undefined')return;
+  var UL=zcUnit().lab,LB=function(t){return t.replace(/\bSU\b/g,UL);};
   var css=getComputedStyle(document.documentElement),c2=css.getPropertyValue('--txt2'),c3=css.getPropertyValue('--txt3'),grid='rgba(127,127,127,.12)';
   var ax=function(cb){return {ticks:{color:c3,font:{size:10},callback:cb},grid:{color:grid}};};
   destroyChart('ch-zc-month');var cx=document.getElementById('ch-zc-month');
   if(cx)charts['ch-zc-month']=new Chart(cx.getContext('2d'),{type:'bar',data:{labels:MON.map(mlab),datasets:[
-      {type:'bar',label:'IQVIA SU',data:MON.map(function(m){return tm.iq[m]||0;}),backgroundColor:'#4c6ef5cc',borderRadius:3,yAxisID:'y',order:2},
-      {type:'bar',label:'In-house SU',data:MON.map(function(m){return tm.ih[m]||0;}),backgroundColor:'#36c994cc',borderRadius:3,yAxisID:'y',order:2},
+      {type:'bar',label:LB('IQVIA SU'),data:MON.map(function(m){return tm.iq[m]||0;}),backgroundColor:'#4c6ef5cc',borderRadius:3,yAxisID:'y',order:2},
+      {type:'bar',label:LB('In-house SU'),data:MON.map(function(m){return tm.ih[m]||0;}),backgroundColor:'#36c994cc',borderRadius:3,yAxisID:'y',order:2},
       {type:'line',label:'Factor (in-house ÷ IQVIA)',data:MON.map(function(m){return tm.iq[m]>0?+(tm.ih[m]/tm.iq[m]).toFixed(3):null;}),borderColor:'#ff9f45',backgroundColor:'#ff9f45',tension:.3,pointRadius:3,yAxisID:'y1',order:1}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:c2,font:{size:11}}},tooltip:{callbacks:{label:function(t){return ' '+t.dataset.label+': '+(t.dataset.yAxisID==='y1'?'×'+(+t.raw).toFixed(2):zcN(t.raw));}}}},
@@ -9020,13 +9038,13 @@ function zcCharts(R,MON,mlab,tm,brands){
   var bs=brands.map(function(o){return {n:o.b.brand+(R.length>1&&brands.filter(function(q){return q.b.brand===o.b.brand;}).length>1?' · '+o.r.dm1.slice(0,14):''),g:o.b.IQ-o.b.IH,o:o};})
     .sort(function(a,b){return Math.abs(b.g)-Math.abs(a.g);}).slice(0,12);
   hBarChart('ch-zc-brand',bs.map(function(x){return x.n;}),bs.map(function(x){return Math.round(x.g);}),bs.map(function(x){var f=x.o.b.IQ>0?x.o.b.IH/x.o.b.IQ:null;return f==null||f<1-ZC_BAND?'#ff5c6bcc':f>1+ZC_BAND?'#f59e0bcc':'#36c994cc';}),
-    {plugins:{legend:{display:false},tooltip:{callbacks:{label:function(t){var o=bs[t.dataIndex].o.b;return ' Gap '+(t.raw>0?'+':'')+zcN(t.raw)+' SU · IQVIA '+zcN(o.IQ)+' vs in-house '+zcN(o.IH);}}}},
+    {plugins:{legend:{display:false},tooltip:{callbacks:{label:function(t){var o=bs[t.dataIndex].o.b;return ' Gap '+(t.raw>0?'+':'')+zcN(t.raw)+' '+UL+' · IQVIA '+zcN(o.IQ)+' vs in-house '+zcN(o.IH);}}}},
      scales:{x:ax(function(v){return zcC(v);}),y:{ticks:{color:c2,font:{size:10}},grid:{display:false}}}});
   var mk=R.slice().sort(function(a,b){return b.MK-a.MK;}).slice(0,10);
   destroyChart('ch-zc-mkt');var cm=document.getElementById('ch-zc-mkt');
   if(cm)charts['ch-zc-mkt']=new Chart(cm.getContext('2d'),{type:'bar',data:{labels:mk.map(function(r){return r.dm1.length>22?r.dm1.slice(0,21)+'…':r.dm1;}),datasets:[
-      {label:'IQVIA market SU',data:mk.map(function(r){return Math.round(r.MK);}),backgroundColor:'#4c6ef599',borderRadius:3},
-      {label:'Calibrated market SU',data:mk.map(function(r){return Math.round(r.MKc!=null?r.MKc:r.MK);}),backgroundColor:'#36c994cc',borderRadius:3}]},
+      {label:LB('IQVIA market SU'),data:mk.map(function(r){return Math.round(r.MK);}),backgroundColor:'#4c6ef599',borderRadius:3},
+      {label:LB('Calibrated market SU'),data:mk.map(function(r){return Math.round(r.MKc!=null?r.MKc:r.MK);}),backgroundColor:'#36c994cc',borderRadius:3}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
       plugins:{legend:{labels:{color:c2,font:{size:11}}},tooltip:{callbacks:{label:function(t){var r=mk[t.dataIndex];return ' '+t.dataset.label+': '+zcN(t.raw)+(t.datasetIndex===1&&r.k!=null?' (×'+r.k.toFixed(2)+', Zeta share '+(r.shIQ*100).toFixed(1)+'%)':'');}}}},
       scales:{x:ax(function(v){return zcC(v);}),y:{ticks:{color:c2,font:{size:10}},grid:{display:false}}}}});
@@ -9038,10 +9056,11 @@ function zcTable(R,MON,mode,mlab){
     +'<th '+th+'>Zeta IQVIA SU</th><th '+th+'>In-house SU</th><th '+th+'>Gap SU<br>(IQVIA − in-house)</th><th '+th+'>IQVIA vs<br>in-house</th><th '+th+'>Factor</th><th style="padding:6px 8px;font-size:11px">Status</th>'
     +'<th '+th+'>Market SU<br>IQVIA</th><th '+th+'>Zeta actual<br>share (IQVIA)</th><th '+th+'>Market SU<br>calibrated</th><th '+th+'>Market<br>change</th>'
     +MON.map(function(m){return '<th '+th+'>'+mlab(m)+'</th>';}).join('')+'</tr></thead><tbody>';
+  var U=zcUnit();
   var cells=function(iq,ih,lbl,mk){return MON.map(function(m){
     var a=iq[m]||0,b=ih[m]||0,tip=lbl+' · '+mlab(m)+': IQVIA '+zcN(a)+' SU, in-house '+zcN(b)+' SU';
     if(mode==='fac')return zcFacCell(a,b,tip);
-    if(mode==='mkc'){if(!mk)return '<td></td>';var M=(mk[m]||[0])[0]||0,c=a>0&&b>0?M*b/a:M;
+    if(mode==='mkc'){if(!mk)return '<td></td>';var M=(mk.mk[m]||[])[U.qi]||0,fa=U.k==='lcv'?(mk.iqs[m]||0):a,fb=U.k==='lcv'?(mk.ihs[m]||0):b,c=fa>0&&fb>0?M*fb/fa:M;
       return '<td style="text-align:right;white-space:nowrap" title="'+zcEsc(lbl+' · '+mlab(m)+': IQVIA market '+zcN(M)+' SU, Zeta share '+(M>0?(a/M*100).toFixed(2):'—')+'%, calibrated '+zcN(c)+' SU')+'">'+zcC(c)+'</td>';}
     var v=mode==='iq'?a:mode==='ih'?b:a-b;
     return '<td style="text-align:right;white-space:nowrap'+(mode==='gap'&&v?';color:'+(v>0?'var(--acc3)':'#f59e0b'):'')+'" title="'+zcEsc(tip)+'">'+(mode==='gap'&&v>0?'+':'')+zcC(v)+'</td>';}).join('');};
@@ -9056,7 +9075,7 @@ function zcTable(R,MON,mode,mlab){
   R.forEach(function(r){
     var MKc=r.MKc!=null?r.MKc:r.MK;
     var ex='<td style="text-align:right">'+zcC(r.MK)+'</td><td style="text-align:right">'+(r.shIQ!=null?(r.shIQ*100).toFixed(2)+'%':'—')+'</td><td style="text-align:right;font-weight:700">'+zcC(MKc)+'</td><td style="text-align:right;color:'+(MKc<r.MK?'var(--acc3)':MKc>r.MK?'#f59e0b':'inherit')+'">'+(r.MK>0?((MKc/r.MK-1)*100>0?'+':'')+((MKc/r.MK-1)*100).toFixed(1)+'%':'—')+'</td>';
-    h+=base('<b>'+zcEsc(r.dm1)+'</b>',zcEsc(r.bu.join('/')+' · '+r.line.join('/')),r.IQ,r.IH,r.iq,r.ih,'background:rgba(93,103,140,.10);border-top:2px solid var(--border)',ex,r.mk);
+    h+=base('<b>'+zcEsc(r.dm1)+'</b>',zcEsc(r.bu.join('/')+' · '+r.line.join('/')),r.IQ,r.IH,r.iq,r.ih,'background:rgba(93,103,140,.10);border-top:2px solid var(--border)',ex,r);
     r.brands.forEach(function(b){
       var multi=b.items.length>1;
       if(multi)h+=base('<span style="padding-left:14px;font-weight:600">'+zcEsc(b.brand)+'</span>','',b.IQ,b.IH,b.iq,b.ih,'');
@@ -9068,12 +9087,12 @@ function zcTable(R,MON,mode,mlab){
 function zcExport(){
   var go=function(){
     try{
-      var Z=zcModel(),R=Z.rows,MON=Z.MON,wb=new window.ExcelJS.Workbook();wb.creator='Zeta Intel Dashboard';wb.calcProperties={fullCalcOnLoad:true};
+      var Z=zcModel(),R=Z.rows,MON=Z.MON,U=Z.U,wb=new window.ExcelJS.Workbook();wb.creator='Zeta Intel Dashboard';wb.calcProperties={fullCalcOnLoad:true};
       var ws=wb.addWorksheet('IQVIA vs In-house',{properties:{tabColor:{argb:'FF2563EB'}}});
       var mn=function(m){return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m.slice(5,7)-1];};
       var H=['Level','Business unit','Line','Market (DM1)','Brand','Item','Zeta IQVIA SU','Zeta in-house SU','Gap SU (IQVIA − in-house)','IQVIA vs in-house %','Factor (in-house ÷ IQVIA)','Status','Zeta in-house EGP','Market SU IQVIA','Market SU calibrated (in-house ÷ actual share)','Zeta actual share (IQVIA)','Market change (calibrated vs IQVIA)'];
-      MON.forEach(function(m){H.push('IQVIA SU '+mn(m));});MON.forEach(function(m){H.push('In-house SU '+mn(m));});MON.forEach(function(m){H.push('Factor '+mn(m));});
-      ws.getCell('A1').value='IQVIA vs In-house — Zeta gap and calibrated market (actuals '+(MON.length?mn(MON[0])+'–'+mn(MON[MON.length-1])+' '+MON[0].slice(0,4):'')+', Standard Units)';
+      H=H.map(function(t){return t.replace(/\bSU\b/g,U.lab);});MON.forEach(function(m){H.push('IQVIA SU '+mn(m));});MON.forEach(function(m){H.push('In-house SU '+mn(m));});MON.forEach(function(m){H.push('Factor '+mn(m));});H=H.map(function(t){return t.replace(/\bSU\b/g,U.lab);});
+      ws.getCell('A1').value='IQVIA vs In-house — Zeta gap and calibrated market (actuals '+(MON.length?mn(MON[0])+'–'+mn(MON[MON.length-1])+' '+MON[0].slice(0,4):'')+', '+U.name+')';
       ws.getCell('A1').font={bold:true,size:15,color:{argb:'FF0F4C81'}};
       ws.getCell('A2').value='IQVIA = '+Z.basis+'; in-house = Sales Performance net sell-in (built '+(Z.meta.built||'')+'). Factor = in-house ÷ IQVIA; aligned = within ±'+(ZC_BAND*100)+'%.';
       ws.getCell('A2').font={size:9,italic:true,color:{argb:'FF64748B'}};
@@ -9084,7 +9103,7 @@ function zcExport(){
       var put=function(lv,r,b,x,o,fill,bold){
         rn++;var row=ws.getRow(rn),n=rn,st=zcStatus(o.IQ,o.IH);
         var v=[lv,r.bu.join(' / '),r.line.join(' / '),r.dm1,b?b.brand:'',x?x.item:'',o.IQ,o.IH,{formula:'G'+n+'-H'+n,result:o.IQ-o.IH},{formula:'IFERROR(G'+n+'/H'+n+'-1,"")',result:o.IH>0?o.IQ/o.IH-1:''},{formula:'IFERROR(H'+n+'/G'+n+',"")',result:o.IQ>0?o.IH/o.IQ:''},st.t,o.IHV,
-          lv==='Market'?r.MK:null,lv==='Market'&&r.MKc!=null?{formula:'IFERROR(H'+n+'/P'+n+',"")',result:r.MKc}:null,lv==='Market'&&r.shIQ!=null?{formula:'IFERROR(G'+n+'/N'+n+',"")',result:r.shIQ}:null,lv==='Market'&&r.MKc!=null?{formula:'IFERROR(O'+n+'/N'+n+'-1,"")',result:r.MK>0?r.MKc/r.MK-1:''}:null];
+          lv==='Market'?r.MK:null,lv==='Market'&&r.MKc!=null?(U.k==='lcv'?r.MKc:{formula:'IFERROR(H'+n+'/P'+n+',"")',result:r.MKc}):null,lv==='Market'&&r.shIQ!=null?{formula:'IFERROR(G'+n+'/N'+n+',"")',result:r.shIQ}:null,lv==='Market'&&r.MKc!=null?{formula:'IFERROR(O'+n+'/N'+n+'-1,"")',result:r.MK>0?r.MKc/r.MK-1:''}:null];
         MON.forEach(function(m){v.push(o.iq[m]||0);});MON.forEach(function(m){v.push(o.ih[m]||0);});
         MON.forEach(function(m,i){var a=o.iq[m]||0,c=o.ih[m]||0,ca=ws.getColumn(18+i).letter,cb=ws.getColumn(18+MON.length+i).letter;v.push({formula:'IFERROR('+cb+n+'/'+ca+n+',"")',result:a>0?c/a:''});});
         v.forEach(function(val,i){var c=row.getCell(i+1);c.value=val;c.font={size:10,bold:!!bold};if(fill)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}};

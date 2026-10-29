@@ -86,14 +86,39 @@
   var Fx = {
     year: null, ta: null, atc4: null, molecule: null,
     corp: null, product: null, launchYear: null,
-    priceBand: null, topN: 10,
+    priceBand: null, topN: 10, dmkt: null,
   };
+
+  // 2026-10-29 (Ahmed): DEFINED MARKETS on the total market (config/tmi_defined_markets.json ->
+  // cache/tmi_defined_markets.data.js, window.TMI_DEFINED_MARKETS). A market = named IMS brands, optionally limited to a
+  // corporation. Resolved by name against this cache's lookups, so it follows every refresh. Fx.dmkt = market id.
+  var _dmPred = {};
+  function dmList() { var t = global.TMI_DEFINED_MARKETS; return (t && t.markets) || []; }
+  function dmOf(id) { return dmList().filter(function (m) { return m.id === id; })[0] || null; }
+  function dmNorm(x) { return String(x || "").toUpperCase().replace(/\s+/g, " ").trim(); }
+  function dmPredicate(id) {
+    if (!id || !CACHE) return null;
+    if (_dmPred[id]) return _dmPred[id];
+    var m = dmOf(id); if (!m) return null;
+    var B = CACHE.lookups.brands, C = CACHE.lookups.corps, bi = {}, map = new Map();
+    B.forEach(function (b, i) { var k = dmNorm(b); (bi[k] = bi[k] || []).push(i); });
+    m.members.forEach(function (e) {
+      (bi[dmNorm(e.brand)] || []).forEach(function (i) {
+        if (!e.corp) { map.set(i, null); return; }
+        if (map.has(i) && map.get(i) === null) return;
+        var set = map.get(i) || new Set(), want = dmNorm(e.corp);
+        C.forEach(function (c, j) { if (dmNorm(c).indexOf(want) >= 0) set.add(j); });
+        map.set(i, set);
+      });
+    });
+    return (_dmPred[id] = map);
+  }
 
   function resetFilters() {
     Fx = {
       year: null, ta: null, atc4: null, molecule: null,
       corp: null, product: null, launchYear: null,
-      priceBand: null, topN: 10,
+      priceBand: null, topN: 10, dmkt: null,
     };
     // Default to full years only -- see PARTIAL-YEAR HANDLING below.
     if (CACHE) Fx.year = fullYearIndices();
@@ -105,6 +130,7 @@
      "launchYear", "priceBand"].forEach(function (k) {
       if (Fx[k] && Fx[k].size) n++;
     });
+    if (Fx.dmkt) n++;
     return n;
   }
 
@@ -149,7 +175,9 @@
     var fP = except === "product" ? null : Fx.product;
     var fL = except === "launchYear" ? null : Fx.launchYear;
     var fB = except === "priceBand" ? null : Fx.priceBand;
+    var fD = except === "dmkt" ? null : dmPredicate(Fx.dmkt), dc;
     for (var i = 0, o = 0; i < n; i++, o += s) {
+      if (fD) { dc = fD.get(r[o + F_BRAND]); if (dc === undefined || (dc && !dc.has(r[o + F_CORP]))) continue; }
       if (fY && !fY.has(r[o + F_YEAR])) continue;
       if (fT && !fT.has(r[o + F_TA])) continue;
       if (fA && !fA.has(r[o + F_ATC])) continue;
@@ -1058,6 +1086,7 @@
 
   function scopeLabel() {
     var parts = [];
+    if (Fx.dmkt && dmOf(Fx.dmkt)) parts.push(dmOf(Fx.dmkt).name + " (defined market)");
     if (Fx.ta && Fx.ta.size) parts.push(setNames(Fx.ta, "tas", 2) + " (TA)");
     if (Fx.corp && Fx.corp.size) parts.push(setNames(Fx.corp, "corps", 2));
     if (Fx.molecule && Fx.molecule.size) parts.push(setNames(Fx.molecule, "molecules", 2));
@@ -1271,6 +1300,18 @@
         "</div>" +
         "</div>";
     });
+    // 2026-10-29: Defined market (total-market definitions, config/tmi_defined_markets.json)
+    if (dmList().length) {
+      var grp = {};
+      dmList().forEach(function (m) { var g = (m.bu || "") + " · " + (m.line || ""); (grp[g] = grp[g] || []).push(m); });
+      h += '<div class="mi-f mi-f-topn"><label class="mi-f-label">Defined market' + (Fx.dmkt ? '<span class="mi-f-count">1</span>' : "") + '</label>' +
+        '<select class="mi-topn" id="mi-dmkt" style="max-width:240px"><option value="">All (no defined market)</option>' +
+        Object.keys(grp).map(function (g) {
+          return '<optgroup label="' + esc(g) + '">' + grp[g].map(function (m) {
+            return '<option value="' + esc(m.id) + '"' + (Fx.dmkt === m.id ? " selected" : "") + ">" + esc(m.name) + "</option>";
+          }).join("") + "</optgroup>";
+        }).join("") + "</select></div>";
+    }
     // Top-N is a display control, not a data filter -- separated visually.
     h += '<div class="mi-f mi-f-topn"><label class="mi-f-label">Top N</label>' +
       '<select class="mi-topn" id="mi-topn">' +
@@ -1343,6 +1384,8 @@
         rerender();
       });
     });
+    var dm = root.querySelector("#mi-dmkt");
+    if (dm) dm.addEventListener("change", function () { Fx.dmkt = dm.value || null; rerender(); });
     var topn = root.querySelector("#mi-topn");
     if (topn) topn.addEventListener("change", function () {
       Fx.topN = parseInt(topn.value, 10); rerender();
@@ -3643,6 +3686,15 @@
   // ---------------------------------------------------------------------
   var _container = null;
 
+  function dmBanner() {
+    var m = Fx.dmkt && dmOf(Fx.dmkt); if (!m) return "";
+    return '<div class="mi-insight mi-ins-neutral" style="margin:8px 0 12px"><div class="mi-ins-title">Defined market: ' + esc(m.name) + ' · BU ' + esc(m.bu) + ' · Line ' + esc(m.line) + '</div>' +
+      '<div class="mi-ins-body">Zeta products: <b>' + esc((m.zeta_products || []).join(", ")) + '</b>. Brands in this market: ' + esc((m.found || []).join(", ") || "—") + '.' +
+      ((m.missing || []).length ? ' <span style="color:#b45309">Not in the total-market data (yet): ' + esc(m.missing.join(", ")) + '.</span>' : "") +
+      (m.iqvia_dm1 ? ' Monthly view: Market Intelligence (IQVIA) defined market <b>' + esc(m.iqvia_dm1) + '</b>.' : ' Not available in IQVIA (monthly) — sized on the total market only.') +
+      ' Edit the definition in config/tmi_defined_markets.json.</div></div>';
+  }
+
   function rerender() {
     if (!_container) return;
     closeAllMenus();
@@ -3675,6 +3727,7 @@
           "</div>" +
         "</div>" +
         renderFilterBar() +
+        dmBanner() +
         partialBanner() +
         renderAsk() +
         '<div class="mi-kpis">' + k.cards.map(renderKpiCard).join("") + "</div>" +

@@ -352,7 +352,7 @@
        there by the time someone opens the Customer Health drill; also
        re-fixed the sentinel-latch bug this regression brought back (see
        decompressCustomerAnalyticsCache() in js/sales.js). -->
-  <script defer src="cache/iqvia.data.js?v=20261029_packs"></script>
+  <script defer src="cache/iqvia.data.js?v=20261029_mvtsplit"></script>
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
        from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Aug31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's
@@ -426,7 +426,7 @@
        has loaded -- on a slow connection the data file could fail/arrive late, iqvia.js then ran without
        it, threw, and could never run again (top-level let/const), leaving Market Intelligence blank.
        The preload below still downloads it in parallel with everything else. Keep the version here. -->
-  <link rel="preload" as="script" id="iqvia-js-src" href="js/iqvia.js?v=20261029_zcunits">
+  <link rel="preload" as="script" id="iqvia-js-src" href="js/iqvia.js?v=20261029_mvtsplit">
   <script defer src="js/iqvia-filterbar.js?v=20260925_renavfix"></script>
   <script defer src="js/iqvia-sidebar-rail.js?v=20260924_sbrail"></script>
   <script defer src="js/iqvia-fit.js?v=20260925_slimchrome"></script>

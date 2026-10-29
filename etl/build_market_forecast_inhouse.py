@@ -103,7 +103,12 @@ def iqvia_side(fc, months):
     Zeta item of the forecast's DM1 markets ("DM1||item", packs merged as in the forecast scorecard) and of each DM1 market
     (all corporations), for the in-house months. Source cache/iqvia.json = calibrated IQVIA (same basis as the forecast)."""
     import numpy as np
-    flat, L = MR.load_iqvia(os.environ.get("MF_IQVIA_SRC") or os.path.join(ROOT, "cache", "iqvia.json"))
+    src = os.environ.get("MF_IQVIA_SRC") or os.path.join(ROOT, "cache", "iqvia.json")
+    flat, L = MR.load_iqvia(src)
+    # 2026-10-29 (Ahmed: IQVIA vs In-house in SU / LCV / Packs): packs = SU / item pack size (refresh_iqvia itemPackSizes;
+    # product pack size as fallback) - the Market Intelligence Packs unit definition.
+    _c = json.load(open(src, encoding="utf-8")); ips = _c.get("itemPackSizes") or []; pps = _c.get("packSizes") or []
+    def _psz(it, pr): return (ips[it] if it < len(ips) and ips[it] else 0) or (pps[pr] if pr < len(pps) and pps[pr] else 0) or 1
     per = L["periods"]; pidx = {p: i for i, p in enumerate(per)}
     mi = [pidx[m] for m in months if m in pidx]; mon = [per[i] for i in mi]
     flat = flat[np.isin(flat[:, MR.TI], mi)]
@@ -129,7 +134,7 @@ def iqvia_side(fc, months):
             hit = pack.get((d1, alt))
         if not hit: continue
         o = items.setdefault(hit[0], {"brand": hit[1], "m": {}})
-        a = o["m"].setdefault(per[r[MR.TI]], [0, 0]); a[0] += r[MR.SI]; a[1] += r[MR.LI]
+        a = o["m"].setdefault(per[r[MR.TI]], [0, 0, 0]); a[0] += r[MR.SI]; a[1] += r[MR.LI]; a[2] += r[MR.SI] / _psz(r[12], r[MR.PI])
     for d1i in np.unique(flat[:, MR.D1I]).tolist():
         d1 = d1n[d1i]
         if d1 not in dm1set: continue
@@ -137,11 +142,14 @@ def iqvia_side(fc, months):
         m = {}
         for ti in mi:
             q = sub[sub[:, MR.TI] == ti]
-            m[per[ti]] = [int(q[:, MR.SI].sum()), int(q[:, MR.LI].sum())]
+            pk = sum(su_ / _psz(it_, pr_) for su_, it_, pr_ in q[:, [MR.SI, 12, MR.PI]].tolist())
+            m[per[ti]] = [int(q[:, MR.SI].sum()), int(q[:, MR.LI].sum()), round(pk, 2)]
         og = org.get(d1, {})
         markets[d1] = {"bu": [x for x in og.get("BU", []) if not re.match(r"(?i)non[-_ ]?promoted", x)],
                        "line": [x for x in og.get("Line", []) if not re.match(r"(?i)non[-_ ]?promoted", x)], "m": m}
-    return {"months": mon, "basis": "calibrated IQVIA (cache/iqvia.json)", "items": items, "markets": markets}
+    for o in items.values():
+        o["m"] = {k: [v[0], v[1], round(v[2], 2)] for k, v in o["m"].items()}
+    return {"months": mon, "basis": "calibrated IQVIA (cache/iqvia.json)", "fields": ["SU", "LCV", "packs"], "items": items, "markets": markets}
 
 
 def build():

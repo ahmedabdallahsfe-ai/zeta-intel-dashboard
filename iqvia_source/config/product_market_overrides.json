@@ -31,7 +31,7 @@
       "products": [
         "DOZOVA WOMAN MAX"
       ],
-      "dm1": "MAN_WOMEN_MULTI_VIT",
+      "dm1": "WOMEN_MULTI_VIT",
       "dm2": "WOMEN_MULTI_VIT",
       "line": "CHC",
       "bu": "CHC"
@@ -223,6 +223,122 @@
       "dm2": "Liposomal B-Complex_Market",
       "line": "DIAB-NEW",
       "bu": "DIAB"
+    },
+    {
+      "id": "CHC2027-WOMEN-MULTIVIT",
+      "why": "2026-10-29 (Ahmed): \"CHC 2027 structure proposal.pdf\". Dozova Woman Max 30/60 market: add the proposal competitors to the existing WOMEN_MULTI_VIT (LIMITLESS WOMAN MX, CENTRUM WOMEN, NUTRIVILLE WMN MVT already in). SAFETRIUM WOMEN only (the SAFETRIUM gummies stay in Dozova Kids Gummies).",
+      "products": [
+        "VITAMOUNT WOMEN",
+        "SAFETRIUM WOMEN",
+        "WELLWOMAN ORIGINAL"
+      ],
+      "dm1": "WOMEN_MULTI_VIT",
+      "dm2": "WOMEN_MULTI_VIT",
+      "line": "CHC",
+      "bu": "CHC"
+    },
+    {
+      "id": "CHC2027-MEN-MULTIVIT",
+      "why": "2026-10-29 (Ahmed): \"CHC 2027 structure proposal.pdf\". Dozova Man Max 30/60 market: add the proposal competitors to the existing MAN_MULTI_VIT (LIMITLESS MAN MAX, CENTRUM MEN, NUTRIVILLE MEN MVT already in).",
+      "products": [
+        "VITAMOUNT MEN",
+        "WELLMAN ORIGINAL"
+      ],
+      "dm1": "MAN_MULTI_VIT",
+      "dm2": "MAN_MULTI_VIT",
+      "line": "CHC",
+      "bu": "CHC"
+    },
+    {
+      "id": "CHC2027-ASHWAGANDHA",
+      "why": "2026-10-29 (Ahmed): \"CHC 2027 structure proposal.pdf\". Dozova Ashwagandha market (existing ONLY_DOZOVA_ASHW kept so saved plans stay linked): add the proposal competitors. In IQVIA today only LIMITLESS SL AID O; NUTRIVILLE ASHWAGA, LIMITLESS SL AID, CENTRAVIT ASHWAG P are not in the data (names kept for when they appear).",
+      "products": [
+        "LIMITLESS SL AID O",
+        "LIMITLESS SL AID",
+        "NUTRIVILLE ASHWAGA",
+        "CENTRAVIT ASHWAG P"
+      ],
+      "dm1": "ONLY_DOZOVA_ASHW",
+      "dm2": "ONLY_DOZOVA_ASHW",
+      "line": "CHC",
+      "bu": "CHC"
+    },
+    {
+      "id": "CHC2027-ZETAGARO",
+      "why": "2026-10-29 (Ahmed): \"CHC 2027 structure proposal.pdf\". Zetagaro (CHC launch) market = MOUNJARO + Wegovy (+ Zetagaro). Wegovy / Zetagaro are not in IQVIA yet.",
+      "products": [
+        "MOUNJARO",
+        "WEGOVY",
+        "ZETAGARO"
+      ],
+      "dm1": "Zetagaro_Market",
+      "dm2": "Zetagaro_Market",
+      "line": "CHC",
+      "bu": "CHC"
+    },
+    {
+      "id": "CHC2027-ZETADIDOX",
+      "why": "2026-10-29 (Ahmed): \"CHC 2027 structure proposal.pdf\". Zetadidox 10/10 + 20/20 market = VOMIBREAK, MORNIGAG, VOMITRENAT + ZETADIDOX. ZETADIDOX moves from Non-Promoted to CHC (it is in the CHC 2027 structure).",
+      "products": [
+        "VOMIBREAK",
+        "MORNIGAG",
+        "VOMITRENAT",
+        "ZETADIDOX"
+      ],
+      "dm1": "Zetadidox_Market",
+      "dm2": "Zetadidox_Market",
+      "line": "CHC",
+      "bu": "CHC"
+    },
+    {
+      "id": "CHC2027-LIPOSOMAL-D3",
+      "why": "2026-10-29 (Ahmed): \"CHC 2027 structure proposal.pdf\". Liposomal D3 market = LIMITLESS OSSOF D3 5000UI, DAVALINDI 5000UI, D.DEP 5000 UI, NERHADOU 4000IU film. Only D.DEP is in IQVIA (capsules = the 5000 UI form; its oral drops are excluded). Other names kept for when they appear.",
+      "products": [
+        "D.DEP",
+        "LIMITLESS OSSOF",
+        "DAVALINDI",
+        "NERHADOU"
+      ],
+      "dm1": "Liposomal D3_Market",
+      "dm2": "Liposomal D3_Market",
+      "line": "CHC",
+      "bu": "CHC",
+      "doses": [
+        "Capsule"
+      ]
+    },
+    {
+      "id": "CHC2027-LIPOSOMAL-D3K2MG",
+      "why": "2026-10-29 (Ahmed): \"CHC 2027 structure proposal.pdf\". Liposomal D3+K2+Mg market = D3 & K2 (Jaxter), EGUNAZ D3&K2 (Core), FOJI (Medixir); Liposomal D3+K2 (Organic Nation) not in IQVIA.",
+      "products": [
+        "D3 & K2",
+        "EGUNAZ D3&K2",
+        "FOJI"
+      ],
+      "dm1": "Liposomal D3+K2+Mg_Market",
+      "dm2": "Liposomal D3+K2+Mg_Market",
+      "line": "CHC",
+      "bu": "CHC"
+    },
+    {
+      "id": "CHC2027-OMEGA-369",
+      "why": "2026-10-29 (Ahmed): \"CHC 2027 structure proposal.pdf\". Omega 3-6-9 market = OMEGA 3-6-9 (Multicare), OMEGASEEF (Pharco); SUPER OMEGA 3-6-9 (NOW) not in IQVIA.",
+      "products": [
+        "OMEGA 3-6-9",
+        "OMEGASEEF",
+        "SUPER OMEGA 3-6-9"
+      ],
+      "dm1": "Omega 3-6-9_Market",
+      "dm2": "Omega 3-6-9_Market",
+      "line": "CHC",
+      "bu": "CHC"
     }
-  ]
+  ],
+  "dm1_splits": {
+    "_comment": "2026-10-29 (Ahmed): MAN_MULTI_VIT and WOMEN_MULTI_VIT are DM1 markets (each = its DM2). A row with the old DM1 takes its own DM2 as DM1.",
+    "MAN_WOMEN_MULTI_VIT": [
+      "MAN_MULTI_VIT",
+      "WOMEN_MULTI_VIT"
+    ]
+  }
 }

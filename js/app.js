@@ -1421,6 +1421,7 @@ async function renderMarketIntelTab(container) {
   // from the caller (see switchTab's rAF wrapper); ensure() never rejects.
   if (window.CacheLoader) {
     await window.CacheLoader.ensure("market_intel");
+    try { await window.CacheLoader.ensure("tmi_defined_markets"); } catch (e) { }   // 2026-10-29 defined markets (optional)
   }
   if (window.MarketIntelligence) {
     window.MarketIntelligence.init("app-root");
