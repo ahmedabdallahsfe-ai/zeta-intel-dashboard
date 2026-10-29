@@ -116,7 +116,7 @@
       file: "cache/market_forecast_inhouse.data.js",
       globalVar: "MARKET_FORECAST_INHOUSE",
       label: "Market growth forecast (in-house sales)",
-      version: "20261028_1409_auto",
+      version: "20261029_zcalib",
     },
     // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache (source: Total Market Intelligence)
     market_dynamics: {

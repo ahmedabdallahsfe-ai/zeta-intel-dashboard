@@ -98,6 +98,52 @@ def automatch(prod, items):
     return best[0][0] if len(best) == 1 else None
 
 
+def iqvia_side(fc, months):
+    """2026-10-29 (Ahmed: Market Intelligence "Zeta calibrated" gap tab, actuals only): IQVIA monthly SU / LC value of every
+    Zeta item of the forecast's DM1 markets ("DM1||item", packs merged as in the forecast scorecard) and of each DM1 market
+    (all corporations), for the in-house months. Source cache/iqvia.json = calibrated IQVIA (same basis as the forecast)."""
+    import numpy as np
+    flat, L = MR.load_iqvia(os.environ.get("MF_IQVIA_SRC") or os.path.join(ROOT, "cache", "iqvia.json"))
+    per = L["periods"]; pidx = {p: i for i, p in enumerate(per)}
+    mi = [pidx[m] for m in months if m in pidx]; mon = [per[i] for i in mi]
+    flat = flat[np.isin(flat[:, MR.TI], mi)]
+    zp, _ = MR.zeta_masks(flat, L)
+    pack = {}; org = {}; dm1set = {}
+    for s in fc["segments"]:
+        if s.get("type") in ("BU", "Line"):
+            for m in s.get("members") or []: org.setdefault(m, {}).setdefault(s["type"], []).append(s["name"])
+        if s.get("type") != "DM1" or s.get("name") == "OTHER MARKET": continue
+        dm1set[s["name"]] = 1
+        for i in (((s.get("scorecard") or {}).get("zeta") or {}).get("items") or []):
+            for pk in i.get("packs") or []: pack[(s["name"], pk)] = (s["name"] + "||" + i["item"], i["brand"])
+    items, markets = {}, {}
+    d1n, itn, prn = L["dm1s"], L["items"], L["prods"]
+    z = flat[zp]
+    for r in z.tolist():
+        d1 = d1n[r[MR.D1I]]
+        if d1 not in dm1set: continue
+        nm_ = itn[r[12]]
+        hit = pack.get((d1, nm_))
+        if not hit:   # scorecard packs are "<product><pack>" (no space) - rebuild that form
+            pr = prn[r[MR.PI]]; alt = pr + nm_[len(pr):].lstrip() if nm_.startswith(pr) else nm_
+            hit = pack.get((d1, alt))
+        if not hit: continue
+        o = items.setdefault(hit[0], {"brand": hit[1], "m": {}})
+        a = o["m"].setdefault(per[r[MR.TI]], [0, 0]); a[0] += r[MR.SI]; a[1] += r[MR.LI]
+    for d1i in np.unique(flat[:, MR.D1I]).tolist():
+        d1 = d1n[d1i]
+        if d1 not in dm1set: continue
+        sub = flat[flat[:, MR.D1I] == d1i]
+        m = {}
+        for ti in mi:
+            q = sub[sub[:, MR.TI] == ti]
+            m[per[ti]] = [int(q[:, MR.SI].sum()), int(q[:, MR.LI].sum())]
+        og = org.get(d1, {})
+        markets[d1] = {"bu": [x for x in og.get("BU", []) if not re.match(r"(?i)non[-_ ]?promoted", x)],
+                       "line": [x for x in og.get("Line", []) if not re.match(r"(?i)non[-_ ]?promoted", x)], "m": m}
+    return {"months": mon, "basis": "calibrated IQVIA (cache/iqvia.json)", "items": items, "markets": markets}
+
+
 def build():
     fc = MR.read_cache(FCST)
     items, pk_su = [], {}
@@ -151,10 +197,14 @@ def build():
                               "iqvia_su_per_pack": round(pk_su[k], 2) if pk_su.get(k) else None})
     for o in out.values():
         o["months"] = {m: [round(x, 2) for x in v] for m, v in sorted(o["months"].items())}
+    try:
+        iq = iqvia_side(fc, L["months"])
+    except Exception:  # noqa: BLE001
+        traceback.print_exc(); iq = None
     meta = {"built": datetime.now().strftime("%Y-%m-%d %H:%M"), "sales_generated": (d.get("meta") or {}).get("generatedAt"),
             "months": L["months"], "excluded_lines": sorted(EXCL_LINES), "forecast_built": fc["meta"].get("generated_at"),
             "map_file": os.path.relpath(MAP, ROOT), "auto": auto, "unmapped": unmapped, "problems": bad}
-    return {"meta": meta, "items": out}
+    return {"meta": meta, "items": out, "iqvia": iq}
 
 
 def main():
