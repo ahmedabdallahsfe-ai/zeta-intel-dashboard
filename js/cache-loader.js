@@ -66,6 +66,13 @@
       label: "Market intelligence",
       version: "20261012_janjun",
     },
+    // Total-market defined markets (2026-10-29) -- etl/build_tmi_defined_markets.py from config/tmi_defined_markets.json
+    tmi_defined_markets: {
+      file: "cache/tmi_defined_markets.data.js",
+      globalVar: "TMI_DEFINED_MARKETS",
+      label: "Total-market defined markets",
+      version: "20261029_tmidm",
+    },
     coaching: {
       file: "cache/coaching.data.js",
       globalVar: "COACHING_CACHE",
@@ -76,7 +83,7 @@
       file: "cache/business_review.data.js",
       globalVar: "BUSINESS_REVIEW_CACHE",
       label: "BU business review",
-      version: "20261029_1353_auto",
+      version: "20261029_2045_auto",
     },
     list_intel: {
       file: "cache/list_intel.data.js",
@@ -95,48 +102,48 @@
       file: "cache/iqvia_geo.data.js",
       globalVar: "IQVIA_GEO_CACHE",
       label: "Territory market insights (IQVIA geo)",
-      version: "20261029_1353_auto",
+      version: "20261029_2045_auto",
     },
     // Market Growth Forecast (2026-10-12) -- etl/build_market_forecast_v2.py --publish (champion, 2026-10-13)
     market_forecast: {
       file: "cache/market_forecast.data.js",
       globalVar: "MARKET_FORECAST_CACHE",
       label: "Market growth forecast",
-      version: "20261029_1353_auto",
+      version: "20261029_2045_auto",
     },
     // Market Growth Forecast on ORIGINAL IQVIA (2026-10-26) -- etl/build_market_forecast_raw.py; loaded only when the page switches to "Original IQVIA"
     market_forecast_raw: {
       file: "cache/market_forecast_raw.data.js",
       globalVar: "MARKET_FORECAST_RAW_CACHE",
       label: "Market growth forecast (original IQVIA)",
-      version: "20261029_1353_auto",
+      version: "20261029_2045_auto",
     },
     // Market Growth Forecast - in-house calibrated tab (2026-10-28) -- etl/build_market_forecast_inhouse.py; loaded when the page switches to "In-house calibrated"
     market_forecast_inhouse: {
       file: "cache/market_forecast_inhouse.data.js",
       globalVar: "MARKET_FORECAST_INHOUSE",
       label: "Market growth forecast (in-house sales)",
-      version: "20261029_1353_auto",
+      version: "20261029_2045_auto",
     },
     // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache (source: Total Market Intelligence)
     market_dynamics: {
       file: "cache/market_dynamics.data.js",
       globalVar: "MARKET_DYNAMICS_CACHE",
       label: "Market dynamics & treatment shift",
-      version: "20261029_1353_auto",
+      version: "20261029_2045_auto",
     },
     // ATC4 / DM1 / DM2 filters of Market Dynamics (2026-10-13) -- same ETL; loaded only when a filter is used
     market_dynamics_scopes: {
       file: "cache/market_dynamics_scopes.data.js",
       globalVar: "MARKET_DYNAMICS_SCOPES_CACHE",
       label: "Market dynamics filters (ATC4 / DM1 / DM2)",
-      version: "20261029_1353_auto",
+      version: "20261029_2045_auto",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",
       globalVar: "IMS_RX_CACHE",
       label: "IMS Rx",
-      version: "20261029_1353_auto",
+      version: "20261029_2045_auto",
     },
   };
 

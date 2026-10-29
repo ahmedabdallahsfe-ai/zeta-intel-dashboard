@@ -252,11 +252,11 @@
     {
       "id": "market_intel",
       "label": "Total Market Intelligence",
-      "commands": [["etl/build_market_intel_cache.py"]],
+      "commands": [["etl/build_market_intel_cache.py"], ["etl/build_tmi_defined_markets.py"]],
       "critical": false,
-      "sources": ["IMS 2022 to April 2026.xlsx"],
+      "sources": ["IMS 2022 to April 2026.xlsx", "config/tmi_defined_markets.json"],
       "depends_on": [],
-      "outputs": ["cache/market_intel.data.js"],
+      "outputs": ["cache/market_intel.data.js", "cache/tmi_defined_markets.data.js"],
       "pages": ["marketintel"]
     },
     {
