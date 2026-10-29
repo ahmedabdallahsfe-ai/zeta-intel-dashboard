@@ -164,15 +164,49 @@ const OTHER_MKT_D2 = LOOKUPS.dm2s.indexOf('OTHER MARKET');
 // aggregation loop reads -- is derived from it here, with Other-Market rows
 // stripped by default and restored automatically the instant the user ticks
 // OTHER MARKET in the DM1 or DM2 filter checklist.
+// 2026-10-29 (Ahmed): NEW-LAUNCH defined markets (IQVIA_CACHE.launchMarkets; Line/BU "New Launches") never count in
+// Zeta / BU share, rankings or totals by default -- like OTHER MARKET they are left out of `flat` unless the user picks
+// them in the DM1 / DM2 filter (or BU / Line "New Launches").
+var LAUNCH_D1 = null, LAUNCH_D2 = null, TM_D1 = null;
+function launchSets() {
+  if (LAUNCH_D1) return;
+  var lm = (window.IQVIA_CACHE && window.IQVIA_CACHE.launchMarkets) || {};
+  LAUNCH_D1 = new Set(); LAUNCH_D2 = new Set(); TM_D1 = new Set();
+  Object.keys(lm).forEach(function (n) { var a = LOOKUPS.dm1s.indexOf(n), b = LOOKUPS.dm2s.indexOf(n); if (a >= 0) LAUNCH_D1.add(a); if (b >= 0) LAUNCH_D2.add(b); });
+  var tm = new Set(); LOOKUPS.prods.forEach(function (p, i) { if (/\[TM\]$/.test(p)) tm.add(i); });
+  if (flatFull) for (var i = 0; i < flatFull.length; i += 14) if (tm.has(flatFull[i + PI])) TM_D1.add(flatFull[i + D1I]);
+}
+function launchSelected() {
+  launchSets();
+  var nlL = LOOKUPS.lines.indexOf('New Launches'), nlB = LOOKUPS.bus.indexOf('New Launches'), hit = false;
+  if (STATE.fDm1Sel) STATE.fDm1Sel.forEach(function (i) { if (LAUNCH_D1.has(i)) hit = true; });
+  if (STATE.fDm2Sel) STATE.fDm2Sel.forEach(function (i) { if (LAUNCH_D2.has(i)) hit = true; });
+  if (STATE.fLineSel && STATE.fLineSel.has(nlL)) hit = true;
+  if (STATE.fBuSel && STATE.fBuSel.has(nlB)) hit = true;
+  return hit;
+}
+function launchBannerHTML() {
+  launchSets();
+  var l = false, t = false;
+  (STATE.fDm1Sel || new Set()).forEach(function (i) { if (LAUNCH_D1.has(i)) l = true; if (TM_D1.has(i)) t = true; });
+  if (!l && !t && !launchSelected()) return '';
+  return '<div style="border-left:3px solid #9775fa;background:#9775fa14;border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--txt1)">'
+    + (l || launchSelected() ? '<div><b style="color:#9775fa">New-launch defined market</b> &mdash; shown for sizing only; it is excluded from Zeta / BU market share, rankings and totals everywhere else.</div>' : '')
+    + (t ? '<div style="margin-top:4px"><b style="color:#9775fa">[TM]</b> products come from <b>Total Market Intelligence</b> (IMS annual, spread evenly over the months; 2026 after the last IMS month carried forward) because they are not in the IQVIA extract &mdash; estimates, not IQVIA monthly data.</div>' : '')
+    + '</div>';
+}
 function rebuildFlatForOtherMarket() {
   if(!flatFull) return;
+  launchSets();
+  var includeLaunch = launchSelected();
   var includeOther = (STATE.fDm1Sel && STATE.fDm1Sel.has(OTHER_MKT_D1)) ||
                       (STATE.fDm2Sel && STATE.fDm2Sel.has(OTHER_MKT_D2));
-  if(includeOther) { flat = flatFull; return; }
+  if(includeOther && includeLaunch) { flat = flatFull; return; }
   var out = [];
   var N = flatFull.length;
   for(var i=0;i<N;i+=14){
-    if(flatFull[i+D1I] === OTHER_MKT_D1) continue;
+    if(!includeOther && flatFull[i+D1I] === OTHER_MKT_D1) continue;
+    if(!includeLaunch && LAUNCH_D1.has(flatFull[i+D1I])) continue;
     out.push(flatFull[i],flatFull[i+1],flatFull[i+2],flatFull[i+3],flatFull[i+4],
               flatFull[i+5],flatFull[i+6],flatFull[i+7],flatFull[i+8],flatFull[i+9],flatFull[i+10],flatFull[i+11],flatFull[i+12],flatFull[i+13]);
   }
@@ -1205,9 +1239,9 @@ const MS_CFG = {
   strength: { stateKey:'fStrengthSel', singleKey:'fStrength', lookupKey:'strengths', def:'All Strengths',
           onchange: () => { STATE.rendered.clear(); renderSection(STATE.section); } },
   bu:   { stateKey:'fBuSel',   singleKey:'fBUIdx',   lookupKey:'bus',   def:'All BU',
-          onchange: () => { STATE.fBUIdx = STATE.fBuSel.size===1 ? [...STATE.fBuSel][0] : -1; STATE.rendered.clear(); renderSection(STATE.section); } },
+          onchange: () => { STATE.fBUIdx = STATE.fBuSel.size===1 ? [...STATE.fBuSel][0] : -1; rebuildFlatForOtherMarket(); STATE.rendered.clear(); renderSection(STATE.section); } },
   line: { stateKey:'fLineSel', singleKey:'fLineIdx', lookupKey:'lines', def:'All Lines',
-          onchange: () => { STATE.fLineIdx = STATE.fLineSel.size===1 ? [...STATE.fLineSel][0] : -1; STATE.rendered.clear(); renderSection(STATE.section); } }
+          onchange: () => { STATE.fLineIdx = STATE.fLineSel.size===1 ? [...STATE.fLineSel][0] : -1; rebuildFlatForOtherMarket(); STATE.rendered.clear(); renderSection(STATE.section); } }
 };
 
 function renderExecutive() {
@@ -4045,11 +4079,20 @@ function applyUserFilter(){
     var _o1 = LOOKUPS.dm1s.indexOf('OTHER MARKET'), _o2 = LOOKUPS.dm2s.indexOf('OTHER MARKET');
     // 2026-10-29 (Ahmed): launch markets sit on Line "New Launches" (product_market_overrides.json); a BU Manager or
     // Group Brand Manager sees the New Launches markets of his own BU(s) (e.g. Kamal + DIAB GBM, Cluster BU + GBM).
-    var _nl = LOOKUPS.lines.findIndex(function (x) { return String(x).toUpperCase().trim() === 'NEW LAUNCHES'; }), _nlBu = new Set();
-    if (_nl >= 0 && /^(BU MANAGER|GROUP BRAND MANAGER)$/i.test(String(CURRENT_USER.role || '').trim()))
-      (bu || []).forEach(function (v) { var i = LOOKUPS.bus.findIndex(function (x) { return String(x).toUpperCase().trim() === String(v).toUpperCase().trim(); }); if (i >= 0) _nlBu.add(i); });
+    // launch markets (IQVIA_CACHE.launchMarkets {name: {bu, line}}, Line/BU "New Launches"): a BU Manager / Group Brand
+    // Manager of that BU, or a user of that line, sees them.
+    var _U = function (x) { return String(x || '').toUpperCase().trim(); }, _lm = (window.IQVIA_CACHE && window.IQVIA_CACHE.launchMarkets) || {};
+    var _mgr = /^(BU MANAGER|GROUP BRAND MANAGER)$/i.test(String(CURRENT_USER.role || '').trim());
+    var _myBu = (bu || []).map(_U), _myLn = (ln || []).map(_U), _lD1 = new Set(), _lD2 = new Set();
+    Object.keys(_lm).forEach(function (n) {
+      var e = _lm[n] || {};
+      if ((_mgr && e.bu && _myBu.indexOf(_U(e.bu)) >= 0) || (e.line && _myLn.indexOf(_U(e.line)) >= 0)) {
+        var a = LOOKUPS.dm1s.indexOf(n), b = LOOKUPS.dm2s.indexOf(n); if (a >= 0) _lD1.add(a); if (b >= 0) _lD2.add(b);
+      }
+    });
+    _lD1.forEach(function (i) { aDM.add(i); }); if (aDM2) _lD2.forEach(function (i) { aDM2.add(i); });
     for (var _k = 0; _k < flat.length; _k += 14) {
-      if (!(_lnSet.has(flat[_k + LINEI]) || _buSet.has(flat[_k + BUCI]) || (flat[_k + LINEI] === _nl && _nlBu.has(flat[_k + BUCI])))) continue;
+      if (!(_lnSet.has(flat[_k + LINEI]) || _buSet.has(flat[_k + BUCI]))) continue;
       if (flat[_k + D1I] !== _o1) aDM.add(flat[_k + D1I]);
       if (aDM2 && flat[_k + D2I] !== _o2) aDM2.add(flat[_k + D2I]);
     }
@@ -9170,6 +9213,7 @@ function renderSection(sid){
     if(sid!=='guide' && otherMarketEmptyReason()==='other-market'){
       el.insertAdjacentHTML('afterbegin', otherMarketBannerHTML());
     }
+    if(sid!=='guide'){ try { var _lb = launchBannerHTML(); if (_lb) el.insertAdjacentHTML('afterbegin', _lb); } catch (e) {} }
     enhanceTables(el);
     if (sid !== 'zeta-calib') packLabels(el);   // 2026-10-29: Packs unit (the IQVIA vs In-house tab stays in SU)
   }

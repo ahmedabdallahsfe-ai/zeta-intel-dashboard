@@ -146,6 +146,16 @@
       "pages": ["expense"]
     },
     {
+      "id": "market_intel",
+      "label": "Total Market Intelligence",
+      "commands": [["etl/build_market_intel_cache.py"], ["etl/build_tmi_defined_markets.py"]],
+      "critical": false,
+      "sources": ["IMS 2022 to April 2026.xlsx", "config/tmi_defined_markets.json"],
+      "depends_on": [],
+      "outputs": ["cache/market_intel.data.js", "cache/tmi_defined_markets.data.js"],
+      "pages": ["marketintel"]
+    },
+    {
       "id": "iqvia",
       "label": "IQVIA Market Share",
       "commands": [["refresh_iqvia.py"]],
@@ -158,9 +168,10 @@
         "iqvia_source/config/corp_restatements.json",
         "iqvia_source/config/dm1_corrections.json",
         "iqvia_source/config/product_market_overrides.json",
-        "iqvia_source/config/iqvia_calibrations.json"
+        "iqvia_source/config/iqvia_calibrations.json",
+        "config/tmi_defined_markets.json"
       ],
-      "depends_on": [],
+      "depends_on": ["market_intel"],
       "outputs": ["cache/iqvia.data.js"],
       "git_extra": ["cache/iqvia.json"],
       "pages": ["iqvia", "executive", "login", "askdata"]
@@ -248,16 +259,6 @@
       "depends_on": ["sales"],
       "outputs": ["cache/coaching.data.js"],
       "pages": ["coaching", "executive"]
-    },
-    {
-      "id": "market_intel",
-      "label": "Total Market Intelligence",
-      "commands": [["etl/build_market_intel_cache.py"], ["etl/build_tmi_defined_markets.py"]],
-      "critical": false,
-      "sources": ["IMS 2022 to April 2026.xlsx", "config/tmi_defined_markets.json"],
-      "depends_on": [],
-      "outputs": ["cache/market_intel.data.js", "cache/tmi_defined_markets.data.js"],
-      "pages": ["marketintel"]
     },
     {
       "id": "market_dynamics",

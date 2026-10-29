@@ -66,8 +66,10 @@
       "dm1": "Kulyafin_Market",
       "dm2": "Kulyafin_Market",
       "line": "New Launches",
-      "bu": "Cluster",
-      "line_before_new_launches": "CVM-I"
+      "bu": "New Launches",
+      "line_before_new_launches": "CVM-I",
+      "launch_bu": "Cluster",
+      "launch_line": null
     },
     {
       "id": "CLUSTER-DOZOVA-KIDS-MAX",
@@ -83,8 +85,10 @@
       "dm1": "Dozova Kids Max_Market",
       "dm2": "Dozova Kids Max_Market",
       "line": "New Launches",
-      "bu": "Cluster",
-      "line_before_new_launches": "PEDIA"
+      "bu": "New Launches",
+      "line_before_new_launches": "PEDIA",
+      "launch_bu": "Cluster",
+      "launch_line": null
     },
     {
       "id": "CLUSTER-DOZOVA-KIDS-DROPS",
@@ -98,8 +102,10 @@
       "dm1": "Dozova Kids Drops_Market",
       "dm2": "Dozova Kids Drops_Market",
       "line": "New Launches",
-      "bu": "Cluster",
-      "line_before_new_launches": "PEDIA"
+      "bu": "New Launches",
+      "line_before_new_launches": "PEDIA",
+      "launch_bu": "Cluster",
+      "launch_line": null
     },
     {
       "id": "CLUSTER-DOZOVA-KIDS-GUMMIES",
@@ -113,8 +119,10 @@
       "dm1": "Dozova Kids Gummies_Market",
       "dm2": "Dozova Kids Gummies_Market",
       "line": "New Launches",
-      "bu": "Cluster",
-      "line_before_new_launches": "PEDIA"
+      "bu": "New Launches",
+      "line_before_new_launches": "PEDIA",
+      "launch_bu": "Cluster",
+      "launch_line": null
     },
     {
       "id": "CLUSTER-DOZOVA-BRAIN-BOOST",
@@ -144,8 +152,10 @@
       "dm1": "Dozova Brain Boost_Market",
       "dm2": "Dozova Brain Boost_Market",
       "line": "New Launches",
-      "bu": "Cluster",
-      "line_before_new_launches": "PEDIA"
+      "bu": "New Launches",
+      "line_before_new_launches": "PEDIA",
+      "launch_bu": "Cluster",
+      "launch_line": null
     },
     {
       "id": "DIAB2027-SEITASWAY-MET",
@@ -157,8 +167,10 @@
       "dm1": "Seitasway Met_Market",
       "dm2": "Seitasway Met_Market",
       "line": "New Launches",
-      "bu": "DIAB",
-      "line_before_new_launches": "DIAB-NEW"
+      "bu": "New Launches",
+      "line_before_new_launches": "DIAB-NEW",
+      "launch_bu": "DIAB",
+      "launch_line": null
     },
     {
       "id": "DIAB2027-SEITASWAY",
@@ -170,8 +182,10 @@
       "dm1": "Seitasway_Market",
       "dm2": "Seitasway_Market",
       "line": "New Launches",
-      "bu": "DIAB",
-      "line_before_new_launches": "DIAB-NEW"
+      "bu": "New Launches",
+      "line_before_new_launches": "DIAB-NEW",
+      "launch_bu": "DIAB",
+      "launch_line": null
     },
     {
       "id": "DIAB2027-VANTAGLIMIN",
@@ -183,8 +197,10 @@
       "dm1": "Vantaglimin_Market",
       "dm2": "Vantaglimin_Market",
       "line": "New Launches",
-      "bu": "DIAB",
-      "line_before_new_launches": "DIAB-NEW"
+      "bu": "New Launches",
+      "line_before_new_launches": "DIAB-NEW",
+      "launch_bu": "DIAB",
+      "launch_line": null
     },
     {
       "id": "DIAB2027-THIOMAX-COMPOUND",
@@ -210,8 +226,10 @@
       "dm1": "Thiomax Compound_Market",
       "dm2": "Thiomax Compound_Market",
       "line": "New Launches",
-      "bu": "DIAB",
-      "line_before_new_launches": "DIAB-NEW"
+      "bu": "New Launches",
+      "line_before_new_launches": "DIAB-NEW",
+      "launch_bu": "DIAB",
+      "launch_line": null
     },
     {
       "id": "DIAB2027-LIPOSOMAL-B-COMPLEX",
@@ -231,8 +249,10 @@
       "dm1": "Liposomal B-Complex_Market",
       "dm2": "Liposomal B-Complex_Market",
       "line": "New Launches",
-      "bu": "DIAB",
-      "line_before_new_launches": "DIAB-NEW"
+      "bu": "New Launches",
+      "line_before_new_launches": "DIAB-NEW",
+      "launch_bu": "DIAB",
+      "launch_line": null
     },
     {
       "id": "CHC2027-WOMEN-MULTIVIT",
@@ -283,8 +303,11 @@
       ],
       "dm1": "Zetagaro_Market",
       "dm2": "Zetagaro_Market",
-      "line": "CHC",
-      "bu": "CHC"
+      "line": "New Launches",
+      "bu": "New Launches",
+      "launch_bu": "CHC",
+      "launch_line": "CHC",
+      "line_before_new_launches": "CHC"
     },
     {
       "id": "CHC2027-ZETADIDOX",
@@ -311,11 +334,14 @@
       ],
       "dm1": "Liposomal D3_Market",
       "dm2": "Liposomal D3_Market",
-      "line": "CHC",
-      "bu": "CHC",
+      "line": "New Launches",
+      "bu": "New Launches",
       "doses": [
         "Capsule"
-      ]
+      ],
+      "launch_bu": "CHC",
+      "launch_line": "CHC",
+      "line_before_new_launches": "CHC"
     },
     {
       "id": "CHC2027-LIPOSOMAL-D3K2MG",
@@ -327,8 +353,11 @@
       ],
       "dm1": "Liposomal D3+K2+Mg_Market",
       "dm2": "Liposomal D3+K2+Mg_Market",
-      "line": "CHC",
-      "bu": "CHC"
+      "line": "New Launches",
+      "bu": "New Launches",
+      "launch_bu": "CHC",
+      "launch_line": "CHC",
+      "line_before_new_launches": "CHC"
     },
     {
       "id": "CHC2027-OMEGA-369",
@@ -340,8 +369,11 @@
       ],
       "dm1": "Omega 3-6-9_Market",
       "dm2": "Omega 3-6-9_Market",
-      "line": "CHC",
-      "bu": "CHC"
+      "line": "New Launches",
+      "bu": "New Launches",
+      "launch_bu": "CHC",
+      "launch_line": "CHC",
+      "line_before_new_launches": "CHC"
     }
   ],
   "dm1_splits": {
@@ -350,5 +382,6 @@
       "MAN_MULTI_VIT",
       "WOMEN_MULTI_VIT"
     ]
-  }
+  },
+  "_launch_note": "2026-10-29 (Ahmed): rules with launch_bu are NEW-LAUNCH markets: Line/BU 'New Launches' (no BU / Zeta share counts them); launch_bu / launch_line say who sees them (BU Manager / Group Brand Manager of launch_bu; users of launch_line)."
 }

@@ -322,6 +322,99 @@ try:
 except Exception as e:
     log(f'WARNING: DM1 splits skipped ({e})')
 
+# -- 2d-ter. TOTAL-MARKET SUPPLEMENT + LAUNCH MARKETS (2026-10-29, Ahmed: "get anything in Total Market into Market
+# Intelligence and flag it; do not evaluate the market share of Zeta or a BU on the new-launch defined markets").
+# config/tmi_defined_markets.json lists each defined market's brands. A member brand that is in Total Market
+# Intelligence (cache/market_intel.json, annual IMS) but NOT in this IQVIA extract is added as monthly rows:
+#   product = "<IMS brand> [TM]" (the flag), corp / molecule / ATC4 from IMS, DM1 = the market's IQVIA DM1
+#   (or its "iqvia_dm1_new"), value + units spread evenly over the months of each IMS year (2026 = the IMS months,
+#   then carried forward at the 2026 monthly rate up to the last IQVIA month -- an estimate), SU = packs x the unit
+#   count in the IMS pack name (packs when there is none).
+# LAUNCH markets (override rules with "launch_bu", TMI markets with "launch": true) carry Line / BU "New Launches",
+# so no BU / Zeta share, ranking or total counts them; cache_obj['launchMarkets'] keeps their real BU / line for scope.
+_TMI_CFG = os.path.join(ROOT_DIR, 'config', 'tmi_defined_markets.json')
+_TMI_SRC = os.path.join(ROOT_DIR, 'cache', 'market_intel.json')
+_launch_markets = {}
+_tmi_log = {'added': [], 'skipped_in_iqvia': [], 'rows': 0, 'lcv': 0}
+try:
+    if os.path.exists(PRODUCT_MARKET_OVERRIDES_FILE):
+        for _r in (json.load(open(PRODUCT_MARKET_OVERRIDES_FILE, encoding='utf-8')).get('overrides') or []):
+            if _r.get('launch_bu'):
+                _launch_markets[_r['dm1']] = {'bu': _r['launch_bu'], 'line': _r.get('launch_line')}
+                if _r.get('dm2') and _r['dm2'] != _r['dm1']:
+                    _launch_markets[_r['dm2']] = {'bu': _r['launch_bu'], 'line': _r.get('launch_line')}
+    if os.path.exists(_TMI_CFG) and os.path.exists(_TMI_SRC):
+        _tc = json.load(open(_TMI_CFG, encoding='utf-8'))
+        _tm = json.load(open(_TMI_SRC, encoding='utf-8'))
+        _TL, _TA = _tm['lookups'], _tm['annual']
+        _TR, _TV, _TU, _TS = _TA['rows'], _TA['value'], _TA['units'], _TA['stride']
+        _tyears = _TL['years']
+        _t26m = int(_tc.get('tmi_partial_year_months') or 6)
+        _nrm = lambda x: ' '.join(str(x or '').upper().split())
+        _iq_prods = set(_nrm(p) for p in prods_r)
+        _iq_per = sorted(set(periods_r))
+        _last = _iq_per[-1] if _iq_per else '2026-12'
+        _bidx = {}
+        for _i, _b in enumerate(_TL['brands']): _bidx.setdefault(_nrm(_b), []).append(_i)
+        _cnt_re = re.compile(r'(\d+)\s*$')
+        _byb = {}   # one pass over the IMS cube: brand idx -> [cell idx]
+        _wantb = set(i for _m in _tc.get('markets', []) for _e in _m.get('members', []) for i in _bidx.get(_nrm(_e['brand']), []))
+        for _k in range(len(_TV)):
+            _b0 = _TR[_k * _TS + 6]
+            if _b0 in _wantb: _byb.setdefault(_b0, []).append(_k)
+        for _m in _tc.get('markets', []):
+            _dm1 = _m.get('iqvia_dm1') or _m.get('iqvia_dm1_new')
+            if not _dm1: continue
+            if _m.get('launch'):
+                _launch_markets[_dm1] = {'bu': _m.get('bu'), 'line': _m.get('line')}
+            _line = 'New Launches' if _m.get('launch') else _m.get('line')
+            _bu = 'New Launches' if _m.get('launch') else _m.get('bu')
+            for _e in _m.get('members', []):
+                _bn = _nrm(_e['brand'])
+                if _bn in _iq_prods or _bn[:18] in _iq_prods:
+                    _tmi_log['skipped_in_iqvia'].append(_e['brand']); continue
+                _want_c = _nrm(_e.get('corp')) if _e.get('corp') else None
+                _cells = {}
+                for _bi in _bidx.get(_bn, []):
+                    for _k in _byb.get(_bi, []):
+                        _o = _k * _TS
+                        _corp = _TL['corps'][_TR[_o + 3]]
+                        if _want_c and _want_c not in _nrm(_corp): continue
+                        _key = (_corp, _TL['products'][_TR[_o + 5]], _TL['molecules'][_TR[_o + 4]], _TL['atc4s'][_TR[_o + 2]], _TL['forms'][_TR[_o + 7]])
+                        _y = _tyears[_TR[_o]]
+                        _c = _cells.setdefault(_key, {}); _a = _c.setdefault(_y, [0.0, 0.0]); _a[0] += _TV[_k]; _a[1] += _TU[_k]
+                if not _cells: continue
+                _tmi_log['added'].append(_e['brand'] + (' (' + _e['corp'] + ')' if _e.get('corp') else '') + ' -> ' + _dm1)
+                for (_corp, _pk, _mol, _atc, _form), _ys in _cells.items():
+                    _mm = _cnt_re.search(str(_pk)); _cnt = int(_mm.group(1)) if (_mm and _form in ('Solid Oral Form', 'Sachets')) else 1
+                    _prod = _e['brand'].upper() + ' [TM]'
+                    _item = str(_pk).upper() + ' [TM]'
+                    for _y, (_v, _u) in _ys.items():
+                        _nm = _t26m if _y == max(_tyears) else 12
+                        _months = ['%d-%02d' % (_y, mo) for mo in range(1, _nm + 1)]
+                        if _y == max(_tyears):   # carry the latest IMS monthly rate up to the last IQVIA month (estimate)
+                            mo = _nm + 1
+                            while '%d-%02d' % (_y, mo) <= _last and mo <= 12: _months.append('%d-%02d' % (_y, mo)); mo += 1
+                        for _p in _months:
+                            if _iq_per and _p < _iq_per[0]: continue
+                            _lv = _v / _nm; _uv = _u / _nm
+                            if _lv <= 0: continue
+                            corps_r.append(_corp); prods_r.append(_prod); periods_r.append(_p); atc4s_r.append(_atc)
+                            dm1s_r.append(_dm1); dm2s_r.append(_dm1); molecules_r.append(_mol); doses_r.append(_form)
+                            items_r.append(_item); strengths_r.append('(none)'); lines_r.append(_line); bus_r.append(_bu)
+                            lcvs_r.append(int(round(_lv))); sus_r.append(int(round(_uv * _cnt)))
+                            _item_su_by_pack[_item][float(_cnt)] += 1
+                            _tmi_log['rows'] += 1; _tmi_log['lcv'] += int(round(_lv))
+        log(f"Total-market supplement: {_tmi_log['rows']} rows, LCV {_tmi_log['lcv']:,} -- " + '; '.join(_tmi_log['added']))
+    # launch markets: Line / BU "New Launches" on every row (no BU / Zeta share counts them)
+    _nl_rows = 0
+    for _i in range(len(dm1s_r)):
+        if dm1s_r[_i] in _launch_markets:
+            lines_r[_i] = 'New Launches'; bus_r[_i] = 'New Launches'; _nl_rows += 1
+    log(f"Launch markets: {len(_launch_markets)} DM1/DM2 ({_nl_rows} rows) on Line/BU 'New Launches': " + ', '.join(sorted(_launch_markets)))
+except Exception as e:
+    log(f'WARNING: total-market supplement / launch markets skipped ({e})')
+
 # -- 2e. IQVIA CALIBRATION (2026-10-26, Ahmed) -----------------------------------
 # iqvia_source/config/iqvia_calibrations.json deducts a fixed share of IQVIA's
 # over-reported packs from named products (e.g. 75% of 188k EMPACOZA PLUS packs
@@ -615,6 +708,8 @@ cache_obj = {
     'lookups': lookups,
     'packSizes': _pack_sizes_arr,
     'itemPackSizes': _item_pack_sizes_arr,
+    'launchMarkets': _launch_markets,
+    'tmiSupplement': {'added': _tmi_log['added'], 'rows': _tmi_log['rows'], 'lcv': _tmi_log['lcv'], 'flag': '[TM]', 'source': 'Total Market Intelligence (IMS annual, spread evenly over months; 2026 Jul+ carried forward)'},
     'targets': targets_list,
     'users': zeta_users,
     'kpis': kpi_data,

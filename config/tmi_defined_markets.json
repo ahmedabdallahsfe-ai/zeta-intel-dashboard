@@ -1,38 +1,444 @@
 {
-  "_about": "Defined markets on Total Market Intelligence (cache/market_intel.json, IMS annual 2022-2025 + 2026 YTD). Added 2026-10-29 (Ahmed): 'CHC 2027 structure proposal.pdf' - markets whose competitors are missing from the IQVIA extract are sized here. A member = an IMS brand, optionally limited to a corporation (corp = text contained in the IMS corporation name). Brands not found are listed by etl/build_tmi_defined_markets.py and match automatically when they appear. Edit here, then run UPDATE_DASHBOARD (market_intel step).",
+  "_about": "Defined markets on Total Market Intelligence (cache/market_intel.json, IMS annual 2022-2025 + 2026 YTD). Added 2026-10-29 (Ahmed): 'CHC 2027 structure proposal.pdf' - markets whose competitors are missing from the IQVIA extract are sized here. A member = an IMS brand, optionally limited to a corporation (corp = text contained in the IMS corporation name). Brands not found are listed by etl/build_tmi_defined_markets.py and match automatically when they appear. Edit here, then run UPDATE_DASHBOARD (market_intel step). 2026-10-29: members missing from IQVIA are added to Market Intelligence as '<brand> [TM]' rows (refresh_iqvia.py step 2d-ter); markets with launch=true are NEW LAUNCHES (Line/BU 'New Launches', excluded from BU / Zeta share).",
   "version": "2026-10-29",
   "markets": [
-    {"id": "CHC27-ZETAGARO", "name": "Zetagaro market", "bu": "CHC", "line": "CHC", "zeta_products": ["Zetagaro"], "iqvia_dm1": "Zetagaro_Market",
-     "members": [{"brand": "MOUNJARO"}, {"brand": "WEGOVY"}, {"brand": "ZETAGARO"}]},
-    {"id": "CHC27-WOMEN-MVT", "name": "Dozova Woman Max market (women multivitamins)", "bu": "CHC", "line": "CHC", "zeta_products": ["Dozova Women Max 30 Tab", "Dozova Women Max 60 Tab"], "iqvia_dm1": "WOMEN_MULTI_VIT",
-     "members": [{"brand": "DOZOVA WOMAN MAX"}, {"brand": "LIMITLESS WOMAN MX"}, {"brand": "CENTRUM WOMEN"}, {"brand": "VITAMOUNT WOMEN"}, {"brand": "SAFETRIUM WOMEN"}, {"brand": "WELLWOMAN ORIGINAL"}, {"brand": "NUTRIVILLE WMN MVT"}]},
-    {"id": "CHC27-MEN-MVT", "name": "Dozova Man Max market (men multivitamins)", "bu": "CHC", "line": "CHC", "zeta_products": ["Dozova Man Max 30 Tab", "Dozova Man Max 60 Tab"], "iqvia_dm1": "MAN_MULTI_VIT",
-     "members": [{"brand": "DOZOVA MAN MAX"}, {"brand": "LIMITLESS MAN MAX"}, {"brand": "CENTRUM MEN"}, {"brand": "VITAMOUNT MEN"}, {"brand": "WELLMAN ORIGINAL"}, {"brand": "NUTRIVILLE MEN MVT"}]},
-    {"id": "CHC27-COQ10", "name": "Dozova CoQ10 market", "bu": "CHC", "line": "CHC", "zeta_products": ["Dozova CoQ10"], "iqvia_dm1": "SELECTED _COQ10",
-     "members": [{"brand": "DOZOVA Q10 C E"}, {"brand": "LIMITLESS CO Q10"}, {"brand": "LIMITLESS CONC Q"}, {"brand": "Q-WELL 10"}, {"brand": "SYNAPSE CO Q10"}]},
-    {"id": "CHC27-ASHWAGANDHA", "name": "Dozova Ashwagandha market", "bu": "CHC", "line": "CHC", "zeta_products": ["Dozova Ashwagandha"], "iqvia_dm1": "ONLY_DOZOVA_ASHW",
-     "members": [{"brand": "DOZOVA A KSM66"}, {"brand": "NUTRIVILLE ASHWAGA"}, {"brand": "LIMITLESS SL AID O"}, {"brand": "LIMITLESS SL AID"}, {"brand": "CENTRAVIT ASHWAG P"}]},
-    {"id": "CHC27-MELATONIN", "name": "Dozova Melatonin market", "bu": "CHC", "line": "CHC", "zeta_products": ["Melatonin 30 Cap", "Melatonin 60 Cap"], "iqvia_dm1": "SELECTED _ MELATONIN",
-     "members": [{"brand": "DOZOVA MELATONIN"}, {"brand": "COPAD MELATONIN"}, {"brand": "MELATONIN", "corp": "NOW"}]},
-    {"id": "CHC27-BEAUTY-TAB", "name": "Dozova Beauty 30 Tab market (hair & nails)", "bu": "CHC", "line": "CHC", "zeta_products": ["Dozova Beauty 30 Tab"], "iqvia_dm1": null,
-     "members": [{"brand": "DOZOVA BEAUTY"}, {"brand": "PANTOGAR"}, {"brand": "PERFECTIL"}, {"brand": "BLOOM VILLE"}, {"brand": "LIMITLESS GLOW HAIR"}]},
-    {"id": "CHC27-BEAUTY-GUMMIES", "name": "Dozova Beauty 60 Gummies market", "bu": "CHC", "line": "CHC", "zeta_products": ["Dozova Beauty 60 Gummies"], "iqvia_dm1": null,
-     "members": [{"brand": "BIOVITA"}, {"brand": "MYVI BEAUTY"}]},
-    {"id": "CHC27-LIPO-D3", "name": "Liposomal D3 market", "bu": "CHC", "line": "CHC", "zeta_products": ["Liposomal D3"], "iqvia_dm1": "Liposomal D3_Market",
-     "members": [{"brand": "LIMITLESS OSSOF D3", "corp": "LIMITLESS"}, {"brand": "DAVALINDI"}, {"brand": "D.DEP"}, {"brand": "NERHADOU ORODISP FILM", "corp": "NERHADOU"}]},
-    {"id": "CHC27-LIPO-D3K2MG", "name": "Liposomal D3+K2+Mg market", "bu": "CHC", "line": "CHC", "zeta_products": ["Liposomal D3+K2+Mg"], "iqvia_dm1": "Liposomal D3+K2+Mg_Market",
-     "members": [{"brand": "D3 & K2", "corp": "JAXTER"}, {"brand": "EGUNAZ D3&K2"}, {"brand": "FOJI"}, {"brand": "LIPOSOMAL D3+K2", "corp": "ORGANIC NATION"}]},
-    {"id": "CHC27-OMEGA369", "name": "Omega 3-6-9 market", "bu": "CHC", "line": "CHC", "zeta_products": ["Omega 3-6-9"], "iqvia_dm1": "Omega 3-6-9_Market",
-     "members": [{"brand": "OMEGA 3-6-9", "corp": "MULTICARE"}, {"brand": "OMEGASEEF"}, {"brand": "SUPER OMEGA 3-6-9", "corp": "NOW"}]},
-    {"id": "CHC27-METHYLFOLATE", "name": "Methyl Folate market", "bu": "CHC", "line": "CHC", "zeta_products": ["Methyl Folate"], "iqvia_dm1": null,
-     "members": [{"brand": "METHYL FOLATE", "corp": "ORCHIDIA"}, {"brand": "ACTI-FOLIC"}, {"brand": "LIMITLESS METHYL F"}, {"brand": "SANSOFOLIC"}, {"brand": "METHYL FOLATE", "corp": "ORA LINES"}]},
-    {"id": "CHC27-SNAPICAL", "name": "Snapical market (calcium)", "bu": "CHC", "line": "CHC", "zeta_products": ["Snapical"], "iqvia_dm1": null,
-     "members": [{"brand": "SNAPICAL"}, {"brand": "CALCITRON"}, {"brand": "OSTEOCARE"}, {"brand": "CALTONEX"}, {"brand": "CAL-MAG-D"}, {"brand": "LIMITLESS OSTEODEN"}]},
-    {"id": "CHC27-PREGNA", "name": "Dozova Pregna market (prenatal)", "bu": "CHC", "line": "CHC", "zeta_products": ["Dozova Pregna 30", "Dozova Pregna 90"], "iqvia_dm1": null,
-     "members": [{"brand": "DOZOVA PREGNA"}, {"brand": "PREGNACARE"}, {"brand": "LIMITL. PRENA. MAX"}, {"brand": "SANSO PREGNA PLUS"}]},
-    {"id": "CHC27-ZETADIDOX", "name": "Zetadidox market (pregnancy nausea)", "bu": "CHC", "line": "CHC", "zeta_products": ["Zetadidox 10/10", "Zetadidox 20/20"], "iqvia_dm1": "Zetadidox_Market",
-     "members": [{"brand": "ZETADIDOX"}, {"brand": "VOMIBREAK"}, {"brand": "MORNIGAG"}, {"brand": "VOMITRENAT"}]},
-    {"id": "CHC27-MACA", "name": "Dozova MACA market", "bu": "CHC", "line": "CHC", "zeta_products": ["Dozova MACA"], "iqvia_dm1": null,
-     "members": [{"brand": "DOZOVA MACA"}, {"brand": "MACA", "corp": "NOW"}, {"brand": "MACA", "corp": "ORGANIC NATION"}]}
-  ]
+    {
+      "id": "CHC27-ZETAGARO",
+      "name": "Zetagaro market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Zetagaro"
+      ],
+      "iqvia_dm1": "Zetagaro_Market",
+      "members": [
+        {
+          "brand": "MOUNJARO"
+        },
+        {
+          "brand": "WEGOVY"
+        },
+        {
+          "brand": "ZETAGARO"
+        }
+      ],
+      "launch": true
+    },
+    {
+      "id": "CHC27-WOMEN-MVT",
+      "name": "Dozova Woman Max market (women multivitamins)",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Dozova Women Max 30 Tab",
+        "Dozova Women Max 60 Tab"
+      ],
+      "iqvia_dm1": "WOMEN_MULTI_VIT",
+      "members": [
+        {
+          "brand": "DOZOVA WOMAN MAX"
+        },
+        {
+          "brand": "LIMITLESS WOMAN MX"
+        },
+        {
+          "brand": "CENTRUM WOMEN"
+        },
+        {
+          "brand": "VITAMOUNT WOMEN"
+        },
+        {
+          "brand": "SAFETRIUM WOMEN"
+        },
+        {
+          "brand": "WELLWOMAN ORIGINAL"
+        },
+        {
+          "brand": "NUTRIVILLE WMN MVT"
+        }
+      ],
+      "launch": false
+    },
+    {
+      "id": "CHC27-MEN-MVT",
+      "name": "Dozova Man Max market (men multivitamins)",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Dozova Man Max 30 Tab",
+        "Dozova Man Max 60 Tab"
+      ],
+      "iqvia_dm1": "MAN_MULTI_VIT",
+      "members": [
+        {
+          "brand": "DOZOVA MAN MAX"
+        },
+        {
+          "brand": "LIMITLESS MAN MAX"
+        },
+        {
+          "brand": "CENTRUM MEN"
+        },
+        {
+          "brand": "VITAMOUNT MEN"
+        },
+        {
+          "brand": "WELLMAN ORIGINAL"
+        },
+        {
+          "brand": "NUTRIVILLE MEN MVT"
+        }
+      ],
+      "launch": false
+    },
+    {
+      "id": "CHC27-COQ10",
+      "name": "Dozova CoQ10 market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Dozova CoQ10"
+      ],
+      "iqvia_dm1": "SELECTED _COQ10",
+      "members": [
+        {
+          "brand": "DOZOVA Q10 C E"
+        },
+        {
+          "brand": "LIMITLESS CO Q10"
+        },
+        {
+          "brand": "LIMITLESS CONC Q"
+        },
+        {
+          "brand": "Q-WELL 10"
+        },
+        {
+          "brand": "SYNAPSE CO Q10"
+        }
+      ],
+      "launch": false
+    },
+    {
+      "id": "CHC27-ASHWAGANDHA",
+      "name": "Dozova Ashwagandha market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Dozova Ashwagandha"
+      ],
+      "iqvia_dm1": "ONLY_DOZOVA_ASHW",
+      "members": [
+        {
+          "brand": "DOZOVA A KSM66"
+        },
+        {
+          "brand": "NUTRIVILLE ASHWAGA"
+        },
+        {
+          "brand": "LIMITLESS SL AID O"
+        },
+        {
+          "brand": "LIMITLESS SL AID"
+        },
+        {
+          "brand": "CENTRAVIT ASHWAG P"
+        }
+      ],
+      "launch": false
+    },
+    {
+      "id": "CHC27-MELATONIN",
+      "name": "Dozova Melatonin market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Melatonin 30 Cap",
+        "Melatonin 60 Cap"
+      ],
+      "iqvia_dm1": "SELECTED _ MELATONIN",
+      "members": [
+        {
+          "brand": "DOZOVA MELATONIN"
+        },
+        {
+          "brand": "COPAD MELATONIN"
+        },
+        {
+          "brand": "MELATONIN",
+          "corp": "NOW"
+        }
+      ],
+      "launch": false
+    },
+    {
+      "id": "CHC27-BEAUTY-TAB",
+      "name": "Dozova Beauty 30 Tab market (hair & nails)",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Dozova Beauty 30 Tab"
+      ],
+      "iqvia_dm1": null,
+      "members": [
+        {
+          "brand": "DOZOVA BEAUTY"
+        },
+        {
+          "brand": "PANTOGAR"
+        },
+        {
+          "brand": "PERFECTIL"
+        },
+        {
+          "brand": "BLOOM VILLE"
+        },
+        {
+          "brand": "LIMITLESS GLOW HAIR"
+        }
+      ],
+      "iqvia_dm1_new": "Dozova Beauty Tab_Market",
+      "launch": true
+    },
+    {
+      "id": "CHC27-BEAUTY-GUMMIES",
+      "name": "Dozova Beauty 60 Gummies market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Dozova Beauty 60 Gummies"
+      ],
+      "iqvia_dm1": null,
+      "members": [
+        {
+          "brand": "BIOVITA"
+        },
+        {
+          "brand": "MYVI BEAUTY"
+        }
+      ],
+      "iqvia_dm1_new": "Dozova Beauty Gummies_Market",
+      "launch": true
+    },
+    {
+      "id": "CHC27-LIPO-D3",
+      "name": "Liposomal D3 market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Liposomal D3"
+      ],
+      "iqvia_dm1": "Liposomal D3_Market",
+      "members": [
+        {
+          "brand": "LIMITLESS OSSOF D3",
+          "corp": "LIMITLESS"
+        },
+        {
+          "brand": "DAVALINDI"
+        },
+        {
+          "brand": "D.DEP"
+        },
+        {
+          "brand": "NERHADOU ORODISP FILM",
+          "corp": "NERHADOU"
+        }
+      ],
+      "launch": true
+    },
+    {
+      "id": "CHC27-LIPO-D3K2MG",
+      "name": "Liposomal D3+K2+Mg market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Liposomal D3+K2+Mg"
+      ],
+      "iqvia_dm1": "Liposomal D3+K2+Mg_Market",
+      "members": [
+        {
+          "brand": "D3 & K2",
+          "corp": "JAXTER"
+        },
+        {
+          "brand": "EGUNAZ D3&K2"
+        },
+        {
+          "brand": "FOJI"
+        },
+        {
+          "brand": "LIPOSOMAL D3+K2",
+          "corp": "ORGANIC NATION"
+        }
+      ],
+      "launch": true
+    },
+    {
+      "id": "CHC27-OMEGA369",
+      "name": "Omega 3-6-9 market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Omega 3-6-9"
+      ],
+      "iqvia_dm1": "Omega 3-6-9_Market",
+      "members": [
+        {
+          "brand": "OMEGA 3-6-9",
+          "corp": "MULTICARE"
+        },
+        {
+          "brand": "OMEGASEEF"
+        },
+        {
+          "brand": "SUPER OMEGA 3-6-9",
+          "corp": "NOW"
+        }
+      ],
+      "launch": true
+    },
+    {
+      "id": "CHC27-METHYLFOLATE",
+      "name": "Methyl Folate market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Methyl Folate"
+      ],
+      "iqvia_dm1": null,
+      "members": [
+        {
+          "brand": "METHYL FOLATE",
+          "corp": "ORCHIDIA"
+        },
+        {
+          "brand": "ACTI-FOLIC"
+        },
+        {
+          "brand": "LIMITLESS METHYL F"
+        },
+        {
+          "brand": "SANSOFOLIC"
+        },
+        {
+          "brand": "METHYL FOLATE",
+          "corp": "ORA LINES"
+        }
+      ],
+      "iqvia_dm1_new": "Methyl Folate_Market",
+      "launch": true
+    },
+    {
+      "id": "CHC27-SNAPICAL",
+      "name": "Snapical market (calcium)",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Snapical"
+      ],
+      "iqvia_dm1": null,
+      "members": [
+        {
+          "brand": "SNAPICAL"
+        },
+        {
+          "brand": "CALCITRON"
+        },
+        {
+          "brand": "OSTEOCARE"
+        },
+        {
+          "brand": "CALTONEX"
+        },
+        {
+          "brand": "CAL-MAG-D"
+        },
+        {
+          "brand": "LIMITLESS OSTEODEN"
+        }
+      ],
+      "iqvia_dm1_new": "Snapical_Market",
+      "launch": true
+    },
+    {
+      "id": "CHC27-PREGNA",
+      "name": "Dozova Pregna market (prenatal)",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Dozova Pregna 30",
+        "Dozova Pregna 90"
+      ],
+      "iqvia_dm1": null,
+      "members": [
+        {
+          "brand": "DOZOVA PREGNA"
+        },
+        {
+          "brand": "PREGNACARE"
+        },
+        {
+          "brand": "LIMITL. PRENA. MAX"
+        },
+        {
+          "brand": "SANSO PREGNA PLUS"
+        }
+      ],
+      "iqvia_dm1_new": "Dozova Pregna_Market",
+      "launch": true
+    },
+    {
+      "id": "CHC27-ZETADIDOX",
+      "name": "Zetadidox market (pregnancy nausea)",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Zetadidox 10/10",
+        "Zetadidox 20/20"
+      ],
+      "iqvia_dm1": "Zetadidox_Market",
+      "members": [
+        {
+          "brand": "ZETADIDOX"
+        },
+        {
+          "brand": "VOMIBREAK"
+        },
+        {
+          "brand": "MORNIGAG"
+        },
+        {
+          "brand": "VOMITRENAT"
+        }
+      ],
+      "launch": false
+    },
+    {
+      "id": "CHC27-MACA",
+      "name": "Dozova MACA market",
+      "bu": "CHC",
+      "line": "CHC",
+      "zeta_products": [
+        "Dozova MACA"
+      ],
+      "iqvia_dm1": null,
+      "members": [
+        {
+          "brand": "DOZOVA MACA"
+        },
+        {
+          "brand": "MACA",
+          "corp": "NOW"
+        },
+        {
+          "brand": "MACA",
+          "corp": "ORGANIC NATION"
+        }
+      ],
+      "iqvia_dm1_new": "Dozova MACA_Market",
+      "launch": true
+    }
+  ],
+  "tmi_partial_year_months": 6
 }
