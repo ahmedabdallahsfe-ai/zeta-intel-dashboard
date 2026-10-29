@@ -1589,7 +1589,7 @@ async function renderMarketForecastTab(container) {
       ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
           icon: "\u{1F512}",
           title: "Access restricted",
-          hint: "The Market Growth Forecast is available to CEO, VP, SFE, BEX, BU, Brand and Line Manager roles only.",
+          hint: "The Market Growth Forecast is available to CEO, VP, SFE and BEX roles only.",
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;
@@ -1613,7 +1613,7 @@ async function renderMarketDynamicsTab(container) {
       ? `<div class="ds-page"><div style="max-width:520px;margin:80px auto;text-align:center;">${window.DS.emptyState({
           icon: "\u{1F512}",
           title: "Access restricted",
-          hint: "Market Dynamics & Treatment Shift is available to SFE, BEX, BU, Brand and Line Manager roles only.",
+          hint: "Market Dynamics & Treatment Shift is available to SFE and BEX roles only.",
         })}</div></div>`
       : "<p>Access restricted.</p>";
     return;

@@ -4034,6 +4034,27 @@ function applyUserFilter(){
     });
   }
 
+  // 2026-10-29 (Ahmed: "all new markets added to CHC should appear to Amr and the CHC brand manager"): a user scoped by
+  // Line / BU also sees every defined market whose IQVIA rows carry one of the user's lines (or BUs when no lines) --
+  // e.g. the CHC 2027 / launch markets created in product_market_overrides.json -- on top of the user-config DM1 list
+  // or the target-file markets. OTHER MARKET is never added this way.
+  if ((ln || bu) && aDM) {
+    var _lnSet = new Set(), _buSet = new Set();
+    (ln || []).forEach(function (v) { var i = LOOKUPS.lines.findIndex(function (x) { return String(x).toUpperCase().trim() === String(v).toUpperCase().trim(); }); if (i >= 0) _lnSet.add(i); });
+    if (!ln) (bu || []).forEach(function (v) { var i = LOOKUPS.bus.findIndex(function (x) { return String(x).toUpperCase().trim() === String(v).toUpperCase().trim(); }); if (i >= 0) _buSet.add(i); });
+    var _o1 = LOOKUPS.dm1s.indexOf('OTHER MARKET'), _o2 = LOOKUPS.dm2s.indexOf('OTHER MARKET');
+    // 2026-10-29 (Ahmed): launch markets sit on Line "New Launches" (product_market_overrides.json); a BU Manager or
+    // Group Brand Manager sees the New Launches markets of his own BU(s) (e.g. Kamal + DIAB GBM, Cluster BU + GBM).
+    var _nl = LOOKUPS.lines.findIndex(function (x) { return String(x).toUpperCase().trim() === 'NEW LAUNCHES'; }), _nlBu = new Set();
+    if (_nl >= 0 && /^(BU MANAGER|GROUP BRAND MANAGER)$/i.test(String(CURRENT_USER.role || '').trim()))
+      (bu || []).forEach(function (v) { var i = LOOKUPS.bus.findIndex(function (x) { return String(x).toUpperCase().trim() === String(v).toUpperCase().trim(); }); if (i >= 0) _nlBu.add(i); });
+    for (var _k = 0; _k < flat.length; _k += 14) {
+      if (!(_lnSet.has(flat[_k + LINEI]) || _buSet.has(flat[_k + BUCI]) || (flat[_k + LINEI] === _nl && _nlBu.has(flat[_k + BUCI])))) continue;
+      if (flat[_k + D1I] !== _o1) aDM.add(flat[_k + D1I]);
+      if (aDM2 && flat[_k + D2I] !== _o2) aDM2.add(flat[_k + D2I]);
+    }
+  }
+
   // If no dm1s defined at all (edge case), fall back to bu-based scope
   var aBU_fallback = (!dm && !ln && bu)
     ? new Set(bu.map(function(v){return LOOKUPS.bus.indexOf(v);}).filter(function(i){return i>=0;}))

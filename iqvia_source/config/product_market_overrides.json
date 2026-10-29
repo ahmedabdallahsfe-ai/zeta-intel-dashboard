@@ -65,8 +65,9 @@
       "molecule_contains": "FINERENONE",
       "dm1": "Kulyafin_Market",
       "dm2": "Kulyafin_Market",
-      "line": "CVM-I",
-      "bu": "Cluster"
+      "line": "New Launches",
+      "bu": "Cluster",
+      "line_before_new_launches": "CVM-I"
     },
     {
       "id": "CLUSTER-DOZOVA-KIDS-MAX",
@@ -81,8 +82,9 @@
       ],
       "dm1": "Dozova Kids Max_Market",
       "dm2": "Dozova Kids Max_Market",
-      "line": "PEDIA",
-      "bu": "Cluster"
+      "line": "New Launches",
+      "bu": "Cluster",
+      "line_before_new_launches": "PEDIA"
     },
     {
       "id": "CLUSTER-DOZOVA-KIDS-DROPS",
@@ -95,8 +97,9 @@
       ],
       "dm1": "Dozova Kids Drops_Market",
       "dm2": "Dozova Kids Drops_Market",
-      "line": "PEDIA",
-      "bu": "Cluster"
+      "line": "New Launches",
+      "bu": "Cluster",
+      "line_before_new_launches": "PEDIA"
     },
     {
       "id": "CLUSTER-DOZOVA-KIDS-GUMMIES",
@@ -109,8 +112,9 @@
       ],
       "dm1": "Dozova Kids Gummies_Market",
       "dm2": "Dozova Kids Gummies_Market",
-      "line": "PEDIA",
-      "bu": "Cluster"
+      "line": "New Launches",
+      "bu": "Cluster",
+      "line_before_new_launches": "PEDIA"
     },
     {
       "id": "CLUSTER-DOZOVA-BRAIN-BOOST",
@@ -139,8 +143,9 @@
       ],
       "dm1": "Dozova Brain Boost_Market",
       "dm2": "Dozova Brain Boost_Market",
-      "line": "PEDIA",
-      "bu": "Cluster"
+      "line": "New Launches",
+      "bu": "Cluster",
+      "line_before_new_launches": "PEDIA"
     },
     {
       "id": "DIAB2027-SEITASWAY-MET",
@@ -151,8 +156,9 @@
       "molecule_contains": "SITAGLIPTIN",
       "dm1": "Seitasway Met_Market",
       "dm2": "Seitasway Met_Market",
-      "line": "DIAB-NEW",
-      "bu": "DIAB"
+      "line": "New Launches",
+      "bu": "DIAB",
+      "line_before_new_launches": "DIAB-NEW"
     },
     {
       "id": "DIAB2027-SEITASWAY",
@@ -163,8 +169,9 @@
       "molecule_contains": "SITAGLIPTIN",
       "dm1": "Seitasway_Market",
       "dm2": "Seitasway_Market",
-      "line": "DIAB-NEW",
-      "bu": "DIAB"
+      "line": "New Launches",
+      "bu": "DIAB",
+      "line_before_new_launches": "DIAB-NEW"
     },
     {
       "id": "DIAB2027-VANTAGLIMIN",
@@ -175,8 +182,9 @@
       "molecule_contains": "IMEGLIMIN",
       "dm1": "Vantaglimin_Market",
       "dm2": "Vantaglimin_Market",
-      "line": "DIAB-NEW",
-      "bu": "DIAB"
+      "line": "New Launches",
+      "bu": "DIAB",
+      "line_before_new_launches": "DIAB-NEW"
     },
     {
       "id": "DIAB2027-THIOMAX-COMPOUND",
@@ -201,8 +209,9 @@
       ],
       "dm1": "Thiomax Compound_Market",
       "dm2": "Thiomax Compound_Market",
-      "line": "DIAB-NEW",
-      "bu": "DIAB"
+      "line": "New Launches",
+      "bu": "DIAB",
+      "line_before_new_launches": "DIAB-NEW"
     },
     {
       "id": "DIAB2027-LIPOSOMAL-B-COMPLEX",
@@ -221,8 +230,9 @@
       ],
       "dm1": "Liposomal B-Complex_Market",
       "dm2": "Liposomal B-Complex_Market",
-      "line": "DIAB-NEW",
-      "bu": "DIAB"
+      "line": "New Launches",
+      "bu": "DIAB",
+      "line_before_new_launches": "DIAB-NEW"
     },
     {
       "id": "CHC2027-WOMEN-MULTIVIT",
