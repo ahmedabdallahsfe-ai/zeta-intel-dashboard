@@ -77,15 +77,15 @@ SCHEMA_VERSION = 2
 # same 2026 assumption the rest of this pipeline makes (EVAL_PERIOD_NAME
 # etc. in etl/build_sprint_cache.py).
 YEAR = 2026
-MONTH_NUM = {'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6, 'July': 7, 'August': 8}
+MONTH_NUM = {'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6, 'July': 7, 'August': 8, 'September': 9}  # September added 2026-10-30
 
 DEDUCT_LABELS = ['Weekends', 'Leave Days', 'Holidays', 'AV Confrance', 'Business Travel',
                  'Confrance', 'Gathering Meeting', 'Group Meeting (RTD)', 'Sales Meeting', 'Training']
 MULTIPLIER = {'DM_DSM': 0.8, 'ASM': 0.6, 'NSM': 0.3}
 TARGET_HEADER = 'Target Working Days (Calculated)'
 FIELDDAYS_HEADER = 'Field Working Days -- Actual % Achieved (e.g. 0.85 for 85%)'
-MONTH_ORDER = ['February', 'March', 'April', 'May', 'June', 'July', 'August']
-MONTH_ALIAS = {'Feb': 'February', 'Aug': 'August'}
+MONTH_ORDER = ['February', 'March', 'April', 'May', 'June', 'July', 'August', 'September']
+MONTH_ALIAS = {'Feb': 'February', 'Aug': 'August', 'Sep': 'September', 'Sept': 'September'}
 SHEET_TO_TIERKEY = {'DM_DSM': 'dmDsm', 'ASM': 'asm', 'NSM': 'nsm'}
 
 
@@ -258,6 +258,21 @@ def main():
                 allVisitDays=allvisit, deducts=deducts,
                 hireDate=code_to_hire.get(code_s), lastDay=code_to_lastday.get(code_s)))
             n_rows += 1
+        # 2026-10-30: one person per month. From Sep-2026 a manager covering two lines (e.g. NEUROSCIENCE-I / -II)
+        # has one row per Team; only one row carries the day data. Keep that row (max All Visit Days, then max
+        # Target Working Days); the other row only splits coaching counts and must not appear as a duplicate person.
+        def _k(x):
+            a_ = x['allVisitDays'] if isinstance(x['allVisitDays'], (int, float)) else 0.0
+            t_ = x['targetDays'] if isinstance(x['targetDays'], (int, float)) else 0.0
+            return (a_, t_)
+        for m_, lst_ in rows_by_month.items():
+            best_ = {}
+            for r_ in lst_:
+                o_ = best_.get(r_['code'])
+                if o_ is None or _k(r_) > _k(o_): best_[r_['code']] = r_
+            if len(best_) < len(lst_):
+                log(f'  {sheet_name} {m_}: {len(lst_) - len(best_)} duplicate person row(s) merged (coaching-split rows)')
+            rows_by_month[m_] = [r_ for r_ in lst_ if best_[r_['code']] is r_]
         result[sheet_name] = rows_by_month
         log(f'  {sheet_name}: {n_rows} rows across {len(rows_by_month)} month(s)')
 

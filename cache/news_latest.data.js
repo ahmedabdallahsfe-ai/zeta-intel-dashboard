@@ -1,61 +1,63 @@
 window.ZETA_NEWS_FEED = {
   "meta": {
-    "generatedAt": "2026-10-29T17:52:32.481764+00:00",
-    "syncLabel": "2026-10-29 17:52 UTC",
-    "totalArticles": 59,
+    "generatedAt": "2026-10-30T19:57:05.296886+00:00",
+    "syncLabel": "2026-10-30 19:57 UTC",
+    "totalArticles": 73,
     "criticalCount": 0,
     "highImpactCount": 3,
     "breakingCount": 3,
     "buDistribution": {
-      "DIAB": 16,
-      "GIT": 10,
-      "Cluster": 13,
-      "CHC": 1,
+      "DIAB": 25,
+      "GIT": 12,
+      "Cluster": 14,
+      "CHC": 3,
       "Corporate": 25
     },
     "impactDistribution": {
       "CRITICAL": 0,
       "HIGH": 3,
-      "MEDIUM": 29,
-      "LOW": 27
+      "MEDIUM": 42,
+      "LOW": 28
     },
     "geoDistribution": {
       "Egypt": 1,
       "MENA": 2,
-      "Global": 56
+      "Global": 70
     },
     "taDistribution": {
-      "Obesity & Incretin Therapies": 9,
-      "Women's Health": 1,
+      "Obesity & Incretin Therapies": 18,
+      "Women's Health": 2,
       "Regulatory & Egypt Healthcare": 1,
-      "Neuroscience & Pain": 1,
+      "Neuroscience & Pain": 3,
       "Diabetes & Metabolic Disease": 6,
       "Cardio-Renal-Metabolic": 4,
       "Gastroenterology": 4,
       "Dermatology": 4,
-      "Competitor & Market Moves": 2,
+      "CHC / Consumer Health": 2,
+      "Competitor & Market Moves": 1,
       "Pediatrics": 4,
       "Emerging Technologies & Pipeline": 2,
-      "General Strategic Intelligence": 21
+      "General Strategic Intelligence": 22
     },
     "typeDistribution": {
-      "Market Access": 28,
+      "Market Access": 27,
       "New Launch": 3,
       "Clinical Trial": 25,
       "Clinical Result": 25,
-      "Guideline": 1,
-      "M&A": 1,
+      "Pricing": 1,
+      "Safety": 14,
       "Technology": 1,
+      "Guideline": 1,
       "Regulatory": 2
     },
-    "competitorIntelCount": 4,
-    "obesityIncretinCount": 9,
+    "competitorIntelCount": 3,
+    "obesityIncretinCount": 18,
     "liveFeedMaxAgeDays": 180,
     "dateRangeOldest": "2026-05-07T11:53:42+00:00",
     "dateRangeNewest": "2027-01-01T00:00:00+00:00",
     "sourcesTotal": 8,
     "sourcesEnabled": 7,
-    "sourcesHealthy": 13,
+    "sourcesHealthy": 14,
     "sourceHealth": [
       {
         "id": "eda_regulatory",
@@ -80,8 +82,8 @@ window.ZETA_NEWS_FEED = {
         "name": "BioPharma Dive",
         "status": "PASS",
         "articlesReturned": 10,
-        "newestDate": "2026-10-29T16:06:00+00:00",
-        "oldestDate": "2026-10-26T19:17:00+00:00",
+        "newestDate": "2026-10-30T16:00:00+00:00",
+        "oldestDate": "2026-10-28T15:15:00+00:00",
         "errorType": null
       },
       {
@@ -123,11 +125,11 @@ window.ZETA_NEWS_FEED = {
       {
         "id": "fda_drug_enforcement",
         "name": "FDA Drug Enforcement (openFDA)",
-        "status": "FAIL",
-        "articlesReturned": 0,
-        "newestDate": null,
-        "oldestDate": null,
-        "errorType": "URLError"
+        "status": "PASS",
+        "articlesReturned": 50,
+        "newestDate": "2026-10-21T00:00:00+00:00",
+        "oldestDate": "2026-09-30T00:00:00+00:00",
+        "errorType": null
       },
       {
         "id": "pubmed_dynamic::Obesity & Incretin Therapies",
@@ -205,7 +207,7 @@ window.ZETA_NEWS_FEED = {
     "removedByRecency": 1863,
     "removedByDuplicate": 60,
     "removedBySourceCap": 13,
-    "removedUntargetedSafety": 0,
+    "removedUntargetedSafety": 36,
     "archiveCount": 500
   },
   "articles": [
@@ -215,7 +217,7 @@ window.ZETA_NEWS_FEED = {
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-10-28T15:53:00+00:00",
-      "age_days": 1,
+      "age_days": 2,
       "url": "https://www.biopharmadive.com/news/retatrutide-ozempic-diabetes-trial-results-lilly-novo/873016/",
       "summary": "The highest dose of retatrutide beat Ozempic on measures of blood sugar and weight loss, but was also associated with higher side effect rates and treatment discontinuations.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
@@ -270,7 +272,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-20T15:57:36+00:00",
-      "age_days": 9,
+      "age_days": 10,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-once-weekly-generic-hormone-therapy-patch-women",
       "summary": "Today, the U.S. Food and Drug Administration approved the first generic of Climara Pro (estradiol and levonorgestrel transdermal system, 0.045 mg per day/0.015 mg), a transdermal hormone therapy patch for women with an intact uterus applied once a week.",
       "primary_therapeutic_area": "Women's Health",
@@ -310,7 +312,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Health Policy Open (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-11-01T00:00:00+00:00",
-      "age_days": -3,
+      "age_days": -2,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42872054/",
       "summary": "Peer-reviewed clinical trial / study published in Health Policy Open evaluating egyptian healthcare & pharma efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Regulatory & Egypt Healthcare",
@@ -349,36 +351,40 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "External strategic intelligence relevant to CHC/Cluster/DIAB/GIT commercial planning and territory execution."
     },
     {
-      "id": "zeta_intel_20261027_c93b22c2",
-      "title": "Court rejects Novo bid to block Lilly obesity drug ads",
+      "id": "zeta_intel_20261030_b99834b1",
+      "title": "Earnings roundup: Lilly’s unwavering momentum, Novartis’ rebound and GSK’s waiting game",
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
-      "published_at": "2026-10-27T16:03:00+00:00",
-      "age_days": 2,
-      "url": "https://www.biopharmadive.com/news/novo-lilly-lawsuit-ruling-false-advertising-wegovy-zepbound/872856/",
-      "summary": "Novo failed to prove that Lilly’s campaign — which featured claims of obesity drug superiority — meaningfully harmed the Danish company’s sales, a federal judge ruled.",
+      "published_at": "2026-10-30T11:50:00+00:00",
+      "age_days": 0,
+      "url": "https://www.biopharmadive.com/news/biopharma-earnings-q3-2026-lilly-novartis-gsk/873167/",
+      "summary": "Lilly’s better-than-expected results allayed concerns — for now — over GLP-1 pricing pressure. Elsewhere, Novartis withstood a tumultuous quarter and GSK battled investor angst.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
-      "secondary_therapeutic_areas": [],
+      "secondary_therapeutic_areas": [
+        "Competitor & Market Moves"
+      ],
       "business_units": [
         "DIAB"
       ],
       "molecules": [],
-      "mechanisms": [],
+      "mechanisms": [
+        "GLP-1"
+      ],
       "companies": [
         "Eli Lilly",
-        "Novo Nordisk"
+        "Novartis"
       ],
       "brands": [],
       "geography": "Global",
       "intelligence_types": [
-        "Market Access"
+        "Pricing"
       ],
       "tags": [
         "Eli Lilly",
         "Global",
-        "Market Access",
-        "Novo Nordisk",
-        "Obesity & Incretin Therapies"
+        "Novartis",
+        "Obesity & Incretin Therapies",
+        "Pricing"
       ],
       "opportunity_type": "Whitespace Opportunity",
       "opportunity_sublabel": null,
@@ -388,7 +394,7 @@ window.ZETA_NEWS_FEED = {
       "breaking": false,
       "is_live": true,
       "is_academic_noise": false,
-      "why_it_matters": "High-growth incretin market signal; critical benchmark for Zeta metabolic pipeline and oral formulations."
+      "why_it_matters": "Pricing and reimbursement signal; monitor institutional tenders and hospital listings."
     },
     {
       "id": "zeta_intel_20261022_5aaff642",
@@ -396,7 +402,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-22T16:58:19+00:00",
-      "age_days": 7,
+      "age_days": 8,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-launches-new-program-advance-neuroscience-medical-product-development",
       "summary": "FDA announces the launch of the Neuroscience Advancement and Innovation Nexus (NAIN), a new agency program aligned with the Trump Administration’s efforts to accelerate medical innovation and deliver breakthrough treatments.",
       "primary_therapeutic_area": "Neuroscience & Pain",
@@ -433,7 +439,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Clin Exp Hypertens (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-31T00:00:00+00:00",
-      "age_days": -63,
+      "age_days": -62,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42826222/",
       "summary": "Peer-reviewed clinical trial / study published in Clin Exp Hypertens evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Diabetes & Metabolic Disease",
@@ -480,7 +486,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Rapid Commun Mass Spectrom (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-15T00:00:00+00:00",
-      "age_days": -47,
+      "age_days": -46,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42745421/",
       "summary": "Peer-reviewed clinical trial / study published in Rapid Commun Mass Spectrom evaluating obesity & incretin therapies efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
@@ -525,7 +531,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Obes Pillars (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42908672/",
       "summary": "Peer-reviewed clinical trial / study published in Obes Pillars evaluating obesity & incretin therapies efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
@@ -570,7 +576,7 @@ window.ZETA_NEWS_FEED = {
       "source": "OMICS (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42605950/",
       "summary": "Peer-reviewed clinical trial / study published in OMICS evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Diabetes & Metabolic Disease",
@@ -616,7 +622,7 @@ window.ZETA_NEWS_FEED = {
       "source": "J Med Econ (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42343656/",
       "summary": "Peer-reviewed clinical trial / study published in J Med Econ evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Diabetes & Metabolic Disease",
@@ -663,7 +669,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Ren Fail (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42021630/",
       "summary": "Peer-reviewed clinical trial / study published in Ren Fail evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Diabetes & Metabolic Disease",
@@ -709,7 +715,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Ann Med (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42860551/",
       "summary": "Peer-reviewed clinical trial / study published in Ann Med evaluating cardio-renal-metabolic efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Cardio-Renal-Metabolic",
@@ -753,7 +759,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Ren Fail (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42414246/",
       "summary": "Peer-reviewed clinical trial / study published in Ren Fail evaluating cardio-renal-metabolic efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Cardio-Renal-Metabolic",
@@ -797,7 +803,7 @@ window.ZETA_NEWS_FEED = {
       "source": "J Med Econ (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42223336/",
       "summary": "Peer-reviewed clinical trial / study published in J Med Econ evaluating cardio-renal-metabolic efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Cardio-Renal-Metabolic",
@@ -841,7 +847,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Ann Med (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42572417/",
       "summary": "Peer-reviewed clinical trial / study published in Ann Med evaluating gastroenterology & p-cab efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Gastroenterology",
@@ -886,7 +892,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Rapid Commun Mass Spectrom (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-11-30T00:00:00+00:00",
-      "age_days": -32,
+      "age_days": -31,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42676249/",
       "summary": "Peer-reviewed clinical trial / study published in Rapid Commun Mass Spectrom evaluating gastroenterology & p-cab efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Gastroenterology",
@@ -931,7 +937,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Eur J Gastroenterol Hepatol (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-11-01T00:00:00+00:00",
-      "age_days": -3,
+      "age_days": -2,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42832287/",
       "summary": "Peer-reviewed clinical trial / study published in Eur J Gastroenterol Hepatol evaluating gastroenterology & p-cab efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Gastroenterology",
@@ -980,7 +986,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Drugs (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-10-28T00:00:00+00:00",
-      "age_days": 1,
+      "age_days": 2,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42946944/",
       "summary": "Peer-reviewed clinical trial / study published in Drugs evaluating gastroenterology & p-cab efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Gastroenterology",
@@ -1019,12 +1025,438 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "Acid suppression and GI outcome update; impacts Nexicure and Vonseca market share strategies."
     },
     {
+      "id": "zeta_intel_20261021_09855837",
+      "title": "Drug Recall (Class II): Tirzepatide/Niacinamide 2mL vial (40 MG per Vial) Inj 20mg/2mg/mL, RX Only, Houston RX LLC, 15430 Vantage Parkway E STE 220, Houston, TX 77032. — Houston Rx LLC",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-21T00:00:00+00:00",
+      "age_days": 9,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0040-2027",
+      "summary": "Lack of assurance of sterility.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Tirzepatide"
+      ],
+      "mechanisms": [
+        "GLP-1/GIP"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Tirzepatide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 63,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Tirzepatide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_acd7993d",
+      "title": "Drug Recall (Class II): TIRZEPATIDE/CYANOCOBALAMIN 26/2 MG/ML INJECTABLE, Packaged in single-use dosage syringes, total mL dispensed based on dosage per specific patient prescription, Carolina Infusion LLC, 95 Bees Creek",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0027-2027",
+      "summary": "Lack of Assurance of Sterility: Related to formulation using bacteriostic water; Related to processing equipment used in compounded product.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Tirzepatide"
+      ],
+      "mechanisms": [
+        "GLP-1/GIP"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Tirzepatide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 62,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Tirzepatide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_1417a5af",
+      "title": "Drug Recall (Class II): Tirzepatide Injection, 18mg/mL, 4 mL Sterile Multi-Dose Vial, Rx only, Apothecary Pharma, LLC, 1913 Evans Road, Cary, NC 27513, NDC 85091-001-18. — Apothecary Pharma LLC",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0036-2027",
+      "summary": "Lack of Assurance of Sterility",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Tirzepatide"
+      ],
+      "mechanisms": [
+        "GLP-1/GIP"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Tirzepatide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 62,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Tirzepatide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_065f9df8",
+      "title": "Drug Recall (Class II): TIRZEPATIDE/CYANOCOBALAMIN 85/2 MG/ML INJECTABLE, Packaged in single-use dosage syringes, total mL dispensed based on dosage per specific patient prescription, Carolina Infusion LLC, 95 Bees Creek",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0030-2027",
+      "summary": "Lack of Assurance of Sterility: Related to formulation using bacteriostic water; Related to processing equipment used in compounded product.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Tirzepatide"
+      ],
+      "mechanisms": [
+        "GLP-1/GIP"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Tirzepatide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 62,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Tirzepatide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_0e0a2450",
+      "title": "Drug Recall (Class II): TIRZEPATIDE/CYANOCOBALAMIN 64/2 MG/ML INJECTABLE, Packaged in single-use dosage syringes, total mL dispensed based on dosage per specific patient prescription, Carolina Infusion LLC, 95 Bees Creek",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0028-2027",
+      "summary": "Lack of Assurance of Sterility: Related to formulation using bacteriostic water; Related to processing equipment used in compounded product.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Tirzepatide"
+      ],
+      "mechanisms": [
+        "GLP-1/GIP"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Tirzepatide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 62,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Tirzepatide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_22a7c64b",
+      "title": "Drug Recall (Class II): TIRZEPATIDE/CYANOCOBALAMIN 76/2 MG/ML INJECTABLE, Packaged in single-use dosage syringes, total mL dispensed based on dosage per specific patient prescription, Carolina Infusion LLC, 95 Bees Creek",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0029-2027",
+      "summary": "Lack of Assurance of Sterility: Related to formulation using bacteriostic water; Related to processing equipment used in compounded product.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Tirzepatide"
+      ],
+      "mechanisms": [
+        "GLP-1/GIP"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Tirzepatide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 62,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Tirzepatide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_7ec34a0c",
+      "title": "Drug Recall (Class II): TIRZEPATIDE 26 MG/ML INJECTABLE, Packaged in single-use dosage syringes, total mL dispensed based on dosage per specific patient prescription, Carolina Infusion LLC, 95 Bees Creek Road, Ridgeland,",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0017-2027",
+      "summary": "Lack of Assurance of Sterility: Related to formulation using bacteriostic water; Related to processing equipment used in compounded product.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Tirzepatide"
+      ],
+      "mechanisms": [
+        "GLP-1/GIP"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Tirzepatide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 62,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Tirzepatide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_955b50e0",
+      "title": "Drug Recall (Class II): SEMAGLUTIDE/CYANOCOBALAMIN 9/2 MG/ML INJECTABLE, Packaged in single-use dosage syringes, total mL dispensed based on dosage per specific patient prescription, Carolina Infusion LLC, 95 Bees Creek",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0026-2027",
+      "summary": "Lack of Assurance of Sterility: Related to formulation using bacteriostic water; Related to processing equipment used in compounded product.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [
+        "Cardio-Renal-Metabolic"
+      ],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Semaglutide"
+      ],
+      "mechanisms": [
+        "GLP-1"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Semaglutide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 62,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Semaglutide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_3cc36581",
+      "title": "Drug Recall (Class II): SEMAGLUTIDE/CYANOCOBALAMIN 3/2 MG/ML INJECTABLE, Packaged in single-use dosage syringes, total mL dispensed based on dosage per specific patient prescription, Carolina Infusion LLC, 95 Bees Creek",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0019-2027",
+      "summary": "Lack of Assurance of Sterility: Related to formulation using bacteriostic water; Related to processing equipment used in compounded product.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [
+        "Cardio-Renal-Metabolic"
+      ],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Semaglutide"
+      ],
+      "mechanisms": [
+        "GLP-1"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Semaglutide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 62,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Semaglutide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_e3295989",
+      "title": "Drug Recall (Class II): SEMAGLUTIDE 3 MG/ML INJECTABLE, 8 x 0.1 mL syringes, Carolina Infusion LLC, 95 Bees Creek Road, Ridgeland, SC 29936 — Carolina Infusion, LLC",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0018-2027",
+      "summary": "Lack of Assurance of Sterility: Related to formulation using bacteriostic water; Related to processing equipment used in compounded product.",
+      "primary_therapeutic_area": "Obesity & Incretin Therapies",
+      "secondary_therapeutic_areas": [
+        "Cardio-Renal-Metabolic"
+      ],
+      "business_units": [
+        "DIAB"
+      ],
+      "molecules": [
+        "Semaglutide"
+      ],
+      "mechanisms": [
+        "GLP-1"
+      ],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Global",
+        "Obesity & Incretin Therapies",
+        "Safety",
+        "Semaglutide"
+      ],
+      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_sublabel": "Supply / Recall Signal",
+      "importance": 3,
+      "relevance": 62,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Semaglutide; assess exposure for comparable products in the DIAB portfolio."
+    },
+    {
       "id": "zeta_intel_20261201_94288c9d",
       "title": "Beyond pharmacology: The mediating role of expectations in the experience of side effects in anxious patients treated with secukinumab",
       "source": "Brain Behav Immun Health (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42908691/",
       "summary": "Peer-reviewed clinical trial / study published in Brain Behav Immun Health evaluating dermatology & biologics efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Dermatology",
@@ -1068,7 +1500,7 @@ window.ZETA_NEWS_FEED = {
       "source": "J Dermatolog Treat (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42730717/",
       "summary": "Peer-reviewed clinical trial / study published in J Dermatolog Treat evaluating dermatology & biologics efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Dermatology",
@@ -1112,7 +1544,7 @@ window.ZETA_NEWS_FEED = {
       "source": "J Dermatolog Treat (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42635354/",
       "summary": "Peer-reviewed clinical trial / study published in J Dermatolog Treat evaluating dermatology & biologics efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Dermatology",
@@ -1157,7 +1589,7 @@ window.ZETA_NEWS_FEED = {
       "source": "J Dermatolog Treat (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42704198/",
       "summary": "Peer-reviewed clinical trial / study published in J Dermatolog Treat evaluating dermatology & biologics efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Dermatology",
@@ -1193,125 +1625,84 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "External strategic intelligence relevant to GIT commercial planning and territory execution."
     },
     {
-      "id": "zeta_intel_20261028_77e77042",
-      "title": "Lilly shuffles business structure; Novartis writes off part of Avidity deal",
-      "source": "BioPharma Dive",
-      "source_id": "biopharma_dive",
-      "published_at": "2026-10-28T13:27:00+00:00",
-      "age_days": 1,
-      "url": "https://www.biopharmadive.com/news/lilly-global-markets-novartis-avidity-astellas-talzenna-prana/872857/",
-      "summary": "Lilly intends to merge its U.S. and international divisions when a top executive retires. Elsewhere, Astellas closed in on what it believes to be a “best-in-class” cancer immunotherapy prospect.",
-      "primary_therapeutic_area": "Competitor & Market Moves",
+      "id": "zeta_intel_20261014_8519560c",
+      "title": "Drug Recall (Not Yet Classified): Tri-Immune Boost (Glutathione: 200 mg, Ascorbic Acid: 200 mg, Zinc: 2.5 mg), 30 mL vial, Rx only, Centric Compounding, 7447 Harwin Dr. Suite 111, Houston, TX 77036 — Centric Compounding",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=Centric%20Compounding%20LLC",
+      "summary": "Microbial Contamination of Sterile Products - out of specifications results were obtained for bacterial endotoxin.",
+      "primary_therapeutic_area": "CHC / Consumer Health",
       "secondary_therapeutic_areas": [],
       "business_units": [
-        "Corporate"
+        "CHC"
       ],
-      "molecules": [],
+      "molecules": [
+        "Zinc"
+      ],
       "mechanisms": [],
-      "companies": [
-        "Eli Lilly",
-        "Novartis"
-      ],
-      "brands": [],
-      "geography": "Global",
-      "intelligence_types": [
-        "Market Access"
-      ],
-      "tags": [
-        "Competitor & Market Moves",
-        "Eli Lilly",
-        "Global",
-        "Market Access",
-        "Novartis"
-      ],
-      "opportunity_type": null,
-      "opportunity_sublabel": null,
-      "importance": 3,
-      "relevance": 59,
-      "impact": "MEDIUM",
-      "breaking": false,
-      "is_live": true,
-      "is_academic_noise": false,
-      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
-    },
-    {
-      "id": "zeta_intel_20261027_a6b2af50",
-      "title": "Artiva to quit autoimmune cell therapy work, cut staff after patient deaths",
-      "source": "BioPharma Dive",
-      "source_id": "biopharma_dive",
-      "published_at": "2026-10-27T15:44:00+00:00",
-      "age_days": 2,
-      "url": "https://www.biopharmadive.com/news/artiva-discontinue-nk-cell-therapy-autoimmune-patient-death/872873/",
-      "summary": "The disclosure makes Artiva the third company to recently report fatal events in an autoimmune cell therapy trial, following announcements from Novartis and Bristol Myers Squibb.",
-      "primary_therapeutic_area": "Competitor & Market Moves",
-      "secondary_therapeutic_areas": [],
-      "business_units": [
-        "Corporate"
-      ],
-      "molecules": [],
-      "mechanisms": [],
-      "companies": [
-        "Novartis"
-      ],
-      "brands": [],
-      "geography": "Global",
-      "intelligence_types": [
-        "Market Access"
-      ],
-      "tags": [
-        "Competitor & Market Moves",
-        "Global",
-        "Market Access",
-        "Novartis"
-      ],
-      "opportunity_type": null,
-      "opportunity_sublabel": null,
-      "importance": 3,
-      "relevance": 59,
-      "impact": "MEDIUM",
-      "breaking": false,
-      "is_live": true,
-      "is_academic_noise": false,
-      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
-    },
-    {
-      "id": "zeta_intel_20261026_ceabb377",
-      "title": "Corxel, an obesity drugmaker, to go public via SPAC deal",
-      "source": "BioPharma Dive",
-      "source_id": "biopharma_dive",
-      "published_at": "2026-10-26T19:17:00+00:00",
-      "age_days": 2,
-      "url": "https://www.biopharmadive.com/news/corxel-pharmaceuticals-spac-public-obesity-drugs/872772/",
-      "summary": "Armed with a $300 million financing and two GLP-1 and amylin-targeting medicines, Corxel is set to become the latest weight loss-focused company to join the public markets.",
-      "primary_therapeutic_area": "Obesity & Incretin Therapies",
-      "secondary_therapeutic_areas": [],
-      "business_units": [
-        "DIAB"
-      ],
-      "molecules": [],
-      "mechanisms": [
-        "GLP-1"
-      ],
       "companies": [],
       "brands": [],
       "geography": "Global",
       "intelligence_types": [
-        "Market Access"
+        "Safety"
       ],
       "tags": [
+        "CHC / Consumer Health",
         "Global",
-        "Market Access",
-        "Obesity & Incretin Therapies"
+        "Safety",
+        "Zinc"
       ],
-      "opportunity_type": "Whitespace Opportunity",
+      "opportunity_type": null,
       "opportunity_sublabel": null,
       "importance": 3,
-      "relevance": 56,
+      "relevance": 58,
       "impact": "MEDIUM",
       "breaking": false,
       "is_live": true,
       "is_academic_noise": false,
-      "why_it_matters": "High-growth incretin market signal; critical benchmark for Zeta metabolic pipeline and oral formulations."
+      "why_it_matters": "Drug safety/recall signal involving Zinc; assess exposure for comparable products in the CHC portfolio."
+    },
+    {
+      "id": "zeta_intel_20261014_8d69fc99",
+      "title": "Drug Recall (Class II): Sterile EYE DROPS AC (tetrahydrozoline HCl 0.05%, zinc sulfate 0.25%), 0.5 fl. oz. (15 mL) bottles; a) Equaline, DISTRIBUTED BY: UNFI, PROVIDENCE, RI 02908 UPC 0 41163 25114 4; b) Good Sense Steri",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-14T00:00:00+00:00",
+      "age_days": 16,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0003-2027",
+      "summary": "Lack of Assurance of Sterility",
+      "primary_therapeutic_area": "CHC / Consumer Health",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "CHC"
+      ],
+      "molecules": [
+        "Zinc"
+      ],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "CHC / Consumer Health",
+        "Global",
+        "Safety",
+        "Zinc"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 3,
+      "relevance": 58,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Zinc; assess exposure for comparable products in the CHC portfolio."
     },
     {
       "id": "zeta_intel_20270101_0d53b965",
@@ -1319,7 +1710,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Mol Cell Endocrinol (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2027-01-01T00:00:00+00:00",
-      "age_days": -64,
+      "age_days": -63,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42727623/",
       "summary": "Peer-reviewed clinical trial / study published in Mol Cell Endocrinol evaluating obesity & incretin therapies efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
@@ -1361,7 +1752,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Libyan J Med (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-31T00:00:00+00:00",
-      "age_days": -63,
+      "age_days": -62,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42886550/",
       "summary": "Peer-reviewed clinical trial / study published in Libyan J Med evaluating obesity & incretin therapies efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
@@ -1403,7 +1794,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Eur J Pharmacol (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-10T00:00:00+00:00",
-      "age_days": -42,
+      "age_days": -41,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42849689/",
       "summary": "Peer-reviewed clinical trial / study published in Eur J Pharmacol evaluating obesity & incretin therapies efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
@@ -1445,7 +1836,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Endocrinol Metab Clin North Am (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42907053/",
       "summary": "Peer-reviewed clinical trial / study published in Endocrinol Metab Clin North Am evaluating obesity & incretin therapies efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
@@ -1489,7 +1880,7 @@ window.ZETA_NEWS_FEED = {
       "source": "J Diabetes Metab Disord (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42787324/",
       "summary": "Peer-reviewed clinical trial / study published in J Diabetes Metab Disord evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Diabetes & Metabolic Disease",
@@ -1528,7 +1919,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Pulmonology (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/41804593/",
       "summary": "Peer-reviewed clinical trial / study published in Pulmonology evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Diabetes & Metabolic Disease",
@@ -1567,7 +1958,7 @@ window.ZETA_NEWS_FEED = {
       "source": "Radiol Case Rep (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
-      "age_days": -33,
+      "age_days": -32,
       "url": "https://pubmed.ncbi.nlm.nih.gov/42921241/",
       "summary": "Peer-reviewed clinical trial / study published in Radiol Case Rep evaluating cardio-renal-metabolic efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Cardio-Renal-Metabolic",
@@ -1601,12 +1992,168 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "Cardio-renal clinical evidence supporting combined organ-protection messaging for Cluster sales teams."
     },
     {
+      "id": "zeta_intel_20261007_7d4ded1a",
+      "title": "Drug Recall (Class II): Zoladex (goserelin) implant, 3.6 mg, One single-Use Syringe packaged in a carton, Rx only, Manufactured for: TerSera therapeutics LLC, Deerfield, IL 60015, BY: AstraZeneca UK Limited, Macclesfield",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-07T00:00:00+00:00",
+      "age_days": 23,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0875-2026",
+      "summary": "Temperature Abuse: Product sat in a non-temperature-controlled FedEx trailer at ambient outdoor conditions for 25.5 hours.",
+      "primary_therapeutic_area": "Competitor & Market Moves",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [
+        "AstraZeneca"
+      ],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "AstraZeneca",
+        "Competitor & Market Moves",
+        "Global",
+        "Safety"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 3,
+      "relevance": 55,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal from AstraZeneca; assess exposure for comparable products in the Corporate portfolio."
+    },
+    {
+      "id": "zeta_intel_20261007_c91ae6db",
+      "title": "Drug Recall (Class II): Estradiol Gel, 0.1%, 0.25 mg, 30-packets per carton, Rx only, Distributed by: Amneal Pharmaceuticals LLC, Bridgewater, NJ 08907, NDC 69238-2452-3. — Amneal Pharmaceuticals, LLC",
+      "source": "FDA Drug Enforcement (openFDA)",
+      "source_id": "fda_drug_enforcement",
+      "published_at": "2026-10-07T00:00:00+00:00",
+      "age_days": 23,
+      "url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts?search_api_fulltext=D-0873-2026",
+      "summary": "Defective Container; packets were found to be either empty or partially full.",
+      "primary_therapeutic_area": "Women's Health",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Cluster"
+      ],
+      "molecules": [
+        "Estradiol"
+      ],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Safety"
+      ],
+      "tags": [
+        "Estradiol",
+        "Global",
+        "Safety",
+        "Women's Health"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 3,
+      "relevance": 54,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Drug safety/recall signal involving Estradiol; assess exposure for comparable products in the Cluster portfolio."
+    },
+    {
+      "id": "zeta_intel_20261030_960dcf18",
+      "title": "With Setara, the team behind Actio opens its second act",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-30T10:30:00+00:00",
+      "age_days": 0,
+      "url": "https://www.biopharmadive.com/news/setara-actio-charcot-marie-tooth-ion-channel-drugs/873227/",
+      "summary": "The fledgling startup has $90 million to develop a pipeline of drugs, led by a Charcot-Marie-Tooth disease medicine, that Actio was working on when Jazz Pharmaeuticals bought its lead epilepsy program.",
+      "primary_therapeutic_area": "Neuroscience & Pain",
+      "secondary_therapeutic_areas": [
+        "Emerging Technologies & Pipeline"
+      ],
+      "business_units": [
+        "GIT"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "Global",
+        "Market Access",
+        "Neuroscience & Pain"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 3,
+      "relevance": 52,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Neuropathic pain insight relevant to peripheral neuropathy management and prescription volume."
+    },
+    {
+      "id": "zeta_intel_20261030_a2e47cdd",
+      "title": "Aspen raises a $141M IPO in pursuit of a cell therapy for Parkinson’s",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-30T02:38:00+00:00",
+      "age_days": 0,
+      "url": "https://www.biopharmadive.com/news/aspen-neuroscience-parkinsons-ipo-pricing/873050/",
+      "summary": "The San Diego biotechnology startup is one of several firms working on a cutting-edge technique with the potential to slow or even halt the neurodegenerative condition.",
+      "primary_therapeutic_area": "Neuroscience & Pain",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "GIT"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Technology"
+      ],
+      "tags": [
+        "Global",
+        "Neuroscience & Pain",
+        "Technology"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 3,
+      "relevance": 52,
+      "impact": "MEDIUM",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "Neuropathic pain insight relevant to peripheral neuropathy management and prescription volume."
+    },
+    {
       "id": "zeta_intel_20261001_fcbeef17",
       "title": "FDA Approves First Heart Valve Designed to Grow with Children",
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-01T19:02:08+00:00",
-      "age_days": 27,
+      "age_days": 29,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-heart-valve-designed-grow-children",
       "summary": "The U.S. Food and Drug Administration today approved the Autus Size-Adjustable Valve, a surgically implanted pulmonary heart valve for pediatric patients with congenital pulmonary valve disease.",
       "primary_therapeutic_area": "Pediatrics",
@@ -1643,7 +2190,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-28T21:43:18+00:00",
-      "age_days": 30,
+      "age_days": 31,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-treatment-mct8-deficiency",
       "summary": "The U.S. Food and Drug Administration today approved Emcitate (tiratricol) tablets for oral suspension to treat peripheral thyrotoxicosis (excess thyroid hormone levels in the blood that causes symptoms, such as rapid heart rate, increased blood pressure and adverse effects on metabolism) in patient",
       "primary_therapeutic_area": "Pediatrics",
@@ -1680,7 +2227,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-17T18:26:43+00:00",
-      "age_days": 41,
+      "age_days": 43,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-gene-therapy-pediatric-patients-sanfilippo-syndrome-type",
       "summary": "The U.S. Food and Drug Administration today approved Fayuvi (rebisufligene etisparvovec-hopf), the first treatment for pediatric patients with mucopolysaccharidosis type IIIA (MPS IIIA), also known as Sanfilippo syndrome type A.",
       "primary_therapeutic_area": "Pediatrics",
@@ -1717,7 +2264,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-03T19:48:27+00:00",
-      "age_days": 55,
+      "age_days": 57,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-drug-treat-alexander-disease",
       "summary": "The U.S. Food and Drug Administration has approved Zanvastro (zilganersen) injection for the treatment of Alexander disease in pediatric and adult patients.",
       "primary_therapeutic_area": "Pediatrics",
@@ -1754,7 +2301,7 @@ window.ZETA_NEWS_FEED = {
       "source": "PharmaBoardroom (MENA & Emerging Markets)",
       "source_id": "pharma_boardroom",
       "published_at": "2026-10-08T11:28:54+00:00",
-      "age_days": 21,
+      "age_days": 22,
       "url": "https://pharmaboardroom.com/samsung-bioepis-building-a-us-biosimilar-market-that-lasts/",
       "summary": "Samsung Bioepis is expanding in the US biosimilars market, with ten FDA approvals so far, seven assets in development, and an ambitious target of 20 products on the market by 2031.",
       "primary_therapeutic_area": "Emerging Technologies & Pipeline",
@@ -1794,7 +2341,7 @@ window.ZETA_NEWS_FEED = {
       "source": "PharmaBoardroom (MENA & Emerging Markets)",
       "source_id": "pharma_boardroom",
       "published_at": "2026-07-31T11:31:21+00:00",
-      "age_days": 90,
+      "age_days": 91,
       "url": "https://pharmaboardroom.com/ispor-announces-the-healthcare-investment-summit-2026/",
       "summary": "Held September 22–23 in San Francisco, CA; the Summit will convene healthcare investors, industry leaders, and innovators to discuss the latest investment strategies and advances shaping the healthcare landscape Lawrenceville, NJ, USA—July 20, 2026—ISPOR—The Professional Society for Health Economics and Outcomes...",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -1826,12 +2373,86 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
     },
     {
+      "id": "zeta_intel_20261030_30759490",
+      "title": "This week in charts: ESMO’s winners and losers",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-30T16:00:00+00:00",
+      "age_days": 0,
+      "url": "https://www.biopharmadive.com/news/biotech-charts-esmo-2026-winners-losers/873281/",
+      "summary": "The latest installment in BioPharma Dive’s visualization-focused series looks at Wall Street’s response to a trio of closely watched presentations at a top meeting for cancer drugs.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 2,
+      "relevance": 36,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
+      "id": "zeta_intel_20261029_652bec35",
+      "title": "Labor Department finalizes sweeping PBM disclosure rule",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-10-29T20:30:00+00:00",
+      "age_days": 0,
+      "url": "https://www.biopharmadive.com/news/pbm-transparency-final-rule-labor-department-employer/873254/",
+      "summary": "Starting in 2027, the controversial drug middlemen will have to share a broad swath of fee and compensation data with self-funded employer clients. Employers cheered the rule, while PBMs slammed it as government overreach.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 2,
+      "relevance": 36,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
       "id": "zeta_intel_20261029_bdae9da1",
       "title": "Genmab soars to record highs after cancer drug succeeds in key trial",
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-10-29T16:06:00+00:00",
-      "age_days": 0,
+      "age_days": 1,
       "url": "https://www.biopharmadive.com/news/genmab-stock-soars-positive-head-neck-cancer-antibody-phase-3/873164/",
       "summary": "The drugmaker’s market value swelled by more than $7 billion on findings suggesting a recently-acquired medicine could become a new treatment standard for a form of head and neck cancer.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -1868,7 +2489,7 @@ window.ZETA_NEWS_FEED = {
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-10-29T14:52:00+00:00",
-      "age_days": 0,
+      "age_days": 1,
       "url": "https://www.biopharmadive.com/news/hhs-peptides-rfk-fda-compounders/873141/",
       "summary": "RFK Jr. has given notice that the agency won’t take enforcement action on six peptides that controversially won a contested recommendation from outside advisers to the FDA in July.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -1905,7 +2526,7 @@ window.ZETA_NEWS_FEED = {
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-10-29T10:30:00+00:00",
-      "age_days": 0,
+      "age_days": 1,
       "url": "https://www.biopharmadive.com/news/flagship-etcelera-etiome-empress-cellarity-launch/872947/",
       "summary": "Etiome, Cellarity and Empress Therapeutics are being combined into one new AI-aided drugmaker claiming to possess the ability to better predict the way new medicines will fare in humans.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -1942,7 +2563,7 @@ window.ZETA_NEWS_FEED = {
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-10-28T15:15:00+00:00",
-      "age_days": 1,
+      "age_days": 2,
       "url": "https://www.biopharmadive.com/news/fda-personalized-gene-therapy-rare-disease-guidance/873004/",
       "summary": "The plan builds on recent FDA moves to speed \"personalized\" treatments by offering an approval framework for therapies benefiting different subsets of patients with the same disease.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -1974,51 +2595,12 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
     },
     {
-      "id": "zeta_intel_20261027_56b84b44",
-      "title": "Ferring to acquire next-gen IVF startup Gameto for up to $1.4B",
-      "source": "BioPharma Dive",
-      "source_id": "biopharma_dive",
-      "published_at": "2026-10-27T20:53:00+00:00",
-      "age_days": 1,
-      "url": "https://www.biopharmadive.com/news/ferring-gameto-acquire-ivf-fertilo-womens-health/872904/",
-      "summary": "The buyout hands Ferring rights to a technology capable of simplifying the lengthy and burdensome process of in vitro fertilization.",
-      "primary_therapeutic_area": "General Strategic Intelligence",
-      "secondary_therapeutic_areas": [],
-      "business_units": [
-        "Corporate"
-      ],
-      "molecules": [],
-      "mechanisms": [],
-      "companies": [],
-      "brands": [],
-      "geography": "Global",
-      "intelligence_types": [
-        "M&A",
-        "Technology"
-      ],
-      "tags": [
-        "General Strategic Intelligence",
-        "Global",
-        "M&A",
-        "Technology"
-      ],
-      "opportunity_type": null,
-      "opportunity_sublabel": null,
-      "importance": 2,
-      "relevance": 36,
-      "impact": "LOW",
-      "breaking": false,
-      "is_live": true,
-      "is_academic_noise": false,
-      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
-    },
-    {
       "id": "zeta_intel_20261020_9170c0bd",
       "title": "FDA Approves First-of-Its-Kind Chronic Hepatitis B Treatment",
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-20T19:40:38+00:00",
-      "age_days": 8,
+      "age_days": 10,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-its-kind-chronic-hepatitis-b-treatment",
       "summary": "FDA today approved Hibsago (bepirovirsen) injection, in combination with existing antiviral therapy, to treat chronic hepatitis B virus (HBV) infection in certain adults without cirrhosis.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2055,7 +2637,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-20T13:03:14+00:00",
-      "age_days": 9,
+      "age_days": 10,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-issues-final-guidance-prescription-drug-apps-and-software",
       "summary": "The U.S. Food and Drug Administration today released final guidance establishing a clear framework for how drug companies can develop, distribute, and label apps used alongside their prescription medicines.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2092,7 +2674,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-19T16:19:38+00:00",
-      "age_days": 10,
+      "age_days": 11,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-immunotherapy-may-allow-certain-patients-rectal-cancer-avoid-chemotherapy-radiation-and",
       "summary": "The U.S. Food and Drug Administration today granted accelerated approval for a new use of the immunotherapy Jemperli (dostarlimab-gxly) that may allow some patients with locally advanced rectal cancer to avoid common treatments that can have a lasting impact on their daily life.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2129,7 +2711,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-14T15:50:52+00:00",
-      "age_days": 15,
+      "age_days": 16,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-launches-rare-disease-framework-initiative-develop-holistic-fit-purpose-framework-rare-disease",
       "summary": "The U.S. Food and Drug Administration, a division within the U.S. Department of Health and Human Services (HHS), today announced the Rare Disease Framework Initiative to reimagine the development of drugs and biologics for rare diseases.",
       "primary_therapeutic_area": "Emerging Technologies & Pipeline",
@@ -2166,7 +2748,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-14T15:14:51+00:00",
-      "age_days": 15,
+      "age_days": 16,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-treatment-certain-people-bcg-unresponsive-bladder-cancer",
       "summary": "FDA Approves First Treatment for Certain People With BCG-Unresponsive Bladder Cancer",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2203,7 +2785,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-05T13:02:06+00:00",
-      "age_days": 24,
+      "age_days": 25,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-seeks-public-input-support-ibogaine-research",
       "summary": "The U.S. Food and Drug Administration today announced a request for information (RFI) describing approaches the agency is considering for the design of early-phase clinical trials of ibogaine drug products and seeking public input on those approaches.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2240,7 +2822,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-30T13:26:33+00:00",
-      "age_days": 29,
+      "age_days": 30,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-launches-nationwide-effort-expand-scientific-expertise-and-consumer-voices-advisory-committees",
       "summary": "The U.S. Food and Drug Administration today announced a broad, nationwide recruitment effort to expand the range of qualified voices and perspectives on its advisory committees— the independent bodies that inform some of the most consequential decisions in American public health.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2277,7 +2859,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-29T21:01:07+00:00",
-      "age_days": 29,
+      "age_days": 30,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-investigation-leads-charges-against-two-indian-nationals-involved-transnational-counterfeit-drug",
       "summary": "The U.S. Attorney’s Office for the Middle District of Florida and the Criminal Division of the U.S. Department of Justice today announced federal charges against Swapnadip Roy, 33, and Vicky Ramancha, 37, both Indian nationals.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2314,7 +2896,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-28T21:00:01+00:00",
-      "age_days": 30,
+      "age_days": 31,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-intends-evaluate-changes-pmta-regulatory-framework",
       "summary": "FDA is carefully reviewing its experience implementing the Premarket Tobacco Product Application (PMTA) rule, as well as recent judicial developments, including a federal lawsuit filed in the U.S. District Court for the Northern District of Texas challenging the current regulatory framework.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2351,7 +2933,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-23T19:50:17+00:00",
-      "age_days": 35,
+      "age_days": 37,
       "url": "http://www.fda.gov/news-events/press-announcements/federal-court-enters-consent-decree-against-gold-star-distribution-inc-following-persistent",
       "summary": "A U.S. Food and Drug Administration investigation resulted in a federal court order, dated Sept. 21, 2026, stopping a warehouse operator from distributing FDA-regulated products including food, drugs, medical devices, and cosmetics until it fixes its operations to meet federal legal requirements.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2388,7 +2970,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-21T12:58:34+00:00",
-      "age_days": 38,
+      "age_days": 39,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-updates-regulations-advance-innovative-alternatives-animal-testing",
       "summary": "The FDA today issued a direct final rule that updates its regulations to clarify that non-animal methods can be used where appropriate for testing the safety of drugs and biological products intended for human use before they’re tried in humans.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2425,7 +3007,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-15T13:53:31+00:00",
-      "age_days": 44,
+      "age_days": 45,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-launches-expedited-ind-pilot-begins-accepting-applications",
       "summary": "The U.S. Food and Drug Administration today announced the final design of the Expedited Investigational New Drug (IND) Pilot.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2462,7 +3044,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-04T20:18:49+00:00",
-      "age_days": 54,
+      "age_days": 55,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-takes-steps-maintain-newborn-access-life-saving-starter-nutrition-products",
       "summary": "The U.S. Food and Drug Administration today announced it is taking action, consistent with the Trump administration’s commitment to protecting vulnerable patients and maintaining access to critical medical products, to help address a potential supply gap of neonatal starter parenteral nutrition (PN)",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2499,7 +3081,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-09-04T19:38:04+00:00",
-      "age_days": 54,
+      "age_days": 56,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-grants-accelerated-approval-new-breast-cancer-treatment",
       "summary": "The U.S. Food and Drug Administration today expanded treatment options for adult patients with advanced breast cancer, reflecting the FDA’s commitment to advancing medical innovation and getting new treatments to patients who need them.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2536,7 +3118,7 @@ window.ZETA_NEWS_FEED = {
       "source": "World Health Organization (WHO Global & Regional News)",
       "source_id": "who_global",
       "published_at": "2026-10-10T07:49:45+00:00",
-      "age_days": 19,
+      "age_days": 20,
       "url": "https://www.who.int/news/item/27-08-2020-new-who-technical-package-health-data-for-covid-19-response",
       "summary": "Today, as part of its commitment to strengthening health information systems and improving health[1], especially in the context of the COVID-19 pandemic, WHO announced a new approach to improving access to life-saving data: the SCORE for Health Data Technical Package.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2573,7 +3155,7 @@ window.ZETA_NEWS_FEED = {
       "source": "PharmaBoardroom (MENA & Emerging Markets)",
       "source_id": "pharma_boardroom",
       "published_at": "2026-05-07T11:53:42+00:00",
-      "age_days": 175,
+      "age_days": 176,
       "url": "https://pharmaboardroom.com/international-healthcare-week-opens-in-hong-kong-from-may/",
       "summary": "International Healthcare Week Opens in Hong Kong from May Showcasing Investment Opportunities and Innovative Technologies Organized by the Hong Kong Trade Development Council (HKTDC), the 5th International Healthcare Week (IHW) will be held in Hong Kong from May 11 to 31, 2026.",
       "primary_therapeutic_area": "General Strategic Intelligence",

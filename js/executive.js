@@ -4057,14 +4057,14 @@
       } else if (!shortageDataReady) {
         const note = document.createElement("div");
         note.style.cssText = "font-size:9px;color:#b45309;margin-top:3px;max-width:170px;line-height:1.35;";
-        note.textContent = "Shortage Target activates after the next cache refresh";
+        note.textContent = "Dynamic Target activates after the next cache refresh";
         scenarioSelect.appendChild(note);
       }
       // CHC new 2026 target note (2026-09-25, Ahmed: Official = new CHC
       // target, Working = old one). Informational only.
       const chcTgtNote = document.createElement("div");
       chcTgtNote.style.cssText = "font-size:9px;color:#64748b;margin-top:3px;max-width:190px;line-height:1.35;";
-      chcTgtNote.textContent = "CHC: Official = New 2026 target (198M) · Working = previous target";
+      chcTgtNote.textContent = "CHC: Official = Dynamic = New 2026 target (198M) · Working = previous target";
       scenarioSelect.appendChild(chcTgtNote);
       wrap.appendChild(scenarioSelect);
       scenarioSelect.querySelector("select").addEventListener("change", (e) => {
@@ -5195,7 +5195,7 @@
 
         <div class="mgt-action-card">
           <div class="mgt-action-head">
-            <div class="mgt-action-title">ACTION PROTOCOL #2: Shortage Target Protocol Execution (GIT-II / ORTHO-II)</div>
+            <div class="mgt-action-title">ACTION PROTOCOL #2: Dynamic Target Protocol Execution (GIT-II / ORTHO-II)</div>
             <span class="health-pill health-caution">MEDIUM PRIORITY</span>
           </div>
           <div class="mgt-action-grid">
@@ -5205,13 +5205,13 @@
             </div>
             <div class="mgt-action-field">
               <b>EVIDENCE-BASED DRIVER</b>
-              Official vs Shortage target gap rescaled. Opportunity: Fair evaluation of sales rep total points and cash payout eligibility.
+              Official vs Dynamic target gap rescaled. Opportunity: Fair evaluation of sales rep total points and cash payout eligibility.
             </div>
             <div class="mgt-action-field">
               <b>RECOMMENDED ACTION, OWNER & KPI</b>
-              <b>Action:</b> Maintain Shortage Target Scenario toggle in Sales & Sprint dashboards.<br>
+              <b>Action:</b> Maintain Dynamic Target Scenario toggle in Sales & Sprint dashboards.<br>
               <b>Owner:</b> SFE Manager / Commercial Excellence<br>
-              <b>KPI to Monitor:</b> Shortage-Adjusted Sales Achievement %
+              <b>KPI to Monitor:</b> Dynamic-Target Sales Achievement %
             </div>
           </div>
         </div>

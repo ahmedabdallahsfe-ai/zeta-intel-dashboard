@@ -279,11 +279,11 @@
   <script defer src="js/perf-probe.js?v=20260808_perf2"></script>
 
   <!-- Cache (must load before any module that reads it) -->
-  <script defer src="cache/metadata.data.js?v=20261012_1309_auto"></script>
-  <script defer src="cache/dashboard.data.js?v=20261012_1309_auto"></script>
+  <script defer src="cache/metadata.data.js?v=20261030_2150_auto"></script>
+  <script defer src="cache/dashboard.data.js?v=20261030_2150_auto"></script>
   <script defer src="cache/teamkpis.data.js?v=20260724"></script>
-  <script defer src="cache/records.data.js?v=20260916_proratedtgt"></script>
-  <script defer src="cache/organogram.data.js?v=20260914_august"></script>
+  <script defer src="cache/records.data.js?v=20261030_2150_auto"></script>
+  <script defer src="cache/organogram.data.js?v=20261030_2150_auto"></script>
   <!-- v20260726_hierarchyfix = corrected BUHead/NSM/RM/DM/Rep naming + CM (Emp6) capture (cache/meta.schemaVersion 2).
        js/sales.js checks this schema and shows a pending-refresh placeholder if the cache on disk is still the
        pre-fix version -- safe to deploy this script tag even before the cache file itself is regenerated.
@@ -310,14 +310,14 @@
        these two brands' sales count toward Sales Achievement instead of being excluded by the existing
        Non-Tender convention. All other brands/products unchanged. 191,352.00 EGP moved Tender->Non-Tender;
        Total Actual Sales Value unchanged to the cent (1,426,495,032.60). -->
-  <script defer src="cache/sales.data.js?v=20261014_1007_auto"></script>
+  <script defer src="cache/sales.data.js?v=20261030_2332_auto"></script>
   <!-- Zeta Sprint 2026 cache (2026-08-15): built by etl/build_sprint_cache.py from
        sprint/scaling scores.xlsx (point curves) + this page's own Coverage/Sales
        cache sources. Re-linked 2026-08-16 (Ahmed: "add zeta sprint to dashboard") --
        this script tag, the sidebar entry, and app.js's Sprint wiring were dropped
        during the same pass that added IMS Rx role-gating; the underlying cache/js/css
        files were never touched, so no rebuild was needed, only re-wiring. -->
-  <script defer src="cache/sprint.data.js?v=20261012_1309_auto"></script>
+  <script defer src="cache/sprint.data.js?v=20261030_2219_auto"></script>
   <!-- Field Working Days Intelligence cache (2026-09-05, Ahmed "implmement
        to zeta intell"): built by etl/build_working_days_cache.py from the
        Sprint KPI template's DM_DSM/ASM/NSM tabs. Separate from
@@ -325,7 +325,7 @@
        trend from the template's stacked months, independent of whichever
        single month Sprint itself is currently scoring. See that ETL
        script's header for the TOT / Target Working Days formula. -->
-  <script defer src="cache/working_days.data.js?v=20261002_2042_auto"></script>
+  <script defer src="cache/working_days.data.js?v=20261030_sep2"></script>
   <!-- IMS Rx cache (2026-08-15): physician-panel Rx-volume audit, via
        etl/build_ims_rx_cache.py, reading "IMS RX TOTAL YEAR 2025.xlsx" with
        Corporation joined in from "IMS 2022 to April 2026.xlsx" (same source
@@ -352,7 +352,7 @@
        there by the time someone opens the Customer Health drill; also
        re-fixed the sentinel-latch bug this regression brought back (see
        decompressCustomerAnalyticsCache() in js/sales.js). -->
-  <script defer src="cache/iqvia.data.js?v=20261029_nervnerha"></script>
+  <script defer src="cache/iqvia.data.js?v=20261030_2150_auto"></script>
   <!-- Coaching Intelligence cache (2026-08-31): built by etl/build_coaching_cache.py
        from "Visits Details S1 DM.xlsx" (Total sheet, Feb1-Aug31 2026 YTD) joined against
        Database Shortcut.xlsx for active-roster / name resolution. See that script's
@@ -362,8 +362,8 @@
   <!-- External Market Intelligence cache (2026-09-09): multi-dimensional pharmaceutical
        intelligence (EDA decrees, competitor moves, pricing, clinical, SGLT2/DOAC/PCAB trends)
        built by etl/build_news_cache.py. 100% offline static cache. -->
-  <script defer src="cache/news_latest.data.js?v=20261029_2045_auto"></script>
-  <script defer src="cache/regulatory_pipeline.data.js?v=20261029_2045_auto"></script>
+  <script defer src="cache/news_latest.data.js?v=20261030_2150_auto"></script>
+  <script defer src="cache/regulatory_pipeline.data.js?v=20261030_2150_auto"></script>
   <script defer src="cache/egypt_registration.data.js?v=20260910_v1"></script>
 
   <!-- App-wide authentication roster & loader -->
@@ -379,10 +379,10 @@
 
   <!-- Enterprise semantic layer (Phase 4-lite): Line -> Business Unit crosswalk.
        Self-contained (no cache dependency) -- shared by every getBusinessSummary(). -->
-  <script defer src="js/semantic-model.js?v=20261012_linememo"></script>
+  <script defer src="js/semantic-model.js?v=20261030_dyn"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20261029_2045_auto"></script>
+  <script defer src="js/cache-loader.js?v=20261030_2332_auto"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>
@@ -420,7 +420,7 @@
        (2.5MG / 5MG combining both pack sizes each) instead of shown as
        4 separate raw SKU rows; getBrandPortfolioHealth() and every
        Executive "by Brand" modal both use this now. -->
-  <script defer src="js/sales.js?v=20261013_elimbosis25"></script>
+  <script defer src="js/sales.js?v=20261030_dyn"></script>
   <script defer src="js/iqvia-growth-config.js?v=20260924_growthv1"></script>
   <!-- 2026-10-18: js/iqvia.js is EXECUTED by js/app.js (ensureDataFiles) only after cache/iqvia.data.js
        has loaded -- on a slow connection the data file could fail/arrive late, iqvia.js then ran without
@@ -467,7 +467,7 @@
        getItemAchievement() -- ELIMBOSIS's two pack sizes per strength
        are merged into one row per strength, not shown as 4 raw SKUs. -->
   <script defer src="cache/tms_ims.data.js?v=20260925_estopening"></script>
-  <script defer src="js/executive.js?v=20261013_elimbosis25"></script>
+  <script defer src="js/executive.js?v=20261030_dyn"></script>
 
   <!-- cache/market_intel.data.js (1.4 MB) is LAZY again as of 2026-09-11:
        this was the original 2026-08-08 lazy-loaded cache (PERFORMANCE_FIX.md)
@@ -485,7 +485,7 @@
   <script defer src="js/ask-engine.js?v=20260921_askq2"></script>
   <script defer src="js/ask-period.js?v=20260921_askq2"></script>
   <script defer src="js/ask-query.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-sales.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-prov-sales.js?v=20261030_dyn"></script>
   <script defer src="js/ask-prov-coverage.js?v=20260921_askq2"></script>
   <script defer src="js/ask-prov-sfe.js?v=20260921_askq2"></script>
   <script defer src="js/ask-prov-lib.js?v=20260921_askq2"></script>

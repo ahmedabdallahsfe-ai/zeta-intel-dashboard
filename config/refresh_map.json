@@ -127,6 +127,7 @@
       ],
       "depends_on": [],
       "outputs": ["cache/sales.data.js"],
+      "git_extra": ["js/sales.js", "js/executive.js", "js/semantic-model.js", "js/ask-prov-sales.js", "refresh_sales.py"],
       "_note_git": "cache/sales.json is still generated locally (the Coaching build reads it) but is NOT published -- see settings.git.untrack. The dashboard only loads cache/sales.data.js.",
       "pages": ["sales", "executive", "askdata"]
     },
@@ -359,6 +360,7 @@
       "critical": false,
       "sources": [
         "IQVIA TERRIOTRY/Egypt Sales Territory.xlsx",
+        "IQVIA TERRIOTRY/Egypt Sales Territory Data_*.xlsx",
         "iqvia_source/IQVIA_SOURCE.xlsx",
         "ZETA SALES_2026/Q1_Sales.xlsx",
         "ZETA SALES_2026/Q2_Sales.xlsx",
@@ -367,6 +369,7 @@
       ],
       "depends_on": ["coverage", "sales", "iqvia"],
       "outputs": ["cache/iqvia_geo.data.js"],
+      "git_extra": ["js/iqvia-geo.js", "js/app.js", "etl/build_iqvia_geo_cache.py"],
       "pages": ["territorymarket"],
       "_note": "Added 2026-10-12 (Ahmed). Reads the territory workbook (IQVIA Actual + estimated Zeta layer), IQVIA_SOURCE.xlsx (sector split, cached in cache/.iqvia_geo_src/iq_sector.pkl), the 2026 in-house sales files (position weights), cache/iqvia.data.js (iqvia step), cache/sales.data.js (sales step: sales vs target by position) and cache/records.json + dashboard.json (coverage step). ~30 s when nothing heavy changed, ~2 min after IQVIA_SOURCE or sales file changes. Non-critical: on failure the previous cache is kept."
     },

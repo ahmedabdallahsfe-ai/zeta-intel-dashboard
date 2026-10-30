@@ -1560,7 +1560,7 @@ async function renderRep360Tab(container) {
   const allowed = window.AUTH && typeof window.AUTH.canViewRep360 === "function" ? window.AUTH.canViewRep360() : false;
   if (!allowed) { renderLocalOnlyDenied(container, "Rep 360° Scorecard"); return; }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Rep 360° Scorecard…</div>';
-  await Promise.all([loadLocalAsset("css/rep360.css?v=20261008_local"), loadLocalAsset("js/rep360.js?v=20261009_exp"),
+  await Promise.all([loadLocalAsset("css/rep360.css?v=20261008_local"), loadLocalAsset("js/rep360.js?v=20261030_dyn"),
     window.CacheLoader ? window.CacheLoader.ensure("rep360") : Promise.resolve(false)]);
   if (currentTab !== "rep360") return;
   if (window.Rep360Dashboard) window.Rep360Dashboard.init("app-root");
@@ -1572,7 +1572,7 @@ async function renderTerritoryMarketTab(container) {
   const allowed = window.AUTH && typeof window.AUTH.canViewTerritoryMarket === "function" ? window.AUTH.canViewTerritoryMarket() : false;
   if (!allowed) { renderLocalOnlyDenied(container, "Territory Market Insights"); return; }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Territory Market Insights…</div>';
-  await Promise.all([loadLocalAsset("css/iqvia-geo.css?v=20261015_xlsx"), loadLocalAsset("js/iqvia-geo.js?v=20261015_xlsx"),
+  await Promise.all([loadLocalAsset("css/iqvia-geo.css?v=20261015_xlsx"), loadLocalAsset("js/iqvia-geo.js?v=20261030_dyn"),
     window.CacheLoader ? window.CacheLoader.ensure("iqvia_geo") : Promise.resolve(false)]);
   if (currentTab !== "territorymarket") return;
   if (window.TerritoryMarketDashboard) window.TerritoryMarketDashboard.init("app-root");

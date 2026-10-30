@@ -351,7 +351,7 @@
       def: "Non-Tender sales, Value basis, in EGP.", formula: "sum of Non-Tender value", grains: G_ALL },
     { id: "sales_target", label: "Sales target", unit: "egp", better: "high",
       aliases: ["sales target", "target value", "targets", "target"],
-      def: "The target value of the active target basis (Official / Working / Shortage).", formula: "sum of target value for the active scenario", grains: G_ALL },
+      def: "The target value of the active target basis (Official / Working / Dynamic).", formula: "sum of target value for the active scenario", grains: G_ALL },
     { id: "sales_gap", label: "Gap to target", unit: "egp", better: "low", gap: true,
       aliases: ["gap to target", "sales gap", "shortfall", "gap", "shortage in sales", "below target by", "how far from target", "distance to target"],
       def: "Target minus actual value — positive means behind target.", formula: "target value − actual value (only where a target exists)", grains: G_ALL },

@@ -10,6 +10,14 @@ INPUT (read-only):
       sheets "Anchored_Region", "Anchored_Positions" -> IQVIA-Anchored Allocation (directional, opt-in layer only)
   cache/records.json + cache/dashboard.json -> CRM doctor visits per Medical Rep (effort index)
 
+  IQVIA TERRIOTRY/Egypt Sales Territory Data_<Mon-DD-YYYY>.xlsx  (2026-10-30, Ahmed: "use the 2 files")
+      -> the NEWEST raw IQVIA delivery (picked by the date in the file NAME, not file time) is the IQVIA Actual
+         fact source and replaces the full 24-month window (IQVIA restates history; never stitched to older deliveries).
+         The enriched workbook above stays the mapping / governance / anchored layer. No dated file -> workbook data sheet.
+      -> delivery QA gates: required columns, 148 bricks, every brand mapped (Brand_Map + BRAND_MAP_ADD), subset rows
+         (a brand already inside an IQVIA aggregate row) netted out, actual form rows replace the national-mix estimate,
+         total reconciles to the raw file minus the netted subset rows.
+
 OUTPUT:
   cache/iqvia_geo.data.js   window.IQVIA_GEO_CACHE = {b64Data:"<gzip+base64 JSON>"}  (same convention as other caches)
 
@@ -25,13 +33,62 @@ RULES:
   - Hard checks (script exits non-zero on failure): 148 bricks; facts total == IQVIA Actual Market Value total;
     every allocated brick-line sums to 100%.
 """
-import os, sys, json, gzip, base64, collections, datetime
+import os, sys, json, gzip, base64, collections, datetime, glob, re
 import pandas as pd, numpy as np
 from python_calamine import CalamineWorkbook
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'IQVIA TERRIOTRY', 'Egypt Sales Territory.xlsx')
 OUT = os.path.join(ROOT, 'cache', 'iqvia_geo.data.js')
+RAW_GLOB = os.path.join(ROOT, 'IQVIA TERRIOTRY', 'Egypt Sales Territory Data_*.xlsx')
+RAW_COLS = {'Region': 'Region', 'Territory': 'Territory', 'Subterritory': 'Subterritory (148 Brick)', 'Sector': 'Sector',
+            'Market': 'Market', 'Brand Name': 'Brand Name', 'Month': 'Month', 'LC Value': 'Market Value EGP (100% allocated)',
+            'Units': 'Market Units (100% allocated)'}
+# ---- delivery Oct-30-2026 (Ahmed 2026-10-30): names new to Brand_Map -> clone the sibling row of the same territory
+# market (DM1/DM2/Line/BU) and set type/corporation (corporation = IQVIA_SOURCE corporation of the product) ----
+BRAND_MAP_ADD = {
+    'OMEZ Solid Oral (10;20;40)': ('OMEZ Solid Oral (20;40)', {}),  # IQVIA rename, identical values
+    'DAPABLIX MET':      ('Others A10P3', {'Brand Type': 'Competitor', 'Corporation': 'AL ESRAA*'}),
+    'DEXIGLOFOZIN PLUS': ('Others A10P3', {'Brand Type': 'Competitor', 'Corporation': 'PHARCO*'}),
+    'Norvasc val tab':   ('BLOKATENS', {'Brand Type': 'Competitor', 'Corporation': 'VIATRIS*'}),
+    'lacosamet 100 mg':  ('ANDOVIMPAMIDE', {'Brand Type': 'Competitor', 'Corporation': 'INSPIRE PHARMA*'}),
+    'DULOXEPRIN 60':     ('Duloxetine 60', {'Brand Type': 'Competitor', 'Corporation': 'UTOPIA*', 'Zeta Brand Inside (not separable)': ''}),
+}
+# brand rows that IQVIA delivers IN ADDITION to the aggregate row that already contains them -> parent := parent - child
+# (checked 2026-10-30: DULOXEPRIN 60 <= Duloxetine 60 in 100% of brick-months; the aggregate did not change when it appeared)
+SUBSET_OF = {'DULOXEPRIN 60': 'Duloxetine 60'}
+# actual form rows delivered for a FORM_SPLIT brand -> exact brick-level split replaces the national form-mix estimate
+# (checked 2026-10-30: territory Evastine = IQVIA_SOURCE tablets + oral solution; EVASTINE Syrup = national oral solution, every month)
+FORM_ACTUAL = {'Evastine': ('EVASTINE Syrup', 'Evastine oral solution')}
+# competitor set changed vs the previous delivery (whole 24-month window restated, trends inside the delivery are consistent)
+DELIVERY_NOTES = {'A10P1 SGLT2 INHIB A-DIAB PLAIN': 'DIACURIMAP now inside Others A10P1',
+                  'A10P3 SGLT2 INH & BIGUAN COMBS': 'DIAFLOZIMET, DIGLIFLOZ PLUS, MELLITOFIX MET inside Others; DAPABLIX MET, DEXIGLOFOZIN PLUS named',
+                  'ZEKARDOVAL (VALSRTAN DUAL MKT)': 'AVIVAVASC no longer tracked; Norvasc val tab added',
+                  'LACOSAMIDE_MKT': 'ANDOVIMPAMIDE no longer tracked; lacosamet 100 mg added'}
+
+def raw_delivery():
+    # newest dated raw delivery by the date in the file name; Excel lock files ignored
+    best = None
+    for f in glob.glob(RAW_GLOB):
+        bn = os.path.basename(f)
+        if bn.startswith('~$'): continue
+        m = re.search(r'_([A-Za-z]{3})-(\d{1,2})-(\d{4})\.xlsx$', bn)
+        if not m: print(f'[iqvia_geo] WARNING ignored (no Mon-DD-YYYY date in name): {bn}'); continue
+        try: dt = datetime.datetime.strptime('-'.join(m.groups()), '%b-%d-%Y')
+        except ValueError: print(f'[iqvia_geo] WARNING ignored (bad date): {bn}'); continue
+        if best is None or dt > best[0]: best = (dt, f)
+    return best
+
+def load_raw(f):
+    r = CalamineWorkbook.from_path(f)
+    rows = r.get_sheet_by_name(r.sheet_names[0]).to_python()
+    h = [str(x).strip() for x in rows[0]]
+    miss = [c for c in RAW_COLS if c not in h]
+    if miss: fail(f'raw delivery {os.path.basename(f)} is missing columns {miss}')
+    df = pd.DataFrame(rows[1:], columns=h)[list(RAW_COLS)].rename(columns=RAW_COLS)
+    df = df[~df['Region'].astype(str).str.strip().str.upper().isin(['GRAND TOTAL', '', 'NONE'])].copy()
+    df['Data Source'] = 'IQVIA Actual'
+    return df
 
 def sheet(wb, name):
     r = wb.get_sheet_by_name(name).to_python()
@@ -211,17 +268,62 @@ def main():
     TG = sales_targets(); gc.collect()
     wb = CalamineWorkbook.from_path(SRC)
     dall = sheet(wb, 'Egypt Sales Territory Data')
-    d = dall[dall['Data Source'] == 'IQVIA Actual'].copy()
     R, U = 'Market Value EGP (100% allocated)', 'Market Units (100% allocated)'
+    BR = 'Subterritory (148 Brick)'
+    raw = raw_delivery()
+    if raw:
+        d = load_raw(raw[1]); SRCF = os.path.basename(raw[1]); DELIV = raw[0].strftime('%b-%d-%Y')
+        print(f'[iqvia_geo] IQVIA Actual source = raw delivery {SRCF} (newest by file-name date); mappings from {os.path.basename(SRC)}')
+    else:
+        d = dall[dall['Data Source'] == 'IQVIA Actual'].copy(); SRCF = os.path.basename(SRC); DELIV = None
+        print(f'[iqvia_geo] no dated raw delivery found -> IQVIA Actual from the workbook data sheet')
     d[R] = pd.to_numeric(d[R], errors='coerce').fillna(0.0)
     d[U] = pd.to_numeric(d[U], errors='coerce').fillna(0.0)
     d['M'] = pd.to_datetime(d['Month'])
-    BR = 'Subterritory (148 Brick)'
+    K6 = ['Region', 'Territory', BR, 'Sector', 'Brand Name', 'M']
+    d = d.groupby(K6, as_index=False)[[R, U]].sum()  # source level (workbook rows are split by position)
+    raw_total = float(d[R].sum()); netted = 0.0; SUB_META = {}
+    # ---- subset rows: a brand already contained in an aggregate row -> net it out of the aggregate (never added twice) ----
+    KB = [BR, 'Sector', 'M']
+    for ch, par in SUBSET_OF.items():
+        c = d[d['Brand Name'] == ch]
+        if not len(c): continue
+        pm = d['Brand Name'] == par
+        if not pm.any(): fail(f'subset rule: parent {par!r} of {ch!r} not in the data')
+        cv = c.groupby(KB)[[R, U]].sum()
+        j = d.loc[pm, KB].merge(cv.reset_index(), on=KB, how='left').fillna(0.0)
+        orphan = cv.drop(index=pd.MultiIndex.from_frame(d.loc[pm, KB]), errors='ignore')
+        if float(orphan[R].sum()) > 1000: fail(f'subset rule: {ch} has {orphan[R].sum():,.0f} EGP in brick-months without {par}')
+        nv = d.loc[pm, R].values - j[R].values; nu = d.loc[pm, U].values - j[U].values
+        if nv.min() < -1: fail(f'subset rule: {ch} exceeds {par} in some brick-months (min {nv.min():,.0f}) - not a subset')
+        d.loc[pm, R] = np.maximum(nv, 0.0); d.loc[pm, U] = np.maximum(nu, 0.0)
+        netted += float(cv[R].sum()); SUB_META[ch] = {'of': par, 'value': round(float(cv[R].sum()))}
+        print(f'[iqvia_geo] subset rule: {ch} ({cv[R].sum()/1e6:,.1f}M) netted out of {par}; {par} now = others')
     # ---- form split (2026-10-09): one IQVIA territory brand -> one brand per form, by IQVIA_SOURCE national form mix ----
     FS_META = {}
     for fb, cfg in FORM_SPLIT.items():
         x = d[d['Brand Name'] == fb]
         if not len(x): fail(f'form split: brand {fb!r} not in the territory data')
+        fa = FORM_ACTUAL.get(fb)
+        if fa and (d['Brand Name'] == fa[0]).any():
+            # exact split from the delivered form row: <fa part> = that row, the other part = total - that row
+            c = d[d['Brand Name'] == fa[0]].groupby(KB)[[R, U]].sum()
+            j = x[KB].merge(c.reset_index(), on=KB, how='left').fillna(0.0)
+            orphan = float(c[R].sum()) - float(j[R].sum())
+            if abs(orphan) > 1000: fail(f'form split {fb}: {fa[0]} has {orphan:,.0f} EGP in brick-months without {fb}')
+            if (x[R].values - j[R].values).min() < -1: fail(f'form split {fb}: {fa[0]} exceeds {fb} - not a subset')
+            pieces = []
+            for nm, pdm, _, _ in cfg['parts']:
+                y = x.copy()
+                if nm == fa[1]: y[R] = j[R].values; y[U] = j[U].values
+                else: y[R] = np.maximum(x[R].values - j[R].values, 0.0); y[U] = np.maximum(x[U].values - j[U].values, 0.0)
+                y['Brand Name'] = nm; pieces.append(y)
+                FS_META[nm] = {'from': fb, 'basis': 'IQVIA territory actual (' + fa[0] + ')', 'share': round(float(y[R].sum() / x[R].sum()), 4) if x[R].sum() else None}
+            before = float(x[R].sum()); d = pd.concat([d[~d['Brand Name'].isin([fb, fa[0]])]] + pieces, ignore_index=True)
+            after = sum(float(p_[R].sum()) for p_ in pieces); netted += float(c[R].sum())
+            if abs(before - after) > max(1000, before * 1e-6): fail(f'form split of {fb} does not add up ({after:,.0f} vs {before:,.0f})')
+            print(f'[iqvia_geo] form split {fb} from ACTUAL {fa[0]}: ' + ', '.join(f'{k} {v["share"]:.1%}' for k, v in FS_META.items() if v['from'] == fb))
+            continue
         tot = collections.defaultdict(float); part = collections.defaultdict(float)
         for (pr, dm, sec, ym), v in IQS.items():
             if pr != cfg['iq_product']: continue
@@ -233,12 +335,15 @@ def main():
             y = x.copy(); key_ = list(zip(y['Sector'].str.upper(), y.M.dt.strftime('%Y-%m')))
             sh = np.array([part[(nm,) + k] / tot[k] if tot[k] > 0 else 1.0 / len(cfg['parts']) for k in key_])
             y[R] = y[R].values * sh; y[U] = y[U].values * sh; y['Brand Name'] = nm; pieces.append(y)
-            FS_META[nm] = {'from': fb, 'share': round(float(y[R].sum() / x[R].sum()), 4) if x[R].sum() else None}
+            FS_META[nm] = {'from': fb, 'basis': 'IQVIA_SOURCE national form mix', 'share': round(float(y[R].sum() / x[R].sum()), 4) if x[R].sum() else None}
         before = float(x[R].sum()); d = pd.concat([d[d['Brand Name'] != fb]] + pieces, ignore_index=True)
         after = sum(float(p_[R].sum()) for p_ in pieces)
         if abs(before - after) > max(1000, before * 1e-6): fail(f'form split of {fb} does not add up ({after:,.0f} vs {before:,.0f})')
         print(f'[iqvia_geo] form split {fb}: ' + ', '.join(f'{k} {v["share"]:.1%}' for k, v in FS_META.items() if v['from'] == fb))
     total_R = float(d[R].sum())
+    if abs(total_R - (raw_total - netted)) > max(1000, raw_total * 1e-6):
+        fail(f'IQVIA Actual total {total_R:,.0f} != raw {raw_total:,.0f} - netted subset rows {netted:,.0f}')
+    print(f'[iqvia_geo] reconcile: raw {raw_total/1e6:,.1f}M - subset rows {netted/1e6:,.1f}M = facts {total_R/1e6:,.1f}M  OK')
     g = d.groupby([BR, 'Brand Name', 'Sector', 'M'])[[R, U]].sum().reset_index()
 
     last = g.M.max()
@@ -259,6 +364,12 @@ def main():
     bi = {b: i for i, b in enumerate(bricks)}
 
     bm = sheet(wb, 'Brand_Map').drop_duplicates('Brand Name').set_index('Brand Name')
+    for nb_, (src_, ov_) in BRAND_MAP_ADD.items():
+        if nb_ in bm.index or src_ not in bm.index: continue
+        row = bm.loc[src_].copy()
+        for k_, v_ in ov_.items(): row[k_] = v_
+        if 'Status' in row.index: row['Status'] = 'ETL add (delivery Oct-30-2026)'
+        bm.loc[nb_] = row
     for fb, cfg in FORM_SPLIT.items():
         for nm, pdm, ln, bu in cfg['parts']:
             row = bm.loc[fb].copy(); row['Defined Market (DM1)'] = pdm; row['Defined Market (DM2)'] = pdm
@@ -295,7 +406,7 @@ def main():
     BRD = [{'n': b, 'm': mi[str(bm.loc[b, 'Defined Market (DM1)'])], 'z': int(bm.loc[b, 'Brand Type'] == 'Zeta'),
             'd2': str(bm.loc[b, 'Defined Market (DM2)']),  # DM2 filter (2026-10-09)
             'c': str(bm.loc[b, 'Corporation']), 'in': str(bm.loc[b, 'Zeta Brand Inside (not separable)'] or ''),
-            **({'fs': FS_META[b]['from']} if b in FS_META else {})} for b in brands]
+            **({'fs': FS_META[b]['from']} if b in FS_META and 'national' in FS_META[b]['basis'] else {})} for b in brands]
     MK = [{'n': m, 'line': str(mline.loc[m, 'Line']), 'bu': str(mline.loc[m, 'BU'])} for m in mk]
 
     # positions x brick allocation (organogram)
@@ -356,6 +467,12 @@ def main():
     an = pd.concat(parts, ignore_index=True)
     # rescale each brand-month to the latest IQVIA_SOURCE national value (the workbook was built on an earlier delivery)
     IQN = iqvia_national(); ANC_META = {}
+    WARN = []
+    iq_last = max((ym for v in (IQN or {}).values() for ym in v), default=None)
+    if iq_last and iq_last < last.strftime('%Y-%m'):
+        WARN.append(f'Territory delivery ends {last.strftime("%b-%y")} but IQVIA_SOURCE ends {pd.Timestamp(iq_last + "-01").strftime("%b-%y")}: '
+                    f'IQVIA-anchored Zeta brands have no value after {pd.Timestamp(iq_last + "-01").strftime("%b-%y")} until IQVIA_SOURCE is refreshed')
+        print('[iqvia_geo] WARNING', WARN[-1])
     an['ym'] = an.M.dt.strftime('%Y-%m')
     wbm = an.groupby(['Brand Name', 'ym'])[[R, U]].sum()
     fac = {}
@@ -431,7 +548,9 @@ def main():
     for b, m_ in ANC_META.items(): print(f'   {b:16} {m_["dm1"][:34]:34} 24m {m_["value24"]/1e6:7.2f}M  rescale x{m_["rescale"]}{"  of which " + m_["of"] if m_["of"] else ""}')
 
     fm = lambda x: x.strftime('%b-%y')
-    meta = {'source': 'IQVIA Egypt Sales Territory (148 bricks), IQVIA Actual', 'built': t0.strftime('%Y-%m-%d %H:%M'),
+    notes = [f'{k}: {v}' for k, v in DELIVERY_NOTES.items() if k in mi] if DELIV else []
+    meta = {'source': 'IQVIA Egypt Sales Territory (148 bricks), IQVIA Actual' + (f' (delivery {DELIV})' if DELIV else ''),
+            'srcFile': SRCF, 'delivery': DELIV, 'subsets': SUB_META, 'warnings': WARN, 'deliveryNotes': notes, 'built': t0.strftime('%Y-%m-%d %H:%M'),
             'last': fm(last), 'mat': f"{fm(P['mat'][0])}–{fm(P['mat'][1])}", 'pmat': f"{fm(P['pmat'][0])}–{fm(P['pmat'][1])}",
             'ytd': f"{fm(P['ytd'][0])}–{fm(P['ytd'][1])}", 'pytd': f"{fm(P['pytd'][0])}–{fm(P['pytd'][1])}",
             'org': 'Total Organogram July 2026', 'calls': 'CRM doctor visits (Medical Reps), records cache',

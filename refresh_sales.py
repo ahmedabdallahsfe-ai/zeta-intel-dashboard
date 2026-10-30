@@ -768,6 +768,8 @@ def apply_shortage_scenario(aggregated, overrides):
             continue  # already a shortage row from a prior pass (defensive; shouldn't happen)
         if mask & 32:
             continue  # Official row -- iterated separately (official_totals above)
+        if dims[1] in WORKING_ONLY_LINES:
+            continue  # 2026-10-30: CHC/CHC_SALES Dynamic Target is built from their Official rows below
         # This is a genuine Working-Target row -- used ONLY to decide WHICH
         # dims get a Shortage row (every Working row gets a Shortage
         # counterpart, flagged or not). Its own target figures are no
@@ -823,6 +825,32 @@ def apply_shortage_scenario(aggregated, overrides):
         new_entries[new_dims] = [0.0, 0.0, new_tgt_qty, new_tgt_val,
                                   vals[4], vals[5], vals[6], vals[7], set()]
         shortage_rows_created += 1
+
+    # 2026-10-30 (Ahmed): "Shortage Target" is shown as "Dynamic Target". For CHC/CHC_SALES the
+    # Dynamic Target = the NEW CHC 2026 target (= their Official rows from CHC_NEW_TGT_SHEET), at the
+    # Official rows' own grain. A shortage flag on a CHC SKU/brand-month still switches to Actual Sales.
+    chc_dyn = 0
+    for dims, vals in aggregated.items():
+        mask = dims[17]
+        if (mask & 16) == 0 or (mask & 32) == 0 or (mask & _SHORTAGE_BIT) or dims[1] not in WORKING_ONLY_LINES:
+            continue
+        month, line, brand, product = dims[0], dims[1], dims[2], dims[3]
+        new_dims = dims[:17] + (mask | _SHORTAGE_BIT,)
+        tq, tv = vals[2], vals[3]
+        if ((line, _canon_sku(product), month) in overrides['bySku'] or (line, brand, month) in overrides['byBrand']):
+            flagged_groups_matched += 1
+            actual = actual_totals.get((dims[0], dims[1], dims[2], _canon_sku(dims[3])) + dims[4:10])
+            if actual is None:
+                flagged_groups_zero_actual += 1; tq, tv = 0.0, 0.0
+            else:
+                tq, tv = actual[0], actual[1]
+        cur = new_entries.get(new_dims)
+        if cur is None:
+            new_entries[new_dims] = [0.0, 0.0, tq, tv, vals[4], vals[5], vals[6], vals[7], set()]
+        else:
+            cur[2] += tq; cur[3] += tv
+        chc_dyn += 1; shortage_rows_created += 1
+    log(f'  [shortage_scenario] CHC/CHC_SALES Dynamic Target: {chc_dyn:,} row(s) from the new CHC target (Official rows)')
 
     aggregated.update(new_entries)
     log(f'  [shortage_scenario] Created {shortage_rows_created:,} Shortage-Target mirror row(s) '
@@ -1068,7 +1096,7 @@ def get_progress(conn):
 # output-formatting changes). On mismatch the checkpoint is discarded and
 # the run starts clean, which costs one full re-read but guarantees every
 # row in the cache was produced by exactly one version of the rules.
-ETL_RULES_VERSION = '2026-09-25.chc_new_official_tgt'  # CHC new 2026 target loaded as Official (CHC_NEW_TGT_SHEET). Previous: '2026-09-15.fix_unknown_month'  # Exclude unparseable/blank date rows (removes 2026-Unknown month)
+ETL_RULES_VERSION = '2026-10-30.chc_dynamic_tgt'  # CHC new target = Official AND Dynamic (ex-Shortage) for CHC/CHC_SALES; TGT NEW rows with TargetValue but blank TargetIndex read as target. Previous: '2026-09-25.chc_new_official_tgt'  # CHC new 2026 target loaded as Official (CHC_NEW_TGT_SHEET). Previous: '2026-09-15.fix_unknown_month'  # Exclude unparseable/blank date rows (removes 2026-Unknown month)
 # actual-sales preservation (e.g. Noon/online accounts). '_hdrfix' (same day, added on top): Q3_XLSX's
 # real file has one blank spacer row before its header (see the Q3_XLSX comment above) -- without
 # read_source_header() skipping it, every column resolves to None and validate_source() fails loud
@@ -1249,6 +1277,16 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                             skip_row = True  # target rows with other target indexes excluded
                     except:
                         skip_row = True  # unparseable target index excluded
+
+            # 2026-10-30: the re-exported TGT NEW sheet carries the CHC line's
+            # new target on rows with BLANK IsMirror/TargetIndex (CHC_SALES rows
+            # still use TargetIndex=1). In this sheet only, any row with a
+            # non-zero TargetValue is a target row (new target = Official +
+            # Dynamic for CHC/CHC_SALES). Its Value column is ignored (targets only).
+            if source_label == CHC_NEW_TGT_LABEL and not is_mirror and not skip_row and has_tgt_val:
+                is_mirror = True
+                is_official_scenario = True
+                t_idx = WORKING_ONLY_KEEP_INDEX
 
             # New CHC target sheet (2026-09-25): targets only -- its actual
             # rows duplicate CHC_YTD_SHEET's and must never be counted twice.

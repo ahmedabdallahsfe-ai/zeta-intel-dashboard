@@ -325,7 +325,7 @@
   var TARGET_SCENARIOS = {
     official: { index: 1, label: "Official Target", isDefault: true },
     working:  { index: 0, label: "Working Target", isDefault: false },
-    shortage: { index: null, label: "Shortage Target", isDefault: false }
+    shortage: { index: null, label: "Dynamic Target", isDefault: false }
   };
   var DEFAULT_SCENARIO = "official";
 

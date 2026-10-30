@@ -231,7 +231,7 @@ function render(){
   const perL=C.PI.label+(C.PI.ok?' vs same months last year':' · no prior-year comparison'), ul=UL(), other=ST.meas==='v'?'units':'value';
   const npos=new Set(D.alloc.map(a=>a[0])).size, called=D.pos.filter(p=>p[6]!=null).length, filled=D.pos.filter(p=>p[5]==='Filled').length;
   $('#ig-asof').innerHTML=`${esc(scope)}<br>${perL} · ${secL} · ${ST.meas==='v'?'Value':'Units'}<br><b>Zeta product: ${esc(zName(C))}</b>`;
-  $('#ig-dq').innerHTML=`<span>Source <b>IQVIA Egypt Sales Territory</b>, delivered to ${mLab(LIDX)}</span><span>Data <b>IQVIA Actual</b>${ST.anc&&D.anchInt?` + <b>≈ estimated Zeta sales</b> for ${D.anchInt.length} brands IQVIA reports nationally only`:''}</span><span>Totals reconcile to IQVIA <span class="ok">OK</span></span><span>Bricks <b>148/148</b> mapped</span><span>Organogram <b>July 2026</b> · ${npos} positions</span>`;
+  $('#ig-dq').innerHTML=`<span>Source <b>IQVIA Egypt Sales Territory</b>, delivered to ${mLab(LIDX)}</span><span>Data <b>IQVIA Actual</b>${ST.anc&&D.anchInt?` + <b>≈ estimated Zeta sales</b> for ${D.anchInt.length} brands IQVIA reports nationally only`:''}</span><span>Totals reconcile to IQVIA <span class="ok">OK</span></span><span>Bricks <b>148/148</b> mapped</span><span>Organogram <b>July 2026</b> · ${npos} positions</span>${D.meta.delivery?`<span>Delivery <b>${esc(D.meta.delivery)}</b></span>`:''}${(D.meta.warnings||[]).map(w=>`<span class="chip s-Low" title="${esc(w)}">⚠ ${esc(w)}</span>`).join('')}`;
   let w='';
   if(!hasZ) w+=`<div class="banner" style="margin-top:6px">No Zeta brand is tracked by IQVIA in this selection, so share, index and gap are not available. Market size and growth are still valid. Turn on “Add estimated Zeta sales” for a directional read.</div>`;
   const aZ=C.zBrands.filter(b=>D.brands[b].a);
@@ -252,7 +252,7 @@ function render(){
       :['Opportunity — gap to fair share',hasZ?fmt(gap)+' '+ul:'–',hasZ?`${R.filter(r=>r.gap>0).length} bricks below national share`:'–']
   ].map(k=>`<div class="kpi"><span class="l">${k[0]}</span><span class="v">${k[1]}</span><span class="d">${k[2]}</span></div>`).join('');
   renderAlloc(); renderRegion(C); renderComp(C); LASTP=PM; renderPosSeg(C,LASTP); renderPos(C,LASTP);
-  $('#ig-srcFoot').textContent=`Built ${D.meta.built} from ${D.meta.source}; Brand_Map / Line_BU_Ref mapping; ${D.meta.org}. Low-base threshold ${fmt(C.thr)} EGP for this period.`;
+  $('#ig-srcFoot').textContent=`Built ${D.meta.built} from ${D.meta.source}; Brand_Map / Line_BU_Ref mapping; ${D.meta.org}. Low-base threshold ${fmt(C.thr)} EGP for this period.${(D.meta.deliveryNotes||[]).length?' Competitor set changed vs previous IQVIA delivery: '+D.meta.deliveryNotes.join(' · ')+'.':''}${D.meta.subsets&&Object.keys(D.meta.subsets).length?' Netted out (already inside an IQVIA aggregate row): '+Object.entries(D.meta.subsets).map(([k,v])=>k+' from '+v.of).join(', ')+'.':''}`;
 }
 function renderAlloc(){
   const el=$('#ig-allocCard'); if(!ST.anc){el.innerHTML='';return;}
@@ -594,7 +594,7 @@ function tgtBlock(C,o){ // in-house sales vs target (cache.tgt from cache/sales.
   const head=`<h2 class="dh">Sales vs target · in-house sales (EGP)</h2>`;
   if(!zb.length) return `<div>${head}<p class="foot">No in-house sales target is mapped for the product(s) in this selection.</p></div>`;
   const canTg=!AU||typeof AU.canToggleScenario!=='function'||AU.canToggleScenario(), dfl=(AU&&typeof AU.getActiveScenario==='function'?AU.getActiveScenario():'official')||'official';
-  const B=canTg?(ST.tgtB||dfl):dfl, K={official:1,working:2,shortage:3}[B]||1, BL={official:'Official target (original)',working:'Working target',shortage:'Shortage target'};
+  const B=canTg?(ST.tgtB||dfl):dfl, K={official:1,working:2,shortage:3}[B]||1, BL={official:'Official target (original)',working:'Working target',shortage:'Dynamic target'};
   const per=new Set(C.PI.cur.map(i=>MON[i])), J=T.months.map((m,j)=>per.has(m)?j:-1).filter(j=>j>=0);
   const seg=!canTg?`<div class="foot" style="margin:0 0 6px">Target basis: <b>${BL[B]}</b></div>`:`<div class="seg tgtseg" role="group" aria-label="Target basis">${['official','working','shortage'].map(x=>`<button data-tb="${x}" aria-pressed="${x===B}">${x==='official'?'Official (original)':x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div>`;
   if(!J.length) return `<div>${head}${seg}<p class="foot">In-house sales and targets cover ${T.months[0]} to ${T.months[T.months.length-1]}; the selected period has no overlap. Choose YTD or a 2026 period.</p></div>`;
