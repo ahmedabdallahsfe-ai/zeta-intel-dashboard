@@ -2127,6 +2127,19 @@ def main():
     # -----------------------------------------------------------------
     # 6. Assemble + write cache.
     # -----------------------------------------------------------------
+    # 2026-11-01 (Ahmed): "if a person will depart and he/she is winner, choose the first one who could be
+    # winner". Departing = resignation on file with Last Day AFTER this period (on/before = already excluded).
+    # They stay ranked with full points; js/sprint.js removes them from the Winner Pool so the badge and the
+    # Winners CSV cascade to the next eligible person. Reps already carry the flag (Step 4); tag managers too.
+    _dep_n = 0
+    for _recs in (dm_results, asm_results, nsm_results, bm_results):
+        for _r in _recs:
+            _ld = code_to_lastday.get(str(_r.get('code') or '').strip())
+            _dep = _ld is not None and _ld > EVAL_PERIOD_END
+            _r['isDepartingSoon'] = _dep
+            _r['departingLastDay'] = _ld.isoformat() if _dep else None
+            _dep_n += _dep
+    log(f'  Departing managers (ranked, not Winner-eligible): {_dep_n}')
     cache = {
         'meta': {
             'schemaVersion': SCHEMA_VERSION,

@@ -674,7 +674,7 @@
   // ---- Medical Rep / Sales Rep tab -----------------------------------
   function departingBadge(r) {
     if (!r.isDepartingSoon) return "";
-    return `<span class="sp-departing-badge" title="Resignation on file, last day ${esc(r.departingLastDay)} -- still counted this month">⚠ Departing ${esc(r.departingLastDay)}</span>`;
+    return `<span class="sp-departing-badge" title="Resignation on file, last day ${esc(r.departingLastDay)} -- still ranked with full points, but NOT eligible for Winner / Runner-up; the next eligible person takes the place">⚠ Departing ${esc(r.departingLastDay)} · not eligible for Winner</span>`;
   }
 
   // ---- Sick Leave Impact Rule surfacing (2026-09-16) -------------------
@@ -1060,9 +1060,11 @@
     // NOT reference WINNER_FLOOR_ACH_PCT or any absolute floor anywhere
     // in this line. CHC Sales Rep: Sales + Coverage only (rfAveragePass
     // deliberately excluded, see isChcSales comment above).
-    const winnerPoolEligible = isChcSales
+    // 2026-11-01 (Ahmed): a person who will depart (resignation on file, Last Day after this period) stays
+    // ranked with full points but can NOT be Winner / Runner-up -- the next eligible person takes the place.
+    const winnerPoolEligible = !r.isDepartingSoon && (isChcSales
       ? (!dataIssue && salesAveragePass && coverageAveragePass)
-      : (!dataIssue && salesAveragePass && rfAveragePass && coverageAveragePass);
+      : (!dataIssue && salesAveragePass && rfAveragePass && coverageAveragePass));
     const vsList = (isChcSales ? [salesVsAverage, coverageVsAverage] : [salesVsAverage, rfVsAverage, coverageVsAverage]).filter(v => v != null);
     const avgVsGate = vsList.length ? vsList.reduce((a, b) => a + b, 0) / vsList.length : null;
     // KEPT ON MEDIAN 2026-08-19 ("ok make winner pool gate according to
@@ -1353,8 +1355,9 @@
     });
     const dataIssue = checks.length === 0;
     const gatePassCount = checks.filter(c => c.pass).length;
-    const winnerPoolEligible = !dataIssue && checks.every(c => c.pass);
-    return { checks, gatePassCount, winnerPoolEligible, dataIssue, winnerPoolRank: null, tier: "", tie: false };
+    // 2026-11-01 (Ahmed): departing managers stay ranked but cannot win -- next eligible manager takes the badge.
+    const winnerPoolEligible = !dataIssue && checks.every(c => c.pass) && !r.isDepartingSoon;
+    return { checks, gatePassCount, winnerPoolEligible, dataIssue, winnerPoolRank: null, tier: "", tie: false, departing: !!r.isDepartingSoon };
   }
 
   // Generic version of computeLineWinnerPools for the manager tiers --
@@ -3214,7 +3217,7 @@
       ? hierarchyKpiBlock("Team Avg", r.teamAvgRaw, teamAvgCheck.avg, teamAvgCheck.pass, r.teamAvgPts, r.teamAvgWeight, false)
       : kpiBar("Team Avg", r.teamAvgRaw, r.teamAvgPts, r.teamAvgWeight);
     return `<tr class="sp-row${isWinner || isRunnerUp ? " sp-is-winner" : ""}" data-bu="${esc(r.bu || "")}" data-line="${esc(r.line || "")}" data-name="${esc(r.name)}" data-total="${r.totalPts != null ? r.totalPts.toFixed(1) : ""}" data-team-ach-pct="${r.teamSalesAchPct != null ? r.teamSalesAchPct : ""}" data-gate-pass="${d && d.winnerPoolEligible ? "1" : "0"}" data-search="${esc((r.name + " " + r.code).toLowerCase())}">
-      <td class="sp-name">${esc(r.name)}<span class="sp-winner-badge"${isWinner ? "" : ' style="display:none;"'}>🏆 WINNER${tieFlag}</span><span class="sp-runnerup-badge"${isRunnerUp ? "" : ' style="display:none;"'}>🏆 WINNER 2</span>${isBuLeader ? `<span class="sp-leader-badge" title="Top performer for the ${esc(r.bu)} business unit">🎖 BU Leader</span>` : ""}<div class="sp-sub">#${esc(r.code)}${lineBu ? ` · <span class="sp-manager-line-badge">${esc(lineBu)}</span>` : ""} · ${r.teamSize} eligible ${esc(noun)}${r.teamSize === 1 ? "" : "s"} in team · ${probationBadge(r)}${leaveBadge(r)}${r.teamSize > 0 && r.teamSalesAchPct != null ? teamAchNote(r) : ""}${hierarchyGateNote(d)}</div>${teamDrilldown(r)}</td>
+      <td class="sp-name">${esc(r.name)}<span class="sp-winner-badge"${isWinner ? "" : ' style="display:none;"'}>🏆 WINNER${tieFlag}</span><span class="sp-runnerup-badge"${isRunnerUp ? "" : ' style="display:none;"'}>🏆 WINNER 2</span>${isBuLeader ? `<span class="sp-leader-badge" title="Top performer for the ${esc(r.bu)} business unit">🎖 BU Leader</span>` : ""}<div class="sp-sub">#${esc(r.code)}${lineBu ? ` · <span class="sp-manager-line-badge">${esc(lineBu)}</span>` : ""} · ${r.teamSize} eligible ${esc(noun)}${r.teamSize === 1 ? "" : "s"} in team · ${probationBadge(r)}${departingBadge(r)}${leaveBadge(r)}${r.teamSize > 0 && r.teamSalesAchPct != null ? teamAchNote(r) : ""}${hierarchyGateNote(d)}</div>${teamDrilldown(r)}</td>
       <td>${teamAvgCellHtml}</td>
       ${r.kpis.map(k => {
         const c = checksByKey[k.key];
@@ -3414,7 +3417,7 @@
     const checksByKey = {};
     (d && d.checks || []).forEach(ch => { checksByKey[ch.key] = ch; });
     return `<tr class="sp-row${isWinner ? " sp-is-winner" : ""}">
-      <td class="sp-name">${esc(r.name)}${isWinner ? '<span class="sp-winner-badge">🏆 WINNER</span>' : ""}<div class="sp-sub">#${esc(r.code)} · ${esc(r.position || "Brand Manager")}${r.line ? ` · <span class="sp-manager-line-badge">${esc(r.line)}</span>` : ""} · ${probationBadge(r)}${hierarchyGateNote(d, { badgeLabel: "WINNER", hasCash: false })}</div></td>
+      <td class="sp-name">${esc(r.name)}${isWinner ? '<span class="sp-winner-badge">🏆 WINNER</span>' : ""}<div class="sp-sub">#${esc(r.code)} · ${esc(r.position || "Brand Manager")}${r.line ? ` · <span class="sp-manager-line-badge">${esc(r.line)}</span>` : ""} · ${probationBadge(r)}${departingBadge(r)}${hierarchyGateNote(d, { badgeLabel: "WINNER", hasCash: false })}</div></td>
       ${r.kpis.map(k => {
         const ch = checksByKey[k.key];
         return `<td>${ch && k.key !== "regionCount" ? hierarchyKpiBlock(kpiShortLabel(k.label), k.raw, ch.avg, ch.pass, k.pts, k.weight, true) : kpiSlotCell(k)}</td>`;
