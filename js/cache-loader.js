@@ -176,30 +176,41 @@
     if (isLoaded(key)) return Promise.resolve(true);
     if (_promises[key]) return _promises[key];
 
+    // 2026-11-01: a large cache can fail to transfer on a weak connection (seen on Market Growth Forecast).
+    // Retry up to 2 more times with a fresh URL; if it still fails, forget the failed promise so the next
+    // visit to the page tries again instead of staying broken until a full reload.
     _promises[key] = new Promise(function (resolve) {
       var t0 = (global.performance && performance.now) ? performance.now() : 0;
-      var el = document.createElement("script");
-      el.src = spec.file + "?v=" + (spec.version || VERSION);
-      el.async = false;   // preserve execution order if several are queued
-
-      el.onload = function () {
-        var ok = isLoaded(key);
-        if (global.console && global.performance) {
-          console.log("[CacheLoader] " + spec.label + " loaded in " +
-            Math.round(performance.now() - t0) + "ms" + (ok ? "" : " (global missing!)"));
+      var MAX_TRY = 3;
+      function attempt(n) {
+        var el = document.createElement("script");
+        el.src = spec.file + "?v=" + (spec.version || VERSION) + (n > 1 ? "&retry=" + n + "_" + Date.now() : "");
+        el.async = false;   // preserve execution order if several are queued
+        function fail(why) {
+          if (el.parentNode) el.parentNode.removeChild(el);
+          if (n < MAX_TRY) {
+            if (global.console) console.warn("[CacheLoader] " + spec.label + " " + why + " - retry " + (n + 1) + "/" + MAX_TRY);
+            setTimeout(function () { attempt(n + 1); }, 1200 * n);
+            return;
+          }
+          // Do not reject. A missing optional cache is a degraded page, not a
+          // broken one, and every consumer already handles the global's absence.
+          if (global.console) console.warn("[CacheLoader] " + spec.label + " could not be loaded from " + spec.file);
+          delete _promises[key];
+          resolve(false);
         }
-        resolve(ok);
-      };
-      el.onerror = function () {
-        // Do not reject. A missing optional cache is a degraded page, not a
-        // broken one, and every consumer already handles the global's absence.
-        if (global.console) {
-          console.warn("[CacheLoader] " + spec.label + " could not be loaded from " + spec.file);
-        }
-        resolve(false);
-      };
-
-      document.head.appendChild(el);
+        el.onload = function () {
+          var ok = isLoaded(key);
+          if (global.console && global.performance) {
+            console.log("[CacheLoader] " + spec.label + " loaded in " +
+              Math.round(performance.now() - t0) + "ms" + (ok ? "" : " (global missing!)"));
+          }
+          if (ok) resolve(true); else fail("loaded but global missing");
+        };
+        el.onerror = function () { fail("failed to load"); };
+        document.head.appendChild(el);
+      }
+      attempt(1);
     });
 
     return _promises[key];

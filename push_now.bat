@@ -150,7 +150,7 @@ echo ============================================================
 echo   Files about to be committed: !NFILES!
 echo   (A = added, M = modified, D = deleted)
 echo ============================================================
-"%GIT_CMD%" -c core.quotepath=off diff --cached --name-status
+"%GIT_CMD%" --no-pager -c core.quotepath=off diff --cached --name-status
 echo ============================================================
 echo.
 set "ANSWER="

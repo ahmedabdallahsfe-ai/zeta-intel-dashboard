@@ -3329,7 +3329,16 @@
     c.innerHTML = '<div class="mfc" id="mfc-host"></div>'; HOST = ROOT = document.getElementById('mfc-host');
     try {
       D_CAL = D_CAL || decode(); if (ST.basis === 'raw' && D_RAW) D_SU = D_RAW; else { ST.basis = 'cal'; D_SU = D_CAL; } D_PK = null; D = D_SU;
-      if (!D) { ROOT.innerHTML = '<div style="padding:24px">Market forecast data not loaded (cache/market_forecast.data.js). Run UPDATE_DASHBOARD.bat or <code>python etl/build_market_forecast.py --cache</code>.</div>'; return; }
+      if (!D) {   // 2026-11-01: usually a failed download of the 0.8 MB data file -> offer a retry instead of a dead end
+        ROOT.innerHTML = '<div style="padding:24px">Market forecast data could not be loaded (cache/market_forecast.data.js) - usually a slow or interrupted connection. <button type="button" id="mf-retry" style="margin-left:8px;padding:4px 12px;cursor:pointer">Retry</button></div>';
+        var rb = ROOT.querySelector('#mf-retry');
+        if (rb) rb.addEventListener('click', function () {
+          rb.disabled = true; rb.textContent = 'Loading...';
+          var p = global.CacheLoader ? global.CacheLoader.ensure('market_forecast') : Promise.resolve(false);
+          p.then(function () { D_CAL = null; init(containerId); });
+        });
+        return;
+      }
       computeScope();
       try { migrateAggPlans(); } catch (e) { console.warn('[MarketForecast] plan move', e); }
       try { sfBoot(); } catch (e) { console.warn('[MarketForecast] backup', e); }
