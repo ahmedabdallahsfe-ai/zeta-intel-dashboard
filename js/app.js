@@ -1781,7 +1781,7 @@ function renderTomarketTab(container) {
   // already carries a ?v= for exactly this reason -- this one was the
   // only file loading without one. Bump TOMARKET_VERSION whenever
   // "TO MARKET_IN MARKET/index.html" changes.
-  const TOMARKET_VERSION = "20260804_bulock";
+  const TOMARKET_VERSION = "20261103_sep";
   const params = ["v=" + TOMARKET_VERSION];
   if (allowedBU && allowedBU !== true) params.push("bu=" + encodeURIComponent(allowedBU));
   const src = "TO%20MARKET_IN%20MARKET/index.html?" + params.join("&");
