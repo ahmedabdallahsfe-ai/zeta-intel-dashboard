@@ -285,7 +285,17 @@ def norm_line(raw):
 # ONLY within CHC -- every other BU's line is left exactly as Database
 # Shortcut states it, since this Medical/Sales channel split is CHC's own
 # and does not exist elsewhere in the org.
-CHC_SALES_POSITIONS = {"SALES REPRESENTATIVE", "SALES SUPERVISOR", "DISTRICT SALES MANAGER"}
+# 2026-11-03 correction (Ahmed: "you got true mapping for each manager for
+# each line?"): Database Shortcut's own reporting lines show CHC's
+# "District Sales Manager" is the MEDICAL channel DM (all 20 direct
+# reports are Medical Representatives; NSM -> DSM/FFS -> Medical Rep),
+# while the Sales channel is Sales Rep <- Sales Supervisor / Senior
+# Sales Supervisor <- Area Sales Manager (ASM manages only Sales
+# Supervisors/Reps). The old set wrongly put 4 medical DMs (Karim
+# Sukkar, Enas Fouda, Nourhan AbuZaid, Noha AbdRabou) on CHC_SALES and
+# left Senior Sales Supervisor Rimon Gabriel + ASM Hossameldin Radwan
+# on plain CHC.
+CHC_SALES_POSITIONS = {"SALES REPRESENTATIVE", "SALES SUPERVISOR", "SENIOR SALES SUPERVISOR", "AREA SALES MANAGER"}
 
 
 def resolve_chc_line(bu, line, position):

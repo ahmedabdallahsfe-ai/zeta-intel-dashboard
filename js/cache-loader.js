@@ -77,7 +77,7 @@
       file: "cache/coaching.data.js",
       globalVar: "COACHING_CACHE",
       label: "Coaching intelligence",
-      version: "20261030_sep",
+      version: "20261103_chcline",
     },
     business_review: {
       file: "cache/business_review.data.js",

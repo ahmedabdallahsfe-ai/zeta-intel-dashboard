@@ -456,6 +456,23 @@
     return out;
   }
 
+  // 2026-11-03 (Ahmed: "check and fix chc in Coaching Intelligence"):
+  // per-manager target. effectiveTargets() only swaps in 12 when the
+  // Line filter is exactly CHC_SALES, so in "All" or BU=CHC views every
+  // CHC_SALES FFS/DM was still judged against 7 -- e.g. 11.9 visits/day
+  // showed ON TARGET here while Sprint scores the same person against
+  // 12. Every PER-MANAGER status/gap now uses the manager's own line.
+  // Cohort-level numbers (KPI card, trend target line, insight
+  // sentences about the scope average) keep effectiveTargets().
+  function managerTargets(data, m) {
+    var t = effectiveTargets(data);
+    if (!m || m.line !== "CHC_SALES" || t.avgVisitsPerDay === TARGET_AVG_DAY_CHC_SALES) return t;
+    var out = {};
+    for (var k in t) { if (Object.prototype.hasOwnProperty.call(t, k)) out[k] = t[k]; }
+    out.avgVisitsPerDay = TARGET_AVG_DAY_CHC_SALES;
+    return out;
+  }
+
   function statusFor(coveragePct, avgPerDay, targets) {
     if (coveragePct === null || coveragePct === undefined) {
       return { label: "PENDING", cls: "badge-neutral" };
@@ -505,7 +522,7 @@
 
     var belowEither = ownTier.filter(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
-      var st = statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t);
+      var st = statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, managerTargets(data, m));
       return st.label !== "ON TARGET" && st.label !== "PENDING";
     }).length;
     out.push({
@@ -521,7 +538,7 @@
 
     var belowBoth = ownTier.filter(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
-      return statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t).label === "CRITICAL";
+      return statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, managerTargets(data, m)).label === "CRITICAL";
     }).length;
     if (belowBoth > 0) {
       out.push({ sev: "bad", text: belowBoth + " managers are below BOTH DV Coverage and Visits/Day targets -- see Attention Required." });
@@ -816,9 +833,10 @@
     var t = effectiveTargets(data);
     var rows = ownTier.map(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
-      var st = statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t);
-      var covGap = mm.dvCoveragePct === null ? -999 : (t.dvCoveragePct - mm.dvCoveragePct);
-      var dayGap = t.avgVisitsPerDay - mm.avgVisitsPerDay;
+      var mt = managerTargets(data, m);
+      var st = statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, mt);
+      var covGap = mm.dvCoveragePct === null ? -999 : (mt.dvCoveragePct - mm.dvCoveragePct);
+      var dayGap = mt.avgVisitsPerDay - mm.avgVisitsPerDay;
       var score = Math.max(0, covGap) + Math.max(0, dayGap) * 3; // weight intensity gap comparably to a coverage-pp gap
       return { m: m, mm: mm, st: st, score: score };
     }).filter(function (r) { return r.st.label === "CRITICAL" || r.st.label === "COVERAGE GAP" || r.st.label === "INTENSITY GAP"; })
@@ -871,7 +889,8 @@
     var t = effectiveTargets(data);
     var rows = ownTier.map(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
-      return { m: m, mm: mm, st: statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, t) };
+      var mt = managerTargets(data, m);
+      return { m: m, mm: mm, t: mt, st: statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, mt) };
     });
 
     if (_state.search) {
@@ -892,8 +911,8 @@
     }
 
     var body = rows.map(function (r, i) {
-      var covVar = r.mm.dvCoveragePct === null ? "—" : signed(r.mm.dvCoveragePct - t.dvCoveragePct, " pp");
-      var dayVar = signed(r.mm.avgVisitsPerDay - t.avgVisitsPerDay);
+      var covVar = r.mm.dvCoveragePct === null ? "—" : signed(r.mm.dvCoveragePct - r.t.dvCoveragePct, " pp");
+      var dayVar = signed(r.mm.avgVisitsPerDay - r.t.avgVisitsPerDay);
       var covDisplay = coverageDisplay(r.m, r.mm);
       var leftBadge = r.m.roleChange
         ? '<span class="badge badge-neutral" title="Now a ' + esc(r.m.roleChange.currentPosition) + ' -- no longer a coaching manager. Excluded from the Executive KPI row and this table\'s totals. Earlier supervisor visits are kept here as history only.">Now ' + esc(r.m.roleChange.currentPosition) + (r.m.roleChange.since ? ' (since ' + esc(r.m.roleChange.since) + ')' : '') + '</span>'
@@ -959,7 +978,7 @@
   // Render: Manager Profile drill-down
   // ---------------------------------------------------------------
   function renderProfile(data, manager) {
-    var t = effectiveTargets(data);
+    var t = managerTargets(data, manager);
     var cum = manager.cumulative;
     var st = statusFor(cum.dvCoveragePct, cum.avgVisitsPerDay, t);
     var isCov = OWN_ONLY_TITLES.indexOf(manager.title) >= 0;
@@ -1293,7 +1312,7 @@
     var agg = aggregateOwnTier(ownTier, _state.period);
     var onTargetCount = ownTierInPeriod.filter(function (m) {
       var mm = metricsFor(m, _state.period) || EMPTY_METRICS;
-      return statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, effectiveTargets(data)).label === "ON TARGET";
+      return statusFor(mm.dvCoveragePct, mm.avgVisitsPerDay, managerTargets(data, m)).label === "ON TARGET";
     }).length;
 
     var months = data.period.months;
