@@ -89,7 +89,7 @@
       file: "cache/list_intel.data.js",
       globalVar: "LIST_INTEL_CACHE",
       label: "List intelligence",
-      version: "20261003_1529_auto",
+      version: "20261103_1257_auto",
     },
     // LOCAL-ONLY pages (2026-10-08) -- git-ignored caches, never published.
     rep360: {

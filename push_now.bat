@@ -119,6 +119,9 @@ REM UPDATE_DASHBOARD removes it from GitHub). Do not add it back here.
 "%GIT_CMD%" add -f cache/market_forecast_inhouse.data.js 2>nul
 "%GIT_CMD%" add -f cache/market_dynamics.data.js 2>nul
 "%GIT_CMD%" add -f cache/market_dynamics_scopes.data.js 2>nul
+REM 2026-11-03: List Intelligence data + its "As of" history snapshots
+"%GIT_CMD%" add -f cache/list_intel.data.js     2>nul
+if exist cache\list_intel_history\*.data.js "%GIT_CMD%" add -f cache/list_intel_history/*.data.js 2>nul
 "%GIT_CMD%" add -A
 
 if errorlevel 1 (
