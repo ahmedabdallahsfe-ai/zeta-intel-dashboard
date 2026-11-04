@@ -255,7 +255,7 @@ body.mfc-mode #ask-panel-slot:empty{display:none}
 
 /* 2026-10-28 (Ahmed): Data basis "In-house calibrated" tab - the regular sections hide, #mf-ih shows */
 .mfc:not(.ihmode) #mf-ih{display:none}
-.mfc.ihmode #mf-nav,.mfc.ihmode .wrap>.sechd,.mfc.ihmode #mf-sum,.mfc.ihmode #mf-pf,.mfc.ihmode #mf-detail,.mfc.ihmode #mf-comp,.mfc.ihmode #mf-ov,.mfc.ihmode #mf-meas{display:none!important}
+.mfc.ihmode #mf-nav,.mfc.ihmode .wrap>.sechd,.mfc.ihmode #mf-sum,.mfc.ihmode #mf-pf,.mfc.ihmode #mf-detail,.mfc.ihmode #mf-comp,.mfc.ihmode #mf-ov,.mfc.ihmode #mf-5y,.mfc.ihmode #mf-meas{display:none!important}
 .mfc.ihmode .ctl:has(#mf-meas){display:none}
 .mfc #mf-ih .kpis{margin:0 0 14px}
 .mfc #mf-ih .ihbar{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
@@ -268,3 +268,14 @@ body.mfc-mode #ask-panel-slot:empty{display:none}
 .mfc .tbl.ih tr.ihb td:first-child{padding-left:22px}
 .mfc .tbl.ih tr.tot td{background:var(--primary-light);font-weight:600}
 .mfc .tbl.ih input.ihi{width:72px}
+
+/* 2026-11-04 (Ahmed): 5-year plan FY2027-FY2031 */
+.mfc .fy5hd{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.mfc .fy5inputs{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;padding:10px 12px;margin:0 0 12px;border:1px dashed var(--border-strong);border-radius:var(--r);background:var(--surface-alt)}
+.mfc .fy5inputs .ctl{display:flex;flex-direction:column;gap:3px;min-width:170px}
+.mfc .fy5inputs label{font-size:11px;font-weight:600;color:var(--fg-2)}
+.mfc input.fy5in{width:110px;font:inherit;font-size:13px;padding:4px 8px;border:1px solid #B45309;border-radius:6px;background:#FFF8E1;color:#1D4ED8;font-weight:600}
+.mfc .tbl.fy5t tr.cagr td{background:var(--primary-light);border-top:1px solid var(--border-strong)}
+.mfc .tbl.fy5t td.num,.mfc .tbl.fy5m td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.mfc .fy5 h3.mt{margin-top:14px}
+@media (max-width:900px){.mfc .fy5 .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}

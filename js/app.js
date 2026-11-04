@@ -1595,7 +1595,7 @@ async function renderMarketForecastTab(container) {
     return;
   }
   container.innerHTML = '<div style="padding:40px;text-align:center;color:#64748B">Loading Market Growth Forecast…</div>';
-  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261028_inhouse"), loadLocalAsset("js/market-forecast.js?v=20261101_retry"),
+  await Promise.all([loadLocalAsset("css/market-forecast.css?v=20261104_5y"), loadLocalAsset("js/market-forecast.js?v=20261104_5y"),
     window.CacheLoader ? window.CacheLoader.ensure("market_forecast") : Promise.resolve(false)]);
   if (currentTab !== "marketforecast") return;
   if (window.MarketForecastDashboard) window.MarketForecastDashboard.init("app-root");
