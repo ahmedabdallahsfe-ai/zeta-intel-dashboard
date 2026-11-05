@@ -144,7 +144,7 @@
       file: "cache/focus_pharmacies.data.js",
       globalVar: "FOCUS_PHARMACIES_CACHE",
       label: "GIT-S focus pharmacies",
-      version: "20261105_1432_auto",
+      version: "20261105_team",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",

@@ -21,7 +21,7 @@
 (function (global) {
   "use strict";
 
-  var ST = { brand: "all", item: "all", outliers: "exclude", dm: "all", rep: "all", from: null, to: null, status: "all", q: "", sort: "net", lockDm: null, lockRep: null };
+  var ST = { tgt: "official", brand: "all", item: "all", outliers: "exclude", dm: "all", rep: "all", from: null, to: null, status: "all", q: "", sort: "net", lockDm: null, lockRep: null };
   var D = null, root = null, charts = [];
   // Outlier accounts (2026-11-05): a distributor-size account on the list (e.g. one month of
   // EGP -18.5M returns, EGP 36.6M purchases) swamps 4,500 pharmacies averaging ~EGP 3K a month.
@@ -57,6 +57,68 @@
     if (ST.brand !== "all") return D.meta.brands[+ST.brand];
     return "All GIT-S products";
   }
+
+  // ---- GIT-S TEAM TARGET (2026-11-05, Ahmed "add the target of them"). D.team: targets per rep x item x
+  // month (t = [rep, month, item, official, working]) and actuals (a = [rep, month, item, all customers,
+  // focus pharmacies, raw]); actuals exclude customer-months with |net| >= EGP 1M (same outlier rule).
+  // Achievement = focus-pharmacy GIT_SALES sales booked by the rep / the rep's target.
+  var TM = null, TKEY = null;
+  function hasTeam() { return !!(D && D.team && D.team.t && D.team.t.length); }
+  function teamItemOk(ti) {
+    var it = D.team.items[ti];
+    if (ST.item !== "all") return it[0] === D.items[+ST.item][0];
+    if (ST.brand !== "all") return it[1] === D.meta.brands[+ST.brand];
+    return true;
+  }
+  function zeros(n) { var a = new Array(n); for (var i = 0; i < n; i++) a[i] = 0; return a; }
+  function teamPrep() {
+    if (!hasTeam()) return;
+    var key = ST.brand + "|" + ST.item;
+    if (key === TKEY && TM) return;
+    TKEY = key;
+    var NM = D.meta.months.length, NR = D.team.reps.length, NI = D.team.items.length;
+    TM = { o: [], w: [], all: [], f: [], io: [], iw: [], ifc: [] };
+    for (var i = 0; i < NR; i++) { TM.o.push(zeros(NM)); TM.w.push(zeros(NM)); TM.all.push(zeros(NM)); TM.f.push(zeros(NM)); }
+    for (var k = 0; k < NI; k++) { TM.io.push({}); TM.iw.push({}); TM.ifc.push({}); }
+    var t = D.team.t, a = D.team.a, j;
+    for (j = 0; j < t.length; j += 5) {
+      (TM.io[t[j + 2]][t[j]] = TM.io[t[j + 2]][t[j]] || zeros(NM))[t[j + 1]] += t[j + 3];
+      (TM.iw[t[j + 2]][t[j]] = TM.iw[t[j + 2]][t[j]] || zeros(NM))[t[j + 1]] += t[j + 4];
+      if (!teamItemOk(t[j + 2])) continue;
+      TM.o[t[j]][t[j + 1]] += t[j + 3]; TM.w[t[j]][t[j + 1]] += t[j + 4];
+    }
+    for (j = 0; j < a.length; j += 6) {
+      (TM.ifc[a[j + 2]][a[j]] = TM.ifc[a[j + 2]][a[j]] || zeros(NM))[a[j + 1]] += a[j + 4];
+      if (!teamItemOk(a[j + 2])) continue;
+      TM.all[a[j]][a[j + 1]] += a[j + 3]; TM.f[a[j]][a[j + 1]] += a[j + 4];
+    }
+  }
+  function teamScope() {
+    if (!hasTeam()) return [];
+    return D.team.reps.map(function (n, i) { return i; }).filter(function (i) {
+      var fr = D.team.focusRep[i];
+      if (ST.rep !== "all") return fr === +ST.rep;
+      if (ST.dm !== "all") return fr >= 0 && D.reps[fr].dm === +ST.dm;
+      return true;
+    });
+  }
+  function teamSum(idx, per) {
+    var o = 0, w = 0, al = 0, f = 0;
+    idx.forEach(function (i) { per.forEach(function (m) { o += TM.o[i][m]; w += TM.w[i][m]; al += TM.all[i][m]; f += TM.f[i][m]; }); });
+    var tg = ST.tgt === "working" ? w : o;
+    return { official: o, working: w, target: tg, actual: f, actualAll: al, ach: tg > 0 ? f / tg * 100 : null, achAll: tg > 0 ? al / tg * 100 : null };
+  }
+  function itemTarget(names, idxSet, per) {   // target + focus actual for team items whose name is in names
+    var tg = 0, ac = 0;
+    D.team.items.forEach(function (it, ti) {
+      if (names.indexOf(it[0]) < 0) return;
+      var src = ST.tgt === "working" ? TM.iw[ti] : TM.io[ti];
+      Object.keys(src).forEach(function (ri) { if (!idxSet[ri]) return; per.forEach(function (m) { tg += src[ri][m]; }); });
+      Object.keys(TM.ifc[ti]).forEach(function (ri) { if (!idxSet[ri]) return; per.forEach(function (m) { ac += TM.ifc[ti][ri][m]; }); });
+    });
+    return { target: tg, actual: ac, ach: tg > 0 ? ac / tg * 100 : null };
+  }
+  function achColor(v) { return v == null ? "#64748b" : v >= 100 ? "#15803d" : v >= 80 ? "#b45309" : "#b91c1c"; }
 
   function findOutliers() { OUT = {}; D.v.forEach(function (row, i) { if (row.some(function (v) { return Math.abs(v) >= OUTLIER_EGP; })) OUT[i] = true; }); }
 
@@ -98,8 +160,9 @@
     var v = PV[i], k = PK[i], to = per[per.length - 1], prev = to - 1;
     var b = 0, bAct = 0; base.forEach(function (m) { b += v[m]; if (v[m] > 0) bAct++; });
     var p = 0, act = 0; per.forEach(function (m) { p += v[m]; if (v[m] > 0) act++; });
+    var allAct = 0; v.forEach(function (x) { if (x > 0) allAct++; });   // 2026-11-05: months bought across ALL months, not only the period
     return {
-      i: i, baseAvg: base.length ? b / base.length : null, baseActive: bAct, perAvg: p / per.length, perNet: p, activeMonths: act,
+      allActive: allAct, i: i, baseAvg: base.length ? b / base.length : null, baseActive: bAct, perAvg: p / per.length, perNet: p, activeMonths: act,
       activeLast: v[to] > 0, activePrev: prev >= 0 && v[prev] > 0, lastNet: v[to], brandsLast: v[to] > 0 ? popcount(k[to]) : 0
     };
   }
@@ -185,7 +248,7 @@
   }
 
   function compute() {
-    prepare();
+    prepare(); teamPrep();
     var M = D.meta.months, L = M.length;
     var from = ST.from == null ? M.indexOf(D.meta.launchMonth) : ST.from, to = ST.to == null ? L - 1 : ST.to;
     if (from < 0) from = 0; if (to < from) to = from;
@@ -208,6 +271,11 @@
       r.gapActive = bench.activePct != null && r.activePct != null ? Math.max(0, Math.ceil(bench.activePct / 100 * r.n - r.activeLast)) : 0;
       r.gapValue = r.gapActive * (r.salesPerActive || 0);
     });
+    var tIdx = teamScope(), team = hasTeam() ? teamSum(tIdx, per) : null;
+    if (hasTeam()) reps.forEach(function (r) {
+      var mine = tIdx.filter(function (i) { return D.team.focusRep[i] === r.ri; });
+      var ts = teamSum(mine, per); r.tgt = ts.target; r.tAct = ts.actual; r.ach = ts.ach;
+    });
     reps.sort(function (a, b) { return b.score - a.score; });
     reps.forEach(function (r, i) { r.rank = i + 1; });
     // monthly trend (scope, all months)
@@ -219,7 +287,7 @@
       });
       return { m: mm, active: act, net: net, returns: ret, activePct: ids.length ? act / ids.length * 100 : 0, retention: prevA ? again / prevA * 100 : null, src: D.meta.monthSource[mm] };
     });
-    return { prod: productTable(ids, per, base), from: from, to: to, per: per, base: base, stats: stats, total: aggregate(stats), reps: reps, dms: dms, bench: bench, trend: trend };
+    return { team: team, tIdx: tIdx, prod: productTable(ids, per, base), from: from, to: to, per: per, base: base, stats: stats, total: aggregate(stats), reps: reps, dms: dms, bench: bench, trend: trend };
   }
 
   // ---------------------------------------------------------------- render
@@ -244,6 +312,7 @@
       '<label style="font-size:10px;font-weight:700;color:#64748b;">REP<br><select id="fph-rep" style="' + S + '"' + (ST.lockRep != null ? " disabled" : "") + ">" + repOpts + "</select></label>" +
       '<label style="font-size:10px;font-weight:700;color:#64748b;">BRAND<br><select id="fph-brand" style="' + S + '"><option value="all">All brands</option>' + D.meta.brands.map(function (b, i) { return '<option value="' + i + '"' + (String(ST.brand) === String(i) ? " selected" : "") + ">" + esc(b) + "</option>"; }).join("") + "</select></label>" +
       '<label style="font-size:10px;font-weight:700;color:#64748b;">ITEM<br><select id="fph-item" style="' + S + 'max-width:240px;"><option value="all">All items</option>' + D.items.map(function (x, i) { return { x: x, i: i }; }).filter(function (o) { return ST.brand === "all" || o.x[1] === +ST.brand; }).map(function (o) { return '<option value="' + o.i + '"' + (String(ST.item) === String(o.i) ? " selected" : "") + ">" + esc(o.x[0]) + "</option>"; }).join("") + "</select></label>" +
+      (hasTeam() ? '<label style="font-size:10px;font-weight:700;color:#64748b;">TARGET<br><select id="fph-tgt" style="' + S + '"><option value="official"' + (ST.tgt === "official" ? " selected" : "") + '>Official</option><option value="working"' + (ST.tgt === "working" ? " selected" : "") + ">Working</option></select></label>" : "") +
       '<label style="font-size:10px;font-weight:700;color:#64748b;">OUTLIER ACCOUNTS<br><select id="fph-out" style="' + S + '"><option value="exclude"' + (ST.outliers === "exclude" ? " selected" : "") + '>Exclude (' + Object.keys(OUT).length + ')</option><option value="include"' + (ST.outliers === "include" ? " selected" : "") + ">Include</option></select></label>" +
       '<label style="font-size:10px;font-weight:700;color:#64748b;">PERIOD FROM<br><select id="fph-from" style="' + S + '">' + mOpts(R.from) + "</select></label>" +
       '<label style="font-size:10px;font-weight:700;color:#64748b;">TO<br><select id="fph-to" style="' + S + '">' + mOpts(R.to) + "</select></label>" +
@@ -267,8 +336,63 @@
       kpi("AVG MONTH · PERIOD", "EGP " + fmtM(T.perSum), "Baseline EGP " + fmtM(T.baseSum) + " / month") +
       kpi("VS BASELINE", T.uplift == null ? "n/a" : (T.uplift >= 0 ? "+" : "") + pct(T.uplift, 1), "Period avg month vs pre-launch avg", upColor(T.uplift)) +
       kpi("SALES / ACTIVE PHARMACY", "EGP " + fmtM(T.salesPerActive), pct(T.brandsPerActive == null ? null : T.brandsPerActive, 1).replace("%", "") + " brands per active pharmacy") +
+      (R.team ? kpi((ST.tgt === "working" ? "WORKING" : "OFFICIAL") + " TARGET · " + perLabel, R.team.target > 0 ? pct(R.team.ach) : "no target", R.team.target > 0 ? "EGP " + fmtM(R.team.actual) + " of " + fmtM(R.team.target) + " (focus pharmacies)" : "No GIT_SALES target in this period", achColor(R.team.ach)) : "") +
       kpi("NOT BUYING", (T.untapped + T.lapsed).toLocaleString(), T.lapsed.toLocaleString() + " lapsed · " + T.untapped.toLocaleString() + " never bought", "#b45309") +
       "</div>";
+    // GIT-S team impact & best practice (2026-11-05 redesign: plain-language insights)
+    var reps = R.reps, B = R.bench, TT = R.team;
+    var baseAct = R.base.length ? R.base.reduce(function (a, m) { return a + R.trend[m].active; }, 0) / R.base.length : null;
+    var perAct = R.per.reduce(function (a, m) { return a + R.trend[m].active; }, 0) / R.per.length;
+    var p25 = percentile(reps.map(function (x) { return x.activePct; }), 0.25);
+    reps.forEach(function (x) {
+      x.verdict = (x.rank <= 3 && reps.length >= 4) ? "Best practice" : ((x.ach != null && x.ach < 80) || (p25 != null && x.activePct < p25) || (x.uplift != null && x.uplift < 0)) ? "Needs focus" : "On track";
+    });
+    function tile(lbl, big, sub, col) { return '<div style="flex:1;min-width:200px;background:' + (col ? col + "14" : "#f8fafc") + ';border:1px solid ' + (col || "#e2e8f0") + '33;border-radius:12px;padding:14px;"><div style="font-size:10px;font-weight:800;color:#64748b;letter-spacing:.04em;">' + lbl + '</div><div style="font-size:24px;font-weight:800;color:' + (col || "#0f172a") + ';margin:4px 0;">' + big + '</div><div style="font-size:11px;color:#475569;line-height:1.4;">' + sub + "</div></div>"; }
+    h += '<div style="' + CARD + 'border-left:4px solid #0f4c81;"><h3 style="font-size:14px;font-weight:800;margin:0 0 2px;">GIT-S team impact — ' + perLabel + (R.base.length ? " vs " + monthLabel(M[R.base[0]]) + "–" + monthLabel(M[R.base[R.base.length - 1]]) : "") + "</h3>" +
+      '<div style="font-size:11px;color:#64748b;margin-bottom:12px;">' + esc(productLabel()) + " · " + T.n.toLocaleString() + " focus pharmacies in scope</div>" +
+      '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;">' +
+      (TT ? tile("TARGET ACHIEVEMENT", TT.target > 0 ? pct(TT.ach) : "–", TT.target > 0 ? "EGP " + fmtM(TT.actual) + " sold to focus pharmacies vs " + (ST.tgt === "working" ? "Working" : "Official") + " target EGP " + fmtM(TT.target) : "No GIT_SALES target in this period", achColor(TT.ach)) : "") +
+      tile("SALES PER MONTH", (T.uplift == null ? "–" : (T.uplift >= 0 ? "+" : "") + pct(T.uplift, 0)), "EGP " + fmtM(T.perSum) + " a month now vs EGP " + fmtM(T.baseSum) + " before (" + (T.perSum - T.baseSum >= 0 ? "+" : "") + "EGP " + fmtM(T.perSum - T.baseSum) + " a month)", upColor(T.uplift)) +
+      tile("PHARMACIES BUYING", baseAct == null ? Math.round(perAct).toLocaleString() : ((perAct - baseAct >= 0 ? "+" : "") + Math.round(perAct - baseAct).toLocaleString()), baseAct == null ? "active a month" : Math.round(perAct).toLocaleString() + " a month now vs " + Math.round(baseAct).toLocaleString() + " before (" + pct(perAct / T.n * 100) + " vs " + pct(baseAct / T.n * 100) + " of the list)", perAct >= (baseAct || 0) ? "#15803d" : "#b91c1c") +
+      tile("STILL NOT BUYING", (T.untapped + T.lapsed).toLocaleString(), T.lapsed.toLocaleString() + " bought before but not now · " + T.untapped.toLocaleString() + " never bought · ≈ EGP " + fmtM((T.untapped + T.lapsed) * (T.salesPerActive || 0)) + " a month if they bought like an average active pharmacy", "#b45309") +
+      "</div>";
+    // key insights
+    var ins = [];
+    if (reps.length >= 2) {
+      var b0 = reps[0], rr0 = D.reps[b0.ri];
+      ins.push("<b>Best practice: " + esc(rr0.n) + "</b> (" + esc(rr0.terr) + ") — " + pct(b0.activePct) + " of pharmacies buying, " + (b0.uplift == null ? "" : (b0.uplift >= 0 ? "+" : "") + pct(b0.uplift, 0) + " vs before") + (b0.ach != null ? ", " + pct(b0.ach) + " of target" : "") + ". Runners-up: " + reps.slice(1, 3).map(function (x) { return esc(D.reps[x.ri].n); }).join(", ") + ".");
+      var below = reps.filter(function (x) { return x.gapActive > 0; });
+      if (below.length) ins.push("<b>Activation gap:</b> " + below.length + " reps are below the best-practice level of " + pct(B.activePct) + " pharmacies buying. Closing it adds <b>+" + below.reduce(function (a, x) { return a + x.gapActive; }, 0).toLocaleString() + " buying pharmacies ≈ EGP " + fmtM(below.reduce(function (a, x) { return a + x.gapValue; }, 0)) + " a month</b>; biggest gaps: " + below.slice().sort(function (a, c) { return c.gapActive - a.gapActive; }).slice(0, 3).map(function (x) { return esc(D.reps[x.ri].n) + " (+" + x.gapActive + ")"; }).join(", ") + ".");
+      var withT = reps.filter(function (x) { return x.ach != null; });
+      if (withT.length) { var lo = withT.slice().sort(function (a, c) { return a.ach - c.ach; }); ins.push("<b>Target:</b> " + withT.filter(function (x) { return x.ach >= 100; }).length + " of " + withT.length + " reps reached 100% of the " + (ST.tgt === "working" ? "Working" : "Official") + " target. Lowest: " + lo.slice(0, 3).map(function (x) { return esc(D.reps[x.ri].n) + " " + pct(x.ach); }).join(", ") + "."); }
+      var nf = reps.filter(function (x) { return x.verdict === "Needs focus"; });
+      if (nf.length) ins.push("<b>Needs focus (" + nf.length + "):</b> " + nf.map(function (x) { return esc(D.reps[x.ri].n); }).join(", ") + " — low buying rate, target below 80% or sales below their own pre-launch level.");
+    }
+    var brands = R.prod.rows.filter(function (x) { return x.kind === "brand" && x.baseAvg > 0; });
+    if (brands.length >= 2 && ST.item === "all") {
+      var g = brands.slice().sort(function (a, c) { return (c.uplift || 0) - (a.uplift || 0); });
+      var late = function (x) { return x.late != null ? " (selling since " + monthLabel(M[x.late]) + ")" : ""; };
+      ins.push("<b>Products:</b> fastest growth " + esc(g[0].name) + " " + pct(g[0].uplift, 0) + late(g[0]) + "; weakest " + esc(g[g.length - 1].name) + " " + pct(g[g.length - 1].uplift, 0) + late(g[g.length - 1]) + ", bought by only " + pct(g[g.length - 1].activePct) + " of pharmacies.");
+    }
+    var dmsR = R.dms.filter(function (d) { return d.n > 0; }).sort(function (a, c) { return (c.activePct || 0) - (a.activePct || 0); });
+    if (dmsR.length >= 2) ins.push("<b>DMs:</b> " + esc(D.dms[dmsR[0].dmi]) + " leads with " + pct(dmsR[0].activePct) + " of pharmacies buying; " + esc(D.dms[dmsR[dmsR.length - 1].dmi]) + " is lowest at " + pct(dmsR[dmsR.length - 1].activePct) + ".");
+    if (T.lapsed) { var lr = reps.map(function (x) { return { x: x, n: R.stats.filter(function (st) { return D.ph[st.i][3] === x.ri && status(st) === "Lapsed"; }).length }; }).sort(function (a, c) { return c.n - a.n; }).slice(0, 3);
+      ins.push("<b>Win-back list:</b> " + T.lapsed.toLocaleString() + " pharmacies bought before but not in " + perLabel + " — most with " + lr.map(function (o) { return esc(D.reps[o.x.ri].n) + " (" + o.n + ")"; }).join(", ") + ". Filter the list below on <i>Lapsed</i> and export the CSV."); }
+    h += '<div style="font-size:12px;line-height:1.7;color:#0f172a;">' + ins.map(function (t) { return '<div style="padding:6px 0;border-top:1px solid #f1f5f9;">• ' + t + "</div>"; }).join("") + "</div>";
+    // simple scorecard
+    if (reps.length) {
+      var vcol = { "Best practice": ["#15803d", "#dcfce7"], "On track": ["#0f6cbd", "#dbeafe"], "Needs focus": ["#b91c1c", "#fee2e2"] };
+      h += '<h4 style="font-size:12px;font-weight:800;margin:14px 0 6px;">Rep scorecard</h4><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr>' +
+        ["Rep", "Territory", "Verdict"].concat(hasTeam() ? ["Target", "Actual", "Ach %"] : []).concat(["Buying %", "Vs before", "Pharmacies to win"]).map(function (c, i) { return '<th style="' + TH + (i > 2 ? "text-align:right;" : "text-align:left;") + '">' + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
+        reps.map(function (x) { var rr = D.reps[x.ri], vc = vcol[x.verdict];
+          return '<tr class="fph-rep" data-ri="' + x.ri + '" style="cursor:pointer;"><td style="' + TD + 'font-weight:700;">' + esc(rr.n) + '</td><td style="' + TD + '">' + esc(rr.terr) + '</td><td style="' + TD + '"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;color:' + vc[0] + ";background:" + vc[1] + ';">' + x.verdict + "</span></td>" +
+            (hasTeam() ? numTd(x.tgt ? fmtM(x.tgt) : "–") + numTd(x.tgt ? fmtM(x.tAct) : "–") + numTd(x.ach == null ? "–" : pct(x.ach), achColor(x.ach)) : "") +
+            numTd(pct(x.activePct)) + numTd(x.uplift == null ? "n/a" : (x.uplift >= 0 ? "+" : "") + pct(x.uplift, 0), upColor(x.uplift)) + numTd(x.lapsedN = (R.stats.filter(function (st) { return D.ph[st.i][3] === x.ri && (status(st) === "Lapsed" || status(st) === "Never bought"); }).length).toLocaleString()) + "</tr>"; }).join("") +
+        "</tbody></table></div>";
+      h += '<div style="font-size:10px;color:#94a3b8;margin-top:6px;">Best practice = top 3 reps on buying %, repeat %, growth vs before and sales per buying pharmacy. Needs focus = buying % in the bottom quarter, target below 80% or sales below the pre-launch level. Target = GIT_SALES ' + (ST.tgt === "working" ? "Working (Buffer)" : "Official (Original)") + ' target of the rep; Actual = GIT_SALES sales the rep booked at focus pharmacies (outlier accounts excluded)' + (TT && TT.actualAll ? "; all their GIT_SALES customers: EGP " + fmtM(TT.actualAll) + " (" + pct(TT.achAll) + " of target)" : "") + ". Pharmacies to win = lapsed + never bought.</div>";
+    }
+    h += "</div>";
+
     // trend
     h += '<div style="' + CARD + '"><h3 style="font-size:13px;font-weight:700;margin:0 0 10px;">Monthly trend — active pharmacies and net sales</h3>' +
       '<div style="height:260px;position:relative;"><canvas id="fph-trend"></canvas></div>' +
@@ -283,43 +407,33 @@
       "</tbody></table></div></div>";
     function row(lbl, f) { return '<tr><td style="' + TD + 'font-weight:700;">' + lbl + "</td>" + R.trend.map(function (t) { return '<td style="' + TD + 'text-align:right;">' + f(t) + "</td>"; }).join("") + "</tr>"; }
 
+    var tSet = {}; (R.tIdx || []).forEach(function (i) { tSet[i] = true; });
+    function prodTgt(r) {
+      var names = r.kind === "item" ? [r.name] : r.kind === "brand" ? D.items.filter(function (x) { return x[1] === r.idx; }).map(function (x) { return x[0]; }) : D.items.map(function (x) { return x[0]; });
+      var x = itemTarget(names, tSet, R.per); r.tgt = x.target; r.ach = x.ach; r.tAct = x.actual;
+      return numTd(x.target ? fmtM(x.target) : "–") + numTd(x.ach == null ? "–" : pct(x.ach), achColor(x.ach));
+    }
     // brand & item performance
     var P = R.prod, sel = function (r) { return (r.kind === "brand" && ST.item === "all" && String(ST.brand) === String(r.idx)) || (r.kind === "item" && String(ST.item) === String(r.idx)); };
     h += '<div style="' + CARD + '"><h3 style="font-size:13px;font-weight:700;margin:0 0 4px;">Brand & item performance — ' + perLabel + '</h3><div style="font-size:11px;color:#64748b;margin-bottom:10px;">For the DM / rep scope above; click a brand or item to filter the whole tab. Active = pharmacies buying it in ' + toM + ' · Repeat = buying it in 2+ months of the period.</div>' +
       '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr>' +
-      ["Brand / item", "Active " + toM, "% of list", "Buyers in period", "Repeat buyers", "Period sales", "Avg / month", "Baseline / mo", "Vs baseline", "Units", "Share"].map(function (c, i) { return '<th style="' + TH + (i ? "text-align:right;" : "text-align:left;") + '">' + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      ["Brand / item", "Active " + toM, "% of list", "Buyers in period", "Repeat buyers", "Period sales", "Avg / month", "Baseline / mo", "Vs baseline", "Units", "Share"].concat(hasTeam() ? ["Target", "Ach %"] : []).map(function (c, i) { return '<th style="' + TH + (i ? "text-align:right;" : "text-align:left;") + '">' + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
       P.rows.concat([P.total]).map(function (r) {
         var isB = r.kind === "brand", isT = r.kind === "total", on = sel(r);
         return '<tr class="' + (isT ? "" : "fph-prod") + '" data-kind="' + r.kind + '" data-idx="' + r.idx + '" style="' + (isT ? "" : "cursor:pointer;") + (on ? "background:#dbeafe;" : isB ? "background:#f8fafc;" : isT ? "background:#f1f5f9;" : "") + '">' +
           '<td style="' + TD + (isB || isT ? "font-weight:800;" : "padding-left:24px;color:#334155;") + '">' + esc(r.name) + "</td>" +
           numTd(r.activeLast.toLocaleString()) + numTd(pct(r.activePct)) + numTd(r.buyers.toLocaleString()) + numTd(R.per.length < 2 ? "–" : r.repeat.toLocaleString()) + numTd(fmtM(r.perNet)) + numTd(fmtM(r.perAvg)) + numTd(fmtM(r.baseAvg)) +
-          numTd((r.uplift == null ? "n/a" : (r.uplift >= 0 ? "+" : "") + pct(r.uplift, 1)) + (r.late != null ? ' <span style="font-size:9px;color:#94a3b8;font-weight:400;" title="No sales before this month, so the baseline average includes zero months">since ' + monthLabel(D.meta.months[r.late]) + "</span>" : ""), upColor(r.uplift)) + numTd(Math.round(r.qty).toLocaleString()) + numTd(pct(r.share, 1)) + "</tr>";
+          numTd((r.uplift == null ? "n/a" : (r.uplift >= 0 ? "+" : "") + pct(r.uplift, 1)) + (r.late != null ? ' <span style="font-size:9px;color:#94a3b8;font-weight:400;" title="No sales before this month, so the baseline average includes zero months">since ' + monthLabel(D.meta.months[r.late]) + "</span>" : ""), upColor(r.uplift)) + numTd(Math.round(r.qty).toLocaleString()) + numTd(pct(r.share, 1)) + (hasTeam() ? prodTgt(r) : "") + "</tr>";
       }).join("") + "</tbody></table></div></div>";
 
-    // best practice
-    var reps = R.reps, top = reps.slice(0, 3), B = R.bench;
-    h += '<div style="' + CARD + '"><h3 style="font-size:13px;font-weight:700;margin:0 0 4px;">Best practice — ' + perLabel + "</h3>" +
-      '<div style="font-size:11px;color:#64748b;margin-bottom:10px;">Score = average percentile rank of Active %, Repeat %, vs-baseline growth and sales per active pharmacy across the ' + reps.length + " reps in scope. Benchmark = top-quartile rep (P75).</div>";
-    if (reps.length >= 2) {
-      h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px;">' + top.map(function (r, i) {
-        return '<div style="border:1px solid ' + (i === 0 ? "#86efac" : "#e2e8f0") + ';background:' + (i === 0 ? "#f0fdf4" : "#f8fafc") + ';border-radius:10px;padding:12px;">' +
-          '<div style="font-size:10px;font-weight:800;color:#15803d;">#' + (i + 1) + " BEST PRACTICE · score " + r.score.toFixed(0) + '</div><div style="font-size:13px;font-weight:700;margin:4px 0;">' + esc(D.reps[r.ri].n) + '</div>' +
-          '<div style="font-size:11px;color:#475569;">' + esc(D.reps[r.ri].terr) + " · DM " + esc(D.dms[D.reps[r.ri].dm]) + '</div><div style="font-size:11px;margin-top:6px;line-height:1.6;">Active ' + pct(r.activePct) + " · Repeat " + pct(r.repeatPct) +
-          "<br>Vs baseline " + (r.uplift == null ? "n/a" : (r.uplift >= 0 ? "+" : "") + pct(r.uplift, 1)) + " · EGP " + fmtM(r.salesPerActive) + " / active pharmacy</div></div>";
-      }).join("") + "</div>";
-      h += '<div style="font-size:11px;background:#eff6ff;border-radius:8px;padding:10px;margin-bottom:10px;">Benchmark (P75): Active ' + pct(B.activePct) + " · Repeat " + pct(B.repeatPct) + " · Vs baseline " + pct(B.uplift, 1) + " · EGP " + fmtM(B.salesPerActive) + " per active pharmacy. " +
-        "If every rep below the benchmark reached its Active %: <b>+" + reps.reduce(function (s, r) { return s + r.gapActive; }, 0).toLocaleString() + " active pharmacies ≈ EGP " + fmtM(reps.reduce(function (s, r) { return s + r.gapValue; }, 0)) + " a month</b> at each rep's own sales per active pharmacy.</div>";
-    } else h += '<div style="font-size:12px;color:#64748b;">Best practice needs at least 2 reps in scope — clear the Rep filter.</div>';
-    h += "</div>";
-
     // rep table
-    h += '<div style="' + CARD + '"><h3 style="font-size:13px;font-weight:700;margin:0 0 10px;">Reps — click a rep to filter</h3><div style="overflow-x:auto;max-height:460px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>' +
-      ["Rank", "Rep", "Territory", "DM", "Pharmacies", "Active " + toM, "Active %", "Repeat %", "Bought again", "Baseline / mo", "Period / mo", "Vs baseline", "EGP / active", "Gap to P75", "Score"].map(function (c, i) { return '<th style="' + TH + (i > 3 ? "text-align:right;" : "text-align:left;") + '">' + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
+    h += '<div style="' + CARD + '"><h3 style="font-size:13px;font-weight:700;margin:0 0 10px;">Rep details — click a rep to filter</h3><div style="overflow-x:auto;max-height:460px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>' +
+      ["Rank", "Rep", "Territory", "DM", "Pharmacies", "Active " + toM, "Active %", "Repeat %", "Bought again", "Baseline / mo", "Period / mo", "Vs baseline", "EGP / active"].concat(hasTeam() ? ["Target", "Ach %"] : []).map(function (c, i) { return '<th style="' + TH + (i > 3 ? "text-align:right;" : "text-align:left;") + '">' + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
       reps.map(function (r) {
         var rr = D.reps[r.ri], best = r.rank <= 3 && reps.length >= 4;
         return '<tr class="fph-rep" data-ri="' + r.ri + '" style="cursor:pointer;' + (best ? "background:#f0fdf4;" : "") + '"><td style="' + TD + '">' + r.rank + '</td><td style="' + TD + 'font-weight:700;">' + esc(rr.n) + '</td><td style="' + TD + '">' + esc(rr.terr) + '</td><td style="' + TD + '">' + esc(D.dms[rr.dm]) + "</td>" +
           numTd(r.n.toLocaleString()) + numTd(r.activeLast.toLocaleString()) + numTd(pct(r.activePct)) + numTd(pct(r.repeatPct)) + numTd(pct(r.retention)) + numTd(fmtM(r.baseSum)) + numTd(fmtM(r.perSum)) +
-          numTd(r.uplift == null ? "n/a" : (r.uplift >= 0 ? "+" : "") + pct(r.uplift, 1), upColor(r.uplift)) + numTd(fmtM(r.salesPerActive)) + numTd(r.gapActive ? "+" + r.gapActive + " ph." : "–") + numTd(r.score.toFixed(0)) + "</tr>";
+          numTd(r.uplift == null ? "n/a" : (r.uplift >= 0 ? "+" : "") + pct(r.uplift, 1), upColor(r.uplift)) + numTd(fmtM(r.salesPerActive)) + (hasTeam() ? numTd(r.tgt ? fmtM(r.tgt) : "–") + numTd(r.ach == null ? "–" : pct(r.ach), achColor(r.ach)) : "") + "</tr>";
       }).join("") + "</tbody></table></div></div>";
     function numTd(v, c) { return '<td style="' + TD + 'text-align:right;' + (c ? "color:" + c + ";font-weight:700;" : "") + '">' + v + "</td>"; }
 
@@ -348,12 +462,13 @@
       '<div style="display:flex;gap:6px;"><input id="fph-q" placeholder="Search pharmacy / code / area / rep" value="' + esc(ST.q) + '" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;width:230px;">' +
       '<select id="fph-sort" style="padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;"><option value="net"' + (ST.sort === "net" ? " selected" : "") + '>Sort: period sales</option><option value="base"' + (ST.sort === "base" ? " selected" : "") + '>Sort: baseline</option><option value="months"' + (ST.sort === "months" ? " selected" : "") + '>Sort: active months</option></select>' +
       '<button id="fph-csv" class="sc-action-btn" style="padding:6px 10px;">⬇ CSV</button></div></div>' +
+      '<div style="font-size:11px;color:#64748b;margin:-4px 0 8px;">Status counts the months <b>inside the selected period</b> (' + perLabel + ', ' + R.per.length + (R.per.length === 1 ? " month" : " months") + '): Repeat = bought in 2+ of them · Active once = bought in 1 of them and also bought before the period · New = bought in 1 of them, never before · Lapsed = bought before, not in the period. ' + (R.per.length === 1 ? '<b>With a 1-month period nobody can be Repeat</b> — widen the period (e.g. Jul–Sep). ' : '') + '"Months bought (all)" counts every month Jan to ' + monthLabel(D.meta.months[D.meta.months.length - 1]) + '.</div>' +
       '<div style="overflow-x:auto;max-height:520px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>' +
-      ["Code", "Pharmacy", "Area", "Rep", "Status", "Brands in period", "Baseline / mo", "Active months", "Period sales"].concat(M.map(monthLabel)).map(function (c, i) { return '<th style="' + TH + (i > 5 ? "text-align:right;" : "text-align:left;") + 'position:sticky;top:0;background:#fff;">' + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      ["Code", "Pharmacy", "Area", "Rep", "Status", "Brands in period", "Baseline / mo", "Active months (period)", "Months bought (all)", "Period sales"].concat(M.map(monthLabel)).map(function (c, i) { return '<th style="' + TH + (i > 5 ? "text-align:right;" : "text-align:left;") + 'position:sticky;top:0;background:#fff;">' + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
       list.slice(0, 300).map(function (s) {
         var p = D.ph[s.i], st = status(s), col = { Repeat: "#15803d", "Active once": "#0f6cbd", New: "#7c3aed", Lapsed: "#b45309", "Never bought": "#94a3b8" }[st];
         return '<tr><td style="' + TD + '">' + esc(p[0]) + '</td><td style="' + TD + 'direction:rtl;text-align:left;">' + esc(p[1]) + '</td><td style="' + TD + '">' + esc(p[2]) + '</td><td style="' + TD + '">' + esc(D.reps[p[3]].n) + '</td><td style="' + TD + "color:" + col + ';font-weight:700;">' + st + '</td><td style="' + TD + 'font-size:10px;color:#475569;">' + esc(brandsOf(s.i, R)) + "</td>" +
-          numTd(fmtM(s.baseAvg)) + numTd(s.activeMonths + " / " + R.per.length) + numTd(fmtM(s.perNet)) +
+          numTd(fmtM(s.baseAvg)) + numTd(s.activeMonths + " / " + R.per.length) + numTd(s.allActive + " / " + D.meta.months.length) + numTd(fmtM(s.perNet)) +
           PV[s.i].map(function (v, j) { var inP = j >= R.from && j <= R.to; return '<td style="' + TD + "text-align:right;" + (inP ? "background:#f8fafc;" : "") + (v < 0 ? "color:#b91c1c;" : v > 0 ? "" : "color:#cbd5e1;") + '">' + (v ? fmtM(v) : "·") + "</td>"; }).join("") + "</tr>";
       }).join("") + "</tbody></table></div>" + (list.length > 300 ? '<div style="font-size:11px;color:#64748b;margin-top:6px;">Showing the first 300 — CSV has all ' + list.length.toLocaleString() + ".</div>" : "") + "</div>";
 
@@ -405,6 +520,7 @@
       if (k === "brand") { ST.brand = (ST.brand === i && ST.item === "all") ? "all" : i; ST.item = "all"; }
       else if (k === "item") { if (ST.item === i) { ST.item = "all"; } else { ST.item = i; ST.brand = D.items[i][1]; } }
       render(); }); });
+    on("fph-tgt", "change", function (e) { ST.tgt = e.target.value; render(); });
     on("fph-out", "change", function (e) { ST.outliers = e.target.value; render(); });
     on("fph-sort", "change", function (e) { ST.sort = e.target.value; render(); });
     var qt = null; on("fph-q", "input", function (e) { clearTimeout(qt); var v = e.target.value; qt = setTimeout(function () { ST.q = v; render(); var i = document.getElementById("fph-q"); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } }, 300); });
@@ -412,8 +528,8 @@
     root.querySelectorAll(".fph-rep").forEach(function (tr) { tr.addEventListener("click", function () { if (ST.lockRep != null) return; var ri = +tr.dataset.ri; ST.rep = ST.rep === ri ? "all" : ri; if (ST.rep !== "all" && ST.lockDm == null) ST.dm = D.reps[ri].dm; render(); }); });
     root.querySelectorAll(".fph-dmrow").forEach(function (tr) { tr.addEventListener("click", function () { if (ST.lockDm != null || ST.lockRep != null) return; var d = +tr.dataset.dmi; ST.dm = ST.dm === d ? "all" : d; ST.rep = "all"; render(); }); });
     on("fph-csv", "click", function () {
-      var M = D.meta.months, rows = [["Code", "Pharmacy", "Area", "Rep", "Territory", "DM", "Status", "Baseline avg/month", "Active months in period", "Period net sales", "Brands bought in period"].concat(M)];
-      list.forEach(function (s) { var p = D.ph[s.i], r = D.reps[p[3]]; rows.push([p[0], p[1], p[2], r.n, r.terr, D.dms[r.dm], status(s), Math.round(s.baseAvg || 0), s.activeMonths, Math.round(s.perNet), brandsOf(s.i, R)].concat(PV[s.i])); });
+      var M = D.meta.months, rows = [["Code", "Pharmacy", "Area", "Rep", "Territory", "DM", "Status", "Baseline avg/month", "Active months in period", "Months bought (all months)", "Period net sales", "Brands bought in period"].concat(M)];
+      list.forEach(function (s) { var p = D.ph[s.i], r = D.reps[p[3]]; rows.push([p[0], p[1], p[2], r.n, r.terr, D.dms[r.dm], status(s), Math.round(s.baseAvg || 0), s.activeMonths, s.allActive, Math.round(s.perNet), brandsOf(s.i, R)].concat(PV[s.i])); });
       var csv = "﻿" + rows.map(function (r) { return r.map(function (c) { c = String(c == null ? "" : c); return /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(","); }).join("\n");
       var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); a.download = "git_s_focus_pharmacies_" + M[R.to] + ".csv"; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
     });
@@ -424,10 +540,10 @@
     if (!canView()) { root.innerHTML = '<div style="padding:24px;color:#64748b;">Focus Pharmacies is available to SFE, senior management and GIT BU users.</div>'; return; }
     if (!global.FOCUS_PHARMACIES_CACHE && global.CacheLoader) { root.innerHTML = '<div style="padding:24px;color:#64748b;">Loading focus pharmacies…</div>'; await global.CacheLoader.ensure("focus_pharmacies"); }
     if (!global.FOCUS_PHARMACIES_CACHE) { root.innerHTML = '<div style="padding:24px;color:#b91c1c;">Focus pharmacies data not found. Run UPDATE_DASHBOARD (step focus_pharmacies) or python etl\\build_focus_pharmacies_cache.py.</div>'; return; }
-    if (D !== global.FOCUS_PHARMACIES_CACHE) { D = global.FOCUS_PHARMACIES_CACHE; ST.from = null; ST.to = null; PKEY = null; PV = null; findOutliers(); applyLock(); }
+    if (D !== global.FOCUS_PHARMACIES_CACHE) { D = global.FOCUS_PHARMACIES_CACHE; ST.from = null; ST.to = null; PKEY = null; PV = null; TKEY = null; TM = null; findOutliers(); applyLock(); }
     if (root !== el || !document.body.contains(root)) return;
     render();
   }
 
-  global.FocusPharmacies = { mount: mount, canView: canView, _compute: function () { return compute(); }, _setData: function (d) { D = d; PKEY = null; PV = null; findOutliers(); applyLock(); }, _st: ST };
+  global.FocusPharmacies = { mount: mount, canView: canView, _compute: function () { return compute(); }, _setData: function (d) { D = d; PKEY = null; PV = null; TKEY = null; TM = null; findOutliers(); applyLock(); }, _st: ST };
 })(window);

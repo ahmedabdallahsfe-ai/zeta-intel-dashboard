@@ -48,6 +48,28 @@ GIT_BU_LINES = {'GIT-I', 'GIT-II', 'GIT-III', 'DERMA', 'NEUROSCIENCE', 'CNS', 'G
 YEAR = 2026
 
 
+def norm_name(s): return ' '.join(str(s or '').upper().split())
+
+
+def terr_key(s): return ''.join(ch for ch in str(s or '').upper() if ch.isalnum())
+
+
+def match_terr(pos, reps, rep_terr):
+    """Sales Position -> index of the focus-list rep holding that territory. Exact match ignoring spaces /
+    punctuation first ("DAKHLEIAH-A- DOMIAT" = "DAKHLEIAH-A-DOMIAT", "NEWCAIRO" = "NEW CAIRO"), then a
+    unique prefix match either way (sales "GIT-S DAKHLEIAH-A" <-> list "GIT-S DAKHLEIAH-A-DOMIAT-...")."""
+    k = terr_key(pos)
+    if not k: return -1
+    keys = [(i, terr_key(rep_terr[r].most_common(1)[0][0])) for i, r in enumerate(reps)]
+    ex = [i for i, t in keys if t == k]
+    if len(ex) == 1: return ex[0]
+    pre = [i for i, t in keys if t and (t.startswith(k) or k.startswith(t))]
+    if len(pre) == 1: return pre[0]
+    if pre:   # several: the longest common territory name wins
+        return max(pre, key=lambda i: len(keys[i][1]) if k.startswith(keys[i][1]) else len(k))
+    return -1
+
+
 def log(m): print('  ' + m, flush=True)
 
 
@@ -127,6 +149,15 @@ def load_list():
     return ph, seen
 
 
+# GIT-S TEAM TARGET vs ACTUAL (2026-11-05, Ahmed "add the target of them"): GIT_SALES targets are
+# per rep (Emp1Name) x item x month -- TargetIndex Original = Official, Buffer = Working, same
+# rule as refresh_sales.py -- and cover the rep's WHOLE GIT_SALES business, not only the focus
+# list. Actuals are collected for every GIT_SALES customer so achievement can be shown both
+# for all customers and for the focus pharmacies.
+TEAM_T = collections.defaultdict(lambda: [0.0, 0.0])          # (rep, month, brand, item) -> [official, working]
+TEAM_A = collections.defaultdict(float)                        # (rep, cid, month, brand, item) -> net value
+
+
 def scan(path, sheet, ids, agg, focus_reps, brands_focus):
     t = time.time()
     ws = CalamineWorkbook.from_path(path).get_sheet_by_name(sheet)
@@ -137,6 +168,7 @@ def scan(path, sheet, ids, agg, focus_reps, brands_focus):
     iI = ix.get('Item')
     iQ, iTI, iTV, iE1 = ix.get('Quantity'), ix.get('TargetIndex'), ix.get('TargetValue'), ix.get('Emp1Name')
     iTT = ix.get('TransactionType')
+    iPos = ix.get('Position')
     n = kept = 0
     for r in it:
         n += 1
@@ -144,6 +176,21 @@ def scan(path, sheet, ids, agg, focus_reps, brands_focus):
         is_focus = line == FOCUS_LINE
         if not is_focus and line not in GIT_BU_LINES: continue
         cid = cid_str(r[iC])
+        if is_focus:   # GIT-S team target / actual, every customer
+            tv = num(r[iTV]) if iTV is not None and iTV < len(r) else 0.0; vv = num(r[iV])
+            ti = r[iTI] if iTI is not None and iTI < len(r) else None
+            mm = month_of(r[iD]); bb = str(r[iB] or '').strip().upper() or '(NONE)'
+            itm = (str(r[iI] or '').strip().upper() if iI is not None else '') or bb
+            # keyed by POSITION (territory): the focus list may name the new holder of a position the sales
+            # file still calls VACANT (e.g. GIT-S FAYOUM-BANI SUEF-MENYA) -- matching on the rep name would miss it
+            rep = (str(r[iPos] or '').strip() if iPos is not None and iPos < len(r) else '') or (str(r[iE1] or '').strip() if iE1 is not None else '')
+            if mm and mm.startswith(str(YEAR)):
+                if is_actual(ti, vv, tv):
+                    TEAM_A[(rep, cid, mm, bb, itm)] += vv
+                else:
+                    sti = str(ti).strip().lower()
+                    if sti in ('original', '1', '1.0'): TEAM_T[(rep, mm, bb, itm)][0] += tv
+                    elif sti in ('buffer', '0', '0.0'): TEAM_T[(rep, mm, bb, itm)][1] += tv
         if cid not in ids: continue
         val = num(r[iV]); tval = num(r[iTV]) if iTV is not None and iTV < len(r) else 0.0
         if not is_actual(r[iTI] if iTI is not None and iTI < len(r) else None, val, tval): continue
@@ -231,6 +278,35 @@ def main():
         'items': [[it, bidx[br]] for br, it in items],
         'x': [z for (p_, k_, i_), a in sorted(XD.items()) if a[0] or a[1] or a[2] for z in (p_, k_, i_, round(a[0]), round(a[1], 1), round(a[2]))],
     }
+    # ---- GIT-S team target vs actual
+    cm = collections.defaultdict(float)
+    for (rep, cid, m, b, it), v in TEAM_A.items(): cm[(cid, m)] += v
+    big_cm = {k for k, v in cm.items() if abs(v) >= 1000000}     # same outlier rule as the tab (|net| >= EGP 1M in a month)
+    treps = sorted({k[0] for k in TEAM_T} | {k[0] for k in TEAM_A})
+    tri = {x: i for i, x in enumerate(treps)}
+    titems = sorted({(k[2], k[3]) for k in TEAM_T} | {(k[3], k[4]) for k in TEAM_A})
+    tii = {x: i for i, x in enumerate(titems)}
+    TA = collections.defaultdict(lambda: [0.0, 0.0, 0.0])        # (rep, month, item) -> [all excl. outliers, focus excl. outliers, all raw]
+    for (rep, cid, m, b, it), v in TEAM_A.items():
+        if m not in mi: continue
+        a = TA[(tri[rep], mi[m], tii[(b, it)])]; a[2] += v
+        if (cid, m) in big_cm: continue
+        a[0] += v
+        if cid in ids: a[1] += v
+    out['team'] = {
+        'reps': treps,
+        'focusRep': [match_terr(x, reps, rep_terr) for x in treps],   # sales position -> focus-list rep of that territory
+        'items': [[it, b] for b, it in titems],
+        't': [z for (rep, m, b, it), a in sorted(TEAM_T.items()) if m in mi and (a[0] or a[1]) for z in (tri[rep], mi[m], tii[(b, it)], round(a[0]), round(a[1]))],
+        'a': [z for (ri_, k, ii), a in sorted(TA.items()) for z in (ri_, k, ii, round(a[0]), round(a[1]), round(a[2]))],
+        'outlierCustomerMonths': [{'cid': c, 'month': m, 'net': round(cm[(c, m)])} for c, m in sorted(big_cm)],
+        'rules': {'official': 'TargetIndex Original', 'working': 'TargetIndex Buffer', 'actual': 'GIT_SALES net sales, customer-months with |net| >= EGP 1M excluded'},
+    }
+    tt = [sum(a[0] for k, a in TEAM_T.items() if k[1] == m) for m in months]
+    for m, t_ in zip(months, tt):
+        if t_:
+            act = sum(a[0] for (ri_, k, ii), a in TA.items() if months[k] == m); raw = sum(a[2] for (ri_, k, ii), a in TA.items() if months[k] == m)
+            log(f'GIT-S team {m}: Official target {t_:,.0f} | actual excl. outliers {act:,.0f} ({act / t_ * 100:.0f}%) | raw {raw:,.0f} | {len([1 for c in big_cm if c[1] == m])} outlier customer(s)')
     tmp = OUT + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:
         f.write('// generated by etl/build_focus_pharmacies_cache.py -- do not edit\n')
