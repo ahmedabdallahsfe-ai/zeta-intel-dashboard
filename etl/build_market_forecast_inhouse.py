@@ -38,7 +38,7 @@ SALES = os.environ.get("MF_SALES_SRC") or os.path.join(ROOT, "cache", "sales.jso
 FCST = os.environ.get("MF_CACHE_DST") or os.path.join(ROOT, "cache", "market_forecast.data.js")
 MAP = os.path.join(ROOT, "config", "inhouse_iqvia_item_map.json")
 OUT = os.path.join(ROOT, "cache", "market_forecast_inhouse.data.js")
-EXCL_LINES = {"CHC_SALES", "NON-PROMOTED"}
+EXCL_LINES = {"CHC_SALES", "NON-PROMOTED", "GIT_SALES", "GIT-SALES"}  # GIT_SALES (2026-11-05): mirrors GIT-I/II/III sales
 I_M, I_LINE, I_BRAND, I_PROD, I_QTY, I_VAL = 0, 1, 2, 3, 18, 19
 
 # in-house brand word -> IQVIA brand word (only where the spelling differs)

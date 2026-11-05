@@ -436,6 +436,19 @@
   // -------------------------------------------------------------------
   var LOCAL_PAGE_ROLES = ["SFE Manager", "SFE", "sfe", "Admin"];
 
+  // GIT-S FOCUS PHARMACIES (2026-11-05, Ahmed): Sales Performance sub-tab.
+  // SFE / senior roles see every GIT-S pharmacy; GIT BU users see GIT
+  // (js/focus-pharmacies.js narrows a GIT-S DM / rep login to their own list).
+  var FOCUS_PH_ROLES = ["SFE Manager", "SFE", "sfe", "Admin", "CEO", "VP", "Commercial Director", "Commercial Manager", "BEX", "bex"];
+  function canViewFocusPharmacies() {
+    var u = getValidSessionUser();
+    if (!u) return false;
+    if (FOCUS_PH_ROLES.indexOf(u.role) >= 0 || (u.role && String(u.role).toLowerCase().indexOf("sfe") >= 0)) return true;
+    if (!u.bu) return true;   // no BU restriction = every BU, GIT included
+    var bus = Array.isArray(u.bu) ? u.bu : [u.bu];
+    return bus.some(function (b) { return normalizeBuFallback(b) === "GIT"; });
+  }
+
   function isLocalRun() {
     var l = window.location || {};
     return l.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l.hostname || "");
@@ -901,6 +914,7 @@
     canViewSprint: canViewSprint,
     SPRINT_ROLES: SPRINT_ROLES,
     canViewBuReview: canViewBuReview,
+    canViewFocusPharmacies: canViewFocusPharmacies,
     BU_REVIEW_ROLES: BU_REVIEW_ROLES,
     isLocalRun: isLocalRun,
     canViewRep360: canViewRep360,

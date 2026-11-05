@@ -2128,6 +2128,8 @@
         if (allowedLines.has(l.name)) {
           perLine[l.name] = l.activePositions > 0 ? l.salesPerPosition : null;
         }
+        // 2026-11-05: a rollup-excluded line (GIT_SALES) mirrors its BU's sales -- not in the BU figure. CHC keeps its own rule below.
+        if (l.countsInBuRollup === false && bu !== "CHC") return;
         buActual += l.actualValue; buTarget += l.targetValue; buPositions += l.activePositions;
       });
       platformAvg = buPositions > 0 ? buActual / buPositions : null;
@@ -2802,7 +2804,7 @@
       const salesByDm = new Map();
       let totalSalesValue = 0;
       if (salesData && salesData.ok) {
-        salesData.dms.forEach(d => { salesByDm.set(d.name.toUpperCase().trim(), d); totalSalesValue += d.actualValue; });
+        salesData.dms.forEach(d => { salesByDm.set(d.name.toUpperCase().trim(), d); if (d.countsInBuRollup !== false || bu === "CHC") totalSalesValue += d.actualValue; }); // 2026-11-05 GIT_SALES DMs not in BU total
       }
 
       const rows = allDms.map(name => {
@@ -2842,7 +2844,7 @@
       const salesByLine = new Map();
       let totalSalesValue = 0;
       if (salesData && salesData.ok) {
-        salesData.lines.forEach(l => { salesByLine.set(l.name, l); totalSalesValue += l.actualValue; });
+        salesData.lines.forEach(l => { salesByLine.set(l.name, l); if (l.countsInBuRollup !== false || bu === "CHC") totalSalesValue += l.actualValue; }); // 2026-11-05 GIT_SALES not in BU total
       }
 
       const rows = getAllowedLinesForBU(bu).map(name => {

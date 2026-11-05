@@ -58,7 +58,7 @@
       file: "cache/customer_analytics.data.js",
       globalVar: "CUSTOMER_ANALYTICS_CACHE",
       label: "Customer analytics",
-      version: "20261012_1309_auto",
+      version: "20261105_1432_auto",
     },
     market_intel: {
       file: "cache/market_intel.data.js",
@@ -77,13 +77,13 @@
       file: "cache/coaching.data.js",
       globalVar: "COACHING_CACHE",
       label: "Coaching intelligence",
-      version: "20261103_chcline",
+      version: "20261105_1432_auto",
     },
     business_review: {
       file: "cache/business_review.data.js",
       globalVar: "BUSINESS_REVIEW_CACHE",
       label: "BU business review",
-      version: "20261030_2332_auto",
+      version: "20261105_1432_auto",
     },
     list_intel: {
       file: "cache/list_intel.data.js",
@@ -102,7 +102,7 @@
       file: "cache/iqvia_geo.data.js",
       globalVar: "IQVIA_GEO_CACHE",
       label: "Territory market insights (IQVIA geo)",
-      version: "20261030_2332_auto",
+      version: "20261105_1432_auto",
     },
     // Market Growth Forecast (2026-10-12) -- etl/build_market_forecast_v2.py --publish (champion, 2026-10-13)
     market_forecast: {
@@ -123,7 +123,7 @@
       file: "cache/market_forecast_inhouse.data.js",
       globalVar: "MARKET_FORECAST_INHOUSE",
       label: "Market growth forecast (in-house sales)",
-      version: "20261030_2332_auto",
+      version: "20261105_1432_auto",
     },
     // Market Dynamics & Treatment Shift (2026-10-13) -- etl/build_market_dynamics.py --cache (source: Total Market Intelligence)
     market_dynamics: {
@@ -138,6 +138,13 @@
       globalVar: "MARKET_DYNAMICS_SCOPES_CACHE",
       label: "Market dynamics filters (ATC4 / DM1 / DM2)",
       version: "20261030_2150_auto",
+    },
+    // GIT-S Focus Pharmacies (2026-11-05) -- etl/build_focus_pharmacies_cache.py; Sales Performance sub-tab
+    focus_pharmacies: {
+      file: "cache/focus_pharmacies.data.js",
+      globalVar: "FOCUS_PHARMACIES_CACHE",
+      label: "GIT-S focus pharmacies",
+      version: "20261105_1432_auto",
     },
     ims_rx: {
       file: "cache/ims_rx.data.js",

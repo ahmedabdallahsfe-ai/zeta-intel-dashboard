@@ -9,8 +9,8 @@ MAPPING COVERAGE
   status              SKUs         budget EGP  % value
   MATCHED               36        191,640,000    71.7%
   NAME_VARIANT           1          5,750,000     2.2%
-  NOT_YET_SELLING        9         16,980,000     6.4%
-  UNMAPPED              30         52,730,000    19.7%
+  NOT_YET_SELLING       11         18,280,000     6.8%
+  UNMAPPED              28         51,430,000    19.3%
   TOTAL                 76        267,100,000
 
 ACTIVE vs INACTIVE  (Active column in the source sheet)
@@ -25,7 +25,7 @@ ACTIVE vs INACTIVE  (Active column in the source sheet)
     UNMAPPED               1          4,500,000     2.2%
     >> usable             36        195,890,000    94.2%
 
-  Of the 36 INACTIVE budgeted SKUs, 29 are UNMAPPED (48,230,000 EGP).
+  Of the 36 INACTIVE budgeted SKUs, 27 are UNMAPPED (46,930,000 EGP).
   Measured: 0 of 36 inactive budgeted SKUs have any recorded sales.
   The source defines no meaning for this flag. Ahmed 2026-08-09: excluded
   from Expense vs Sales KPIs, retained in full in reconciliation, and NOT
@@ -42,7 +42,7 @@ EXCEPTIONS
 
 TEMPLATE
   expense\templates\expense_actuals_template.xlsx
-  60 joinable SKUs x 12 months = 720 entry rows
+  62 joinable SKUs x 12 months = 744 entry rows
   (37 of these carry budget; the rest are joinable but unbudgeted)
 
 GATE

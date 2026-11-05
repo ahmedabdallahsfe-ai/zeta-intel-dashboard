@@ -98,6 +98,9 @@ SUBTYPE_TO_CLUSTER = {
     "Non UPA": "OTHERS", "NON WORKING": "OTHERS", "Other": "OTHERS",
 }
 
+# Lines whose sales duplicate another line's sales (skipped entirely here).
+DUPLICATE_MIRROR_LINES = {'GIT_SALES', 'GIT-SALES', 'GIT SALES'}
+
 LINE_TO_BU = {
     'CHC': 'CHC', 'CHC_SALES': 'CHC',
     'PEDIA': 'Cluster', 'ORTHO-I': 'Cluster', 'ORTHO-II': 'Cluster', 'CVM-I': 'Cluster', 'CVM-II': 'Cluster',
@@ -236,6 +239,10 @@ def scan_sheet(sheet, source_label, t0, clusters, item_value, item_customers,
     scanned = 0
     for row in rows_iter:
         scanned += 1
+        # GIT_SALES (2026-11-05, Ahmed): mirror of GIT-I/II/III sales to the
+        # same customers -- counting it would double those customers' value.
+        if str(row[ci_line] or '').strip().upper() in DUPLICATE_MIRROR_LINES:
+            continue
         if is_tender_flag(row[ci_tender]):
             continue
         st = row[ci_st]

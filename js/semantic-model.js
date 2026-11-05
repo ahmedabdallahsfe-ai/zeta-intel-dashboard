@@ -91,7 +91,17 @@
   // measured against different customer types -- see
   // getFilteredCoverageForLine() in js/coverage-interface.js). Do not
   // "unify" the two behaviors; they answer different questions.
-  var BU_ROLLUP_EXCLUDED_LINES = ["CHC_SALES"];
+  // GIT_SALES (2026-11-05, Ahmed): new GIT-S pharmacy sales team, first in
+  // Q3_SALES.xlsx for Sep-26. Its sales mirror GIT-I/II/III sales (same
+  // SKUs and customers), so it must NEVER be added into GIT BU sales or
+  // any Corporate total. It is deliberately NOT in CANONICAL_LINE_TO_BU,
+  // so lineToBU("GIT_SALES") === null and every BU rollup skips it; listing
+  // it here also keeps it out of unscoped "All Lines" totals. Selecting the
+  // line explicitly still shows its own figures.
+  // UPDATE 2026-11-05 (Ahmed: "GIT_SALES IS UNDER GIT BU but not add to
+  // total"): now mapped to GIT in CANONICAL_LINE_TO_BU, exactly like
+  // CHC_SALES under CHC -- listed as a GIT line, never in the GIT total.
+  var BU_ROLLUP_EXCLUDED_LINES = ["CHC_SALES", "GIT_SALES"];
 
   /**
    * Should this line be counted in an UNSCOPED BU or Corporate sales
@@ -151,7 +161,8 @@
     "CNS": "GIT",
     "GIT-I": "GIT",
     "GIT-II": "GIT",
-    "GIT-III": "GIT"
+    "GIT-III": "GIT",
+    "GIT_SALES": "GIT"   // 2026-11-05: in GIT BU, NOT in its total (BU_ROLLUP_EXCLUDED_LINES)
     // Deliberately absent: "Non-Promoted", "Other Markets" -> out of
     // scope per the business decision above; lineToBU() returns null.
   };

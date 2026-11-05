@@ -989,6 +989,14 @@
       // semantic-model.js's CONTEXT_SEGMENTS) so it shouldn't silently
       // inflate headline BU-level totals by default.
       const DEFAULT_EXCLUDED_VALUE = { line: "CHC_SALES", buhead: "Non-Promoted" };
+      // Line: every rollup-excluded line (CHC_SALES, GIT_SALES -- see
+      // SEMANTIC.BU_ROLLUP_EXCLUDED_LINES) starts unchecked, matching the
+      // "All Lines" totals in isRowAllowed(). 2026-11-05 (GIT_SALES added).
+      function isDefaultExcluded(key, idx) {
+        if (key === "line") return rollupExcludedLineIdx().has(idx);
+        const ex = getDefaultExcludedIdx(key);
+        return ex !== -1 && idx === ex;
+      }
       function getDefaultExcludedIdx(key) {
         const name = DEFAULT_EXCLUDED_VALUE[key];
         if (!name || !cache || !cache.lookups) return -1;
@@ -1002,8 +1010,7 @@
       listDiv.innerHTML = filtered.map(item => {
         let isChecked;
         if (STATE[stateKey] === "all") {
-          const excludedIdx = getDefaultExcludedIdx(stateKey);
-          isChecked = (excludedIdx === -1 || item.idx !== excludedIdx);
+          isChecked = !isDefaultExcluded(stateKey, item.idx);
         } else {
           isChecked = STATE[stateKey].includes(item.idx);
         }
@@ -1027,8 +1034,7 @@
             // checked (respects the default-excluded value above), not the
             // raw available list, otherwise the excluded item would sneak
             // back in as soon as the user toggles any OTHER checkbox.
-            const excludedIdx = getDefaultExcludedIdx(stateKey);
-            currentSelection = availableItems.map(x => x.idx).filter(i => i !== excludedIdx);
+            currentSelection = availableItems.map(x => x.idx).filter(i => !isDefaultExcluded(stateKey, i));
           }
 
           if (cb.checked) {
@@ -1535,6 +1541,8 @@
               ['salesforce',  '👥 Sales Force'],
               ['target',      '🎯 Target'],
               ['advanced',    '🧠 Advanced'],
+              // GIT-S Focus Pharmacies (2026-11-05, Ahmed) -- js/focus-pharmacies.js, own filters
+              ...((window.FocusPharmacies && window.FocusPharmacies.canView()) ? [['focus', '⭐ GIT-S Focus Pharmacies']] : []),
             ].map(([key, label]) => `
               <button class="sc-tab ${STATE.subTab===key?'sc-tab-active':''}" data-tab="${key}">${label}</button>
             `).join('')}
@@ -1545,7 +1553,7 @@
             <div id="sales-tab-content">
               ${getPageContentHTML(res)}
             </div>
-            ${getStrategicNarrative(res)}
+            ${STATE.subTab === "focus" ? "" : getStrategicNarrative(res)}
           </div>
         </div>
       </div>
@@ -2133,6 +2141,9 @@
       `;
     }
 
+    if (STATE.subTab === "focus") {
+      return '<div id="fph-root"></div>'; // filled by window.FocusPharmacies.mount() in renderPageCharts()
+    }
     if (STATE.subTab === "customer") {
       // REDESIGNED 2026-07-29 ("make best practice customer tab analysis
       // based on customer analysis and clustering made"), 2nd pass:
@@ -2523,6 +2534,10 @@
 
   // Render sub-page Chart.js instances
   function renderPageCharts(res) {
+    if (STATE.subTab === "focus") {
+      if (window.FocusPharmacies) window.FocusPharmacies.mount(document.getElementById("fph-root"));
+      return;
+    }
     if (STATE.subTab === "line") {
       const ctxLineAch = document.getElementById("chart-line-ach");
       if (ctxLineAch) {
@@ -4430,8 +4445,9 @@
         }
         const isTender = (r[MASK] & 2) > 0;
         if (isTender) continue; // Non-Tender only -- see header comment
-        if (!acc.has(dmName)) acc.set(dmName, { val: 0, tgtVal: 0 });
+        if (!acc.has(dmName)) acc.set(dmName, { val: 0, tgtVal: 0, inRollup: false });
         const a = acc.get(dmName);
+        if (window.SEMANTIC.countsInBuRollup(rawLine)) a.inRollup = true; // 2026-11-05: DM of a rollup-excluded line only (GIT_SALES / CHC_SALES team)
         a.val += r[VAL];
         if (includeTargetRow(r[MASK], wantScenarioByLine[r[LINE]])) a.tgtVal += r[TGT_VAL];
       }
@@ -4446,6 +4462,7 @@
             achievementPct: a.tgtVal > 0 ? (a.val / a.tgtVal) * 100 : null,
             activePositions: activePositions,
             salesPerPosition: activePositions > 0 ? a.val / activePositions : null,
+            countsInBuRollup: a.inRollup,
           };
         });
 
