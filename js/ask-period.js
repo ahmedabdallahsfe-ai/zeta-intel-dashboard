@@ -1,4 +1,4 @@
-(function(g){(g.AskBuild=g.AskBuild||{})["ask-period.js"]="20260921_askq2";})(typeof window!=="undefined"?window:this);
+(function(g){(g.AskBuild=g.AskBuild||{})["ask-period.js"]="20261114_askall";})(typeof window!=="undefined"?window:this);
 /**
  * ASK THE DATA — time-aware query layer (AskPeriod)
  * ============================================================================

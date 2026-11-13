@@ -28,6 +28,18 @@ import os
 import re
 
 ZONE_IGNORE = {'(none)', 'Unknown', '', None}
+
+# 2026-11-14 (Ahmed: "they are 5 regions cairo giza upper egypt delta and
+# alex"). Region per position comes from the organogram-based position
+# master (IQVIA TERRIOTRY/Position_Brick_Mapping_148.xlsx, sheet
+# Position_Master, column "Region(s)"), which has GUIZA separate from CAIRO.
+# CANAL is not one of the 5 -> counted as Delta. A position listed in two
+# regions ("CAIRO, GUIZA") counts its FIRST region.
+REGIONS = ['Alex', 'Cairo', 'Giza', 'Delta', 'Upper Egypt']
+REGION_MAP = {'ALEXANDRIA': 'Alex', 'ALEX': 'Alex', 'CAIRO': 'Cairo', 'GUIZA': 'Giza', 'GIZA': 'Giza',
+              'DELTA': 'Delta', 'CANAL': 'Delta', 'UPPER EGYPT': 'Upper Egypt'}
+SALES_ZONE_MAP = {'Alex Zone': 'Alex', 'Delta Zone': 'Delta', 'Upper Egypt Zone': 'Upper Egypt'}  # Cairo Zone = Cairo+Giza: ambiguous
+POSITION_MASTER = os.path.join('IQVIA TERRIOTRY', 'Position_Brick_Mapping_148.xlsx')
 _LINE_PREFIX = re.compile(r'^(DIAB|GIT|CVM|ORTHO|PED|PEDIA|NEUROSCIENCE|CNS|DERMA|CHC|GYN|URO|RESP|CLUSTER)( (I|II|III|IV|V|VI|S))?( |$)')
 
 
@@ -58,6 +70,7 @@ class BmRegionResolver:
     def __init__(self, root_dir, db_rows=None):
         self.root = root_dir
         self._load_sales_zones()
+        self._load_position_master()
         self._load_coaching()
         self._load_governorates(db_rows)
 
@@ -79,8 +92,32 @@ class BmRegionResolver:
                 by_suf[_suffix(p)][z] += v
         self.pos_zone = {p: c.most_common(1)[0][0] for p, c in by_pos.items()}
         self.suf_zone = {p: c.most_common(1)[0][0] for p, c in by_suf.items()}
-        self.zones = sorted({z for z in self.pos_zone.values()})
+        self.zones = list(REGIONS)
         del s
+
+    def _load_position_master(self):
+        import openpyxl
+        self.pm_region, self.pm_suffix = {}, {}
+        path = os.path.join(self.root, POSITION_MASTER)
+        if not os.path.exists(path):
+            return
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        ws = wb['Position_Master']
+        it = ws.iter_rows(values_only=True)
+        h = list(next(it))
+        pi, ri = h.index('Position'), h.index('Region(s)')
+        suf = collections.defaultdict(collections.Counter)
+        for r in it:
+            if not r or not r[pi] or not r[ri]:
+                continue
+            first = str(r[ri]).split(',')[0].strip().upper()
+            reg = REGION_MAP.get(first)
+            if not reg:
+                continue
+            self.pm_region[_norm(r[pi])] = reg
+            suf[_suffix(r[pi])][reg] += 1
+        wb.close()
+        self.pm_suffix = {k: c.most_common(1)[0][0] for k, c in suf.items()}
 
     def _load_coaching(self):
         with open(os.path.join(self.root, 'cache', 'coaching.json'), encoding='utf-8') as f:
@@ -123,7 +160,11 @@ class BmRegionResolver:
         if not position:
             return None
         p = _norm(position)
-        return self.pos_zone.get(p) or self.suf_zone.get(_suffix(p))
+        z = self.pm_region.get(p) or self.pm_suffix.get(_suffix(p))
+        if z:
+            return z
+        sz = SALES_ZONE_MAP.get(self.pos_zone.get(p) or self.suf_zone.get(_suffix(p)))
+        return sz
 
     def zone_for(self, name, position):
         z = self._zone_by_position(position)

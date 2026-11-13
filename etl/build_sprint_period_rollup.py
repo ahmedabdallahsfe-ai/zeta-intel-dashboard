@@ -117,7 +117,11 @@ def backfill_bm_regions(month_key, data, resolver, curve):
     for r in data['brandManager']['ranked']:
         for k in r.get('kpis', []):
             # refresh when never auto-filled, or filled before evidence rows existed
-            if k.get('key') != 'regionCount' or (k.get('source') == 'coaching' and (k.get('regionDetail') or {}).get('rows') is not None):
+            # refresh when never auto-filled, filled before evidence rows existed,
+            # or built on a different region list (2026-11-14: 5 company regions)
+            rd = k.get('regionDetail') or {}
+            if k.get('key') != 'regionCount' or (k.get('source') == 'coaching' and rd.get('rows') is not None
+                                                 and rd.get('zoneUniverse') == resolver.zones):
                 continue
             reg = resolver.regions(r['code'], [month_key])
             raw = reg['count'] if reg else 0

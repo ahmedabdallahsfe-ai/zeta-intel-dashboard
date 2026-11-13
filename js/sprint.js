@@ -2935,7 +2935,7 @@
     return `
       <div class="sp-region-modal">
         <div class="sp-region-summary">
-          <div><span class="sp-region-big">${kpi.raw != null ? kpi.raw : 0}</span> of ${universe.length} sales zones covered${isQ ? ` in ${esc(cache.meta.evalPeriod)}` : ""}
+          <div><span class="sp-region-big">${kpi.raw != null ? kpi.raw : 0}</span> of ${universe.length} regions covered${isQ ? ` in ${esc(cache.meta.evalPeriod)}` : ""}
             · <b>${kpi.pts != null ? kpi.pts.toFixed(1) : "—"}</b> / ${kpi.weight} pts${isQ ? " (sum of the monthly points)" : ""}
             · ${d.visits || 0} joint visits</div>
           <div class="sp-region-chips">${chips}</div>
@@ -2944,9 +2944,9 @@
         <table class="sp-region-table"><thead><tr><th>Month</th><th>Zones</th><th>Which</th>${isQ ? "<th>Points</th>" : ""}</tr></thead><tbody>${monthRows}</tbody></table>
         <div class="sp-region-note">${isQ ? `Q3 count = distinct zones across the quarter (shown above). Points = each month scored on its own zones (1 zone = 4 · 2 = 8 · 3 = 12 · 4 = 16 · 5 = 20), then summed.` : ""}</div>` : ""}
         <h4>Evidence — joint field visits by employee</h4>
-        ${rows ? `<div class="sp-region-scroll"><table class="sp-region-table"><thead><tr><th>Zone</th><th>Employee visited with</th><th>Territory</th><th>Zone taken from</th>${monthHeads}<th>Visits</th><th>Days</th><th>Customers</th><th>Visit dates (MM-DD)</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p>No joint field visits recorded for this Brand Manager in this period.</p>`}
-        ${(d.unmapped || []).length ? `<div class="sp-region-note">⚠ ${d.unmapped.length} employee(s) could not be placed in a zone and are NOT counted (highlighted).</div>` : ""}
-        <div class="sp-region-note"><b>Method:</b> source = Coaching Intelligence visit log (every joint visit where this Brand Manager is listed as a coach). Each employee's zone comes from their territory's region in the sales file; when the territory is generic (e.g. a DM), from their home governorate in Database Shortcut. Regions Covered = number of different zones.</div>
+        ${rows ? `<div class="sp-region-scroll"><table class="sp-region-table"><thead><tr><th>Region</th><th>Employee visited with</th><th>Territory</th><th>Region taken from</th>${monthHeads}<th>Visits</th><th>Days</th><th>Customers</th><th>Visit dates (MM-DD)</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p>No joint field visits recorded for this Brand Manager in this period.</p>`}
+        ${(d.unmapped || []).length ? `<div class="sp-region-note">⚠ ${d.unmapped.length} employee(s) could not be placed in a region and are NOT counted (highlighted).</div>` : ""}
+        <div class="sp-region-note"><b>Method:</b> source = Coaching Intelligence visit log (every joint visit where this Brand Manager is listed as a coach). Each employee's region comes from their territory in the organogram position master (5 regions: Alex, Cairo, Giza, Delta, Upper Egypt; Canal counted as Delta); when the territory is generic (e.g. a DM), from their home governorate in Database Shortcut. Regions Covered = number of different regions.</div>
       </div>`;
   }
 
@@ -3514,12 +3514,12 @@
   // to the plain kpiSlotCell() cell (which already special-cases it as
   // "N regions") even when it has a real peer-Average check -- it's still
   // fully counted in the eligibility gate math, just not chart-rendered.
-  function brandManagerRow(r, d, isWinner) {
+  function brandManagerRow(r, d, isWinner, isRunnerUp) {
     const c = BAND_COLOR[band(r.totalPts)];
     const checksByKey = {};
     (d && d.checks || []).forEach(ch => { checksByKey[ch.key] = ch; });
-    return `<tr class="sp-row${isWinner ? " sp-is-winner" : ""}">
-      <td class="sp-name">${esc(r.name)}${isWinner ? '<span class="sp-winner-badge">🏆 WINNER</span>' : ""}<div class="sp-sub">#${esc(r.code)} · ${esc(r.position || "Brand Manager")}${r.line ? ` · <span class="sp-manager-line-badge">${esc(r.line)}</span>` : ""} · ${probationBadge(r)}${departingBadge(r)}${hierarchyGateNote(d, { badgeLabel: "WINNER", hasCash: false })}</div></td>
+    return `<tr class="sp-row${isWinner || isRunnerUp ? " sp-is-winner" : ""}">
+      <td class="sp-name">${esc(r.name)}${isWinner ? '<span class="sp-winner-badge">🏆 WINNER</span>' : ""}${isRunnerUp ? '<span class="sp-runnerup-badge">🏆 WINNER 2</span>' : ""}<div class="sp-sub">#${esc(r.code)} · ${esc(r.position || "Brand Manager")}${r.line ? ` · <span class="sp-manager-line-badge">${esc(r.line)}</span>` : ""} · ${probationBadge(r)}${departingBadge(r)}${hierarchyGateNote(d, { badgeLabel: "WINNER", hasCash: false })}</div></td>
       ${r.kpis.map(k => {
         const ch = checksByKey[k.key];
         return `<td>${ch && k.key !== "regionCount" ? hierarchyKpiBlock(kpiShortLabel(k.label), k.raw, ch.avg, ch.pass, k.pts, k.weight, true) : kpiSlotCell(k, null, r.code)}</td>`;
@@ -3577,37 +3577,40 @@
     // etl/build_sprint_cache.py), folded into the national "salesAch"
     // KPI average only. Regions Covered / Tactical Plan are untouched --
     // excluded BMs never had those computed at all.
-    const bmExcludedForSales = (data.excluded || []).filter(e => e.achPct != null);
-    const bmGroupAverages = computeHierarchyAverages(data.ranked, () => "__ALL__", () => true, {
-      key: "salesAch", groupFn: () => "__ALL__", records: bmExcludedForSales, valueFn: e => e.achPct
-    });
-    const { derivedByCode, groupSummary } = computeHierarchyWinnerPools(data.ranked, () => "__ALL__", bmGroupAverages, 1, () => true);
-    const companyGroup = groupSummary["__ALL__"];
+    // 2026-11-14: 2 per Corporate (Winner + Winner 2) -- see bmWinnerPools().
+    const bmPools = bmWinnerPools(data);
+    const bmGroupAverages = bmPools.averages;
+    const derivedByCode = bmPools.derivedByCode;
+    const companyGroup = bmPools.group;
     const companyWinnerCodes = companyGroup ? companyGroup.winners.map(x => x.r.code) : [];
+    const runnerUpCode = companyGroup && companyGroup.runnerUp ? companyGroup.runnerUp.r.code : null;
+    const bmCash = isQuarterView() ? ` · ${cashFor("Brand Manager").toLocaleString("en-US")} L.E + CEO Dinner` : "";
 
-    const cards = companyWinnerCodes.length
-      ? companyWinnerCodes.map(code => {
+    const winnerEntries = companyWinnerCodes.map(code => ({ code, tag: "WINNER" }))
+      .concat(runnerUpCode ? [{ code: runnerUpCode, tag: "WINNER 2" }] : []);
+    const cards = winnerEntries.length
+      ? winnerEntries.map(({ code, tag }) => {
           const w = data.ranked.find(r => r.code === code);
           const d = derivedByCode[code];
           const tieTxt = d && d.tie ? " ⚠ TIE" : "";
-          return winnerCardHtml("🏆", `WINNER${tieTxt}`, w.name, `${w.position || "Brand Manager"} · ${w.totalPts.toFixed(1)} pts · clears the national Brand Manager Average (${d ? d.gatePassCount : "?"}/${d ? d.checks.length : "?"} KPIs)`);
+          return winnerCardHtml("🏆", `${tag}${tieTxt}`, w.name, `${w.position || "Brand Manager"} · ${w.totalPts.toFixed(1)} pts${bmCash} · clears the national Brand Manager Average (${d ? d.gatePassCount : "?"}/${d ? d.checks.length : "?"} KPIs)`);
         }).join("")
       : emptyWinnerCardHtml("WINNER", `No Brand Manager has cleared the national Brand Manager peer-Average gate yet.`);
-    const bmWinnersNote = `Row order above reflects Total Points and never changes. The single company-wide 🏆 WINNER additionally requires clearing the national Brand Manager Average on every scored KPI at once — a higher-scoring Brand Manager shown without the badge simply hasn't cleared that gate yet (see the note on their own row). A rank-1 points tie promotes every tied Brand Manager to co-WINNER rather than picking one arbitrarily. Recognition only — Brand Manager has no Monthly Sprint cash tier.`;
-    const bmWinnersPanel = winnersPanelHtml("🏆 Recognition Winner — Corporate", cards, bmWinnersNote);
+    const bmWinnersNote = `Row order above reflects Total Points and never changes. Brand Manager has 2 winners per Corporate (🏆 WINNER and 🏆 WINNER 2); both must clear the national Brand Manager Average on every scored KPI at once — a higher-scoring Brand Manager shown without a badge simply hasn't cleared that gate (see the note on their own row). A tie for #2 with #1 makes both co-WINNER. ${isQuarterView() ? `Quarterly Champions reward: ${cashFor("Brand Manager").toLocaleString("en-US")} L.E each + CEO Dinner + Digital Certificate + Public Announcement.` : "Recognition only this month — per the deck, Brand Managers compete at Quarterly and Annual levels (no Monthly Sprint cash)."}`;
+    const bmWinnersPanel = winnersPanelHtml("🏆 Brand Manager Winners — 2 per Corporate", cards, bmWinnersNote);
 
     const bannerText = HIERARCHY_BANNER_TEXT.bm;
 
     return `
       <div class="sp-section">
         <h2>Brand Manager — ${esc(cache.meta.evalPeriod)}${anyPending ? " (Partial)" : ""}</h2>
-        <div class="sp-section-sub">National Sales (50, auto-calculated from each Brand Manager's assigned Line) + Region Coverage (20) + Tactical Plan Execution (30) = 100 pts. Brand Managers own products, not a rep team, so there's no Team Avg rollup here — Region Coverage and Tactical Plan Execution are sourced from zeta sprint/Sprint_Missing_KPI_Template.xlsx. 🏆 WINNER marks the single company-wide top performer, true company-wide even if you're only viewing your own BU's scope (recognition only — Brand Manager has no Monthly Sprint cash tier in the Recognition &amp; Rewards deck), and only among Brand Managers who clear the national Brand Manager Average on every scored KPI. ${anyPending ? '<span class="sp-tag-partial">SOME PENDING</span>' : '<span class="sp-tag-live">FULLY SCORED</span>'}</div>
+        <div class="sp-section-sub">National Sales (50, auto-calculated from each Brand Manager's assigned Line) + Region Coverage (20) + Tactical Plan Execution (30) = 100 pts. Brand Managers own products, not a rep team, so there's no Team Avg rollup here — Region Coverage and Tactical Plan Execution are sourced from zeta sprint/Sprint_Missing_KPI_Template.xlsx. 🏆 WINNER and 🏆 WINNER 2 are the 2 company-wide winners (2 per Corporate), true company-wide even if you're only viewing your own BU's scope, and only among Brand Managers who clear the national Brand Manager Average on every scored KPI. Brand Managers earn cash at Quarterly (4,500 L.E) and Annual level only — no Monthly Sprint cash. ${anyPending ? '<span class="sp-tag-partial">SOME PENDING</span>' : '<span class="sp-tag-live">FULLY SCORED</span>'}</div>
         ${hierarchyGateRuleBannerHtml(bannerText.title, bannerText.en1, bannerText.en2, bannerText.ar1, bannerText.ar2)}
         ${bmWinnersPanel}
         ${hierarchyAveragesPanelHtml(null, bmGroupAverages, ranked[0] ? ranked[0].kpis : [], true, "Brand Manager", false)}
         <table>
           <thead><tr><th>Brand Manager</th>${kpiHeaders}<th style="text-align:right;">Total</th></tr></thead>
-          <tbody>${sorted.map(r => brandManagerRow(r, derivedByCode[r.code], companyWinnerCodes.includes(r.code))).join("")}</tbody>
+          <tbody>${sorted.map(r => brandManagerRow(r, derivedByCode[r.code], companyWinnerCodes.includes(r.code), r.code === runnerUpCode)).join("")}</tbody>
         </table>
         <details style="margin-top:10px;"><summary>Excluded (${data.excluded.length})</summary>${excludedTable(data.excluded)}</details>
       </div>
@@ -3775,6 +3778,38 @@
     "ASM": 3000,
     "NSM": 4000,
   };
+  // 2026-11-14 (Ahmed: "make sprint csv match quarter 3 and rewards as
+  // well and for brand managers there is 2 per corporate"). Quarterly
+  // Champions column of the same deck (slides 11-16): MR/CHC 1,500 (2 per
+  // Line), DM/DSM 2,500 (2 per BU), ASM 3,500 / NSM 4,500 (1 Corporate),
+  // Brand Manager 4,500 (2 per Corporate -- BMs have NO Monthly Sprint).
+  const QUARTERLY_CASH = {
+    "Medical Rep": 1500,
+    "Sales Rep (CHC)": 1500,
+    "DM/DSM": 2500,
+    "ASM": 3500,
+    "NSM": 4500,
+    "Brand Manager": 4500,
+  };
+  function isQuarterView() { return PM() > 1; }
+  function cashFor(key) { return (isQuarterView() ? QUARTERLY_CASH : MONTHLY_CASH)[key]; }
+  function recognitionTierLabel() { return isQuarterView() ? "Quarterly Champions" : "Monthly Sprint"; }
+  function recognitionPackage() {
+    return isQuarterView() ? "Cash + CEO Dinner + Digital Certificate + Public Announcement"
+      : "Cash + Digital Certificate + Public Announcement";
+  }
+
+  // Brand Manager Winner Pool -- ONE place for the screen and the CSV.
+  // 2 per Corporate (Winner + Winner 2, deck slide 4/16); same national
+  // peer-Average gate and tie rules as before (winnerSlots was 1).
+  function bmWinnerPools(data) {
+    const bmExcludedForSales = (data.excluded || []).filter(e => e.achPct != null);
+    const averages = computeHierarchyAverages(data.ranked, () => "__ALL__", () => true, {
+      key: "salesAch", groupFn: () => "__ALL__", records: bmExcludedForSales, valueFn: e => e.achPct
+    });
+    const pools = computeHierarchyWinnerPools(data.ranked, () => "__ALL__", averages, 2, () => true);
+    return { averages, derivedByCode: pools.derivedByCode, group: pools.groupSummary["__ALL__"] };
+  }
 
   // UNUSED as of 2026-08-19 -- computeMonthlyWinners's DM/DSM payout used
   // to take a flat top-2-by-points-per-BU from the floor-filtered list via
@@ -3890,7 +3925,7 @@
             hireDate: r.hireDate || "", line: r.canonLine || "", bu: r.bu || "",
             winnerGroup: `Line: ${line}`, rankInGroup: `#${idx + 1}`,
             directManager: r.directManager || "", directManagerBu: r.directManagerBu || "",
-            money: MONTHLY_CASH[cashKey], totalPts: r.totalPts,
+            money: cashFor(cashKey), totalPts: r.totalPts,
           });
         });
       });
@@ -3925,7 +3960,7 @@
           hireDate: r.hireDate || "", line: r.line || "", bu: r.bu || "",
           winnerGroup: `BU: ${bu}`, rankInGroup: entry.d.tier === "WINNER" ? "#1" : "#2",
           directManager: r.directManager || "", directManagerBu: r.directManagerBu || "",
-          money: MONTHLY_CASH["DM/DSM"], totalPts: r.totalPts,
+          money: cashFor("DM/DSM"), totalPts: r.totalPts,
         });
       });
     });
@@ -3943,10 +3978,29 @@
           hireDate: winner.hireDate || "", line: winner.line || "", bu: winner.bu || "",
           winnerGroup: "Corporate", rankInGroup: "#1",
           directManager: winner.directManager || "", directManagerBu: winner.directManagerBu || "",
-          money: MONTHLY_CASH[title], totalPts: winner.totalPts,
+          money: cashFor(title), totalPts: winner.totalPts,
         });
       });
     });
+
+    // Brand Manager: Quarterly Champions only (no Monthly Sprint per the
+    // deck) -- 2 per Corporate, read from the same pool the BM tab shows.
+    if (isQuarterView() && cache.brandManager && cache.brandManager.ranked.length) {
+      const bm = bmWinnerPools(cache.brandManager);
+      if (bm.group) {
+        [...bm.group.winners, bm.group.runnerUp].forEach(entry => {
+          if (!entry) return;
+          const r = entry.r;
+          rows.push({
+            title: "Brand Manager", name: r.name, code: r.code, position: r.position || "",
+            hireDate: r.hireDate || "", line: r.line || "", bu: r.bu || "",
+            winnerGroup: "Corporate", rankInGroup: entry.d.tier === "WINNER" ? "#1" : "#2",
+            directManager: r.directManager || "", directManagerBu: r.directManagerBu || "",
+            money: cashFor("Brand Manager"), totalPts: r.totalPts,
+          });
+        });
+      }
+    }
 
     return rows;
   }
@@ -3956,18 +4010,26 @@
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }
 
+  function monthsScoredFor(code, title) {
+    if (!isQuarterView()) return cache.meta.evalPeriod;
+    const tierKey = { "Medical Rep": "medicalRepSalesRep", "CHC Sales Rep": "medicalRepSalesRep", "DM/DSM": "dmDsm", ASM: "asm", NSM: "nsm", "Brand Manager": "brandManager" }[title];
+    const rec = tierKey && (cache[tierKey].ranked || []).find(x => String(x.code) === String(code));
+    return rec && rec.scoredMonths ? rec.scoredMonths.join(" + ") : "";
+  }
+
   function downloadWinnersCsv() {
     const rows = computeMonthlyWinners();
     const headers = ["Title", "Name", "Code", "Position", "Hiring Date", "Month / Period", "Line", "BU",
       "Winner Group", "Rank in Group", "Direct Manager", "Direct Manager BU",
-      "Recognition Tier", "Money of Recognition (L.E)", "Total Points"];
-    const periodLabel = `${cache.meta.evalPeriod} 2026`;
+      "Recognition Tier", "Money of Recognition (L.E)", "Recognition Package", "Total Points", "Months Scored"];
+    const periodLabel = isQuarterView() ? `${cache.meta.periodLabel || cache.meta.evalPeriod} 2026` : `${cache.meta.evalPeriod} 2026`;
     const lines = [headers.join(",")];
     rows.forEach(r => {
       lines.push([
         r.title, r.name, r.code, r.position, r.hireDate, periodLabel, r.line, r.bu,
         r.winnerGroup, r.rankInGroup, r.directManager, r.directManagerBu,
-        "Monthly Sprint", r.money, r.totalPts != null ? r.totalPts.toFixed(1) : "",
+        recognitionTierLabel(), r.money, recognitionPackage(), r.totalPts != null ? r.totalPts.toFixed(1) : "",
+        monthsScoredFor(r.code, r.title),
       ].map(csvCell).join(","));
     });
     // Leading BOM so Excel opens the UTF-8 file cleanly (many winner names
@@ -4040,7 +4102,7 @@
             ${periodSelectorHtml()}
           </div>
           ${currentPeriodReady && canDownloadWinnersCsv() ? `<div class="sp-header-actions">
-            <button type="button" id="sp-download-winners" class="sp-download-btn" title="Every Monthly Sprint winner as a CSV -- Medical Rep/CHC Sales Rep: 2 per Line, DM/DSM: 2 per BU, ASM/NSM: 1 Corporate each -- with Direct Manager and Money of Recognition, per the Recognition &amp; Rewards deck. Every row requires clearing the 70% Sales Achievement floor (team-summed for DM/DSM/ASM/NSM) -- a Line/BU/company with nobody eligible simply has no row here.">⬇ Download Winners CSV</button>
+            <button type="button" id="sp-download-winners" class="sp-download-btn" title="${isQuarterView() ? "Every Quarterly Champion as a CSV -- Medical Rep/CHC Sales Rep: 2 per Line (1,500 L.E), DM/DSM: 2 per BU (2,500 L.E), ASM: 1 Corporate (3,500 L.E), NSM: 1 Corporate (4,500 L.E), Brand Manager: 2 per Corporate (4,500 L.E) -- each + CEO Dinner, certificate and announcement. Winner Pool gate and ranking as on screen (sum of Q3 points)." : "Every Monthly Sprint winner as a CSV -- Medical Rep/CHC Sales Rep: 2 per Line, DM/DSM: 2 per BU, ASM/NSM: 1 Corporate each -- with Direct Manager and Money of Recognition, per the Recognition &amp; Rewards deck."}">⬇ Download Winners CSV</button>
           </div>` : ""}
         </div>
         <div class="sc-nav-tabs">

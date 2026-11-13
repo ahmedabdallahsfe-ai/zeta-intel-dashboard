@@ -318,7 +318,7 @@
        this script tag, the sidebar entry, and app.js's Sprint wiring were dropped
        during the same pass that added IMS Rx role-gating; the underlying cache/js/css
        files were never touched, so no rebuild was needed, only re-wiring. -->
-  <script defer src="cache/sprint.data.js?v=20261114_bmregion"></script>
+  <script defer src="cache/sprint.data.js?v=20261114_5regions"></script>
   <!-- Field Working Days Intelligence cache (2026-09-05, Ahmed "implmement
        to zeta intell"): built by etl/build_working_days_cache.py from the
        Sprint KPI template's DM_DSM/ASM/NSM tabs. Separate from
@@ -433,7 +433,7 @@
   <script defer src="js/iqvia-sidebar-rail.js?v=20260924_sbrail"></script>
   <script defer src="js/iqvia-fit.js?v=20260925_slimchrome"></script>
   <script defer src="js/askdata-dock.js?v=20260925_askall"></script>
-  <script defer src="js/sprint.js?v=20261114_bmregion"></script>
+  <script defer src="js/sprint.js?v=20261114_q3csv"></script>
   <script defer src="js/working-days.js?v=20261008_keep"></script>
   <!-- List Intelligence (2026-09-25): module only; its data (cache/list_intel.data.js)
        is lazy-loaded by js/cache-loader.js when the tab is opened. -->
@@ -484,25 +484,25 @@
        EVERY ask-*.js file carries the SAME ?v= build id, and each file states
        that id in its own header (AskBuild). AskEngine.syncStatus() compares them
        at runtime and the panel shows a warning if a stale cached file slips in. -->
-  <script defer src="js/ask-engine.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-period.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-query.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-sales.js?v=20261113_selfcheck"></script>
-  <script defer src="js/ask-prov-coverage.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-sfe.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-lib.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-workdays.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-coaching.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-sprint.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-imsrx.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-iqvia.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-prov-marketintel.js?v=20261113_selfcheck"></script>
-  <script defer src="js/ask-prov-tomarket.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-pages.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-coverage.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-sales.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-sfe.js?v=20260921_askq2"></script>
-  <script defer src="js/ask-executive.js?v=20260921_askq2"></script>
+  <script defer src="js/ask-engine.js?v=20261114_askall"></script>
+  <script defer src="js/ask-period.js?v=20261114_askall"></script>
+  <script defer src="js/ask-query.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-sales.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-coverage.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-sfe.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-lib.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-workdays.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-coaching.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-sprint.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-imsrx.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-iqvia.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-marketintel.js?v=20261114_askall"></script>
+  <script defer src="js/ask-prov-tomarket.js?v=20261114_askall"></script>
+  <script defer src="js/ask-pages.js?v=20261114_askall"></script>
+  <script defer src="js/ask-coverage.js?v=20261114_askall"></script>
+  <script defer src="js/ask-sales.js?v=20261114_askall"></script>
+  <script defer src="js/ask-sfe.js?v=20261114_askall"></script>
+  <script defer src="js/ask-executive.js?v=20261114_askall"></script>
   <script defer src="js/app.js?v=20261103_tomarketsep"></script>
 
   <!-- Not-Seen Customers Modal -->

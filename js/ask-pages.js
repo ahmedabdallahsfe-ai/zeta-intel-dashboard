@@ -1,4 +1,4 @@
-(function(g){(g.AskBuild=g.AskBuild||{})["ask-pages.js"]="20260921_askq2";})(typeof window!=="undefined"?window:this);
+(function(g){(g.AskBuild=g.AskBuild||{})["ask-pages.js"]="20261114_askall";})(typeof window!=="undefined"?window:this);
 /**
  * ASK THE DATA — page adapters for pages that have no legacy Ask adapter
  * ============================================================================
