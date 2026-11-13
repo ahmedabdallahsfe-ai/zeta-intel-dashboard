@@ -29,7 +29,7 @@
  *     separate 🎖 BU Leader per-BU top performer alongside its WINNER
  *     badges. Medical Rep's own equivalent, 🎖 Line Leader, was removed
  *     per Ahmed 2026-08-16 -- see "LINE LEADER REMOVED" below.
- *   - Period filter: June / July / August / Q3 / Oct / Nov / Total Year.
+ *   - Period filter: June / July / August / September / Q3 / Oct / Nov / Dec / Total Year.
  *     Every past month is archived by the ETL (cache/sprint_history/) and
  *     loaded on demand via a dynamically-injected <script> tag -- NOT
  *     fetch(), because this dashboard is opened over file:// in
@@ -280,9 +280,11 @@
     { key: "June", label: "June (Pilot Period)", months: ["June"] },
     { key: "July", label: "July", months: ["July"] },
     { key: "August", label: "August", months: ["August"] },
+    { key: "September", label: "September", months: ["September"] },
     { key: "Q3", label: "Q3 (Jul + Aug + Sep)", months: ["July", "August", "September"], cumulative: true },
     { key: "October", label: "October", months: ["October"] },
     { key: "November", label: "November", months: ["November"] },
+    { key: "December", label: "December", months: ["December"] },
     { key: "TotalYear", label: "Total Year (Q3 + Oct + Nov + Dec)", months: ["July", "August", "September", "October", "November", "December"], cumulative: true },
   ];
 
@@ -294,8 +296,29 @@
   function periodReady(periodKey) {
     const def = PERIOD_DEFS.find(p => p.key === periodKey);
     if (!def) return false;
-    if (def.cumulative) return false; // summing rule not yet defined -- see module doc.
+    // 2026-11-13 (Ahmed): cumulative periods are LIVE once their rollup
+    // (etl/build_sprint_period_rollup.py) is archived -- Q3 achievement per
+    // parameter, Winner Pool ranked by the SUM of monthly points, only
+    // months after probation count.
+    if (def.cumulative) return historyIndex.some(p => p.cumulative && p.name === def.key);
     return def.months.every(monthArchived);
+  }
+
+  // Number of months summed in the period being viewed (1 for a monthly
+  // period, 3 for Q3). Every max-points / band threshold scales by it.
+  function PM() {
+    return (cache && cache.meta && cache.meta.cumulative && cache.meta.monthsCount) || 1;
+  }
+
+  function q3BannerHtml() {
+    if (PM() === 1) return "";
+    const months = (cache.meta.periodMonths || []).join(" + ");
+    return `<div class="sp-q3-banner">
+      <b>${esc(cache.meta.periodLabel || cache.meta.evalPeriod)} — quarterly ranking.</b>
+      Every KPI shows the <b>${esc(cache.meta.evalPeriod)} achievement</b> (Sales = total actual ÷ total target; Coverage, Right Frequency, Field Days, DV Coverage, Calls per DV, Team Avg = average of the months scored; Brand Manager Regions = distinct zones visited in the quarter).
+      Winner Pool gates compare these ${esc(cache.meta.evalPeriod)} values with the Line / BU average; the pool is ranked by the <b>sum of the monthly points</b> (max ${100 * PM()}).
+      Only months a person was ranked count (after probation, active, not leave-excluded) — someone who passed probation mid-quarter is scored on the months after it. Months: ${esc(months)}.
+    </div>`;
   }
 
   // Loads a local script by URL and resolves once it has executed --
@@ -519,6 +542,7 @@
   // ---- shared bits -------------------------------------------------
   function band(pts) {
     if (pts == null) return "Pending";
+    pts = pts / PM(); // Q3: sum of 3 months -> same 0-100 bands per month
     if (pts >= 88) return "Champion";
     if (pts >= 68) return "Performer";
     if (pts >= 42) return "On Track";
@@ -553,12 +577,13 @@
   function bandLegendHtml() {
     const chips = BAND_THRESHOLDS.map(b => {
       const c = BAND_COLOR[b.name];
-      return `<span class="sp-band-chip" style="color:${c[0]};background:${c[1]};" title="Total Points ${b.range} out of 100">${esc(b.name)} <b>${esc(b.range)}</b></span>`;
+      const range = PM() === 1 ? b.range : b.range.replace(/\d+/g, n => String(Number(n) * PM()));
+      return `<span class="sp-band-chip" style="color:${c[0]};background:${c[1]};" title="Total Points ${range} out of ${100 * PM()}">${esc(b.name)} <b>${esc(range)}</b></span>`;
     }).join("");
     const pendingC = BAND_COLOR.Pending;
     const pendingChip = `<span class="sp-band-chip sp-band-chip-pending" style="color:${pendingC[0]};background:${pendingC[1]};" title="No score yet this month -- a required KPI (e.g. Field Working Days, Region Coverage) hasn't been filled in yet, not a real zero">Pending <b>no score yet</b></span>`;
     return `<div class="sp-band-legend">
-      <span class="sp-band-legend-label">Performance Bands — Total Points (0–100):</span>
+      <span class="sp-band-legend-label">Performance Bands — Total Points (0–${100 * PM()}${PM() > 1 ? ", sum of " + PM() + " months" : ""}):</span>
       <span class="sp-band-legend-chips">${chips}${pendingChip}</span>
       <span class="sp-band-legend-note">Fixed thresholds, not a forced curve — everyone who clears 88 is a Champion, no cap on how many. Fastest way up a band: check which KPI bar below has the biggest gap to its max (e.g. Coverage, Right Freq) — Sales Achievement alone won't carry anyone past Performer if the supporting KPIs are lagging.</span>
     </div>`;
@@ -612,7 +637,10 @@
   }
 
   function probationBadge(r) {
-    return `<span class="sp-probation-badge" title="Hired ${esc(r.hireDate)} · Passed probation ${esc(r.probationPassed)}">✓ Eligible for ${esc(cache.meta.evalPeriod)} ranking</span>`;
+    const q3 = PM() > 1 && r.monthsScored != null
+      ? ` <span class="sp-q3-months${r.monthsScored < PM() ? " sp-q3-months-part" : ""}" title="Months scored in ${esc(cache.meta.evalPeriod)}: ${esc((r.scoredMonths || []).join(", "))}${(r.monthly || []).length ? " · points " + (r.monthly || []).map(m => m.month.slice(0, 3) + " " + (m.totalPts != null ? m.totalPts.toFixed(1) : "—")).join(" + ") : ""}">${r.monthsScored}/${PM()} months scored</span>`
+      : "";
+    return `<span class="sp-probation-badge" title="Hired ${esc(r.hireDate)} · Passed probation ${esc(r.probationPassed)}">✓ Eligible for ${esc(cache.meta.evalPeriod)} ranking</span>${q3}`;
   }
 
   // ---- Overview tab --------------------------------------------------
@@ -664,7 +692,7 @@
             <li><b>Curve sheet:</b> ${esc(cache.meta.methodology.curveSheet)} — confirmed final with Ahmed ${esc(cache.meta.methodology.confirmedWithAhmed)}.</li>
             <li><b>CHC/Sales Rep Coverage scaling:</b> ${esc(cache.meta.methodology.chcCoverageScaling)}</li>
             <li><b>ASM/NSM Team Avg:</b> averages each ASM/NSM's own DM/DSMs' total points (not individual reps directly) — matches the real org chain Rep → DM/DSM → ASM/NSM.</li>
-            <li><b>Period filter:</b> June is the Sprint's Pilot Period. Currently archived: ${[...new Set([...(currentMonthCache ? [currentMonthCache.meta.evalPeriod] : []), ...historyIndex.map(p => p.name)])].map(esc).join(", ")}. Each month you update stays viewable going forward — nothing gets overwritten. Q3 and Total Year additionally need their cross-month summing rule defined with Ahmed before they unlock.</li>
+            <li><b>Period filter:</b> June is the Sprint's Pilot Period. Currently archived: ${[...new Set([...(currentMonthCache ? [currentMonthCache.meta.evalPeriod] : []), ...historyIndex.map(p => p.name)])].map(esc).join(", ")}. Each month you update stays viewable going forward — nothing gets overwritten. Q3 is live (2026-11-13 rule: Q3 achievement per KPI, Winner Pool = sum of monthly points, months after probation only); Total Year still needs Oct–Dec and its own rule confirmed with Ahmed before they unlock.</li>
           </ul>
         </div>
       </div>
@@ -1716,13 +1744,13 @@
     }
     const salesNoDataReason = r.achPct == null && r.salesTgt === 0 ? "Sales Target = 0 this period" : null;
     let body = row("Sales Achievement", r.achPct, true, KPI_FLOOR_DISPLAY.sales, true, r.salesPts, maxSales, salesNoDataReason);
-    if (hasRf) body += row("Right Frequency", r.rightFreqPct, false, KPI_FLOOR_DISPLAY.rf, false, r.rfPts, 40);
+    if (hasRf) body += row("Right Frequency", r.rightFreqPct, false, KPI_FLOOR_DISPLAY.rf, false, r.rfPts, 40 * PM());
     body += row("Coverage", r.coveragePct, false, KPI_FLOOR_DISPLAY.coverage, false, r.covPts, maxCoverage);
     return `<details class="sp-calc-details">
       <summary>ⓘ How were points calculated?</summary>
       <div class="sp-calc-body">
         <table class="sp-calc-table"><thead><tr><th>KPI</th><th>Rep Value</th><th>Floor</th><th>Points Earned</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>
-        <div class="sp-calc-total">TOTAL <b>${r.totalPts.toFixed(1)} / 100</b></div>
+        <div class="sp-calc-total">TOTAL <b>${r.totalPts.toFixed(1)} / ${100 * PM()}</b>${PM() > 1 && r.monthly ? ` <span class="sp-q3-months">= ${r.monthly.map(m => m.month.slice(0, 3) + " " + (m.totalPts != null ? m.totalPts.toFixed(1) : "—")).join(" + ")}</span>` : ""}</div>
         ${leaveCalcNoteHtml(r)}
       </div>
     </details>`;
@@ -2124,8 +2152,8 @@
   // render by renderMedicalRep() and passed in per row.
   function repRow(r, isRepTier, d) {
     const c = BAND_COLOR[band(r.totalPts)];
-    const maxSales = isRepTier === "msr" ? 50 : 60;
-    const maxCoverage = isRepTier === "msr" ? 10 : 40;
+    const maxSales = (isRepTier === "msr" ? 50 : 60) * PM();
+    const maxCoverage = (isRepTier === "msr" ? 10 : 40) * PM();
     const hasRf = isRepTier === "msr";
     return `<tr class="sp-row" data-line="${esc(r.canonLine)}" data-ach-pct="${r.achPct != null ? r.achPct : ""}" data-coverage-pct="${r.coveragePct != null ? r.coveragePct : ""}" data-rf-pct="${r.rightFreqPct != null ? r.rightFreqPct : ""}" data-rep-name="${esc(r.name)}" data-rep-total="${r.totalPts.toFixed(1)}" data-search="${esc((r.name + " " + r.code).toLowerCase())}">
       <td class="sp-rank"></td>
@@ -2136,9 +2164,9 @@
         ${pointsCalcDetailsHtml(r, hasRf, maxSales, maxCoverage)}
       </td>
       <td>${kpiMedianBlock("Sales", r.achPct, d.lineAverageSales, d.salesVsAverage, r.salesPts, maxSales, d.salesFloorPass, "Sales", true, "Average")}</td>
-      ${hasRf ? `<td>${kpiMedianBlock("Right Freq", r.rightFreqPct, d.lineAverageRF, d.rfVsAverage, r.rfPts, 40, d.rfFloorPass, "Right Freq", false, "Average")}</td>` : ""}
+      ${hasRf ? `<td>${kpiMedianBlock("Right Freq", r.rightFreqPct, d.lineAverageRF, d.rfVsAverage, r.rfPts, 40 * PM(), d.rfFloorPass, "Right Freq", false, "Average")}</td>` : ""}
       <td>${kpiMedianBlock("Coverage", r.coveragePct, d.lineAverageCoverage, d.coverageVsAverage, r.covPts, maxCoverage, d.coverageFloorPass, "Coverage", false, "Average")}</td>
-      <td class="sp-total">${totalPointsHeaderHtml(d, 100)}<span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts)}</span></td>
+      <td class="sp-total">${totalPointsHeaderHtml(d, 100 * PM())}<span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts)}</span></td>
     </tr>`;
   }
 
@@ -2355,11 +2383,11 @@
         ${esc(r.name)}
         <div class="sp-tier-row">${recognitionTierBadgeHtml(d, r)}</div>
         <div class="sp-sub">${esc(r.position || "CHC Sales Rep")} · #${esc(r.code)} · ${probationBadge(r)}${departingBadge(r)}${leaveBadge(r)}</div>
-        ${pointsCalcDetailsHtml(r, false, 60, 40)}
+        ${pointsCalcDetailsHtml(r, false, 60 * PM(), 40 * PM())}
       </td>
-      <td>${kpiMedianBlock("Sales", r.achPct, d.lineAverageSales, d.salesVsAverage, r.salesPts, 60, d.salesFloorPass, "Sales", true, "Average")}</td>
-      <td>${kpiMedianBlock("Coverage", r.coveragePct, d.lineAverageCoverage, d.coverageVsAverage, r.covPts, 40, d.coverageFloorPass, "Coverage", false, "Average")}</td>
-      <td class="sp-total">${totalPointsHeaderHtml(d, 100)}<span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts)}</span></td>
+      <td>${kpiMedianBlock("Sales", r.achPct, d.lineAverageSales, d.salesVsAverage, r.salesPts, 60 * PM(), d.salesFloorPass, "Sales", true, "Average")}</td>
+      <td>${kpiMedianBlock("Coverage", r.coveragePct, d.lineAverageCoverage, d.coverageVsAverage, r.covPts, 40 * PM(), d.coverageFloorPass, "Coverage", false, "Average")}</td>
+      <td class="sp-total">${totalPointsHeaderHtml(d, 100 * PM())}<span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts)}</span></td>
     </tr>`;
   }
 
@@ -2493,7 +2521,10 @@
       ? `data-workingdays-code="${esc(mgrCode)}" data-workingdays-kpi="${esc(kpi.key)}"`
       : null;
     if (kpi.key === "regionCount") {
-      const pctText = kpi.raw != null ? `${kpi.raw} region${kpi.raw === 1 ? "" : "s"}` : null;
+      // 2026-11-13: auto from joint field visits (coaching) -> Sales zones.
+      const zones = kpi.regionDetail && kpi.regionDetail.zones && kpi.regionDetail.zones.length
+        ? " · " + kpi.regionDetail.zones.map(z => z.replace(/ Zone$/, "")).join(", ") : "";
+      const pctText = kpi.raw != null ? `${kpi.raw} region${kpi.raw === 1 ? "" : "s"}${zones}` : null;
       return kpiBar(shortLabel, null, kpi.pts, kpi.weight, pctText, coachingAttrs);
     }
     const pctText = kpi.raw != null ? (kpi.raw * 100).toFixed(1) + "% actual" : null;
@@ -2634,10 +2665,10 @@
 
     if (found.kind === "rep") {
       const isMedicalRep = r.role === "Medical Rep";
-      const maxSales = isMedicalRep ? 50 : 60;
+      const maxSales = (isMedicalRep ? 50 : 60) * PM();
       kpisHtml = kpiBar("Sales", r.achPct != null ? r.achPct * 100 : null, r.salesPts, maxSales)
-        + (isMedicalRep ? kpiBar("Right Freq", r.rightFreqPct, r.rfPts, 40) : "")
-        + kpiBar("Coverage", r.coveragePct, r.covPts, isMedicalRep ? 10 : 40);
+        + (isMedicalRep ? kpiBar("Right Freq", r.rightFreqPct, r.rfPts, 40 * PM()) : "")
+        + kpiBar("Coverage", r.coveragePct, r.covPts, (isMedicalRep ? 10 : 40) * PM());
       subInfo = `${esc(r.canonLine)} · ${esc(r.position || r.role)} · #${esc(r.code)}`;
     } else if (found.kind === "bm") {
       // Brand Manager: no Team Avg rollup (owns products, not a rep team).
@@ -3931,7 +3962,7 @@
           <div class="sp-header-logo"><img src="zeta_sprint_logo.png" alt="Zeta Sprint" /></div>
           <div class="sp-header-text">
             <h1>ZETA SPRINT 2026</h1>
-            <p>${esc(cache.meta.evalPeriod)} 2026 Monthly Ranking · ${esc(cache.meta.periodStart)} – ${esc(cache.meta.periodEnd)} · Verified from live platform data, not self-reported</p>
+            <p>${esc(cache.meta.evalPeriod)} 2026 ${PM() > 1 ? "Quarterly Ranking (sum of monthly points)" : "Monthly Ranking"} · ${esc(cache.meta.periodStart)} – ${esc(cache.meta.periodEnd)} · Verified from live platform data, not self-reported</p>
           </div>
           <div class="sp-header-period">
             <label>Period:</label>
@@ -3956,7 +3987,7 @@
         </div>
         ${currentPeriodReady && STATE.subTab !== "calculator" ? bandLegendHtml() : ""}
         <div style="flex:1;padding:24px;overflow-y:auto;">
-          <div id="sp-tab-content">${currentPeriodReady ? getPageContentHTML() : renderPeriodPendingState(STATE.period)}</div>
+          <div id="sp-tab-content">${currentPeriodReady ? (STATE.subTab !== "calculator" ? q3BannerHtml() : "") + getPageContentHTML() : renderPeriodPendingState(STATE.period)}</div>
         </div>
       </div>
     `;
@@ -3975,10 +4006,11 @@
         const newKey = periodSelectEl.value;
         const def = PERIOD_DEFS.find(p => p.key === newKey);
         periodSelectEl.disabled = true;
-        if (def && !def.cumulative && periodReady(newKey)) {
+        if (def && periodReady(newKey)) {
           // Whichever tab (Overview / Medical Rep / DM-DSM / ...) was open
           // stays open -- only the underlying data (`cache`) switches.
-          const monthName = def.months[0];
+          // Cumulative periods (Q3) are archived under their own name.
+          const monthName = def.cumulative ? def.key : def.months[0];
           const data = await loadPeriodData(monthName);
           if (!data) {
             console.error(`[Sprint] Failed to load archived period "${monthName}" -- staying on "${STATE.period}".`);
@@ -4090,7 +4122,7 @@
         liveKey: String(currentMonthCache.meta.periodStart || "").slice(0, 7),
         months: function () {
           const out = [{ name: currentMonthCache.meta.evalPeriod, key: String(currentMonthCache.meta.periodStart || "").slice(0, 7) }];
-          historyIndex.forEach(function (p) { if (p.name !== currentMonthCache.meta.evalPeriod && monthKey(p)) out.push({ name: p.name, key: monthKey(p) }); });
+          historyIndex.forEach(function (p) { if (!p.cumulative && p.name !== currentMonthCache.meta.evalPeriod && monthKey(p)) out.push({ name: p.name, key: monthKey(p) }); });
           return out;
         },
         data: function (monthName) {

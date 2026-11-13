@@ -85,6 +85,8 @@ CACHE_DIR = os.path.join(ROOT_DIR, 'cache')
 # how the two would quietly drift apart.
 sys.path.insert(0, ROOT_DIR)
 import leave_rules  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sprint_bm_regions import BmRegionResolver, points_for_count  # noqa: E402
 
 LEAVE_REPORT_PATH = os.path.join(ROOT_DIR, leave_rules.LEAVE_REPORT_FILENAME)
 DB_PATH = os.path.join(ROOT_DIR, 'Database Shortcut.xlsx')
@@ -218,10 +220,10 @@ TEMPLATE_SHEETS = {
 
 # The month being ranked. Bump these three lines each time this script is
 # re-run for a newly-closed period -- everything else derives from them.
-EVAL_PERIOD_NAME = 'August'        # must match a label in dims['periods']
-EVAL_MONTH_STR = '2026-08'       # must match a label in sales lookups['months']
-EVAL_PERIOD_START = datetime.date(2026, 8, 1)
-EVAL_PERIOD_END = datetime.date(2026, 8, 31)
+EVAL_PERIOD_NAME = 'September'     # must match a label in dims['periods']
+EVAL_MONTH_STR = '2026-09'       # must match a label in sales lookups['months']
+EVAL_PERIOD_START = datetime.date(2026, 9, 1)
+EVAL_PERIOD_END = datetime.date(2026, 9, 30)
 
 
 def log(msg):
@@ -294,6 +296,11 @@ CANONICAL_LINE_TO_BU = {
 }
 LINE_SYNONYMS = {
     "NEUROSCIENCE": "CNS", "DERMA": "Derma", "CHC_SALES": "CHC_SALES",
+    # 2026-11-13: from Sep-2026 the Coverage source splits CNS into two teams
+    # (NEUROSCIENCE-I / NEUROSCIENCE-II); Sales still books one NEUROSCIENCE
+    # line. Kept as ONE Sprint line (CNS) -- without this every CNS rep fell
+    # out of September as "active-no-coverage-data".
+    "NEUROSCIENCE-I": "CNS", "NEUROSCIENCE-II": "CNS",
     "GIT I": "GIT-I", "GIT II": "GIT-II", "GIT III": "GIT-III",
     "ORTHO I": "ORTHO-I", "ORTHO II": "ORTHO-II",
     "CVM I": "CVM-I", "CVM II": "CVM-II",
@@ -875,6 +882,17 @@ def main():
             a['tgtVal'] += r[TGT_VAL] or 0
         rep_lines_seen[key][linesLk[r[LINE]]] += 1
         rep_display_name.setdefault(key, repName)
+
+    def line_sales_totals(sales_line_name):
+        """(actual value, target value) for a Sales-cache line this month --
+        carried on the Brand Manager salesAch KPI so the Q3 rollup can pool
+        achievement (sum actual / sum target) instead of averaging %s."""
+        if sales_line_name not in linesLk:
+            return None, None
+        la = line_sales_month.get(linesLk.index(sales_line_name))
+        if not la:
+            return None, None
+        return la['val'], la['tgtVal']
 
     def line_sales_achievement(sales_line_name):
         """National actual/target achievement fraction for a Sales-cache line
@@ -1986,6 +2004,12 @@ def main():
     #    template (raw achievement -> points via the Brand Managers curve).
     # -----------------------------------------------------------------
     log('scoring Brand Manager ...')
+    try:
+        bm_region_resolver = BmRegionResolver(ROOT_DIR)
+        log(f'  BM regions: zones {bm_region_resolver.zones}')
+    except Exception as e:  # never block the whole Sprint build on this
+        log(f'WARNING: BM region resolver failed ({e}); Regions Covered = 0')
+        bm_region_resolver = None
     bm_template = kpi_template.get('Brand_Manager', {})
     bm_results, bm_excluded = [], []
     for code, name, position, line in bm_roster:
@@ -2012,12 +2036,29 @@ def main():
         else:
             pts = None
             any_pending = True
+        _sv, _st = line_sales_totals(sales_line) if sales_line else (None, None)
         kpis.append(dict(key='salesAch', label='National Sales -- Ach% (auto)', weight=50, pts=pts, raw=ach,
-                          source='auto', line=line, salesLine=sales_line))
+                          source='auto', line=line, salesLine=sales_line, salesVal=_sv, salesTgt=_st))
 
         provided = bm_template.get(code, {})
         bm_curves = {'regionCount': bm_region_curve, 'tacticalPlan': bm_tactical_curve}
         for key, label, weight in TEMPLATE_SHEETS['Brand_Manager']:
+            # 2026-11-13 (Ahmed: "for brand manager search about regions they
+            # covered"): Regions Covered is now AUTO -- distinct Sales zones
+            # of the employees this BM made joint field visits with this
+            # month (coaching.json), see etl/sprint_bm_regions.py. Points by
+            # exact step lookup (1->4 ... 5->20), not interp().
+            if key == 'regionCount':
+                reg = bm_region_resolver.regions(code, [EVAL_MONTH_STR]) if bm_region_resolver else None
+                raw = reg['count'] if reg is not None else 0
+                pts = min(weight, points_for_count(bm_region_curve, raw))
+                total_pts += pts
+                kpis.append(dict(key=key, label='Regions Covered -- zones visited (auto, coaching)', weight=weight,
+                                  pts=pts, raw=raw, source='coaching',
+                                  regionDetail=dict(zones=(reg or {}).get('zones', []), detail=(reg or {}).get('detail', []),
+                                                    unmapped=(reg or {}).get('unmapped', []), visits=(reg or {}).get('visits', 0),
+                                                    zoneUniverse=bm_region_resolver.zones if bm_region_resolver else [])))
+                continue
             raw = provided.get(key)
             if raw is not None:
                 raw = normalize_raw(key, raw)
@@ -2270,6 +2311,14 @@ def main():
 
     log(f'archived {period_key} ({EVAL_PERIOD_NAME}) -> {os.path.basename(archive_js)}; '
         f'history now covers: {", ".join(p["name"] for p in manifest)}')
+    # 2026-11-13 (Ahmed): cumulative periods (Q3 = Jul+Aug+Sep, ...) are
+    # rebuilt from the monthly archives after every monthly run, so they
+    # can never go stale against the months they sum.
+    try:
+        import build_sprint_period_rollup
+        build_sprint_period_rollup.main()
+    except Exception as e:
+        log(f'WARNING: cumulative period rollup failed ({e}) -- monthly cache is fine')
     log(f'Sprint cache complete in {time.time() - t0:.1f}s')
 
 

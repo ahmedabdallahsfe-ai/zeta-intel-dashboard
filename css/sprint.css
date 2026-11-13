@@ -549,3 +549,7 @@ tr.sp-row.sp-is-winner:hover { background: linear-gradient(90deg, rgba(180,83,9,
   color: var(--color-text-secondary); background: var(--color-surface-alt); }
 .sp-leave-audit-scroll { width: 100%; overflow-x: auto; }
 .sp-leave-audit-scroll > table { min-width: 1100px; }
+/* 2026-11-13 Q3 cumulative period (sum of monthly points) */
+.sp-q3-banner { background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E3A8A; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 12.5px; line-height: 1.5; }
+.sp-q3-months { display: inline-block; background: #E0E7FF; color: #3730A3; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 8px; margin-left: 6px; cursor: help; }
+.sp-q3-months-part { background: #FEF3C7; color: #92400E; }
