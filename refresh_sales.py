@@ -1096,7 +1096,7 @@ def get_progress(conn):
 # output-formatting changes). On mismatch the checkpoint is discarded and
 # the run starts clean, which costs one full re-read but guarantees every
 # row in the cache was produced by exactly one version of the rules.
-ETL_RULES_VERSION = '2026-10-30.chc_dynamic_tgt'  # CHC new target = Official AND Dynamic (ex-Shortage) for CHC/CHC_SALES; TGT NEW rows with TargetValue but blank TargetIndex read as target. Previous: '2026-09-25.chc_new_official_tgt'  # CHC new 2026 target loaded as Official (CHC_NEW_TGT_SHEET). Previous: '2026-09-15.fix_unknown_month'  # Exclude unparseable/blank date rows (removes 2026-Unknown month)
+ETL_RULES_VERSION = '2026-11-13.chc_actuals_from_tgtnew'  # CHC/CHC_SALES actuals read from TGT NEW sheet; old CHC sheet = Working target only. Previous: '2026-10-30.chc_dynamic_tgt'  # CHC new target = Official AND Dynamic (ex-Shortage) for CHC/CHC_SALES; TGT NEW rows with TargetValue but blank TargetIndex read as target. Previous: '2026-09-25.chc_new_official_tgt'  # CHC new 2026 target loaded as Official (CHC_NEW_TGT_SHEET). Previous: '2026-09-15.fix_unknown_month'  # Exclude unparseable/blank date rows (removes 2026-Unknown month)
 # actual-sales preservation (e.g. Noon/online accounts). '_hdrfix' (same day, added on top): Q3_XLSX's
 # real file has one blank spacer row before its header (see the Q3_XLSX comment above) -- without
 # read_source_header() skipping it, every column resolves to None and validate_source() fails loud
@@ -1288,9 +1288,15 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 is_official_scenario = True
                 t_idx = WORKING_ONLY_KEEP_INDEX
 
-            # New CHC target sheet (2026-09-25): targets only -- its actual
-            # rows duplicate CHC_YTD_SHEET's and must never be counted twice.
-            if source_label == CHC_NEW_TGT_LABEL and not is_mirror:
+            # 2026-11-13 (Ahmed: "CHC_YTD_PERFROMANCE TGT NEW consider this"):
+            # CHC/CHC_SALES ACTUALS now come from the TGT NEW sheet (it carries
+            # Jan..latest month incl. Sep; the old sheet stopped at Aug). The
+            # old CHC_YTD_SHEET is now read for its Working-target rows ONLY,
+            # so actuals are still never counted twice. Previous rule
+            # (2026-09-25): TGT NEW targets only, actuals from CHC_YTD_SHEET.
+            # Rollback: swap CHC_AUTHORITY_LABEL back to CHC_NEW_TGT_LABEL here
+            # and in the _chc_seen_in_authority line below.
+            if source_label == CHC_AUTHORITY_LABEL and not is_mirror:
                 skip_row = True
 
             if not skip_row:
@@ -1307,8 +1313,8 @@ def process_source(conn, xlsx_path, sheet_name, rows_done_key, complete_key, pro
                 # above for the double-counting this prevents.
                 if line in CHC_LINES:
                     if source_label in (CHC_AUTHORITY_LABEL, CHC_NEW_TGT_LABEL):
-                        if source_label == CHC_AUTHORITY_LABEL:
-                            _chc_seen_in_authority[line] += 1
+                        if source_label == CHC_NEW_TGT_LABEL and not is_mirror:
+                            _chc_seen_in_authority[line] += 1  # actual rows (2026-11-13)
                     else:
                         _chc_seen_elsewhere[source_label] += 1
                         skip_row = True
@@ -1567,8 +1573,8 @@ ACTUALS_REQUIRED_COLS = {'Date', 'Line', 'Emp1Name', 'Quantity', 'Value'}
 TARGETS_REQUIRED_COLS = {'Date', 'Line', 'TargetValue', 'TargetIndex'}
 SOURCE_KIND = {  # label -> 'actuals' | 'targets' | 'mixed' (both actuals and target rows expected)
     'q1': 'actuals', 'q2': 'actuals', 'q_tgt': 'targets',
-    'june': 'actuals', 'june_tgt': 'targets', CHC_AUTHORITY_LABEL: 'mixed',
-    CHC_NEW_TGT_LABEL: 'targets',
+    'june': 'actuals', 'june_tgt': 'targets', CHC_AUTHORITY_LABEL: 'targets',  # Working target only since 2026-11-13
+    CHC_NEW_TGT_LABEL: 'mixed',  # CHC actuals + new (Official/Dynamic) target since 2026-11-13
     'q3': 'mixed',
 }
 VALID_MONTHS = {f'2026-{m:02d}' for m in range(1, 13)}

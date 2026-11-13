@@ -1,17 +1,17 @@
 window.ZETA_NEWS_FEED = {
   "meta": {
-    "generatedAt": "2026-11-13T13:48:59.076251+00:00",
-    "syncLabel": "2026-11-13 13:48 UTC",
+    "generatedAt": "2026-11-13T18:04:46.315698+00:00",
+    "syncLabel": "2026-11-13 18:04 UTC",
     "totalArticles": 60,
     "criticalCount": 0,
     "highImpactCount": 1,
     "breakingCount": 1,
     "buDistribution": {
       "DIAB": 16,
-      "GIT": 11,
-      "Cluster": 12,
+      "GIT": 10,
+      "Cluster": 13,
       "CHC": 2,
-      "Corporate": 25
+      "Corporate": 26
     },
     "impactDistribution": {
       "CRITICAL": 0,
@@ -28,13 +28,13 @@ window.ZETA_NEWS_FEED = {
       "Women's Health": 1,
       "Regulatory & Egypt Healthcare": 1,
       "Obesity & Incretin Therapies": 8,
-      "Neuroscience & Pain": 3,
+      "Neuroscience & Pain": 2,
       "Diabetes & Metabolic Disease": 6,
       "Cardio-Renal-Metabolic": 5,
       "Gastroenterology": 4,
       "Dermatology": 3,
       "Competitor & Market Moves": 3,
-      "General Strategic Intelligence": 22,
+      "General Strategic Intelligence": 23,
       "Pediatrics": 3,
       "Emerging Technologies & Pipeline": 1
     },
@@ -44,13 +44,13 @@ window.ZETA_NEWS_FEED = {
       "Clinical Result": 25,
       "Market Access": 26,
       "Safety": 3,
+      "Competitor Move": 1,
       "Manufacturing": 1,
-      "Technology": 1,
       "Supply / Shortage": 1,
       "Regulatory": 2
     },
-    "competitorIntelCount": 6,
-    "obesityIncretinCount": 10,
+    "competitorIntelCount": 7,
+    "obesityIncretinCount": 9,
     "liveFeedMaxAgeDays": 180,
     "dateRangeOldest": "2026-07-31T11:31:21+00:00",
     "dateRangeNewest": "2027-04-01T00:00:00+00:00",
@@ -81,8 +81,8 @@ window.ZETA_NEWS_FEED = {
         "name": "BioPharma Dive",
         "status": "PASS",
         "articlesReturned": 10,
-        "newestDate": "2026-11-13T01:22:00+00:00",
-        "oldestDate": "2026-11-10T05:01:00+00:00",
+        "newestDate": "2026-11-13T14:36:00+00:00",
+        "oldestDate": "2026-11-10T17:06:00+00:00",
         "errorType": null
       },
       {
@@ -203,9 +203,9 @@ window.ZETA_NEWS_FEED = {
         "errorType": "DISABLED 2026-09-10: no working RSS/Atom endpoint found (404 on /en/rss/ and /en/rss; no autodiscovery tag on the real news page). Re-test periodically; do not silently scrape the HTML news listing."
       }
     ],
-    "removedByRecency": 1838,
+    "removedByRecency": 1837,
     "removedByDuplicate": 60,
-    "removedBySourceCap": 13,
+    "removedBySourceCap": 14,
     "removedUntargetedSafety": 47,
     "archiveCount": 500
   },
@@ -216,7 +216,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-20T15:57:36+00:00",
-      "age_days": 23,
+      "age_days": 24,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-once-weekly-generic-hormone-therapy-patch-women",
       "summary": "Today, the U.S. Food and Drug Administration approved the first generic of Climara Pro (estradiol and levonorgestrel transdermal system, 0.045 mg per day/0.015 mg), a transdermal hormone therapy patch for women with an intact uterus applied once a week.",
       "primary_therapeutic_area": "Women's Health",
@@ -300,7 +300,7 @@ window.ZETA_NEWS_FEED = {
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-11-12T16:44:00+00:00",
-      "age_days": 0,
+      "age_days": 1,
       "url": "https://www.biopharmadive.com/news/blackstone-pfizer-berobenatide-deal/874483/",
       "summary": "The deal will support a sprawling Phase 3 program for a monthly GLP-1 shot Pfizer acquired by winning a bidding war for the drug’s previous owner, Metsera.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
@@ -388,7 +388,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-22T16:58:19+00:00",
-      "age_days": 21,
+      "age_days": 22,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-launches-new-program-advance-neuroscience-medical-product-development",
       "summary": "FDA announces the launch of the Neuroscience Advancement and Innovation Nexus (NAIN), a new agency program aligned with the Trump Administration’s efforts to accelerate medical innovation and deliver breakthrough treatments.",
       "primary_therapeutic_area": "Neuroscience & Pain",
@@ -512,23 +512,29 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "High-growth incretin market signal; critical benchmark for Zeta metabolic pipeline and oral formulations."
     },
     {
-      "id": "zeta_intel_20261201_002b7e5a",
-      "title": "Symptom improvement was not significantly associated with weight loss, dose, or treatment duration in women with lipoedema treated with tirzepatide: a retrospective cohort study of prospectively collected outcomes",
-      "source": "Metabol Open (PubMed)",
+      "id": "zeta_intel_20261201_8d2aad53",
+      "title": "Cardiovascular outcomes with semaglutide versus tirzepatide in patients with obesity and atherosclerotic cardiovascular disease without diabetes",
+      "source": "Am Heart J Plus (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
       "age_days": -18,
-      "url": "https://pubmed.ncbi.nlm.nih.gov/42991981/",
-      "summary": "Peer-reviewed clinical trial / study published in Metabol Open evaluating obesity & incretin therapies efficacy, therapeutic protocols, and patient outcomes.",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/43022342/",
+      "summary": "Peer-reviewed clinical trial / study published in Am Heart J Plus evaluating obesity & incretin therapies efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Obesity & Incretin Therapies",
-      "secondary_therapeutic_areas": [],
+      "secondary_therapeutic_areas": [
+        "Cardio-Renal-Metabolic",
+        "Diabetes & Metabolic Disease"
+      ],
       "business_units": [
+        "Cluster",
         "DIAB"
       ],
       "molecules": [
+        "Semaglutide",
         "Tirzepatide"
       ],
       "mechanisms": [
+        "GLP-1",
         "GLP-1/GIP",
         "Incretin"
       ],
@@ -544,6 +550,7 @@ window.ZETA_NEWS_FEED = {
         "Clinical Trial",
         "Global",
         "Obesity & Incretin Therapies",
+        "Semaglutide",
         "Tirzepatide"
       ],
       "opportunity_type": "Whitespace Opportunity",
@@ -1154,7 +1161,7 @@ window.ZETA_NEWS_FEED = {
       "published_at": "2026-11-13T01:22:00+00:00",
       "age_days": 0,
       "url": "https://www.biopharmadive.com/news/windward-ipo-pricing-immune-drugs-china-deals-tezspire/874533/",
-      "summary": "The Swiss biotech has two prospects it sees as having the potential to outcompete AstraZeneca and Amgen's blockbuster asthma treatment Tezspire.",
+      "summary": "The Swiss biotech, which pocketed another $50 million through a concurrent private share sale to Sanofi, is developing a potential competitor to the blockbuster asthma treatment Tezspire.",
       "primary_therapeutic_area": "Competitor & Market Moves",
       "secondary_therapeutic_areas": [],
       "business_units": [
@@ -1163,18 +1170,18 @@ window.ZETA_NEWS_FEED = {
       "molecules": [],
       "mechanisms": [],
       "companies": [
-        "AstraZeneca"
+        "Sanofi"
       ],
       "brands": [],
       "geography": "Global",
       "intelligence_types": [
-        "Market Access"
+        "Competitor Move"
       ],
       "tags": [
-        "AstraZeneca",
         "Competitor & Market Moves",
+        "Competitor Move",
         "Global",
-        "Market Access"
+        "Sanofi"
       ],
       "opportunity_type": null,
       "opportunity_sublabel": null,
@@ -1184,7 +1191,7 @@ window.ZETA_NEWS_FEED = {
       "breaking": false,
       "is_live": true,
       "is_academic_noise": false,
-      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+      "why_it_matters": "Active competitive move from Sanofi; alert Corporate SFE field force and key account managers."
     },
     {
       "id": "zeta_intel_20261110_9ba87b6e",
@@ -1478,14 +1485,14 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "High-growth incretin market signal; critical benchmark for Zeta metabolic pipeline and oral formulations."
     },
     {
-      "id": "zeta_intel_20261201_a203ace4",
-      "title": "Bergenin attenuates diabetic cardiomyopathy by inhibiting oxidative stress and ferroptosis through modulation of the YAP signaling axis",
-      "source": "Life Sci (PubMed)",
+      "id": "zeta_intel_20261201_7df59e58",
+      "title": "SGLT2 inhibitors for peripartum cardiomyopathy: A call for a dedicated trial",
+      "source": "Am Heart J Plus (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
       "age_days": -18,
-      "url": "https://pubmed.ncbi.nlm.nih.gov/42925926/",
-      "summary": "Peer-reviewed clinical trial / study published in Life Sci evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/43022501/",
+      "summary": "Peer-reviewed clinical trial / study published in Am Heart J Plus evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Diabetes & Metabolic Disease",
       "secondary_therapeutic_areas": [],
       "business_units": [
@@ -1517,27 +1524,21 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "Antidiabetic therapy update; evaluate positioning versus standard of care."
     },
     {
-      "id": "zeta_intel_20261201_2b326e64",
-      "title": "Effectiveness of Adding GLP-1 Receptor Agonists to SGLT2 Inhibitor Therapy in Chronic Kidney Disease: A Population Based Study",
-      "source": "Diabetes Obes Metab (PubMed)",
+      "id": "zeta_intel_20261201_a203ace4",
+      "title": "Bergenin attenuates diabetic cardiomyopathy by inhibiting oxidative stress and ferroptosis through modulation of the YAP signaling axis",
+      "source": "Life Sci (PubMed)",
       "source_id": "pubmed_dynamic",
       "published_at": "2026-12-01T00:00:00+00:00",
       "age_days": -18,
-      "url": "https://pubmed.ncbi.nlm.nih.gov/42802242/",
-      "summary": "Peer-reviewed clinical trial / study published in Diabetes Obes Metab evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42925926/",
+      "summary": "Peer-reviewed clinical trial / study published in Life Sci evaluating diabetes & sglt2/dpp4 efficacy, therapeutic protocols, and patient outcomes.",
       "primary_therapeutic_area": "Diabetes & Metabolic Disease",
-      "secondary_therapeutic_areas": [
-        "Obesity & Incretin Therapies",
-        "Cardio-Renal-Metabolic"
-      ],
+      "secondary_therapeutic_areas": [],
       "business_units": [
         "DIAB"
       ],
       "molecules": [],
-      "mechanisms": [
-        "GLP-1",
-        "SGLT2 inhibitor"
-      ],
+      "mechanisms": [],
       "companies": [],
       "brands": [],
       "geography": "Global",
@@ -1682,41 +1683,44 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "Drug safety/recall signal from Hikma Pharmaceuticals; assess exposure for comparable products in the Corporate portfolio."
     },
     {
-      "id": "zeta_intel_20261110_5917e099",
-      "title": "London biotech Oyster harvests $60M for tau-targeting brain drugs",
+      "id": "zeta_intel_20261113_f7c6b090",
+      "title": "Novo submits sickle cell drug; Flagship, Gates Foundation deepen ties",
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
-      "published_at": "2026-11-10T07:00:00+00:00",
-      "age_days": 3,
-      "url": "https://www.biopharmadive.com/news/oyster-venture-financing-tau-targeted-protein-degraders/874160/",
-      "summary": "Oyster says a tweak it's made to traditional protein degrading technology can help break down tau, which has long been a focus of Alzheimer’s drug research.",
-      "primary_therapeutic_area": "Neuroscience & Pain",
+      "published_at": "2026-11-13T14:36:00+00:00",
+      "age_days": 0,
+      "url": "https://www.biopharmadive.com/news/novo-etavopivat-flagship-gates-ascidian-immuneering-neurosterix/874120/",
+      "summary": "Novo views the medicine, acquired in a billion-dollar deal, as a future blockbuster. Meanwhile, a pair of startups forged an RNA editing pact and Astellas lined up two new trials in pancreatic cancer.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
       "secondary_therapeutic_areas": [],
       "business_units": [
-        "GIT"
+        "Corporate"
       ],
       "molecules": [],
       "mechanisms": [],
-      "companies": [],
+      "companies": [
+        "Novo Nordisk"
+      ],
       "brands": [],
       "geography": "Global",
       "intelligence_types": [
-        "Technology"
+        "Market Access"
       ],
       "tags": [
+        "General Strategic Intelligence",
         "Global",
-        "Neuroscience & Pain",
-        "Technology"
+        "Market Access",
+        "Novo Nordisk"
       ],
       "opportunity_type": null,
       "opportunity_sublabel": null,
       "importance": 3,
-      "relevance": 52,
+      "relevance": 51,
       "impact": "MEDIUM",
       "breaking": false,
       "is_live": true,
       "is_academic_noise": false,
-      "why_it_matters": "Neuropathic pain insight relevant to peripheral neuropathy management and prescription volume."
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
     },
     {
       "id": "zeta_intel_20261001_fcbeef17",
@@ -1904,12 +1908,49 @@ window.ZETA_NEWS_FEED = {
       "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
     },
     {
+      "id": "zeta_intel_20261113_dbea19ff",
+      "title": "This week in charts: Brain drugs are back on venture capitalists’ minds",
+      "source": "BioPharma Dive",
+      "source_id": "biopharma_dive",
+      "published_at": "2026-11-13T14:00:00+00:00",
+      "age_days": 0,
+      "url": "https://www.biopharmadive.com/news/charts-venture-neuroscience-oyster-vectory-acr-cell-therapy/874570/",
+      "summary": "Five neurology-focused startups have together raised around $450 million in the last few weeks. Elsewhere, investors had a muted response to the latest cell therapy research.",
+      "primary_therapeutic_area": "General Strategic Intelligence",
+      "secondary_therapeutic_areas": [],
+      "business_units": [
+        "Corporate"
+      ],
+      "molecules": [],
+      "mechanisms": [],
+      "companies": [],
+      "brands": [],
+      "geography": "Global",
+      "intelligence_types": [
+        "Market Access"
+      ],
+      "tags": [
+        "General Strategic Intelligence",
+        "Global",
+        "Market Access"
+      ],
+      "opportunity_type": null,
+      "opportunity_sublabel": null,
+      "importance": 2,
+      "relevance": 36,
+      "impact": "LOW",
+      "breaking": false,
+      "is_live": true,
+      "is_academic_noise": false,
+      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
+    },
+    {
       "id": "zeta_intel_20261112_eb20b86e",
       "title": "Bristol Myers research chief to depart in ‘evolution’ of company’s structure",
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-11-12T16:03:00+00:00",
-      "age_days": 0,
+      "age_days": 1,
       "url": "https://www.biopharmadive.com/news/bristol-myers-robert-plenge-cristian-massacesi-research-transition/874476/",
       "summary": "Robert Plenge is leaving as part of a shift that will see the company merge together its R&D department in a bid to speed development and capitalize on new technologies.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -1946,7 +1987,7 @@ window.ZETA_NEWS_FEED = {
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-11-12T14:38:00+00:00",
-      "age_days": 0,
+      "age_days": 1,
       "url": "https://www.biopharmadive.com/news/fda-staffing-shortages-drug-reviews-pharma/874480/",
       "summary": "The agency is still recovering from a mass staff exodus last year that left it shorthanded. Here’s what it means for the industry.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -1983,7 +2024,7 @@ window.ZETA_NEWS_FEED = {
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-11-11T16:11:00+00:00",
-      "age_days": 1,
+      "age_days": 2,
       "url": "https://www.biopharmadive.com/news/germany-us-drug-price-study-healthcare-costs/874360/",
       "summary": "The report comes amid escalating tensions between the U.S. and Germany over drug prices, with several large pharmaceutical companies responding by scaling back investments in the country.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2020,46 +2061,9 @@ window.ZETA_NEWS_FEED = {
       "source": "BioPharma Dive",
       "source_id": "biopharma_dive",
       "published_at": "2026-11-10T17:06:00+00:00",
-      "age_days": 2,
+      "age_days": 3,
       "url": "https://www.biopharmadive.com/news/beam-sickle-cell-base-editing-risto-cel-results/874242/",
       "summary": "The result represents a scientific milestone and positions Beam to submit a first-of-its-kind FDA application as soon as the end of the year.",
-      "primary_therapeutic_area": "General Strategic Intelligence",
-      "secondary_therapeutic_areas": [],
-      "business_units": [
-        "Corporate"
-      ],
-      "molecules": [],
-      "mechanisms": [],
-      "companies": [],
-      "brands": [],
-      "geography": "Global",
-      "intelligence_types": [
-        "Market Access"
-      ],
-      "tags": [
-        "General Strategic Intelligence",
-        "Global",
-        "Market Access"
-      ],
-      "opportunity_type": null,
-      "opportunity_sublabel": null,
-      "importance": 2,
-      "relevance": 36,
-      "impact": "LOW",
-      "breaking": false,
-      "is_live": true,
-      "is_academic_noise": false,
-      "why_it_matters": "External strategic intelligence relevant to Corporate commercial planning and territory execution."
-    },
-    {
-      "id": "zeta_intel_20261110_95a81d5e",
-      "title": "BIO unveils plan for US to remain biotech’s ‘global leader’",
-      "source": "BioPharma Dive",
-      "source_id": "biopharma_dive",
-      "published_at": "2026-11-10T05:01:00+00:00",
-      "age_days": 3,
-      "url": "https://www.biopharmadive.com/news/bio-bioadvance-proposal-us-trial-competition-china/874162/",
-      "summary": "A seven-part proposal from the prominent lobbyist lays out a series of initiatives to accelerate drug development in the U.S. and counter China’s fast rise.",
       "primary_therapeutic_area": "General Strategic Intelligence",
       "secondary_therapeutic_areas": [],
       "business_units": [
@@ -2131,7 +2135,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-11-02T13:56:06+00:00",
-      "age_days": 10,
+      "age_days": 11,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-provides-clarity-support-cell-and-gene-therapy-development-and-quality",
       "summary": "The U.S. Food and Drug Administration today issued final guidance for manufacturers of cellular and gene therapy (CGT) products to implement a comprehensive, science- and risk-based plan for making sure their products meet potency standards.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2279,7 +2283,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-19T16:19:38+00:00",
-      "age_days": 24,
+      "age_days": 25,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-immunotherapy-may-allow-certain-patients-rectal-cancer-avoid-chemotherapy-radiation-and",
       "summary": "The U.S. Food and Drug Administration today granted accelerated approval for a new use of the immunotherapy Jemperli (dostarlimab-gxly) that may allow some patients with locally advanced rectal cancer to avoid common treatments that can have a lasting impact on their daily life.",
       "primary_therapeutic_area": "General Strategic Intelligence",
@@ -2316,7 +2320,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-14T15:50:52+00:00",
-      "age_days": 29,
+      "age_days": 30,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-launches-rare-disease-framework-initiative-develop-holistic-fit-purpose-framework-rare-disease",
       "summary": "The U.S. Food and Drug Administration, a division within the U.S. Department of Health and Human Services (HHS), today announced the Rare Disease Framework Initiative to reimagine the development of drugs and biologics for rare diseases.",
       "primary_therapeutic_area": "Emerging Technologies & Pipeline",
@@ -2353,7 +2357,7 @@ window.ZETA_NEWS_FEED = {
       "source": "FDA Press Releases & Drug Approvals",
       "source_id": "fda_press",
       "published_at": "2026-10-14T15:14:51+00:00",
-      "age_days": 29,
+      "age_days": 30,
       "url": "http://www.fda.gov/news-events/press-announcements/fda-approves-first-treatment-certain-people-bcg-unresponsive-bladder-cancer",
       "summary": "FDA Approves First Treatment for Certain People With BCG-Unresponsive Bladder Cancer",
       "primary_therapeutic_area": "General Strategic Intelligence",

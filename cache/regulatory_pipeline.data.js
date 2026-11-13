@@ -1,50 +1,50 @@
 window.ZETA_REGULATORY_PIPELINE = {
   "meta": {
-    "generatedAt": "2026-11-13T13:49:14.300002+00:00",
+    "generatedAt": "2026-11-13T18:05:05.344537+00:00",
     "eventYear": 2026,
-    "totalRecords": 84,
+    "totalRecords": 86,
     "sourcesTotal": 2,
     "sourcesHealthy": 2,
     "sourceHealth": [
       {
-        "timestamp": "2026-11-13T13:49:14.386938+00:00",
+        "timestamp": "2026-11-13T18:05:05.429498+00:00",
         "id": "fda_novel_approvals",
         "name": "FDA Novel Drug Approvals",
         "url": "https://www.fda.gov/drugs/novel-drug-approvals-fda/novel-drug-approvals-2026",
         "status": "PASS",
         "http_status": 200,
-        "elapsed_s": 0.86,
+        "elapsed_s": 2.73,
         "records_returned": 48,
         "error_type": null,
         "error_message": null
       },
       {
-        "timestamp": "2026-11-13T13:49:15.248330+00:00",
+        "timestamp": "2026-11-13T18:05:08.158716+00:00",
         "id": "ema_medicines",
         "name": "EMA Medicines Dataset",
         "url": "https://www.ema.europa.eu/en/documents/report/medicines-output-medicines_json-report_en.json",
         "status": "PASS",
         "http_status": 200,
-        "elapsed_s": 27.69,
-        "records_returned": 36,
+        "elapsed_s": 48.61,
+        "records_returned": 38,
         "error_type": null,
         "error_message": "17 Zeta-relevant record(s) had no dated evidence field and were skipped (not an error, informational)."
       }
     ],
     "counts": {
-      "total2026Records": 84,
+      "total2026Records": 86,
       "globalApproved2026": 69,
       "globalUnderReview2026": 1,
-      "globalNearApproval2026": 12,
+      "globalNearApproval2026": 14,
       "egyptRegistered2026": 5,
       "egyptUnderRegistration2026": 7,
       "egyptWatchlistCount": 30,
-      "executiveSignalsCount": 81
+      "executiveSignalsCount": 83
     },
     "droppedPre2026": 0,
     "architecture": "4-Tier 2026 Pharmaceutical Regulatory & Egypt Registration Intelligence",
     "tiers": {
-      "tier1_global_regulatory_2026": 84,
+      "tier1_global_regulatory_2026": 86,
       "tier2_egypt_registered_2026": 5,
       "tier3_egypt_under_registration_2026": 7,
       "tier4_egypt_watchlist_2026": 30
@@ -53,7 +53,137 @@ window.ZETA_REGULATORY_PIPELINE = {
   },
   "records": [
     {
-      "id": "reg_2026_20261202_73600",
+      "id": "reg_2026_20261211_18558",
+      "event_year": 2026,
+      "drug_name": "Donrafylix",
+      "active_ingredient": "insulin aspart",
+      "applicant": "Kuraci",
+      "indication_text": "Treatment of diabetes mellitus from 1 year of age.",
+      "summary_line1": "Novel 2026 therapeutic molecule (insulin aspart) indicated for Treatment of diabetes mellitus from 1 year of age..",
+      "summary_line2": "2026 global regulatory milestone by Kuraci monitored for Egyptian commercial opportunities.",
+      "therapeutic_area": "Diabetes & Metabolic Disease",
+      "secondary_therapeutic_areas": [],
+      "molecules": [
+        "Insulin"
+      ],
+      "companies": [],
+      "brands": [],
+      "mechanisms": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "is_competitor": true,
+      "global_stage": "POSITIVE_REGULATORY_OPINION",
+      "global_stage_date": "2026-12-11",
+      "global_source": "EMA CHMP Positive Regulatory Opinion",
+      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/donrafylix",
+      "evidence_level": 1,
+      "egypt_status": "STATUS_UNKNOWN",
+      "egypt_applicant": null,
+      "egypt_registration_number": null,
+      "egypt_evidence_url": null,
+      "egypt_last_verified": null,
+      "readiness_score": 10,
+      "readiness_bucket": "EARLY DEVELOPMENT",
+      "readiness_components": [
+        {
+          "key": "chmp_positive_opinion",
+          "points": 10,
+          "reason": "Positive regulatory opinion adopted (evidenced)"
+        }
+      ],
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
+      "confidence": "HIGH",
+      "executive_signal": true
+    },
+    {
+      "id": "reg_2026_20261211_48267",
+      "event_year": 2026,
+      "drug_name": "Garzulys",
+      "active_ingredient": "insulin aspart",
+      "applicant": "Sciencepharma Sp. z o.o",
+      "indication_text": "Treatment of diabetes mellitus from 1 year of age.",
+      "summary_line1": "Novel 2026 therapeutic molecule (insulin aspart) indicated for Treatment of diabetes mellitus from 1 year of age..",
+      "summary_line2": "2026 global regulatory milestone by Sciencepharma Sp. z o.o monitored for Egyptian commercial opportunities.",
+      "therapeutic_area": "Diabetes & Metabolic Disease",
+      "secondary_therapeutic_areas": [],
+      "molecules": [
+        "Insulin"
+      ],
+      "companies": [],
+      "brands": [],
+      "mechanisms": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "is_competitor": true,
+      "global_stage": "POSITIVE_REGULATORY_OPINION",
+      "global_stage_date": "2026-12-11",
+      "global_source": "EMA CHMP Positive Regulatory Opinion",
+      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/garzulys",
+      "evidence_level": 1,
+      "egypt_status": "STATUS_UNKNOWN",
+      "egypt_applicant": null,
+      "egypt_registration_number": null,
+      "egypt_evidence_url": null,
+      "egypt_last_verified": null,
+      "readiness_score": 10,
+      "readiness_bucket": "EARLY DEVELOPMENT",
+      "readiness_components": [
+        {
+          "key": "chmp_positive_opinion",
+          "points": 10,
+          "reason": "Positive regulatory opinion adopted (evidenced)"
+        }
+      ],
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
+      "confidence": "HIGH",
+      "executive_signal": true
+    },
+    {
+      "id": "reg_2026_20261211_17316",
+      "event_year": 2026,
+      "drug_name": "Ruxolitinib Krka",
+      "active_ingredient": "ruxolitinib",
+      "applicant": "KRKA tovarna zdravil d.d. Novo mesto",
+      "indication_text": "Treatment of myelofibrosis (MF) and polycythaemia vera (PV) in adults, and treatment of Graft versus host disease (GvHD) in adults and children.",
+      "summary_line1": "Novel 2026 therapeutic molecule (ruxolitinib) indicated for Treatment of myelofibrosis (MF) and polycythaemia vera (PV) in adults, and treatment of Graft versus host disease (GvHD) in adults and children..",
+      "summary_line2": "2026 global regulatory milestone by KRKA tovarna zdravil d.d. Novo mesto monitored for Egyptian commercial opportunities.",
+      "therapeutic_area": "Pediatrics",
+      "secondary_therapeutic_areas": [],
+      "molecules": [],
+      "companies": [],
+      "brands": [],
+      "mechanisms": [],
+      "business_units": [
+        "Cluster"
+      ],
+      "is_competitor": true,
+      "global_stage": "POSITIVE_REGULATORY_OPINION",
+      "global_stage_date": "2026-12-11",
+      "global_source": "EMA CHMP Positive Regulatory Opinion",
+      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/ruxolitinib-krka",
+      "evidence_level": 1,
+      "egypt_status": "STATUS_UNKNOWN",
+      "egypt_applicant": null,
+      "egypt_registration_number": null,
+      "egypt_evidence_url": null,
+      "egypt_last_verified": null,
+      "readiness_score": 10,
+      "readiness_bucket": "EARLY DEVELOPMENT",
+      "readiness_components": [
+        {
+          "key": "chmp_positive_opinion",
+          "points": 10,
+          "reason": "Positive regulatory opinion adopted (evidenced)"
+        }
+      ],
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
+      "confidence": "HIGH",
+      "executive_signal": true
+    },
+    {
+      "id": "reg_2026_20261202_50375",
       "event_year": 2026,
       "drug_name": "mNexspike",
       "active_ingredient": "COVID-19 mRNA vaccine",
@@ -84,12 +214,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261109_27446",
+      "id": "reg_2026_20261109_68358",
       "event_year": 2026,
       "drug_name": "Sunharbo",
       "active_ingredient": "asundexian",
@@ -120,12 +250,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261020_56785",
+      "id": "reg_2026_20261020_06823",
       "event_year": 2026,
       "drug_name": "Hibsago",
       "active_ingredient": "bepirovirsen&nbsp;",
@@ -156,12 +286,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261015_73320",
+      "id": "reg_2026_20261015_28647",
       "event_year": 2026,
       "drug_name": "Neuzafy",
       "active_ingredient": "filgrastim",
@@ -198,12 +328,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261015_02256",
+      "id": "reg_2026_20261015_77088",
       "event_year": 2026,
       "drug_name": "Foundayo",
       "active_ingredient": "Orforglipron",
@@ -249,12 +379,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "EDA under-registration evidence: https://clinicaltrials.gov/study/NCT05869903"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261015_41178",
+      "id": "reg_2026_20261015_35695",
       "event_year": 2026,
       "drug_name": "Kizfizo",
       "active_ingredient": "temozolomide",
@@ -291,12 +421,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261015_97363",
+      "id": "reg_2026_20261015_08599",
       "event_year": 2026,
       "drug_name": "Yuviwel",
       "active_ingredient": "Navepegritide",
@@ -333,12 +463,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261009_21233",
+      "id": "reg_2026_20261009_98178",
       "event_year": 2026,
       "drug_name": "Hovilpri",
       "active_ingredient": "pritelivir",
@@ -369,12 +499,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261002_74515",
+      "id": "reg_2026_20261002_76800",
       "event_year": 2026,
       "drug_name": "Gotenfia",
       "active_ingredient": "golimumab",
@@ -407,12 +537,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260928_31578",
+      "id": "reg_2026_20260928_41670",
       "event_year": 2026,
       "drug_name": "Emcitate",
       "active_ingredient": "tiratricol",
@@ -443,12 +573,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260925_16555",
+      "id": "reg_2026_20260925_13989",
       "event_year": 2026,
       "drug_name": "Atebrioz&nbsp;",
       "active_ingredient": "zilurgisertib",
@@ -479,12 +609,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260925_70038",
+      "id": "reg_2026_20260925_75042",
       "event_year": 2026,
       "drug_name": "Juvmo",
       "active_ingredient": "tavapadon",
@@ -515,12 +645,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260923_24027",
+      "id": "reg_2026_20260923_15265",
       "event_year": 2026,
       "drug_name": "Lyrfigtu",
       "active_ingredient": "lirafugratinib",
@@ -551,12 +681,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260923_21796",
+      "id": "reg_2026_20260923_75056",
       "event_year": 2026,
       "drug_name": "Onswik",
       "active_ingredient": "insulin efsitora alfa-gobe",
@@ -589,12 +719,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260918_85534",
+      "id": "reg_2026_20260918_04623",
       "event_year": 2026,
       "drug_name": "Ruxolitinib Viatris",
       "active_ingredient": "ruxolitinib hemifumarate",
@@ -627,12 +757,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260918_07408",
+      "id": "reg_2026_20260918_57336",
       "event_year": 2026,
       "drug_name": "Icotyde",
       "active_ingredient": "icotrokinra hydrochloride",
@@ -663,12 +793,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260917_81533",
+      "id": "reg_2026_20260917_51447",
       "event_year": 2026,
       "drug_name": "Inijaq",
       "active_ingredient": "tofacitinib",
@@ -707,12 +837,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260917_20314",
+      "id": "reg_2026_20260917_12922",
       "event_year": 2026,
       "drug_name": "Povofortay",
       "active_ingredient": "povorcitinib",
@@ -749,54 +879,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260917_56730",
-      "event_year": 2026,
-      "drug_name": "Ruxolitinib Zentiva",
-      "active_ingredient": "ruxolitinib",
-      "applicant": "Zentiva k.s.",
-      "indication_text": "Treatment of myelofibrosis (MF) in adults, treatment of polycythaemia vera (PV) in adults and treatment of Graft versus host disease (GvHD) in adults and children",
-      "summary_line1": "Novel 2026 therapeutic molecule (ruxolitinib) indicated for Treatment of myelofibrosis (MF) in adults, treatment of polycythaemia vera (PV) in adults and treatment of Graft versus host disease (GvHD) in adults and children.",
-      "summary_line2": "2026 global regulatory milestone by Zentiva k.s. monitored for Egyptian commercial opportunities.",
-      "therapeutic_area": "Pediatrics",
-      "secondary_therapeutic_areas": [],
-      "molecules": [],
-      "companies": [],
-      "brands": [],
-      "mechanisms": [],
-      "business_units": [
-        "Cluster"
-      ],
-      "is_competitor": true,
-      "global_stage": "POSITIVE_REGULATORY_OPINION",
-      "global_stage_date": "2026-09-17",
-      "global_source": "EMA CHMP Positive Regulatory Opinion",
-      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/ruxolitinib-zentiva",
-      "evidence_level": 1,
-      "egypt_status": "STATUS_UNKNOWN",
-      "egypt_applicant": null,
-      "egypt_registration_number": null,
-      "egypt_evidence_url": null,
-      "egypt_last_verified": null,
-      "readiness_score": 10,
-      "readiness_bucket": "EARLY DEVELOPMENT",
-      "readiness_components": [
-        {
-          "key": "chmp_positive_opinion",
-          "points": 10,
-          "reason": "Positive regulatory opinion adopted (evidenced)"
-        }
-      ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
-      "confidence": "HIGH",
-      "executive_signal": true
-    },
-    {
-      "id": "reg_2026_20260911_51572",
+      "id": "reg_2026_20260911_87808",
       "event_year": 2026,
       "drug_name": "Pixclara",
       "active_ingredient": "floretyrosine F 18",
@@ -827,12 +915,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260911_87367",
+      "id": "reg_2026_20260911_72076",
       "event_year": 2026,
       "drug_name": "Isembyld",
       "active_ingredient": "apitegromab-mstn",
@@ -863,12 +951,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260904_15646",
+      "id": "reg_2026_20260904_45920",
       "event_year": 2026,
       "drug_name": "Etcamah",
       "active_ingredient": "camizestrant",
@@ -899,12 +987,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260903_69430",
+      "id": "reg_2026_20260903_19825",
       "event_year": 2026,
       "drug_name": "Zanvastro",
       "active_ingredient": "zilganersen",
@@ -935,12 +1023,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260901_48358",
+      "id": "reg_2026_20260901_88652",
       "event_year": 2026,
       "drug_name": "Ondibta",
       "active_ingredient": "insulin glargine",
@@ -975,12 +1063,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260828_61864",
+      "id": "reg_2026_20260828_14459",
       "event_year": 2026,
       "drug_name": "Mimrylo",
       "active_ingredient": "rusfertide",
@@ -1011,12 +1099,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260827_50225",
+      "id": "reg_2026_20260827_73566",
       "event_year": 2026,
       "drug_name": "Lisraya",
       "active_ingredient": "brepocitinib",
@@ -1047,12 +1135,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260826_23393",
+      "id": "reg_2026_20260826_82449",
       "event_year": 2026,
       "drug_name": "Rasonque",
       "active_ingredient": "daraxonrasib",
@@ -1083,12 +1171,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260820_74891",
+      "id": "reg_2026_20260820_22791",
       "event_year": 2026,
       "drug_name": "Hopledo",
       "active_ingredient": "levodopa;carbidopa",
@@ -1121,12 +1209,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260819_83439",
+      "id": "reg_2026_20260819_38801",
       "event_year": 2026,
       "drug_name": "Pasatru",
       "active_ingredient": "garetosmab-grts",
@@ -1157,12 +1245,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260813_67110",
+      "id": "reg_2026_20260813_87978",
       "event_year": 2026,
       "drug_name": "Zenbexus",
       "active_ingredient": "iberdomide",
@@ -1193,12 +1281,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260813_56568",
+      "id": "reg_2026_20260813_29017",
       "event_year": 2026,
       "drug_name": "Tauklarify",
       "active_ingredient": "florquinitau F 18",
@@ -1229,12 +1317,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260810_81021",
+      "id": "reg_2026_20260810_91567",
       "event_year": 2026,
       "drug_name": "Bovilis Lumpyvax",
       "active_ingredient": "Lumpy skin disease vaccine (live)",
@@ -1271,12 +1359,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260805_11913",
+      "id": "reg_2026_20260805_27133",
       "event_year": 2026,
       "drug_name": "Orzeyful",
       "active_ingredient": "oveporexton",
@@ -1307,12 +1395,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260805_51437",
+      "id": "reg_2026_20260805_59304",
       "event_year": 2026,
       "drug_name": "Veblocema",
       "active_ingredient": "infliximab",
@@ -1343,12 +1431,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "WITHDRAWN (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": false
     },
     {
-      "id": "reg_2026_20260801_13518",
+      "id": "reg_2026_20260801_86543",
       "event_year": 2026,
       "drug_name": "Teduglutide Viatris",
       "active_ingredient": "teduglutide",
@@ -1381,12 +1469,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260801_53938",
+      "id": "reg_2026_20260801_48461",
       "event_year": 2026,
       "drug_name": "Teizeild",
       "active_ingredient": "teplizumab",
@@ -1417,12 +1505,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260724_19673",
+      "id": "reg_2026_20260724_36198",
       "event_year": 2026,
       "drug_name": "Simtriyo",
       "active_ingredient": "centanafadine",
@@ -1453,12 +1541,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260724_71283",
+      "id": "reg_2026_20260724_90048",
       "event_year": 2026,
       "drug_name": "Lytenava",
       "active_ingredient": "bevacizumab-vikg",
@@ -1489,12 +1577,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260723_43256",
+      "id": "reg_2026_20260723_95172",
       "event_year": 2026,
       "drug_name": "KemSu",
       "active_ingredient": "sufentanil;ketamine",
@@ -1531,12 +1619,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Under active regulatory evaluation (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": false
     },
     {
-      "id": "reg_2026_20260723_13596",
+      "id": "reg_2026_20260723_77172",
       "event_year": 2026,
       "drug_name": "Evlarco",
       "active_ingredient": "obicetrapib;ezetimibe",
@@ -1575,12 +1663,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260723_33772",
+      "id": "reg_2026_20260723_86693",
       "event_year": 2026,
       "drug_name": "Riociguat Accord",
       "active_ingredient": "riociguat",
@@ -1617,12 +1705,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260722_89873",
+      "id": "reg_2026_20260722_58386",
       "event_year": 2026,
       "drug_name": "Jideytro",
       "active_ingredient": "zidesamtinib",
@@ -1653,12 +1741,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260715_83680",
+      "id": "reg_2026_20260715_86194",
       "event_year": 2026,
       "drug_name": "Lipfendra",
       "active_ingredient": "enlicitide decanoate",
@@ -1689,12 +1777,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260715_87142",
+      "id": "reg_2026_20260715_65811",
       "event_year": 2026,
       "drug_name": "Liraglutide STADA",
       "active_ingredient": "liraglutide",
@@ -1732,12 +1820,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260715_43026",
+      "id": "reg_2026_20260715_14913",
       "event_year": 2026,
       "drug_name": "Ablymico",
       "active_ingredient": "liraglutide",
@@ -1772,12 +1860,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260714_51740",
+      "id": "reg_2026_20260714_91547",
       "event_year": 2026,
       "drug_name": "Revtorpyk",
       "active_ingredient": "gedatolisib",
@@ -1808,12 +1896,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260707_19941",
+      "id": "reg_2026_20260707_57543",
       "event_year": 2026,
       "drug_name": "Trutakna",
       "active_ingredient": "atacicept-vymj",
@@ -1844,12 +1932,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260626_46962",
+      "id": "reg_2026_20260626_29339",
       "event_year": 2026,
       "drug_name": "Lumvoa",
       "active_ingredient": "veligrotug-vvze",
@@ -1880,12 +1968,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260625_21796",
+      "id": "reg_2026_20260625_75056",
       "event_year": 2026,
       "drug_name": "Onswik",
       "active_ingredient": "Insulin efsitora alfa",
@@ -1924,12 +2012,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260619_17594",
+      "id": "reg_2026_20260619_62406",
       "event_year": 2026,
       "drug_name": "Palbociclib Viatris",
       "active_ingredient": "palbociclib",
@@ -1962,12 +2050,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260617_88348",
+      "id": "reg_2026_20260617_83077",
       "event_year": 2026,
       "drug_name": "Utebzi",
       "active_ingredient": "tebipenem pivoxil",
@@ -1998,12 +2086,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260612_31992",
+      "id": "reg_2026_20260612_49974",
       "event_year": 2026,
       "drug_name": "Ambelvist",
       "active_ingredient": "gadoquatrane",
@@ -2034,12 +2122,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260605_20714",
+      "id": "reg_2026_20260605_48262",
       "event_year": 2026,
       "drug_name": "Bysumlog",
       "active_ingredient": "insulin lispro",
@@ -2074,12 +2162,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260529_52526",
+      "id": "reg_2026_20260529_53854",
       "event_year": 2026,
       "drug_name": "Cypsedo",
       "active_ingredient": "cipepofol",
@@ -2110,12 +2198,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260529_08085",
+      "id": "reg_2026_20260529_57200",
       "event_year": 2026,
       "drug_name": "Xocova",
       "active_ingredient": "ensitrelvir",
@@ -2146,12 +2234,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260529_37101",
+      "id": "reg_2026_20260529_27639",
       "event_year": 2026,
       "drug_name": "Zaynich",
       "active_ingredient": "cefepime and zidebactam",
@@ -2182,12 +2270,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260529_00416",
+      "id": "reg_2026_20260529_62849",
       "event_year": 2026,
       "drug_name": "Bopediat",
       "active_ingredient": "furosemide",
@@ -2220,12 +2308,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260527_67561",
+      "id": "reg_2026_20260527_56333",
       "event_year": 2026,
       "drug_name": "Decnupaz",
       "active_ingredient": "pivekimab sunirine-pvzy",
@@ -2256,12 +2344,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260522_46407",
+      "id": "reg_2026_20260522_80502",
       "event_year": 2026,
       "drug_name": "Hepcludex",
       "active_ingredient": "bulevirtide-gmod",
@@ -2292,12 +2380,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260515_52738",
+      "id": "reg_2026_20260515_29430",
       "event_year": 2026,
       "drug_name": "Baxfendy",
       "active_ingredient": "baxdrostat",
@@ -2328,12 +2416,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260513_96323",
+      "id": "reg_2026_20260513_53698",
       "event_year": 2026,
       "drug_name": "Beqalzi",
       "active_ingredient": "sonrotoclax",
@@ -2364,12 +2452,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260511_32598",
+      "id": "reg_2026_20260511_73949",
       "event_year": 2026,
       "drug_name": "Scovella",
       "active_ingredient": "velagliflozin",
@@ -2408,12 +2496,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260501_17991",
+      "id": "reg_2026_20260501_49316",
       "event_year": 2026,
       "drug_name": "Veppanu",
       "active_ingredient": "vepdegestrant",
@@ -2444,12 +2532,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260427_88252",
+      "id": "reg_2026_20260427_11461",
       "event_year": 2026,
       "drug_name": "Dazparda",
       "active_ingredient": "insulin aspart",
@@ -2484,12 +2572,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260427_29348",
+      "id": "reg_2026_20260427_03219",
       "event_year": 2026,
       "drug_name": "Onerji",
       "active_ingredient": "levodopa;carbidopa",
@@ -2522,12 +2610,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260423_80146",
+      "id": "reg_2026_20260423_06993",
       "event_year": 2026,
       "drug_name": "Fubelv",
       "active_ingredient": "etanercept",
@@ -2560,12 +2648,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260420_83502",
+      "id": "reg_2026_20260420_08841",
       "event_year": 2026,
       "drug_name": "Idvynso",
       "active_ingredient": "doravirine and islatravir",
@@ -2596,12 +2684,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260420_58662",
+      "id": "reg_2026_20260420_68378",
       "event_year": 2026,
       "drug_name": "mCombriax",
       "active_ingredient": "influenza mRNA vaccine;COVID-19 mRNA vaccine",
@@ -2632,12 +2720,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260401_02256",
+      "id": "reg_2026_20260401_77088",
       "event_year": 2026,
       "drug_name": "Foundayo",
       "active_ingredient": "orforglipron",
@@ -2670,12 +2758,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260330_64985",
+      "id": "reg_2026_20260330_70950",
       "event_year": 2026,
       "drug_name": "Supemtek",
       "active_ingredient": "trivalent influenza vaccine (recombinant, prepared in cell culture)",
@@ -2706,12 +2794,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260326_02896",
+      "id": "reg_2026_20260326_31208",
       "event_year": 2026,
       "drug_name": "Awiqli",
       "active_ingredient": "insulin icodec-abae",
@@ -2744,12 +2832,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260326_48270",
+      "id": "reg_2026_20260326_58493",
       "event_year": 2026,
       "drug_name": "Kayshild",
       "active_ingredient": "semaglutide",
@@ -2787,12 +2875,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260326_19834",
+      "id": "reg_2026_20260326_13490",
       "event_year": 2026,
       "drug_name": "Fylrevy",
       "active_ingredient": "estetrol",
@@ -2825,12 +2913,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260325_71818",
+      "id": "reg_2026_20260325_75810",
       "event_year": 2026,
       "drug_name": "Lifyorli",
       "active_ingredient": "relacorilant",
@@ -2861,12 +2949,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260325_82921",
+      "id": "reg_2026_20260325_80713",
       "event_year": 2026,
       "drug_name": "Blarcamesine Anavex",
       "active_ingredient": "blarcamesine",
@@ -2897,12 +2985,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "WITHDRAWN (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": false
     },
     {
-      "id": "reg_2026_20260324_57018",
+      "id": "reg_2026_20260324_81358",
       "event_year": 2026,
       "drug_name": "Avlayah",
       "active_ingredient": "tividenofusp alfa-eknm",
@@ -2933,12 +3021,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260317_07408",
+      "id": "reg_2026_20260317_57336",
       "event_year": 2026,
       "drug_name": "Icotyde",
       "active_ingredient": "icotrokinra",
@@ -2969,12 +3057,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260317_12857",
+      "id": "reg_2026_20260317_70406",
       "event_year": 2026,
       "drug_name": "Lynavoy",
       "active_ingredient": "linerixibat",
@@ -3005,12 +3093,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260227_97363",
+      "id": "reg_2026_20260227_08599",
       "event_year": 2026,
       "drug_name": "Yuviwel",
       "active_ingredient": "navepegritide",
@@ -3041,12 +3129,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260223_59054",
+      "id": "reg_2026_20260223_83687",
       "event_year": 2026,
       "drug_name": "Loargys",
       "active_ingredient": "pegzilarginase-nbln",
@@ -3077,12 +3165,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260220_67607",
+      "id": "reg_2026_20260220_94581",
       "event_year": 2026,
       "drug_name": "Bysanti",
       "active_ingredient": "milsaperidone",
@@ -3113,12 +3201,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260212_96193",
+      "id": "reg_2026_20260212_17242",
       "event_year": 2026,
       "drug_name": "Adquey",
       "active_ingredient": "difamilast",
@@ -3149,12 +3237,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260119_85759",
+      "id": "reg_2026_20260119_08655",
       "event_year": 2026,
       "drug_name": "Aqneursa",
       "active_ingredient": "L-acetylleucine",
@@ -3185,12 +3273,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260112_51514",
+      "id": "reg_2026_20260112_50088",
       "event_year": 2026,
       "drug_name": "Zycubo",
       "active_ingredient": "copper histidinate",
@@ -3221,14 +3309,144 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     }
   ],
   "tier1_global_regulatory_2026": [
     {
-      "id": "reg_2026_20261202_73600",
+      "id": "reg_2026_20261211_18558",
+      "event_year": 2026,
+      "drug_name": "Donrafylix",
+      "active_ingredient": "insulin aspart",
+      "applicant": "Kuraci",
+      "indication_text": "Treatment of diabetes mellitus from 1 year of age.",
+      "summary_line1": "Novel 2026 therapeutic molecule (insulin aspart) indicated for Treatment of diabetes mellitus from 1 year of age..",
+      "summary_line2": "2026 global regulatory milestone by Kuraci monitored for Egyptian commercial opportunities.",
+      "therapeutic_area": "Diabetes & Metabolic Disease",
+      "secondary_therapeutic_areas": [],
+      "molecules": [
+        "Insulin"
+      ],
+      "companies": [],
+      "brands": [],
+      "mechanisms": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "is_competitor": true,
+      "global_stage": "POSITIVE_REGULATORY_OPINION",
+      "global_stage_date": "2026-12-11",
+      "global_source": "EMA CHMP Positive Regulatory Opinion",
+      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/donrafylix",
+      "evidence_level": 1,
+      "egypt_status": "STATUS_UNKNOWN",
+      "egypt_applicant": null,
+      "egypt_registration_number": null,
+      "egypt_evidence_url": null,
+      "egypt_last_verified": null,
+      "readiness_score": 10,
+      "readiness_bucket": "EARLY DEVELOPMENT",
+      "readiness_components": [
+        {
+          "key": "chmp_positive_opinion",
+          "points": 10,
+          "reason": "Positive regulatory opinion adopted (evidenced)"
+        }
+      ],
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
+      "confidence": "HIGH",
+      "executive_signal": true
+    },
+    {
+      "id": "reg_2026_20261211_48267",
+      "event_year": 2026,
+      "drug_name": "Garzulys",
+      "active_ingredient": "insulin aspart",
+      "applicant": "Sciencepharma Sp. z o.o",
+      "indication_text": "Treatment of diabetes mellitus from 1 year of age.",
+      "summary_line1": "Novel 2026 therapeutic molecule (insulin aspart) indicated for Treatment of diabetes mellitus from 1 year of age..",
+      "summary_line2": "2026 global regulatory milestone by Sciencepharma Sp. z o.o monitored for Egyptian commercial opportunities.",
+      "therapeutic_area": "Diabetes & Metabolic Disease",
+      "secondary_therapeutic_areas": [],
+      "molecules": [
+        "Insulin"
+      ],
+      "companies": [],
+      "brands": [],
+      "mechanisms": [],
+      "business_units": [
+        "DIAB"
+      ],
+      "is_competitor": true,
+      "global_stage": "POSITIVE_REGULATORY_OPINION",
+      "global_stage_date": "2026-12-11",
+      "global_source": "EMA CHMP Positive Regulatory Opinion",
+      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/garzulys",
+      "evidence_level": 1,
+      "egypt_status": "STATUS_UNKNOWN",
+      "egypt_applicant": null,
+      "egypt_registration_number": null,
+      "egypt_evidence_url": null,
+      "egypt_last_verified": null,
+      "readiness_score": 10,
+      "readiness_bucket": "EARLY DEVELOPMENT",
+      "readiness_components": [
+        {
+          "key": "chmp_positive_opinion",
+          "points": 10,
+          "reason": "Positive regulatory opinion adopted (evidenced)"
+        }
+      ],
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
+      "confidence": "HIGH",
+      "executive_signal": true
+    },
+    {
+      "id": "reg_2026_20261211_17316",
+      "event_year": 2026,
+      "drug_name": "Ruxolitinib Krka",
+      "active_ingredient": "ruxolitinib",
+      "applicant": "KRKA tovarna zdravil d.d. Novo mesto",
+      "indication_text": "Treatment of myelofibrosis (MF) and polycythaemia vera (PV) in adults, and treatment of Graft versus host disease (GvHD) in adults and children.",
+      "summary_line1": "Novel 2026 therapeutic molecule (ruxolitinib) indicated for Treatment of myelofibrosis (MF) and polycythaemia vera (PV) in adults, and treatment of Graft versus host disease (GvHD) in adults and children..",
+      "summary_line2": "2026 global regulatory milestone by KRKA tovarna zdravil d.d. Novo mesto monitored for Egyptian commercial opportunities.",
+      "therapeutic_area": "Pediatrics",
+      "secondary_therapeutic_areas": [],
+      "molecules": [],
+      "companies": [],
+      "brands": [],
+      "mechanisms": [],
+      "business_units": [
+        "Cluster"
+      ],
+      "is_competitor": true,
+      "global_stage": "POSITIVE_REGULATORY_OPINION",
+      "global_stage_date": "2026-12-11",
+      "global_source": "EMA CHMP Positive Regulatory Opinion",
+      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/ruxolitinib-krka",
+      "evidence_level": 1,
+      "egypt_status": "STATUS_UNKNOWN",
+      "egypt_applicant": null,
+      "egypt_registration_number": null,
+      "egypt_evidence_url": null,
+      "egypt_last_verified": null,
+      "readiness_score": 10,
+      "readiness_bucket": "EARLY DEVELOPMENT",
+      "readiness_components": [
+        {
+          "key": "chmp_positive_opinion",
+          "points": 10,
+          "reason": "Positive regulatory opinion adopted (evidenced)"
+        }
+      ],
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
+      "confidence": "HIGH",
+      "executive_signal": true
+    },
+    {
+      "id": "reg_2026_20261202_50375",
       "event_year": 2026,
       "drug_name": "mNexspike",
       "active_ingredient": "COVID-19 mRNA vaccine",
@@ -3259,12 +3477,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261109_27446",
+      "id": "reg_2026_20261109_68358",
       "event_year": 2026,
       "drug_name": "Sunharbo",
       "active_ingredient": "asundexian",
@@ -3295,12 +3513,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261020_56785",
+      "id": "reg_2026_20261020_06823",
       "event_year": 2026,
       "drug_name": "Hibsago",
       "active_ingredient": "bepirovirsen&nbsp;",
@@ -3331,12 +3549,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261015_73320",
+      "id": "reg_2026_20261015_28647",
       "event_year": 2026,
       "drug_name": "Neuzafy",
       "active_ingredient": "filgrastim",
@@ -3373,12 +3591,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261015_02256",
+      "id": "reg_2026_20261015_77088",
       "event_year": 2026,
       "drug_name": "Foundayo",
       "active_ingredient": "Orforglipron",
@@ -3424,12 +3642,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "EDA under-registration evidence: https://clinicaltrials.gov/study/NCT05869903"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261015_41178",
+      "id": "reg_2026_20261015_35695",
       "event_year": 2026,
       "drug_name": "Kizfizo",
       "active_ingredient": "temozolomide",
@@ -3466,12 +3684,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261015_97363",
+      "id": "reg_2026_20261015_08599",
       "event_year": 2026,
       "drug_name": "Yuviwel",
       "active_ingredient": "Navepegritide",
@@ -3508,12 +3726,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261009_21233",
+      "id": "reg_2026_20261009_98178",
       "event_year": 2026,
       "drug_name": "Hovilpri",
       "active_ingredient": "pritelivir",
@@ -3544,12 +3762,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20261002_74515",
+      "id": "reg_2026_20261002_76800",
       "event_year": 2026,
       "drug_name": "Gotenfia",
       "active_ingredient": "golimumab",
@@ -3582,12 +3800,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260928_31578",
+      "id": "reg_2026_20260928_41670",
       "event_year": 2026,
       "drug_name": "Emcitate",
       "active_ingredient": "tiratricol",
@@ -3618,12 +3836,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260925_16555",
+      "id": "reg_2026_20260925_13989",
       "event_year": 2026,
       "drug_name": "Atebrioz&nbsp;",
       "active_ingredient": "zilurgisertib",
@@ -3654,12 +3872,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260925_70038",
+      "id": "reg_2026_20260925_75042",
       "event_year": 2026,
       "drug_name": "Juvmo",
       "active_ingredient": "tavapadon",
@@ -3690,12 +3908,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260923_24027",
+      "id": "reg_2026_20260923_15265",
       "event_year": 2026,
       "drug_name": "Lyrfigtu",
       "active_ingredient": "lirafugratinib",
@@ -3726,12 +3944,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260923_21796",
+      "id": "reg_2026_20260923_75056",
       "event_year": 2026,
       "drug_name": "Onswik",
       "active_ingredient": "insulin efsitora alfa-gobe",
@@ -3764,12 +3982,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260918_85534",
+      "id": "reg_2026_20260918_04623",
       "event_year": 2026,
       "drug_name": "Ruxolitinib Viatris",
       "active_ingredient": "ruxolitinib hemifumarate",
@@ -3802,12 +4020,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260918_07408",
+      "id": "reg_2026_20260918_57336",
       "event_year": 2026,
       "drug_name": "Icotyde",
       "active_ingredient": "icotrokinra hydrochloride",
@@ -3838,12 +4056,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260917_81533",
+      "id": "reg_2026_20260917_51447",
       "event_year": 2026,
       "drug_name": "Inijaq",
       "active_ingredient": "tofacitinib",
@@ -3882,12 +4100,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260917_20314",
+      "id": "reg_2026_20260917_12922",
       "event_year": 2026,
       "drug_name": "Povofortay",
       "active_ingredient": "povorcitinib",
@@ -3924,54 +4142,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260917_56730",
-      "event_year": 2026,
-      "drug_name": "Ruxolitinib Zentiva",
-      "active_ingredient": "ruxolitinib",
-      "applicant": "Zentiva k.s.",
-      "indication_text": "Treatment of myelofibrosis (MF) in adults, treatment of polycythaemia vera (PV) in adults and treatment of Graft versus host disease (GvHD) in adults and children",
-      "summary_line1": "Novel 2026 therapeutic molecule (ruxolitinib) indicated for Treatment of myelofibrosis (MF) in adults, treatment of polycythaemia vera (PV) in adults and treatment of Graft versus host disease (GvHD) in adults and children.",
-      "summary_line2": "2026 global regulatory milestone by Zentiva k.s. monitored for Egyptian commercial opportunities.",
-      "therapeutic_area": "Pediatrics",
-      "secondary_therapeutic_areas": [],
-      "molecules": [],
-      "companies": [],
-      "brands": [],
-      "mechanisms": [],
-      "business_units": [
-        "Cluster"
-      ],
-      "is_competitor": true,
-      "global_stage": "POSITIVE_REGULATORY_OPINION",
-      "global_stage_date": "2026-09-17",
-      "global_source": "EMA CHMP Positive Regulatory Opinion",
-      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/ruxolitinib-zentiva",
-      "evidence_level": 1,
-      "egypt_status": "STATUS_UNKNOWN",
-      "egypt_applicant": null,
-      "egypt_registration_number": null,
-      "egypt_evidence_url": null,
-      "egypt_last_verified": null,
-      "readiness_score": 10,
-      "readiness_bucket": "EARLY DEVELOPMENT",
-      "readiness_components": [
-        {
-          "key": "chmp_positive_opinion",
-          "points": 10,
-          "reason": "Positive regulatory opinion adopted (evidenced)"
-        }
-      ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
-      "confidence": "HIGH",
-      "executive_signal": true
-    },
-    {
-      "id": "reg_2026_20260911_51572",
+      "id": "reg_2026_20260911_87808",
       "event_year": 2026,
       "drug_name": "Pixclara",
       "active_ingredient": "floretyrosine F 18",
@@ -4002,12 +4178,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260911_87367",
+      "id": "reg_2026_20260911_72076",
       "event_year": 2026,
       "drug_name": "Isembyld",
       "active_ingredient": "apitegromab-mstn",
@@ -4038,12 +4214,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260904_15646",
+      "id": "reg_2026_20260904_45920",
       "event_year": 2026,
       "drug_name": "Etcamah",
       "active_ingredient": "camizestrant",
@@ -4074,12 +4250,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260903_69430",
+      "id": "reg_2026_20260903_19825",
       "event_year": 2026,
       "drug_name": "Zanvastro",
       "active_ingredient": "zilganersen",
@@ -4110,12 +4286,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260901_48358",
+      "id": "reg_2026_20260901_88652",
       "event_year": 2026,
       "drug_name": "Ondibta",
       "active_ingredient": "insulin glargine",
@@ -4150,12 +4326,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260828_61864",
+      "id": "reg_2026_20260828_14459",
       "event_year": 2026,
       "drug_name": "Mimrylo",
       "active_ingredient": "rusfertide",
@@ -4186,12 +4362,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260827_50225",
+      "id": "reg_2026_20260827_73566",
       "event_year": 2026,
       "drug_name": "Lisraya",
       "active_ingredient": "brepocitinib",
@@ -4222,12 +4398,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260826_23393",
+      "id": "reg_2026_20260826_82449",
       "event_year": 2026,
       "drug_name": "Rasonque",
       "active_ingredient": "daraxonrasib",
@@ -4258,12 +4434,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260820_74891",
+      "id": "reg_2026_20260820_22791",
       "event_year": 2026,
       "drug_name": "Hopledo",
       "active_ingredient": "levodopa;carbidopa",
@@ -4296,12 +4472,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260819_83439",
+      "id": "reg_2026_20260819_38801",
       "event_year": 2026,
       "drug_name": "Pasatru",
       "active_ingredient": "garetosmab-grts",
@@ -4332,12 +4508,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260813_67110",
+      "id": "reg_2026_20260813_87978",
       "event_year": 2026,
       "drug_name": "Zenbexus",
       "active_ingredient": "iberdomide",
@@ -4368,12 +4544,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260813_56568",
+      "id": "reg_2026_20260813_29017",
       "event_year": 2026,
       "drug_name": "Tauklarify",
       "active_ingredient": "florquinitau F 18",
@@ -4404,12 +4580,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260810_81021",
+      "id": "reg_2026_20260810_91567",
       "event_year": 2026,
       "drug_name": "Bovilis Lumpyvax",
       "active_ingredient": "Lumpy skin disease vaccine (live)",
@@ -4446,12 +4622,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260805_11913",
+      "id": "reg_2026_20260805_27133",
       "event_year": 2026,
       "drug_name": "Orzeyful",
       "active_ingredient": "oveporexton",
@@ -4482,12 +4658,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260805_51437",
+      "id": "reg_2026_20260805_59304",
       "event_year": 2026,
       "drug_name": "Veblocema",
       "active_ingredient": "infliximab",
@@ -4518,12 +4694,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "WITHDRAWN (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": false
     },
     {
-      "id": "reg_2026_20260801_13518",
+      "id": "reg_2026_20260801_86543",
       "event_year": 2026,
       "drug_name": "Teduglutide Viatris",
       "active_ingredient": "teduglutide",
@@ -4556,12 +4732,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260801_53938",
+      "id": "reg_2026_20260801_48461",
       "event_year": 2026,
       "drug_name": "Teizeild",
       "active_ingredient": "teplizumab",
@@ -4592,12 +4768,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260724_19673",
+      "id": "reg_2026_20260724_36198",
       "event_year": 2026,
       "drug_name": "Simtriyo",
       "active_ingredient": "centanafadine",
@@ -4628,12 +4804,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260724_71283",
+      "id": "reg_2026_20260724_90048",
       "event_year": 2026,
       "drug_name": "Lytenava",
       "active_ingredient": "bevacizumab-vikg",
@@ -4664,12 +4840,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260723_43256",
+      "id": "reg_2026_20260723_95172",
       "event_year": 2026,
       "drug_name": "KemSu",
       "active_ingredient": "sufentanil;ketamine",
@@ -4706,12 +4882,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Under active regulatory evaluation (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": false
     },
     {
-      "id": "reg_2026_20260723_13596",
+      "id": "reg_2026_20260723_77172",
       "event_year": 2026,
       "drug_name": "Evlarco",
       "active_ingredient": "obicetrapib;ezetimibe",
@@ -4750,12 +4926,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260723_33772",
+      "id": "reg_2026_20260723_86693",
       "event_year": 2026,
       "drug_name": "Riociguat Accord",
       "active_ingredient": "riociguat",
@@ -4792,12 +4968,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260722_89873",
+      "id": "reg_2026_20260722_58386",
       "event_year": 2026,
       "drug_name": "Jideytro",
       "active_ingredient": "zidesamtinib",
@@ -4828,12 +5004,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260715_83680",
+      "id": "reg_2026_20260715_86194",
       "event_year": 2026,
       "drug_name": "Lipfendra",
       "active_ingredient": "enlicitide decanoate",
@@ -4864,12 +5040,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260715_87142",
+      "id": "reg_2026_20260715_65811",
       "event_year": 2026,
       "drug_name": "Liraglutide STADA",
       "active_ingredient": "liraglutide",
@@ -4907,12 +5083,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260715_43026",
+      "id": "reg_2026_20260715_14913",
       "event_year": 2026,
       "drug_name": "Ablymico",
       "active_ingredient": "liraglutide",
@@ -4947,12 +5123,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260714_51740",
+      "id": "reg_2026_20260714_91547",
       "event_year": 2026,
       "drug_name": "Revtorpyk",
       "active_ingredient": "gedatolisib",
@@ -4983,12 +5159,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260707_19941",
+      "id": "reg_2026_20260707_57543",
       "event_year": 2026,
       "drug_name": "Trutakna",
       "active_ingredient": "atacicept-vymj",
@@ -5019,12 +5195,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260626_46962",
+      "id": "reg_2026_20260626_29339",
       "event_year": 2026,
       "drug_name": "Lumvoa",
       "active_ingredient": "veligrotug-vvze",
@@ -5055,12 +5231,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260625_21796",
+      "id": "reg_2026_20260625_75056",
       "event_year": 2026,
       "drug_name": "Onswik",
       "active_ingredient": "Insulin efsitora alfa",
@@ -5099,12 +5275,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260619_17594",
+      "id": "reg_2026_20260619_62406",
       "event_year": 2026,
       "drug_name": "Palbociclib Viatris",
       "active_ingredient": "palbociclib",
@@ -5137,12 +5313,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260617_88348",
+      "id": "reg_2026_20260617_83077",
       "event_year": 2026,
       "drug_name": "Utebzi",
       "active_ingredient": "tebipenem pivoxil",
@@ -5173,12 +5349,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260612_31992",
+      "id": "reg_2026_20260612_49974",
       "event_year": 2026,
       "drug_name": "Ambelvist",
       "active_ingredient": "gadoquatrane",
@@ -5209,12 +5385,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260605_20714",
+      "id": "reg_2026_20260605_48262",
       "event_year": 2026,
       "drug_name": "Bysumlog",
       "active_ingredient": "insulin lispro",
@@ -5249,12 +5425,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260529_52526",
+      "id": "reg_2026_20260529_53854",
       "event_year": 2026,
       "drug_name": "Cypsedo",
       "active_ingredient": "cipepofol",
@@ -5285,12 +5461,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260529_08085",
+      "id": "reg_2026_20260529_57200",
       "event_year": 2026,
       "drug_name": "Xocova",
       "active_ingredient": "ensitrelvir",
@@ -5321,12 +5497,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260529_37101",
+      "id": "reg_2026_20260529_27639",
       "event_year": 2026,
       "drug_name": "Zaynich",
       "active_ingredient": "cefepime and zidebactam",
@@ -5357,12 +5533,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260529_00416",
+      "id": "reg_2026_20260529_62849",
       "event_year": 2026,
       "drug_name": "Bopediat",
       "active_ingredient": "furosemide",
@@ -5395,12 +5571,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260527_67561",
+      "id": "reg_2026_20260527_56333",
       "event_year": 2026,
       "drug_name": "Decnupaz",
       "active_ingredient": "pivekimab sunirine-pvzy",
@@ -5431,12 +5607,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260522_46407",
+      "id": "reg_2026_20260522_80502",
       "event_year": 2026,
       "drug_name": "Hepcludex",
       "active_ingredient": "bulevirtide-gmod",
@@ -5467,12 +5643,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260515_52738",
+      "id": "reg_2026_20260515_29430",
       "event_year": 2026,
       "drug_name": "Baxfendy",
       "active_ingredient": "baxdrostat",
@@ -5503,12 +5679,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260513_96323",
+      "id": "reg_2026_20260513_53698",
       "event_year": 2026,
       "drug_name": "Beqalzi",
       "active_ingredient": "sonrotoclax",
@@ -5539,12 +5715,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260511_32598",
+      "id": "reg_2026_20260511_73949",
       "event_year": 2026,
       "drug_name": "Scovella",
       "active_ingredient": "velagliflozin",
@@ -5583,12 +5759,12 @@ window.ZETA_REGULATORY_PIPELINE = {
           "reason": "Positive regulatory opinion adopted (evidenced)"
         }
       ],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260501_17991",
+      "id": "reg_2026_20260501_49316",
       "event_year": 2026,
       "drug_name": "Veppanu",
       "active_ingredient": "vepdegestrant",
@@ -5619,12 +5795,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260427_88252",
+      "id": "reg_2026_20260427_11461",
       "event_year": 2026,
       "drug_name": "Dazparda",
       "active_ingredient": "insulin aspart",
@@ -5659,12 +5835,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260427_29348",
+      "id": "reg_2026_20260427_03219",
       "event_year": 2026,
       "drug_name": "Onerji",
       "active_ingredient": "levodopa;carbidopa",
@@ -5697,12 +5873,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260423_80146",
+      "id": "reg_2026_20260423_06993",
       "event_year": 2026,
       "drug_name": "Fubelv",
       "active_ingredient": "etanercept",
@@ -5735,12 +5911,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260420_83502",
+      "id": "reg_2026_20260420_08841",
       "event_year": 2026,
       "drug_name": "Idvynso",
       "active_ingredient": "doravirine and islatravir",
@@ -5771,12 +5947,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260420_58662",
+      "id": "reg_2026_20260420_68378",
       "event_year": 2026,
       "drug_name": "mCombriax",
       "active_ingredient": "influenza mRNA vaccine;COVID-19 mRNA vaccine",
@@ -5807,12 +5983,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260401_02256",
+      "id": "reg_2026_20260401_77088",
       "event_year": 2026,
       "drug_name": "Foundayo",
       "active_ingredient": "orforglipron",
@@ -5845,12 +6021,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260330_64985",
+      "id": "reg_2026_20260330_70950",
       "event_year": 2026,
       "drug_name": "Supemtek",
       "active_ingredient": "trivalent influenza vaccine (recombinant, prepared in cell culture)",
@@ -5881,12 +6057,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260326_02896",
+      "id": "reg_2026_20260326_31208",
       "event_year": 2026,
       "drug_name": "Awiqli",
       "active_ingredient": "insulin icodec-abae",
@@ -5919,12 +6095,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260326_48270",
+      "id": "reg_2026_20260326_58493",
       "event_year": 2026,
       "drug_name": "Kayshild",
       "active_ingredient": "semaglutide",
@@ -5962,12 +6138,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260326_19834",
+      "id": "reg_2026_20260326_13490",
       "event_year": 2026,
       "drug_name": "Fylrevy",
       "active_ingredient": "estetrol",
@@ -6000,12 +6176,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260325_71818",
+      "id": "reg_2026_20260325_75810",
       "event_year": 2026,
       "drug_name": "Lifyorli",
       "active_ingredient": "relacorilant",
@@ -6036,12 +6212,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260325_82921",
+      "id": "reg_2026_20260325_80713",
       "event_year": 2026,
       "drug_name": "Blarcamesine Anavex",
       "active_ingredient": "blarcamesine",
@@ -6072,12 +6248,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "WITHDRAWN (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": false
     },
     {
-      "id": "reg_2026_20260324_57018",
+      "id": "reg_2026_20260324_81358",
       "event_year": 2026,
       "drug_name": "Avlayah",
       "active_ingredient": "tividenofusp alfa-eknm",
@@ -6108,12 +6284,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260317_07408",
+      "id": "reg_2026_20260317_57336",
       "event_year": 2026,
       "drug_name": "Icotyde",
       "active_ingredient": "icotrokinra",
@@ -6144,12 +6320,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260317_12857",
+      "id": "reg_2026_20260317_70406",
       "event_year": 2026,
       "drug_name": "Lynavoy",
       "active_ingredient": "linerixibat",
@@ -6180,12 +6356,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260227_97363",
+      "id": "reg_2026_20260227_08599",
       "event_year": 2026,
       "drug_name": "Yuviwel",
       "active_ingredient": "navepegritide",
@@ -6216,12 +6392,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260223_59054",
+      "id": "reg_2026_20260223_83687",
       "event_year": 2026,
       "drug_name": "Loargys",
       "active_ingredient": "pegzilarginase-nbln",
@@ -6252,12 +6428,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260220_67607",
+      "id": "reg_2026_20260220_94581",
       "event_year": 2026,
       "drug_name": "Bysanti",
       "active_ingredient": "milsaperidone",
@@ -6288,12 +6464,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260212_96193",
+      "id": "reg_2026_20260212_17242",
       "event_year": 2026,
       "drug_name": "Adquey",
       "active_ingredient": "difamilast",
@@ -6324,12 +6500,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260119_85759",
+      "id": "reg_2026_20260119_08655",
       "event_year": 2026,
       "drug_name": "Aqneursa",
       "active_ingredient": "L-acetylleucine",
@@ -6360,12 +6536,12 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     },
     {
-      "id": "reg_2026_20260112_51514",
+      "id": "reg_2026_20260112_50088",
       "event_year": 2026,
       "drug_name": "Zycubo",
       "active_ingredient": "copper histidinate",
@@ -6396,7 +6572,7 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": null,
       "readiness_bucket": "APPROVED (terminal — readiness score not applicable)",
       "readiness_components": [],
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH",
       "executive_signal": true
     }
@@ -6623,7 +6799,7 @@ window.ZETA_REGULATORY_PIPELINE = {
   ],
   "tier4_egypt_watchlist_2026": [
     {
-      "id": "wl_2026_reg_2026_20261015_02256",
+      "id": "wl_2026_reg_2026_20261015_77088",
       "event_year": 2026,
       "drug_name": "Foundayo",
       "active_ingredient": "Orforglipron",
@@ -6639,11 +6815,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 85,
       "readiness_bucket": "HIGH PROBABILITY",
       "strategic_rationale": "Market disruptor removing cold-chain and injection barriers; transformative oral incretin opportunity in Egypt.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260904_15646",
+      "id": "wl_2026_reg_2026_20260904_45920",
       "event_year": 2026,
       "drug_name": "Etcamah",
       "active_ingredient": "camizestrant",
@@ -6659,11 +6835,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 85,
       "readiness_bucket": "HIGH PROBABILITY",
       "strategic_rationale": "Targeted oncology asset overcoming resistance; crucial benchmark for expanding oncology therapies in Egypt.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260827_50225",
+      "id": "wl_2026_reg_2026_20260827_73566",
       "event_year": 2026,
       "drug_name": "Lisraya",
       "active_ingredient": "brepocitinib",
@@ -6679,11 +6855,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 85,
       "readiness_bucket": "HIGH PROBABILITY",
       "strategic_rationale": "Niche specialty immunology asset addressing high unmet need with significant pricing power in Egypt.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260617_88348",
+      "id": "wl_2026_reg_2026_20260617_83077",
       "event_year": 2026,
       "drug_name": "Utebzi",
       "active_ingredient": "tebipenem pivoxil",
@@ -6699,11 +6875,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 85,
       "readiness_bucket": "HIGH PROBABILITY",
       "strategic_rationale": "Major hospital IV-to-oral switch driver; prime candidate for Zeta’s institutional and anti-infective portfolio.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260515_52738",
+      "id": "wl_2026_reg_2026_20260515_29430",
       "event_year": 2026,
       "drug_name": "Baxfendy",
       "active_ingredient": "baxdrostat",
@@ -6719,11 +6895,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 85,
       "readiness_bucket": "HIGH PROBABILITY",
       "strategic_rationale": "Breakthrough entry addressing Egypt’s vast uncontrolled hypertensive patient pool on 3+ medications.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260326_02896",
+      "id": "wl_2026_reg_2026_20260326_31208",
       "event_year": 2026,
       "drug_name": "Awiqli",
       "active_ingredient": "insulin icodec-abae",
@@ -6739,11 +6915,51 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 85,
       "readiness_bucket": "HIGH PROBABILITY",
       "strategic_rationale": "Revolutionary adherence enhancer; core strategic intelligence for Zeta’s insulin and diabetes portfolio.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20261202_73600",
+      "id": "wl_2026_reg_2026_20261211_18558",
+      "event_year": 2026,
+      "drug_name": "Donrafylix",
+      "active_ingredient": "insulin aspart",
+      "originator_company": "Kuraci",
+      "therapeutic_area": "Diabetes & Metabolic Disease",
+      "global_milestone": "POSITIVE REGULATORY OPINION (2026-12-11)",
+      "global_stage_date": "2026-12-11",
+      "global_source": "EMA CHMP Positive Regulatory Opinion",
+      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/donrafylix",
+      "summary_line1": "Novel 2026 therapeutic molecule (insulin aspart) indicated for Treatment of diabetes mellitus from 1 year of age..",
+      "summary_line2": "2026 global regulatory milestone by Kuraci monitored for Egyptian commercial opportunities.",
+      "egypt_entry_status": "NOT CONFIRMED IN EGYPT — WATCHLIST 2026",
+      "readiness_score": 70,
+      "readiness_bucket": "ADVANCED PIPELINE",
+      "strategic_rationale": "2026 global regulatory milestone by Kuraci monitored for Egyptian commercial opportunities.",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "wl_2026_reg_2026_20261211_17316",
+      "event_year": 2026,
+      "drug_name": "Ruxolitinib Krka",
+      "active_ingredient": "ruxolitinib",
+      "originator_company": "KRKA tovarna zdravil d.d. Novo mesto",
+      "therapeutic_area": "Pediatrics",
+      "global_milestone": "POSITIVE REGULATORY OPINION (2026-12-11)",
+      "global_stage_date": "2026-12-11",
+      "global_source": "EMA CHMP Positive Regulatory Opinion",
+      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/ruxolitinib-krka",
+      "summary_line1": "Novel 2026 therapeutic molecule (ruxolitinib) indicated for Treatment of myelofibrosis (MF) and polycythaemia vera (PV) in adults, and treatment of Graft versus host disease (GvHD) in adults and children..",
+      "summary_line2": "2026 global regulatory milestone by KRKA tovarna zdravil d.d. Novo mesto monitored for Egyptian commercial opportunities.",
+      "egypt_entry_status": "NOT CONFIRMED IN EGYPT — WATCHLIST 2026",
+      "readiness_score": 70,
+      "readiness_bucket": "ADVANCED PIPELINE",
+      "strategic_rationale": "2026 global regulatory milestone by KRKA tovarna zdravil d.d. Novo mesto monitored for Egyptian commercial opportunities.",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
+      "confidence": "HIGH"
+    },
+    {
+      "id": "wl_2026_reg_2026_20261202_50375",
       "event_year": 2026,
       "drug_name": "mNexspike",
       "active_ingredient": "COVID-19 mRNA vaccine",
@@ -6759,11 +6975,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Moderna Biotech Spain, S.L. monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20261109_27446",
+      "id": "wl_2026_reg_2026_20261109_68358",
       "event_year": 2026,
       "drug_name": "Sunharbo",
       "active_ingredient": "asundexian",
@@ -6779,11 +6995,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Innovator Biopharma monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20261020_56785",
+      "id": "wl_2026_reg_2026_20261020_06823",
       "event_year": 2026,
       "drug_name": "Hibsago",
       "active_ingredient": "bepirovirsen&nbsp;",
@@ -6799,11 +7015,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Prime intelligence for Zeta anti-infectives tracking resistant hospital pathogens and tender markets.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20261015_73320",
+      "id": "wl_2026_reg_2026_20261015_28647",
       "event_year": 2026,
       "drug_name": "Neuzafy",
       "active_ingredient": "filgrastim",
@@ -6819,11 +7035,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by CuraTeQ Biologics (Malta) Limited monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20261015_41178",
+      "id": "wl_2026_reg_2026_20261015_35695",
       "event_year": 2026,
       "drug_name": "Kizfizo",
       "active_ingredient": "temozolomide",
@@ -6839,11 +7055,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by ORPHELIA Pharma monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20261015_97363",
+      "id": "wl_2026_reg_2026_20261015_08599",
       "event_year": 2026,
       "drug_name": "Yuviwel",
       "active_ingredient": "Navepegritide",
@@ -6859,11 +7075,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Pediatric skeletal dysplasia innovation monitoring competitive expansion in Egyptian specialized pediatric centers.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20261009_21233",
+      "id": "wl_2026_reg_2026_20261009_98178",
       "event_year": 2026,
       "drug_name": "Hovilpri",
       "active_ingredient": "pritelivir",
@@ -6879,11 +7095,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Prime intelligence for Zeta anti-infectives tracking resistant hospital pathogens and tender markets.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20261002_74515",
+      "id": "wl_2026_reg_2026_20261002_76800",
       "event_year": 2026,
       "drug_name": "Gotenfia",
       "active_ingredient": "golimumab",
@@ -6899,11 +7115,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Direct commercial benchmark for Zeta’s gastrointestinal franchise and market leadership in Egypt.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260928_31578",
+      "id": "wl_2026_reg_2026_20260928_41670",
       "event_year": 2026,
       "drug_name": "Emcitate",
       "active_ingredient": "tiratricol",
@@ -6919,11 +7135,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Innovator Biopharma monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260925_16555",
+      "id": "wl_2026_reg_2026_20260925_13989",
       "event_year": 2026,
       "drug_name": "Atebrioz&nbsp;",
       "active_ingredient": "zilurgisertib",
@@ -6939,11 +7155,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Innovator Biopharma monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260925_70038",
+      "id": "wl_2026_reg_2026_20260925_75042",
       "event_year": 2026,
       "drug_name": "Juvmo",
       "active_ingredient": "tavapadon",
@@ -6959,11 +7175,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Innovator Biopharma monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260923_24027",
+      "id": "wl_2026_reg_2026_20260923_15265",
       "event_year": 2026,
       "drug_name": "Lyrfigtu",
       "active_ingredient": "lirafugratinib",
@@ -6979,11 +7195,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Strategic targeted oncology milestone tracking precision therapy paradigms in Egyptian cancer centers.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260923_21796",
+      "id": "wl_2026_reg_2026_20260923_75056",
       "event_year": 2026,
       "drug_name": "Onswik",
       "active_ingredient": "insulin efsitora alfa-gobe",
@@ -6999,11 +7215,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Eli Lilly monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260918_85534",
+      "id": "wl_2026_reg_2026_20260918_04623",
       "event_year": 2026,
       "drug_name": "Ruxolitinib Viatris",
       "active_ingredient": "ruxolitinib hemifumarate",
@@ -7019,11 +7235,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Viatris Limited monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260918_07408",
+      "id": "wl_2026_reg_2026_20260918_57336",
       "event_year": 2026,
       "drug_name": "Icotyde",
       "active_ingredient": "icotrokinra hydrochloride",
@@ -7039,11 +7255,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Orally delivered IL-23 inhibitor challenging biologic injectables (Tremfya/Skyrizi) in Egyptian dermatology clinics.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260917_81533",
+      "id": "wl_2026_reg_2026_20260917_51447",
       "event_year": 2026,
       "drug_name": "Inijaq",
       "active_ingredient": "tofacitinib",
@@ -7059,11 +7275,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Direct commercial benchmark for Zeta’s gastrointestinal franchise and market leadership in Egypt.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260917_20314",
+      "id": "wl_2026_reg_2026_20260917_12922",
       "event_year": 2026,
       "drug_name": "Povofortay",
       "active_ingredient": "povorcitinib",
@@ -7079,31 +7295,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Specialty immunology asset evaluated for Egyptian private dermatology and autoimmune clinics.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260917_56730",
-      "event_year": 2026,
-      "drug_name": "Ruxolitinib Zentiva",
-      "active_ingredient": "ruxolitinib",
-      "originator_company": "Zentiva k.s.",
-      "therapeutic_area": "Pediatrics",
-      "global_milestone": "POSITIVE REGULATORY OPINION (2026-09-17)",
-      "global_stage_date": "2026-09-17",
-      "global_source": "EMA CHMP Positive Regulatory Opinion",
-      "global_source_url": "https://www.ema.europa.eu/en/medicines/human/EPAR/ruxolitinib-zentiva",
-      "summary_line1": "Novel 2026 therapeutic molecule (ruxolitinib) indicated for Treatment of myelofibrosis (MF) in adults, treatment of polycythaemia vera (PV) in adults and treatment of Graft versus host disease (GvHD) in adults and children.",
-      "summary_line2": "2026 global regulatory milestone by Zentiva k.s. monitored for Egyptian commercial opportunities.",
-      "egypt_entry_status": "NOT CONFIRMED IN EGYPT — WATCHLIST 2026",
-      "readiness_score": 70,
-      "readiness_bucket": "ADVANCED PIPELINE",
-      "strategic_rationale": "2026 global regulatory milestone by Zentiva k.s. monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
-      "confidence": "HIGH"
-    },
-    {
-      "id": "wl_2026_reg_2026_20260911_51572",
+      "id": "wl_2026_reg_2026_20260911_87808",
       "event_year": 2026,
       "drug_name": "Pixclara",
       "active_ingredient": "floretyrosine F 18",
@@ -7119,11 +7315,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Innovator Biopharma monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260911_87367",
+      "id": "wl_2026_reg_2026_20260911_72076",
       "event_year": 2026,
       "drug_name": "Isembyld",
       "active_ingredient": "apitegromab-mstn",
@@ -7139,11 +7335,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Innovator Biopharma monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260903_69430",
+      "id": "wl_2026_reg_2026_20260903_19825",
       "event_year": 2026,
       "drug_name": "Zanvastro",
       "active_ingredient": "zilganersen",
@@ -7159,11 +7355,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Ultra-rare neurological therapy setting precedent for future neurodegenerative pipeline planning.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260901_48358",
+      "id": "wl_2026_reg_2026_20260901_88652",
       "event_year": 2026,
       "drug_name": "Ondibta",
       "active_ingredient": "insulin glargine",
@@ -7179,11 +7375,11 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "2026 global regulatory milestone by Sandoz GmbH monitored for Egyptian commercial opportunities.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     },
     {
-      "id": "wl_2026_reg_2026_20260828_61864",
+      "id": "wl_2026_reg_2026_20260828_14459",
       "event_year": 2026,
       "drug_name": "Mimrylo",
       "active_ingredient": "rusfertide",
@@ -7199,27 +7395,7 @@ window.ZETA_REGULATORY_PIPELINE = {
       "readiness_score": 70,
       "readiness_bucket": "ADVANCED PIPELINE",
       "strategic_rationale": "Specialty hematology innovation monitoring competitor moves in Egyptian tertiary hematology centers.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
-      "confidence": "HIGH"
-    },
-    {
-      "id": "wl_2026_reg_2026_20260826_23393",
-      "event_year": 2026,
-      "drug_name": "Rasonque",
-      "active_ingredient": "daraxonrasib",
-      "originator_company": "Revolution Medicines",
-      "therapeutic_area": "Oncology & Hematology",
-      "global_milestone": "APPROVED (2026-08-26)",
-      "global_stage_date": "2026-08-26",
-      "global_source": "FDA Official Novel Drug Approval (2026)",
-      "global_source_url": "https://www.fda.gov/drugs/novel-drug-approvals-fda/novel-drug-approvals-2026",
-      "summary_line1": "Oral selective multi-RAS inhibitor targeting KRAS-driven metastatic pancreatic and non-small cell lung cancers.",
-      "summary_line2": "Next-generation precision oncology agent expanding targeted therapy paradigms in the Egyptian market.",
-      "egypt_entry_status": "NOT CONFIRMED IN EGYPT — WATCHLIST 2026",
-      "readiness_score": 70,
-      "readiness_bucket": "ADVANCED PIPELINE",
-      "strategic_rationale": "Next-generation precision oncology agent expanding targeted therapy paradigms in the Egyptian market.",
-      "last_verified": "2026-11-13T13:49:14.300002+00:00",
+      "last_verified": "2026-11-13T18:05:05.344537+00:00",
       "confidence": "HIGH"
     }
   ]
