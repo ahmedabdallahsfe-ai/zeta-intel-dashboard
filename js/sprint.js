@@ -605,6 +605,8 @@
     // correctly without a second bar renderer.
     const hintHtml = !coachingAttrs ? "" : (coachingAttrs.indexOf("data-workingdays-kpi") !== -1
       ? '<div class="sp-kpi-coaching-hint">📅 Field Working Days detail</div>'
+      : coachingAttrs.indexOf("data-bmregion-code") !== -1
+      ? '<div class="sp-kpi-coaching-hint">🗺 Regions evidence</div>'
       : '<div class="sp-kpi-coaching-hint">🔍 Coaching Intelligence detail</div>');
     if (pts == null) {
       return `<div class="sp-kpi-wrap${clickableClass}"${clickableAttrs}>
@@ -2521,11 +2523,14 @@
       ? `data-workingdays-code="${esc(mgrCode)}" data-workingdays-kpi="${esc(kpi.key)}"`
       : null;
     if (kpi.key === "regionCount") {
+      // 2026-11-14 (Ahmed: "pop up evidence about brand manager regions
+      // covered"): clickable whenever the ETL attached the evidence rows.
+      const regionAttrs = kpi.regionDetail && mgrCode ? `data-bmregion-code="${esc(mgrCode)}"` : coachingAttrs;
       // 2026-11-13: auto from joint field visits (coaching) -> Sales zones.
       const zones = kpi.regionDetail && kpi.regionDetail.zones && kpi.regionDetail.zones.length
         ? " · " + kpi.regionDetail.zones.map(z => z.replace(/ Zone$/, "")).join(", ") : "";
       const pctText = kpi.raw != null ? `${kpi.raw} region${kpi.raw === 1 ? "" : "s"}${zones}` : null;
-      return kpiBar(shortLabel, null, kpi.pts, kpi.weight, pctText, coachingAttrs);
+      return kpiBar(shortLabel, null, kpi.pts, kpi.weight, pctText, regionAttrs);
     }
     const pctText = kpi.raw != null ? (kpi.raw * 100).toFixed(1) + "% actual" : null;
     return kpiBar(shortLabel, null, kpi.pts, kpi.weight, pctText, coachingAttrs);
@@ -2672,7 +2677,7 @@
       subInfo = `${esc(r.canonLine)} · ${esc(r.position || r.role)} · #${esc(r.code)}`;
     } else if (found.kind === "bm") {
       // Brand Manager: no Team Avg rollup (owns products, not a rep team).
-      kpisHtml = r.kpis.map(k => kpiSlotCell(k)).join("");
+      kpisHtml = r.kpis.map(k => kpiSlotCell(k, null, r.code)).join("");
       subInfo = `#${esc(r.code)}${r.line ? ` · ${esc(r.line)}` : ""} · ${esc(r.position || "Brand Manager")}`;
     } else {
       const lineBu = [r.line, r.bu].filter(Boolean).join(" · ");
@@ -2899,6 +2904,67 @@
     _spModalOverlay = window.DS.openModal({ title: `${r.name} — Field Working Days detail`, bodyHtml });
   }
 
+  // ---- Brand Manager Regions Covered evidence popup (2026-11-14) -------
+  // Ahmed: "I NEED POP UP EVIDENCE ABOUT BRAND MANAGER REGIONS COVERED IN
+  // Q3". Shows exactly what the ETL counted (etl/sprint_bm_regions.py):
+  // every joint field visit where this Brand Manager is a listed coach in
+  // Coaching Intelligence, the employee visited with, that employee's
+  // territory, and the Sales zone it maps to. Formats only -- no maths here.
+  function bmRegionModalBody(r, kpi) {
+    const d = kpi.regionDetail || {};
+    const universe = d.zoneUniverse || [];
+    const covered = new Set(d.zones || []);
+    const short = z => String(z || "").replace(/ Zone$/, "");
+    const mLabel = mk => { const n = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][Number(String(mk).slice(5, 7)) - 1]; return n || mk; };
+    const months = Object.keys(d.byMonth || {}).sort();
+    const isQ = PM() > 1;
+    const chips = universe.map(z => `<span class="sp-region-chip ${covered.has(z) ? "sp-region-chip-on" : "sp-region-chip-off"}">${covered.has(z) ? "✓" : "✗"} ${esc(short(z))}</span>`).join("");
+    const monthly = (kpi.monthly || []);
+    const monthRows = months.map((mk, i) => {
+      const zs = d.byMonth[mk] || [];
+      const m = monthly[i] || {};
+      return `<tr><td>${esc(mLabel(mk))}</td><td>${zs.length}</td><td>${zs.map(z => esc(short(z))).join(", ") || "—"}</td>${isQ ? `<td>${m.pts != null ? m.pts.toFixed(1) : "—"}</td>` : ""}</tr>`;
+    }).join("");
+    const rows = (d.rows || []).map(x => {
+      const how = x.mappedBy === "territory" ? "territory" : x.mappedBy === "governorate" ? `home governorate${x.governorate ? " (" + esc(x.governorate) + ")" : ""}` : "not mapped";
+      const perMonth = months.map(mk => `<td class="sp-num">${(x.months || {})[mk] || ""}</td>`).join("");
+      const dates = (x.visitDates || []).map(dt => dt.slice(5)).join(", ");
+      return `<tr${x.zone ? "" : ' class="sp-region-unmapped"'}><td><b>${esc(short(x.zone) || "—")}</b></td><td>${esc(x.name)}</td><td>${esc(x.position || "")}</td><td>${how}</td>${perMonth}<td class="sp-num">${x.visits}</td><td class="sp-num">${x.coachingDays || ""}</td><td class="sp-num">${x.customers || ""}</td><td class="sp-region-dates">${esc(dates)}</td></tr>`;
+    }).join("");
+    const monthHeads = months.map(mk => `<th>${esc(mLabel(mk))}</th>`).join("");
+    return `
+      <div class="sp-region-modal">
+        <div class="sp-region-summary">
+          <div><span class="sp-region-big">${kpi.raw != null ? kpi.raw : 0}</span> of ${universe.length} sales zones covered${isQ ? ` in ${esc(cache.meta.evalPeriod)}` : ""}
+            · <b>${kpi.pts != null ? kpi.pts.toFixed(1) : "—"}</b> / ${kpi.weight} pts${isQ ? " (sum of the monthly points)" : ""}
+            · ${d.visits || 0} joint visits</div>
+          <div class="sp-region-chips">${chips}</div>
+        </div>
+        ${months.length > 1 ? `<h4>By month</h4>
+        <table class="sp-region-table"><thead><tr><th>Month</th><th>Zones</th><th>Which</th>${isQ ? "<th>Points</th>" : ""}</tr></thead><tbody>${monthRows}</tbody></table>
+        <div class="sp-region-note">${isQ ? `Q3 count = distinct zones across the quarter (shown above). Points = each month scored on its own zones (1 zone = 4 · 2 = 8 · 3 = 12 · 4 = 16 · 5 = 20), then summed.` : ""}</div>` : ""}
+        <h4>Evidence — joint field visits by employee</h4>
+        ${rows ? `<div class="sp-region-scroll"><table class="sp-region-table"><thead><tr><th>Zone</th><th>Employee visited with</th><th>Territory</th><th>Zone taken from</th>${monthHeads}<th>Visits</th><th>Days</th><th>Customers</th><th>Visit dates (MM-DD)</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p>No joint field visits recorded for this Brand Manager in this period.</p>`}
+        ${(d.unmapped || []).length ? `<div class="sp-region-note">⚠ ${d.unmapped.length} employee(s) could not be placed in a zone and are NOT counted (highlighted).</div>` : ""}
+        <div class="sp-region-note"><b>Method:</b> source = Coaching Intelligence visit log (every joint visit where this Brand Manager is listed as a coach). Each employee's zone comes from their territory's region in the sales file; when the territory is generic (e.g. a DM), from their home governorate in Database Shortcut. Regions Covered = number of different zones.</div>
+      </div>`;
+  }
+
+  function openBmRegionModal(code) {
+    if (!window.DS || typeof window.DS.openModal !== "function") {
+      console.error("[Sprint] DS.openModal is unavailable -- cannot show Regions evidence popup.");
+      return;
+    }
+    const r = ((cache.brandManager && cache.brandManager.ranked) || []).find(x => String(x.code) === String(code));
+    const kpi = r && (r.kpis || []).find(k => k.key === "regionCount");
+    if (!kpi || !kpi.regionDetail) return;
+    if (_spModalOverlay && typeof window.DS.closeModal === "function") window.DS.closeModal(_spModalOverlay);
+    _spModalOverlay = window.DS.openModal({
+      title: `${r.name} — Regions Covered evidence · ${cache.meta.periodLabel || cache.meta.evalPeriod}`,
+      bodyHtml: bmRegionModalBody(r, kpi),
+    });
+  }
+
   // ---- Sick Leave Impact detail popup (2026-09-16) --------------------
   // Ahmed: "if zero in kpi coverage and right frequency due to leave flag
   // leave type and popup duration." Same popup mechanism as the Coaching
@@ -3096,7 +3162,10 @@
       // Intelligence (dvCoverage/callsPerDv) and Field Working Days
       // (fieldDays) -- dispatched by which data attribute kpiSlotCell/
       // hierarchyRow actually built for this cell.
-      if (coachingLink.dataset.workingdaysCode) {
+      if (coachingLink.dataset.bmregionCode) {
+        e.stopPropagation();
+        openBmRegionModal(coachingLink.dataset.bmregionCode);
+      } else if (coachingLink.dataset.workingdaysCode) {
         openWorkingDaysDetailModal(coachingLink.dataset.workingdaysCode);
       } else {
         openCoachingDetailModal(coachingLink.dataset.coachingCode, coachingLink.dataset.coachingKpi);
@@ -3137,6 +3206,8 @@
     // table cell, distinguished by the data attribute hierarchyRow() built.
     const hintHtml = !coachingAttrs ? "" : (coachingAttrs.indexOf("data-workingdays-kpi") !== -1
       ? '<div class="sp-kpi-coaching-hint">📅 Field Working Days detail</div>'
+      : coachingAttrs.indexOf("data-bmregion-code") !== -1
+      ? '<div class="sp-kpi-coaching-hint">🗺 Regions evidence</div>'
       : '<div class="sp-kpi-coaching-hint">🔍 Coaching Intelligence detail</div>');
     const fmt = v => v == null ? "—" : (isFraction ? (v * 100).toFixed(1) + "%" : v.toFixed(1) + " pts");
     const valStr = fmt(val);
@@ -3451,7 +3522,7 @@
       <td class="sp-name">${esc(r.name)}${isWinner ? '<span class="sp-winner-badge">🏆 WINNER</span>' : ""}<div class="sp-sub">#${esc(r.code)} · ${esc(r.position || "Brand Manager")}${r.line ? ` · <span class="sp-manager-line-badge">${esc(r.line)}</span>` : ""} · ${probationBadge(r)}${departingBadge(r)}${hierarchyGateNote(d, { badgeLabel: "WINNER", hasCash: false })}</div></td>
       ${r.kpis.map(k => {
         const ch = checksByKey[k.key];
-        return `<td>${ch && k.key !== "regionCount" ? hierarchyKpiBlock(kpiShortLabel(k.label), k.raw, ch.avg, ch.pass, k.pts, k.weight, true) : kpiSlotCell(k)}</td>`;
+        return `<td>${ch && k.key !== "regionCount" ? hierarchyKpiBlock(kpiShortLabel(k.label), k.raw, ch.avg, ch.pass, k.pts, k.weight, true) : kpiSlotCell(k, null, r.code)}</td>`;
       }).join("")}
       <td class="sp-total">
         <div class="sp-total-pts">${r.totalPts.toFixed(1)}${d && d.winnerPoolEligible ? ` <span class="sp-pool-rank-note">Winner Pool #${d.winnerPoolRank}</span>` : ""}</div>

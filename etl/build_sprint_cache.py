@@ -1989,9 +1989,7 @@ def main():
                 total_pts += pts
                 kpis.append(dict(key=key, label='Regions Covered -- zones visited (auto, coaching)', weight=weight,
                                   pts=pts, raw=raw, source='coaching',
-                                  regionDetail=dict(zones=(reg or {}).get('zones', []), detail=(reg or {}).get('detail', []),
-                                                    unmapped=(reg or {}).get('unmapped', []), visits=(reg or {}).get('visits', 0),
-                                                    zoneUniverse=bm_region_resolver.zones if bm_region_resolver else [])))
+                                  regionDetail=bm_region_resolver.detail_payload(reg) if bm_region_resolver else None))
                 continue
             raw = provided.get(key)
             if raw is not None:

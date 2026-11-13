@@ -136,24 +136,51 @@ class BmRegionResolver:
 
     def regions(self, bm_code, months):
         """Distinct zones a Brand Manager covered across `months`
-        (list of 'YYYY-MM'). Returns dict(count, zones, detail, unmapped,
-        visits) or None when the BM has no coaching record at all."""
+        (list of 'YYYY-MM'). Returns dict(count, zones, detail, rows, byMonth,
+        unmapped, visits) or None when the BM has no coaching record.
+        rows = one evidence line per coached employee (2026-11-14, Ahmed:
+        "pop up evidence about brand manager regions covered")."""
         m = self.coach_by_code.get(str(bm_code))
         if m is None:
             return None
-        months = set(months)
+        months = sorted(set(months))
         zones = collections.defaultdict(lambda: dict(visits=0, employees=set()))
-        unmapped, visits = [], 0
+        by_month = {mo: set() for mo in months}
+        rows, unmapped, visits = [], [], 0
         for e in m.get('coachedEmployees', []):
-            v = sum((e.get('monthly') or {}).get(mo, {}).get('visits', 0) for mo in months)
+            per = {mo: (e.get('monthly') or {}).get(mo, {}).get('visits', 0) for mo in months}
+            days = sum((e.get('monthly') or {}).get(mo, {}).get('coachingDays', 0) for mo in months)
+            v = sum(per.values())
             if v <= 0:
                 continue
             visits += v
+            log = [x for x in (e.get('visitLog') or []) if str(x.get('date', ''))[:7] in per]
+            dates = sorted(str(x['date'])[:10] for x in log if x.get('date'))
             z, how = self.zone_for(e.get('name'), e.get('position'))
+            row = dict(name=e.get('name'), position=e.get('position'), line=e.get('line'),
+                       zone=z, mappedBy=how, visits=v, coachingDays=days,
+                       months={mo: n for mo, n in per.items() if n},
+                       firstDate=dates[0] if dates else None, lastDate=dates[-1] if dates else None,
+                       visitDates=sorted(set(dates)), customers=len({x.get('customer') for x in log if x.get('customer')}),
+                       governorate=self.name_gov.get(_norm(e.get('name'))))
+            rows.append(row)
             if not z:
                 unmapped.append(dict(name=e.get('name'), position=e.get('position'), visits=v))
                 continue
             zones[z]['visits'] += v
             zones[z]['employees'].add(f"{e.get('name')} ({e.get('position')})")
+            for mo, n in per.items():
+                if n:
+                    by_month[mo].add(z)
+        rows.sort(key=lambda r: (r['zone'] or 'zz', -r['visits'], r['name'] or ''))
         detail = [dict(zone=z, visits=d['visits'], employees=sorted(d['employees'])) for z, d in sorted(zones.items())]
-        return dict(count=len(zones), zones=sorted(zones), detail=detail, unmapped=unmapped, visits=visits)
+        return dict(count=len(zones), zones=sorted(zones), detail=detail, rows=rows,
+                    byMonth={mo: sorted(z) for mo, z in by_month.items()},
+                    unmapped=unmapped, visits=visits)
+
+    def detail_payload(self, reg):
+        """The regionDetail object stored on the KPI (shared by ETL + rollup)."""
+        reg = reg or {}
+        return dict(zones=reg.get('zones', []), detail=reg.get('detail', []), rows=reg.get('rows', []),
+                    byMonth=reg.get('byMonth', {}), unmapped=reg.get('unmapped', []),
+                    visits=reg.get('visits', 0), zoneUniverse=self.zones)

@@ -116,15 +116,14 @@ def backfill_bm_regions(month_key, data, resolver, curve):
     changed = 0
     for r in data['brandManager']['ranked']:
         for k in r.get('kpis', []):
-            if k.get('key') != 'regionCount' or k.get('source') == 'coaching':
+            # refresh when never auto-filled, or filled before evidence rows existed
+            if k.get('key') != 'regionCount' or (k.get('source') == 'coaching' and (k.get('regionDetail') or {}).get('rows') is not None):
                 continue
             reg = resolver.regions(r['code'], [month_key])
             raw = reg['count'] if reg else 0
             k.update(label='Regions Covered -- zones visited (auto, coaching)', source='coaching', raw=raw,
                      pts=min(k.get('weight', 20), points_for_count(curve, raw)),
-                     regionDetail=dict(zones=(reg or {}).get('zones', []), detail=(reg or {}).get('detail', []),
-                                       unmapped=(reg or {}).get('unmapped', []), visits=(reg or {}).get('visits', 0),
-                                       zoneUniverse=resolver.zones, backfilled='2026-11-13'))
+                     regionDetail=dict(resolver.detail_payload(reg), backfilled='2026-11-13'))
             changed += 1
         r['totalPts'] = sum(k['pts'] for k in r.get('kpis', []) if k.get('pts') is not None)
         r['isPartial'] = any(k.get('pts') is None for k in r.get('kpis', []))
@@ -187,9 +186,7 @@ def agg_kpis(recs, months_n, resolver=None, code=None, month_keys=None):
         elif key == 'regionCount' and resolver is not None:
             reg = resolver.regions(code, month_keys)
             k0['raw'] = reg['count'] if reg else 0
-            k0['regionDetail'] = dict(zones=(reg or {}).get('zones', []), detail=(reg or {}).get('detail', []),
-                                      unmapped=(reg or {}).get('unmapped', []), visits=(reg or {}).get('visits', 0),
-                                      zoneUniverse=resolver.zones)
+            k0['regionDetail'] = resolver.detail_payload(reg)
             k0['q3Basis'] = 'distinct zones in the quarter'
         else:
             k0['raw'] = mean(k.get('raw') for k in ks)
