@@ -9,6 +9,9 @@
  *                    GIT_SALES SKU basket bought through GIT-I/II/III, see the ETL).
  *   - Active       : net sales > 0 in the month.
  *   - Repeated     : active in >= 2 months of the selected period.
+ *   - Status (2026-11-05): last month of the period vs ALL earlier months from Jan, any brand/item
+ *                    in the filter: Retained (bought before + now), New Active (never before, bought now),
+ *                    Lost (bought before, not now), Never bought (no purchase in any month).
  *   - Previous     : average month before launch (baseline) vs the selected period.
  *   - Access       : AUTH.canViewFocusPharmacies(); a GIT-S DM / rep whose login
  *                    name matches the list sees only their own pharmacies.
@@ -160,28 +163,29 @@
     var v = PV[i], k = PK[i], to = per[per.length - 1], prev = to - 1;
     var b = 0, bAct = 0; base.forEach(function (m) { b += v[m]; if (v[m] > 0) bAct++; });
     var p = 0, act = 0; per.forEach(function (m) { p += v[m]; if (v[m] > 0) act++; });
-    var allAct = 0; v.forEach(function (x) { if (x > 0) allAct++; });   // 2026-11-05: months bought across ALL months, not only the period
+    var allAct = 0; v.forEach(function (x) { if (x > 0) allAct++; });
+    var histAct = 0; for (var hm = 0; hm < to; hm++) if (v[hm] > 0) histAct++;   // 2026-11-05 status rule: every month from Jan up to the month before the status month   // 2026-11-05: months bought across ALL months, not only the period
     return {
       allActive: allAct, i: i, baseAvg: base.length ? b / base.length : null, baseActive: bAct, perAvg: p / per.length, perNet: p, activeMonths: act,
-      activeLast: v[to] > 0, activePrev: prev >= 0 && v[prev] > 0, lastNet: v[to], brandsLast: v[to] > 0 ? popcount(k[to]) : 0
+      histActive: histAct, activeLast: v[to] > 0, activePrev: prev >= 0 && v[prev] > 0, lastNet: v[to], brandsLast: v[to] > 0 ? popcount(k[to]) : 0
     };
   }
 
   function status(s) {
-    if (s.activeMonths >= 2) return "Repeat";
-    if (s.activeMonths === 1) return s.baseActive ? "Active once" : "New";
-    return s.baseActive ? "Lapsed" : "Never bought";
+    // 2026-11-05 (Ahmed): status = last month of the period (e.g. Sep) vs ALL earlier months (Jan-Aug); bought = net > 0, any brand / item in scope.
+    if (s.histActive > 0) return s.activeLast ? "Retained" : "Lost";
+    return s.activeLast ? "New Active" : "Never bought";
   }
 
   function aggregate(list) {
-    var a = { n: list.length, activeLast: 0, ever: 0, repeat: 0, prevAct: 0, retained: 0, baseSum: 0, perSum: 0, lastNet: 0, brands: 0, untapped: 0, lapsed: 0, fresh: 0 };
+    var a = { n: list.length, activeLast: 0, ever: 0, repeat: 0, prevAct: 0, retained: 0, baseSum: 0, perSum: 0, lastNet: 0, brands: 0, untapped: 0, lapsed: 0, fresh: 0, kept: 0 };
     list.forEach(function (s) {
       if (s.activeLast) { a.activeLast++; a.lastNet += s.lastNet; a.brands += s.brandsLast; }
       if (s.activeMonths >= 1) a.ever++;
       if (s.activeMonths >= 2) a.repeat++;
       if (s.activePrev) { a.prevAct++; if (s.activeLast) a.retained++; }
       a.baseSum += s.baseAvg || 0; a.perSum += s.perAvg;
-      var st = status(s); if (st === "Never bought") a.untapped++; else if (st === "Lapsed") a.lapsed++; else if (st === "New") a.fresh++;
+      var st = status(s); if (st === "Never bought") a.untapped++; else if (st === "Lost") a.lapsed++; else if (st === "New Active") a.fresh++; else if (st === "Retained") a.kept++;
     });
     a.activePct = a.n ? a.activeLast / a.n * 100 : null;
     a.repeatPct = a.n ? a.repeat / a.n * 100 : null;
@@ -337,7 +341,7 @@
       kpi("VS BASELINE", T.uplift == null ? "n/a" : (T.uplift >= 0 ? "+" : "") + pct(T.uplift, 1), "Period avg month vs pre-launch avg", upColor(T.uplift)) +
       kpi("SALES / ACTIVE PHARMACY", "EGP " + fmtM(T.salesPerActive), pct(T.brandsPerActive == null ? null : T.brandsPerActive, 1).replace("%", "") + " brands per active pharmacy") +
       (R.team ? kpi((ST.tgt === "working" ? "WORKING" : "OFFICIAL") + " TARGET · " + perLabel, R.team.target > 0 ? pct(R.team.ach) : "no target", R.team.target > 0 ? "EGP " + fmtM(R.team.actual) + " of " + fmtM(R.team.target) + " (focus pharmacies)" : "No GIT_SALES target in this period", achColor(R.team.ach)) : "") +
-      kpi("NOT BUYING", (T.untapped + T.lapsed).toLocaleString(), T.lapsed.toLocaleString() + " lapsed · " + T.untapped.toLocaleString() + " never bought", "#b45309") +
+      kpi("NOT BUYING", (T.untapped + T.lapsed).toLocaleString(), T.lapsed.toLocaleString() + " lost · " + T.untapped.toLocaleString() + " never bought", "#b45309") +
       "</div>";
     // GIT-S team impact & best practice (2026-11-05 redesign: plain-language insights)
     var reps = R.reps, B = R.bench, TT = R.team;
@@ -376,8 +380,9 @@
     }
     var dmsR = R.dms.filter(function (d) { return d.n > 0; }).sort(function (a, c) { return (c.activePct || 0) - (a.activePct || 0); });
     if (dmsR.length >= 2) ins.push("<b>DMs:</b> " + esc(D.dms[dmsR[0].dmi]) + " leads with " + pct(dmsR[0].activePct) + " of pharmacies buying; " + esc(D.dms[dmsR[dmsR.length - 1].dmi]) + " is lowest at " + pct(dmsR[dmsR.length - 1].activePct) + ".");
-    if (T.lapsed) { var lr = reps.map(function (x) { return { x: x, n: R.stats.filter(function (st) { return D.ph[st.i][3] === x.ri && status(st) === "Lapsed"; }).length }; }).sort(function (a, c) { return c.n - a.n; }).slice(0, 3);
-      ins.push("<b>Win-back list:</b> " + T.lapsed.toLocaleString() + " pharmacies bought before but not in " + perLabel + " — most with " + lr.map(function (o) { return esc(D.reps[o.x.ri].n) + " (" + o.n + ")"; }).join(", ") + ". Filter the list below on <i>Lapsed</i> and export the CSV."); }
+    if (T.lapsed) { var lr = reps.map(function (x) { return { x: x, n: R.stats.filter(function (st) { return D.ph[st.i][3] === x.ri && status(st) === "Lost"; }).length }; }).sort(function (a, c) { return c.n - a.n; }).slice(0, 3);
+      ins.push("<b>Win-back list:</b> " + T.lapsed.toLocaleString() + " pharmacies bought before " + toM + " but not in " + toM + " — most with " + lr.map(function (o) { return esc(D.reps[o.x.ri].n) + " (" + o.n + ")"; }).join(", ") + ". Filter the list below on <i>Lost</i> and export the CSV."); }
+    ins.push("<b>Pharmacy status " + toM + ":</b> " + T.kept.toLocaleString() + " Retained · " + T.fresh.toLocaleString() + " New Active · " + T.lapsed.toLocaleString() + " Lost · " + T.untapped.toLocaleString() + " Never bought (" + T.n.toLocaleString() + " pharmacies on the list).");
     h += '<div style="font-size:12px;line-height:1.7;color:#0f172a;">' + ins.map(function (t) { return '<div style="padding:6px 0;border-top:1px solid #f1f5f9;">• ' + t + "</div>"; }).join("") + "</div>";
     // simple scorecard
     if (reps.length) {
@@ -387,9 +392,9 @@
         reps.map(function (x) { var rr = D.reps[x.ri], vc = vcol[x.verdict];
           return '<tr class="fph-rep" data-ri="' + x.ri + '" style="cursor:pointer;"><td style="' + TD + 'font-weight:700;">' + esc(rr.n) + '</td><td style="' + TD + '">' + esc(rr.terr) + '</td><td style="' + TD + '"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;color:' + vc[0] + ";background:" + vc[1] + ';">' + x.verdict + "</span></td>" +
             (hasTeam() ? numTd(x.tgt ? fmtM(x.tgt) : "–") + numTd(x.tgt ? fmtM(x.tAct) : "–") + numTd(x.ach == null ? "–" : pct(x.ach), achColor(x.ach)) : "") +
-            numTd(pct(x.activePct)) + numTd(x.uplift == null ? "n/a" : (x.uplift >= 0 ? "+" : "") + pct(x.uplift, 0), upColor(x.uplift)) + numTd(x.lapsedN = (R.stats.filter(function (st) { return D.ph[st.i][3] === x.ri && (status(st) === "Lapsed" || status(st) === "Never bought"); }).length).toLocaleString()) + "</tr>"; }).join("") +
+            numTd(pct(x.activePct)) + numTd(x.uplift == null ? "n/a" : (x.uplift >= 0 ? "+" : "") + pct(x.uplift, 0), upColor(x.uplift)) + numTd(x.lapsedN = (R.stats.filter(function (st) { return D.ph[st.i][3] === x.ri && (status(st) === "Lost" || status(st) === "Never bought"); }).length).toLocaleString()) + "</tr>"; }).join("") +
         "</tbody></table></div>";
-      h += '<div style="font-size:10px;color:#94a3b8;margin-top:6px;">Best practice = top 3 reps on buying %, repeat %, growth vs before and sales per buying pharmacy. Needs focus = buying % in the bottom quarter, target below 80% or sales below the pre-launch level. Target = GIT_SALES ' + (ST.tgt === "working" ? "Working (Buffer)" : "Official (Original)") + ' target of the rep; Actual = GIT_SALES sales the rep booked at focus pharmacies (outlier accounts excluded)' + (TT && TT.actualAll ? "; all their GIT_SALES customers: EGP " + fmtM(TT.actualAll) + " (" + pct(TT.achAll) + " of target)" : "") + ". Pharmacies to win = lapsed + never bought.</div>";
+      h += '<div style="font-size:10px;color:#94a3b8;margin-top:6px;">Best practice = top 3 reps on buying %, repeat %, growth vs before and sales per buying pharmacy. Needs focus = buying % in the bottom quarter, target below 80% or sales below the pre-launch level. Target = GIT_SALES ' + (ST.tgt === "working" ? "Working (Buffer)" : "Official (Original)") + ' target of the rep; Actual = GIT_SALES sales the rep booked at focus pharmacies (outlier accounts excluded)' + (TT && TT.actualAll ? "; all their GIT_SALES customers: EGP " + fmtM(TT.actualAll) + " (" + pct(TT.achAll) + " of target)" : "") + ". Pharmacies to win = lost + never bought (status month).</div>";
     }
     h += "</div>";
 
@@ -448,7 +453,7 @@
       }).join("") + "</tbody></table></div></div>";
 
     // pharmacy list
-    var STS = ["all", "Repeat", "Active once", "New", "Lapsed", "Never bought"];
+    var STS = ["all", "Retained", "New Active", "Lost", "Never bought"];
     var q = norm(ST.q), list = R.stats.filter(function (s) {
       if (ST.status !== "all" && status(s) !== ST.status) return false;
       if (q) { var p = D.ph[s.i]; if (norm(p[1] + " " + p[0] + " " + p[2] + " " + D.reps[p[3]].n).indexOf(q) < 0) return false; }
@@ -462,11 +467,11 @@
       '<div style="display:flex;gap:6px;"><input id="fph-q" placeholder="Search pharmacy / code / area / rep" value="' + esc(ST.q) + '" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;width:230px;">' +
       '<select id="fph-sort" style="padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;"><option value="net"' + (ST.sort === "net" ? " selected" : "") + '>Sort: period sales</option><option value="base"' + (ST.sort === "base" ? " selected" : "") + '>Sort: baseline</option><option value="months"' + (ST.sort === "months" ? " selected" : "") + '>Sort: active months</option></select>' +
       '<button id="fph-csv" class="sc-action-btn" style="padding:6px 10px;">⬇ CSV</button></div></div>' +
-      '<div style="font-size:11px;color:#64748b;margin:-4px 0 8px;">Status counts the months <b>inside the selected period</b> (' + perLabel + ', ' + R.per.length + (R.per.length === 1 ? " month" : " months") + '): Repeat = bought in 2+ of them · Active once = bought in 1 of them and also bought before the period · New = bought in 1 of them, never before · Lapsed = bought before, not in the period. ' + (R.per.length === 1 ? '<b>With a 1-month period nobody can be Repeat</b> — widen the period (e.g. Jul–Sep). ' : '') + '"Months bought (all)" counts every month Jan to ' + monthLabel(D.meta.months[D.meta.months.length - 1]) + '.</div>' +
+      '<div style="font-size:11px;color:#64748b;margin:-4px 0 8px;">Status compares <b>' + toM + '</b> (last month of the period) with <b>every earlier month from ' + monthLabel(M[0]) + (R.to > 0 ? ' to ' + monthLabel(M[R.to - 1]) : '') + '</b> (any brand / item in the current filter; bought = net sales &gt; 0): <b>Retained</b> = bought before and in ' + toM + ' · <b>New Active</b> = never bought before, bought in ' + toM + ' · <b>Lost</b> = bought before, not in ' + toM + ' · <b>Never bought</b> = no purchase in any month. "Months bought (all)" counts every month Jan to ' + monthLabel(D.meta.months[D.meta.months.length - 1]) + '.</div>' +
       '<div style="overflow-x:auto;max-height:520px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>' +
       ["Code", "Pharmacy", "Area", "Rep", "Status", "Brands in period", "Baseline / mo", "Active months (period)", "Months bought (all)", "Period sales"].concat(M.map(monthLabel)).map(function (c, i) { return '<th style="' + TH + (i > 5 ? "text-align:right;" : "text-align:left;") + 'position:sticky;top:0;background:#fff;">' + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
       list.slice(0, 300).map(function (s) {
-        var p = D.ph[s.i], st = status(s), col = { Repeat: "#15803d", "Active once": "#0f6cbd", New: "#7c3aed", Lapsed: "#b45309", "Never bought": "#94a3b8" }[st];
+        var p = D.ph[s.i], st = status(s), col = { Retained: "#15803d", "New Active": "#7c3aed", Lost: "#b45309", "Never bought": "#94a3b8" }[st];
         return '<tr><td style="' + TD + '">' + esc(p[0]) + '</td><td style="' + TD + 'direction:rtl;text-align:left;">' + esc(p[1]) + '</td><td style="' + TD + '">' + esc(p[2]) + '</td><td style="' + TD + '">' + esc(D.reps[p[3]].n) + '</td><td style="' + TD + "color:" + col + ';font-weight:700;">' + st + '</td><td style="' + TD + 'font-size:10px;color:#475569;">' + esc(brandsOf(s.i, R)) + "</td>" +
           numTd(fmtM(s.baseAvg)) + numTd(s.activeMonths + " / " + R.per.length) + numTd(s.allActive + " / " + D.meta.months.length) + numTd(fmtM(s.perNet)) +
           PV[s.i].map(function (v, j) { var inP = j >= R.from && j <= R.to; return '<td style="' + TD + "text-align:right;" + (inP ? "background:#f8fafc;" : "") + (v < 0 ? "color:#b91c1c;" : v > 0 ? "" : "color:#cbd5e1;") + '">' + (v ? fmtM(v) : "·") + "</td>"; }).join("") + "</tr>";

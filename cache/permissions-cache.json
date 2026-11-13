@@ -60,7 +60,8 @@
       ],
       "canExport": true,
       "lines": [
-        "GIT-III"
+        "GIT-III",
+        "GIT_SALES"
       ],
       "role": "Line Manager"
     },

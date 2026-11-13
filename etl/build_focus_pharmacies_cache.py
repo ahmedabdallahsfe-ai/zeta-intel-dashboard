@@ -169,6 +169,7 @@ def scan(path, sheet, ids, agg, focus_reps, brands_focus):
     iQ, iTI, iTV, iE1 = ix.get('Quantity'), ix.get('TargetIndex'), ix.get('TargetValue'), ix.get('Emp1Name')
     iTT = ix.get('TransactionType')
     iPos = ix.get('Position')
+    iST = ix.get('SubType')   # 2026-11-05 (Ahmed): GIT_SALES actuals = sub type GIT_SALES only
     n = kept = 0
     for r in it:
         n += 1
@@ -176,6 +177,9 @@ def scan(path, sheet, ids, agg, focus_reps, brands_focus):
         is_focus = line == FOCUS_LINE
         if not is_focus and line not in GIT_BU_LINES: continue
         cid = cid_str(r[iC])
+        if is_focus and iST is not None and iST < len(r) and is_actual(r[iTI] if iTI is not None and iTI < len(r) else None, num(r[iV]), num(r[iTV]) if iTV is not None and iTV < len(r) else 0.0) \
+                and str(r[iST] or '').strip().upper() != FOCUS_LINE:
+            continue   # GIT_SALES actual booked on another sub type = copy of GIT sales, not GIT-S business
         if is_focus:   # GIT-S team target / actual, every customer
             tv = num(r[iTV]) if iTV is not None and iTV < len(r) else 0.0; vv = num(r[iV])
             ti = r[iTI] if iTI is not None and iTI < len(r) else None

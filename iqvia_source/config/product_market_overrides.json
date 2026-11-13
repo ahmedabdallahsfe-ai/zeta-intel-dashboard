@@ -390,6 +390,20 @@
       "bu": "CHC"
     },
     {
+      "id": "MELATONIN-MELACRYST",
+      "why": "2026-11-08 (Ahmed): 'ADD MELACRYST SELECTED_MELATONIN MARKET'. IQVIA product MELACRYST (CRYSTAL PHARMA, melatonin, N05B1, was OTHER MARKET) joins the Dozova Melatonin market.",
+      "products": [
+        "MELACRYST"
+      ],
+      "corps_contain": [
+        "CRYSTAL"
+      ],
+      "dm1": "SELECTED _ MELATONIN",
+      "dm2": "SELECTED _ MELATONIN",
+      "line": "CHC",
+      "bu": "CHC"
+    },
+    {
       "id": "CHC2027-NERVINOVA",
       "why": "2026-10-29 (Ahmed): NERVINOVA (Orchidia; benfotiamine + levomefolic acid + mecobalamin) added to the Methyl Folate launch market as the nearest equivalent of 'Orchidia - Methyl Folate' (no Orchidia methyl folate in IQVIA / IMS). It is in IQVIA (OTHER MARKET), so it comes as IQVIA rows, not [TM].",
       "products": [

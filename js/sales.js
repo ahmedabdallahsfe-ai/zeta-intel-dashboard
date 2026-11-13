@@ -490,6 +490,22 @@
       cache = JSON.parse(decompressed);
       decodedRows = cache.rows;
 
+      // GIT_SALES = sub type GIT_SALES only (2026-11-05, Ahmed "consider sub type GIT-sales only"):
+      // the source books the GIT_SALES line on every customer type (Stores, Private, chains...) as a
+      // copy of GIT sales (Sep-26: 55.27M net). Only customers with SubType "GIT_SALES" are the
+      // GIT-S team's own business, so every OTHER actual row of the GIT_SALES line is dropped here,
+      // once, before any aggregation. Target / mirror rows (MASK bit 16) are kept.
+      if (cache && cache.lookups && Array.isArray(decodedRows)) {
+        const gsLine = (cache.lookups.lines || []).indexOf("GIT_SALES");
+        const gsSub = (cache.lookups.sub_types || []).indexOf("GIT_SALES");
+        if (gsLine >= 0) {
+          const before = decodedRows.length;
+          decodedRows = decodedRows.filter(r => r[LINE] !== gsLine || (r[MASK] & 16) || r[STYPE] === gsSub);
+          cache.rows = decodedRows;
+          console.log(`[Sales] GIT_SALES sub-type rule: ${before - decodedRows.length} non-GIT_SALES sub-type rows dropped`);
+        }
+      }
+
       // Fix data anomaly for Mahmoud Mohamed Gharib Farghaly:
       // His raw transactions in sales cache are mistakenly marked under 'DIAB-II' (line index),
       // but his true organizational line is 'ORTHO-II'.
