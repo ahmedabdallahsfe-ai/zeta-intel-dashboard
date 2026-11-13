@@ -431,6 +431,47 @@ def apply_current_sales(q, pdef, archives):
     log(f'Q3 sales achievement from current sales file: {changed} rep values differ from the archived months')
 
 
+# ---------------------------------------------------------------------
+# Brand Manager quarter scoring (Ahmed 2026-11-14: "for brand manager as it
+# is quarter so points from 100 points achievement acc to quarter, region
+# covered through quarter"). BMs compete at Quarterly / Annual level only,
+# so their Q3 score is ONE 100-point score from the quarter's achievement
+# -- NOT the sum of monthly points (that rule stays for every other tier):
+#   National Sales  (50) = BM curve on Q3 pooled achievement (current sales file)
+#   Regions Covered (20) = distinct regions in the quarter: 1->4 ... 5->20
+#   Tactical Plan   (30) = BM curve on the Q3 value (average of months; template)
+# Must run AFTER apply_current_sales() so National Sales uses the pooled Q3 %.
+def score_bm_quarter(q, curves):
+    from build_sprint_cache import interp
+    from sprint_bm_regions import points_for_count
+    for r in q['brandManager']['ranked']:
+        total, pending = 0.0, False
+        for k in r.get('kpis', []):
+            w = k.get('monthWeight') or k.get('weight')
+            k['weight'] = w
+            k['ptsMonthlySum'] = k.get('pts')
+            raw = k.get('raw')
+            if raw is None:
+                k['pts'] = None
+                pending = True
+                continue
+            if k['key'] == 'regionCount':
+                pts = points_for_count(curves['regionCount'], raw)
+            else:
+                pts = interp(curves[k['key']], raw)
+            k['pts'] = max(0.0, min(w, pts or 0.0))
+            k['q3Scoring'] = 'quarter achievement'
+            total += k['pts']
+        r['totalPtsMonthlySum'] = r.get('totalPts')
+        r['totalPts'] = total
+        r['totalMaxPts'] = 100
+        r['isPartial'] = pending
+        r['q3Scoring'] = 'quarter achievement'
+    q['meta']['bmQuarterRule'] = ('Brand Manager: one 100-pt score on Q3 achievement (sales pooled, regions = '
+                                  'distinct regions in the quarter, tactical plan) -- not the sum of monthly points.')
+    log('Brand Manager Q3 scored on quarter achievement (max 100)')
+
+
 def main():
     from sprint_bm_regions import BmRegionResolver
     import openpyxl
@@ -440,6 +481,8 @@ def main():
     resolver = BmRegionResolver(ROOT)
     wb = openpyxl.load_workbook(SCALING_PATH, data_only=True)
     region_curve = extract_curve(wb['Brand Managers'], 4, 5)
+    bm_curves = dict(salesAch=extract_curve(wb['Brand Managers'], 1, 2), regionCount=region_curve,
+                     tacticalPlan=extract_curve(wb['Brand Managers'], 8, 9))
     for pdef in PERIODS:
         missing = [m for m in pdef['months'] if m not in by_key]
         if missing:
@@ -457,6 +500,7 @@ def main():
             archives[m] = d
         q = build_period(pdef, archives, resolver, load_last_days())
         apply_current_sales(q, pdef, archives)
+        score_bm_quarter(q, bm_curves)
         fn = f"sprint_{pdef['key']}.data.js"
         write_archive(os.path.join(HIST, fn), q)
         man = [p for p in man if p['key'] != pdef['key']]

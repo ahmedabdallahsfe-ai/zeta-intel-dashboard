@@ -316,7 +316,7 @@
     return `<div class="sp-q3-banner">
       <b>${esc(cache.meta.periodLabel || cache.meta.evalPeriod)} — quarterly ranking.</b>
       Every KPI shows the <b>${esc(cache.meta.evalPeriod)} achievement</b> (Sales = total actual ÷ total target; Coverage, Right Frequency, Field Days, DV Coverage, Calls per DV, Team Avg = average of the months scored; Brand Manager Regions = distinct zones visited in the quarter).
-      Winner Pool gates compare these ${esc(cache.meta.evalPeriod)} values with the Line / BU average; the pool is ranked by the <b>sum of the monthly points</b> (max ${100 * PM()}).
+      Winner Pool gates compare these ${esc(cache.meta.evalPeriod)} values with the Line / BU average; the pool is ranked by the <b>sum of the monthly points</b> (max ${100 * PM()}). <b>Brand Manager</b> is the exception: one 100-point score from the quarter's own achievement (Q3 sales, regions covered across the quarter, tactical plan).
       Only months a person was ranked count (after probation, active, not leave-excluded) — someone who passed probation mid-quarter is scored on the months after it. Months: ${esc(months)}.
     </div>`;
   }
@@ -540,9 +540,12 @@
   }
 
   // ---- shared bits -------------------------------------------------
-  function band(pts) {
+  function band(pts, maxPts) {
     if (pts == null) return "Pending";
-    pts = pts / PM(); // Q3: sum of 3 months -> same 0-100 bands per month
+    // Q3: sum of 3 months -> same 0-100 bands per month. maxPts (the
+    // record's own totalMaxPts) wins when given -- Brand Manager's Q3 is
+    // one 100-pt quarter score, not a 300-pt sum (2026-11-14).
+    pts = pts / ((maxPts || 100 * PM()) / 100);
     if (pts >= 88) return "Champion";
     if (pts >= 68) return "Performer";
     if (pts >= 42) return "On Track";
@@ -650,7 +653,7 @@
     const m = cache.medicalRepSalesRep;
     const msr = m.ranked.filter(r => r.role === "Medical Rep").filter(repInScope);
     const sr = m.ranked.filter(r => r.role === "Sales Rep (CHC)").filter(repInScope);
-    const champions = [...msr, ...sr].filter(r => band(r.totalPts) === "Champion").length;
+    const champions = [...msr, ...sr].filter(r => band(r.totalPts, r.totalMaxPts) === "Champion").length;
     const excludedCount = m.excluded.filter(excludedInScope).length;
     const dmScored = cache.dmDsm.ranked.filter(r => r.teamSize > 0).filter(dmOrBmInScope).length;
     const asmScored = cache.asm.ranked.filter(r => r.teamSize > 0).filter(asmNsmInScope).length;
@@ -2153,7 +2156,7 @@
   // happens in this function, only display. `d` is precomputed once per
   // render by renderMedicalRep() and passed in per row.
   function repRow(r, isRepTier, d) {
-    const c = BAND_COLOR[band(r.totalPts)];
+    const c = BAND_COLOR[band(r.totalPts, r.totalMaxPts)];
     const maxSales = (isRepTier === "msr" ? 50 : 60) * PM();
     const maxCoverage = (isRepTier === "msr" ? 10 : 40) * PM();
     const hasRf = isRepTier === "msr";
@@ -2168,7 +2171,7 @@
       <td>${kpiMedianBlock("Sales", r.achPct, d.lineAverageSales, d.salesVsAverage, r.salesPts, maxSales, d.salesFloorPass, "Sales", true, "Average")}</td>
       ${hasRf ? `<td>${kpiMedianBlock("Right Freq", r.rightFreqPct, d.lineAverageRF, d.rfVsAverage, r.rfPts, 40 * PM(), d.rfFloorPass, "Right Freq", false, "Average")}</td>` : ""}
       <td>${kpiMedianBlock("Coverage", r.coveragePct, d.lineAverageCoverage, d.coverageVsAverage, r.covPts, maxCoverage, d.coverageFloorPass, "Coverage", false, "Average")}</td>
-      <td class="sp-total">${totalPointsHeaderHtml(d, 100 * PM())}<span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts)}</span></td>
+      <td class="sp-total">${totalPointsHeaderHtml(d, 100 * PM())}<span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts, r.totalMaxPts)}</span></td>
     </tr>`;
   }
 
@@ -2378,7 +2381,7 @@
   // "eligibility only, no points" display, since RF now plays no role in
   // CHC's model at all, matching the deck (Sales 60 + Coverage 40 = 100).
   function salesRepRow(r, i, d) {
-    const c = BAND_COLOR[band(r.totalPts)];
+    const c = BAND_COLOR[band(r.totalPts, r.totalMaxPts)];
     return `<tr class="sp-row" data-rep-name="${esc(r.name)}" data-rep-total="${r.totalPts.toFixed(1)}" data-search="${esc((r.name + " " + r.code).toLowerCase())}">
       <td class="sp-rank">${i + 1}</td>
       <td class="sp-name">
@@ -2389,7 +2392,7 @@
       </td>
       <td>${kpiMedianBlock("Sales", r.achPct, d.lineAverageSales, d.salesVsAverage, r.salesPts, 60 * PM(), d.salesFloorPass, "Sales", true, "Average")}</td>
       <td>${kpiMedianBlock("Coverage", r.coveragePct, d.lineAverageCoverage, d.coverageVsAverage, r.covPts, 40 * PM(), d.coverageFloorPass, "Coverage", false, "Average")}</td>
-      <td class="sp-total">${totalPointsHeaderHtml(d, 100 * PM())}<span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts)}</span></td>
+      <td class="sp-total">${totalPointsHeaderHtml(d, 100 * PM())}<span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts, r.totalMaxPts)}</span></td>
     </tr>`;
   }
 
@@ -2635,7 +2638,7 @@
     // "-- No data" card reads as broken, not informative. Per Ahmed
     // 2026-08-15 ("remove this Your June Zeta Sprint Standing ... No data").
     if (r.totalPts == null) return "";
-    const c = BAND_COLOR[band(r.totalPts)];
+    const c = BAND_COLOR[band(r.totalPts, r.totalMaxPts)];
     const tierLabel = TIER_LABEL[found.kind] || r.role;
     return `
       <div class="sp-my-card">
@@ -2644,7 +2647,7 @@
           <div class="sp-my-card-name">${esc(r.name)} <span class="sp-my-card-tier">${esc(tierLabel)}</span>${myWinnerBadgeText(r.code)}</div>
           <div class="sp-my-card-total">
             <span class="sp-total-pts">${r.totalPts != null ? r.totalPts.toFixed(1) : "—"}</span>
-            <span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${r.totalPts != null ? band(r.totalPts) : "No data"}</span>
+            <span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${r.totalPts != null ? band(r.totalPts, r.totalMaxPts) : "No data"}</span>
           </div>
           <button type="button" class="sp-member-link sp-my-card-btn" data-code="${esc(r.code)}">View My Full Breakdown</button>
         </div>
@@ -2665,7 +2668,7 @@
       return;
     }
     const r = found.data;
-    const c = BAND_COLOR[band(r.totalPts)];
+    const c = BAND_COLOR[band(r.totalPts, r.totalMaxPts)];
     let kpisHtml, subInfo;
 
     if (found.kind === "rep") {
@@ -2693,7 +2696,7 @@
         <div class="sp-member-modal-kpis">${kpisHtml}</div>
         <div class="sp-member-modal-total">
           <span class="sp-total-pts">${r.totalPts != null ? r.totalPts.toFixed(1) : "—"}</span>
-          <span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${r.totalPts != null ? band(r.totalPts) : "No data"}</span>
+          <span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${r.totalPts != null ? band(r.totalPts, r.totalMaxPts) : "No data"}</span>
         </div>
         ${r.isPartial ? `<div class="sp-partial-note">Some KPIs are still pending your data sheet — not yet counted in this total.</div>` : ""}
       </div>`;
@@ -2923,7 +2926,7 @@
     const monthRows = months.map((mk, i) => {
       const zs = d.byMonth[mk] || [];
       const m = monthly[i] || {};
-      return `<tr><td>${esc(mLabel(mk))}</td><td>${zs.length}</td><td>${zs.map(z => esc(short(z))).join(", ") || "—"}</td>${isQ ? `<td>${m.pts != null ? m.pts.toFixed(1) : "—"}</td>` : ""}</tr>`;
+      return `<tr><td>${esc(mLabel(mk))}</td><td>${zs.length}</td><td>${zs.map(z => esc(short(z))).join(", ") || "—"}</td>${isQ && !kpi.q3Scoring ? `<td>${m.pts != null ? m.pts.toFixed(1) : "—"}</td>` : ""}</tr>`;
     }).join("");
     const rows = (d.rows || []).map(x => {
       const how = x.mappedBy === "territory" ? "territory" : x.mappedBy === "governorate" ? `home governorate${x.governorate ? " (" + esc(x.governorate) + ")" : ""}` : "not mapped";
@@ -2936,13 +2939,13 @@
       <div class="sp-region-modal">
         <div class="sp-region-summary">
           <div><span class="sp-region-big">${kpi.raw != null ? kpi.raw : 0}</span> of ${universe.length} regions covered${isQ ? ` in ${esc(cache.meta.evalPeriod)}` : ""}
-            · <b>${kpi.pts != null ? kpi.pts.toFixed(1) : "—"}</b> / ${kpi.weight} pts${isQ ? " (sum of the monthly points)" : ""}
+            · <b>${kpi.pts != null ? kpi.pts.toFixed(1) : "—"}</b> / ${kpi.weight} pts${isQ ? (kpi.q3Scoring ? " (scored on the quarter's regions)" : " (sum of the monthly points)") : ""}
             · ${d.visits || 0} joint visits</div>
           <div class="sp-region-chips">${chips}</div>
         </div>
         ${months.length > 1 ? `<h4>By month</h4>
-        <table class="sp-region-table"><thead><tr><th>Month</th><th>Zones</th><th>Which</th>${isQ ? "<th>Points</th>" : ""}</tr></thead><tbody>${monthRows}</tbody></table>
-        <div class="sp-region-note">${isQ ? `Q3 count = distinct zones across the quarter (shown above). Points = each month scored on its own zones (1 zone = 4 · 2 = 8 · 3 = 12 · 4 = 16 · 5 = 20), then summed.` : ""}</div>` : ""}
+        <table class="sp-region-table"><thead><tr><th>Month</th><th>Regions</th><th>Which</th>${isQ && !kpi.q3Scoring ? "<th>Points</th>" : ""}</tr></thead><tbody>${monthRows}</tbody></table>
+        <div class="sp-region-note">${isQ ? (kpi.q3Scoring ? `Q3 points come from the distinct regions across the whole quarter (1 = 4 · 2 = 8 · 3 = 12 · 4 = 16 · 5 = 20 pts) — the months above show where the visits happened.` : `Q3 count = distinct regions across the quarter. Points = each month scored on its own regions (1 = 4 · 2 = 8 · 3 = 12 · 4 = 16 · 5 = 20), then summed.`) : ""}</div>` : ""}
         <h4>Evidence — joint field visits by employee</h4>
         ${rows ? `<div class="sp-region-scroll"><table class="sp-region-table"><thead><tr><th>Region</th><th>Employee visited with</th><th>Territory</th><th>Region taken from</th>${monthHeads}<th>Visits</th><th>Days</th><th>Customers</th><th>Visit dates (MM-DD)</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p>No joint field visits recorded for this Brand Manager in this period.</p>`}
         ${(d.unmapped || []).length ? `<div class="sp-region-note">⚠ ${d.unmapped.length} employee(s) could not be placed in a region and are NOT counted (highlighted).</div>` : ""}
@@ -3285,7 +3288,7 @@
   }
 
   function hierarchyRow(r, d, isWinner, isRunnerUp, buLeaders) {
-    const c = BAND_COLOR[band(r.totalPts)];
+    const c = BAND_COLOR[band(r.totalPts, r.totalMaxPts)];
     const lineBu = [r.line, r.bu].filter(Boolean).join(" · ");
     const noun = r.memberNoun === "DM/DSM" ? "DM/DSM" : "rep";
     const isBuLeader = buLeaders && r.bu && buLeaders.has(r.code);
@@ -3352,7 +3355,7 @@
              manager's own BU/national peer pool of gate-eligible peers,
              by Total Points), just not displayed until now. -->
         <div class="sp-total-pts">${r.totalPts != null ? r.totalPts.toFixed(1) : "—"}${d && d.winnerPoolEligible ? ` <span class="sp-pool-rank-note">Winner Pool #${d.winnerPoolRank}</span>` : ""}</div>
-        <span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${r.totalPts != null ? band(r.totalPts) : "No data"}</span>
+        <span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${r.totalPts != null ? band(r.totalPts, r.totalMaxPts) : "No data"}</span>
         ${r.isPartial ? `<div class="sp-partial-note">pending KPI${r.kpis.filter(k => k.pts == null).length > 1 || r.teamAvgPts == null ? "s" : ""} not yet in total</div>` : ""}
       </td>
     </tr>`;
@@ -3515,7 +3518,7 @@
   // "N regions") even when it has a real peer-Average check -- it's still
   // fully counted in the eligibility gate math, just not chart-rendered.
   function brandManagerRow(r, d, isWinner, isRunnerUp) {
-    const c = BAND_COLOR[band(r.totalPts)];
+    const c = BAND_COLOR[band(r.totalPts, r.totalMaxPts)];
     const checksByKey = {};
     (d && d.checks || []).forEach(ch => { checksByKey[ch.key] = ch; });
     return `<tr class="sp-row${isWinner || isRunnerUp ? " sp-is-winner" : ""}">
@@ -3526,7 +3529,7 @@
       }).join("")}
       <td class="sp-total">
         <div class="sp-total-pts">${r.totalPts.toFixed(1)}${d && d.winnerPoolEligible ? ` <span class="sp-pool-rank-note">Winner Pool #${d.winnerPoolRank}</span>` : ""}</div>
-        <span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts)}</span>
+        <span class="sp-band-pill" style="color:${c[0]};background:${c[1]};">${band(r.totalPts, r.totalMaxPts)}</span>
         ${r.isPartial ? `<div class="sp-partial-note">pending KPIs not yet in total</div>` : ""}
       </td>
     </tr>`;
@@ -3604,7 +3607,7 @@
     return `
       <div class="sp-section">
         <h2>Brand Manager — ${esc(cache.meta.evalPeriod)}${anyPending ? " (Partial)" : ""}</h2>
-        <div class="sp-section-sub">National Sales (50, auto-calculated from each Brand Manager's assigned Line) + Region Coverage (20) + Tactical Plan Execution (30) = 100 pts. Brand Managers own products, not a rep team, so there's no Team Avg rollup here — Region Coverage and Tactical Plan Execution are sourced from zeta sprint/Sprint_Missing_KPI_Template.xlsx. 🏆 WINNER and 🏆 WINNER 2 are the 2 company-wide winners (2 per Corporate), true company-wide even if you're only viewing your own BU's scope, and only among Brand Managers who clear the national Brand Manager Average on every scored KPI. Brand Managers earn cash at Quarterly (4,500 L.E) and Annual level only — no Monthly Sprint cash. ${anyPending ? '<span class="sp-tag-partial">SOME PENDING</span>' : '<span class="sp-tag-live">FULLY SCORED</span>'}</div>
+        <div class="sp-section-sub">National Sales (50, auto-calculated from each Brand Manager's assigned Line) + Region Coverage (20) + Tactical Plan Execution (30) = 100 pts. Brand Managers own products, not a rep team, so there's no Team Avg rollup here — Region Coverage and Tactical Plan Execution are sourced from zeta sprint/Sprint_Missing_KPI_Template.xlsx. 🏆 WINNER and 🏆 WINNER 2 are the 2 company-wide winners (2 per Corporate), true company-wide even if you're only viewing your own BU's scope, and only among Brand Managers who clear the national Brand Manager Average on every scored KPI. Brand Managers earn cash at Quarterly (4,500 L.E) and Annual level only — no Monthly Sprint cash.${isQuarterView() ? " <b>Quarter scoring:</b> one 100-point score from the quarter's achievement — National Sales on Q3 total actual ÷ total target, Regions = distinct regions visited across the quarter, Tactical Plan — not the sum of monthly points." : ""} ${anyPending ? '<span class="sp-tag-partial">SOME PENDING</span>' : '<span class="sp-tag-live">FULLY SCORED</span>'}</div>
         ${hierarchyGateRuleBannerHtml(bannerText.title, bannerText.en1, bannerText.en2, bannerText.ar1, bannerText.ar2)}
         ${bmWinnersPanel}
         ${hierarchyAveragesPanelHtml(null, bmGroupAverages, ranked[0] ? ranked[0].kpis : [], true, "Brand Manager", false)}
