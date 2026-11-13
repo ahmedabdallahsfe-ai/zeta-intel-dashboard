@@ -1015,9 +1015,12 @@ def build_kpis(df: pd.DataFrame, roster: pd.DataFrame, latest_period: str, logge
     not_seen_count = int((eval_rows["Covered Doctors"] == 0).sum())
     eval_row_count = len(eval_rows)
     not_seen_pct = safe_round(not_seen_count / eval_row_count) if eval_row_count else None
-    total_unique_customers = int(eval_rows["Customer Name"].nunique())
+    # 2026-11-13: customer count is a COUNT metric -> keeps flagged reps (see evaluated_rows docstring).
+    total_unique_customers = int(latest_active_rows["Customer Name"].nunique())
 
-    over_freq_count = int((eval_rows["Visits Count"] > eval_rows["Frequency"]).sum())
+    # 2026-11-13: over-frequency = Right Freq met AND visits above the EFFECTIVE (prorated) target,
+    # identical to js/analytics.js so Analytics.selfCheck agrees.
+    over_freq_count = int(((eval_rows["Right Freq"] == 1) & (eval_rows["Visits Count"].fillna(0) > effective_tgt)).sum())
     below_freq_count = int((eval_rows["Right Freq"] == 0).sum())
 
     kpis = {
@@ -1071,7 +1074,7 @@ def build_trend(df: pd.DataFrame, roster: pd.DataFrame, logger: logging.Logger) 
         freq_sum = int(pd.Series(effective_tgt, index=eval_rows.index).fillna(0).sum())
         visits_sum = int(eval_rows["Visits Count"].fillna(0).sum())
         covered_sum = int(eval_rows["Covered Doctors"].fillna(0).sum())
-        over_freq_count = int((eval_rows["Visits Count"] > eval_rows["Frequency"]).sum())
+        over_freq_count = int(((eval_rows["Right Freq"] == 1) & (eval_rows["Visits Count"].fillna(0) > effective_tgt)).sum())  # 2026-11-13
         below_freq_count = int((eval_rows["Right Freq"] == 0).sum())
         rows.append({
             "period": period,
@@ -1088,7 +1091,7 @@ def build_trend(df: pd.DataFrame, roster: pd.DataFrame, logger: logging.Logger) 
             "visitAchievementPct": safe_round(visits_sum / freq_sum) if freq_sum else None,
             "notSeenCount": eval_count - covered_sum,
             "notSeenPct": safe_round((eval_count - covered_sum) / eval_count) if eval_count else None,
-            "totalUniqueCustomers": int(eval_rows["Customer Name"].nunique()),
+            "totalUniqueCustomers": int(active_rows["Customer Name"].nunique()),  # 2026-11-13: count metric keeps flagged reps
             "totalSharedCustomers": eval_count,
             "overFreqCount": over_freq_count,
             "belowFreqCount": below_freq_count,

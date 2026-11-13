@@ -329,6 +329,107 @@ def build_period(pdef, archives, resolver, last_days=None):
     return out
 
 
+# ---------------------------------------------------------------------
+# Option A (Ahmed 2026-11-13): Q3 SALES achievement is recomputed from the
+# CURRENT sales file (same rules as the monthly build, etl/sprint_sales.py),
+# so it matches the Sales Performance page even when a month's target was
+# revised after that month's Sprint was archived (CVM-I July). Points are
+# NOT touched -- they stay the sum of the monthly points already published.
+def apply_current_sales(q, pdef, archives):
+    from build_sprint_cache import load_b64, normalize_line, norm_name
+    import sprint_sales
+    sc = load_b64('sales.data.js')
+    ss = sprint_sales.aggregate(sc, pdef['months'], normalize_line, norm_name)
+    lines_lk = sc['lookups']['lines']
+    name_to_mkey = {archives[m]['meta']['evalPeriod']: m for m in pdef['months']}
+    rep_m, line_m = ss['rep'], ss['line']
+
+    def rep_sales(mkey, name):
+        a = rep_m[mkey].get(norm_name(name))
+        return (a['val'], a['tgtVal']) if a else (0.0, 0.0)
+
+    def total(months, name):
+        v = t = 0.0
+        found = False
+        for mk in months:
+            a = rep_m[mk].get(norm_name(name))
+            if a:
+                found = True
+                v += a['val']; t += a['tgtVal']
+        return found, v, t
+
+    changed = 0
+    for r in q['medicalRepSalesRep']['ranked']:
+        months = [name_to_mkey[m] for m in r.get('scoredMonths', []) if m in name_to_mkey]
+        found, v, t = total(months, r['name'])
+        if not found:
+            r['q3SalesBasis'] = 'archived months (rep not found in current sales file)'
+            continue
+        old = r.get('achPct')
+        r['salesValArchived'], r['salesTgtArchived'], r['achPctArchived'] = r.get('salesVal'), r.get('salesTgt'), old
+        r['salesVal'], r['salesTgt'] = v, t
+        r['achPct'] = (v / t) if t > 0 else None
+        r['q3SalesBasis'] = 'current sales file'
+        if old is None or r['achPct'] is None or abs(old - r['achPct']) > 1e-6:
+            changed += 1
+    for e in q['medicalRepSalesRep']['excluded']:
+        found, v, t = total(pdef['months'], e.get('name', ''))
+        if found and t > 0:
+            e['achPct'] = v / t
+
+    # DM/DSM team sales per month = their that-month team members' current
+    # sales; ASM/NSM = sum of their that-month DM/DSMs' team sales (the
+    # same sum-once roll-up as the monthly build).
+    dm_by_month = {mk: {str(d['code']): d for d in archives[mk]['dmDsm']['ranked']} for mk in pdef['months']}
+
+    def dm_team(mk, dm_rec):
+        v = t = 0.0
+        for m in dm_rec.get('teamMembers') or []:
+            a, b = rep_sales(mk, m['name'])
+            v += a; t += b
+        return v, t
+
+    for tier in ('dmDsm', 'asm', 'nsm'):
+        for r in q[tier]['ranked']:
+            v = t = 0.0
+            for mname in r.get('scoredMonths', []):
+                mk = name_to_mkey.get(mname)
+                if not mk:
+                    continue
+                mrec = next((x for x in archives[mk][tier]['ranked'] if str(x['code']) == str(r['code'])), None)
+                if not mrec:
+                    continue
+                if tier == 'dmDsm':
+                    a, b = dm_team(mk, mrec)
+                else:
+                    a = b = 0.0
+                    for m in mrec.get('teamMembers') or []:
+                        d = dm_by_month[mk].get(str(m['code']))
+                        if d:
+                            x, y = dm_team(mk, d)
+                            a += x; b += y
+                v += a; t += b
+            r['teamSalesValArchived'], r['teamSalesTgtArchived'] = r.get('teamSalesVal'), r.get('teamSalesTgt')
+            r['teamSalesVal'], r['teamSalesTgt'] = v, t
+            r['teamSalesAchPct'] = (v / t) if t > 0 else None
+
+    for r in q['brandManager']['ranked']:
+        for k in r.get('kpis', []):
+            if k.get('key') != 'salesAch' or not k.get('salesLine') or k['salesLine'] not in lines_lk:
+                continue
+            li = lines_lk.index(k['salesLine'])
+            months = [name_to_mkey[m] for m in r.get('scoredMonths', []) if m in name_to_mkey]
+            v = sum(line_m[mk].get(li, {}).get('val', 0) for mk in months)
+            t = sum(line_m[mk].get(li, {}).get('tgtVal', 0) for mk in months)
+            if t > 0:
+                k['rawArchived'] = k.get('raw')
+                k['raw'], k['salesVal'], k['salesTgt'] = v / t, v, t
+                k['q3Basis'] = 'pooled, current sales file'
+    q['meta']['q3SalesBasis'] = ('Sales achievement = sum actual / sum target from the CURRENT sales file '
+                                 '(same rules as the monthly Sprint); points = sum of the published monthly points.')
+    log(f'Q3 sales achievement from current sales file: {changed} rep values differ from the archived months')
+
+
 def main():
     from sprint_bm_regions import BmRegionResolver
     import openpyxl
@@ -354,6 +455,7 @@ def main():
                 log(f'{m}: Brand Manager Regions Covered back-filled for {n} people')
             archives[m] = d
         q = build_period(pdef, archives, resolver, load_last_days())
+        apply_current_sales(q, pdef, archives)
         fn = f"sprint_{pdef['key']}.data.js"
         write_archive(os.path.join(HIST, fn), q)
         man = [p for p in man if p['key'] != pdef['key']]

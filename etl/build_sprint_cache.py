@@ -87,6 +87,7 @@ sys.path.insert(0, ROOT_DIR)
 import leave_rules  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sprint_bm_regions import BmRegionResolver, points_for_count  # noqa: E402
+import sprint_sales  # noqa: E402
 
 LEAVE_REPORT_PATH = os.path.join(ROOT_DIR, leave_rules.LEAVE_REPORT_FILENAME)
 DB_PATH = os.path.join(ROOT_DIR, 'Database Shortcut.xlsx')
@@ -805,83 +806,16 @@ def main():
     # CHC/CHC_SALES have no Shortage coverage at all (Working-only, same
     # as before) -- scenarioCoverage confirms shortage=False for both, so
     # they fall through to Working exactly as before this change.
-    SCENARIO_PRIORITY = ('shortage', 'official', 'working')
-
-    # SPRINT CHC TARGET LOCK (2026-09-25, Ahmed: "keep zeta sprint as its
-    # as, i will tell decision later"). The sales cache now carries the NEW
-    # 2026 CHC target as Official (and hence Shortage) for CHC/CHC_SALES;
-    # the OLD target stays Working. Sprint keeps scoring CHC against the
-    # OLD (Working) target until Ahmed decides. To switch Sprint to the new
-    # target later, set this to an empty set and rebuild Sprint.
-    SPRINT_PINNED_WORKING_LINES = {'CHC', 'CHC_SALES'}
-
-    def resolve_target_scenario(raw):
-        canon = normalize_line(raw)
-        if canon in SPRINT_PINNED_WORKING_LINES or raw in SPRINT_PINNED_WORKING_LINES:
-            return 'working'
-        cov = scenarioCoverage.get(canon) or scenarioCoverage.get(raw)
-        if not cov:
-            return 'official'  # unchanged fallback for lines with no coverage info at all
-        for scenario in SCENARIO_PRIORITY:
-            if cov.get(scenario):
-                return scenario
-        return 'official'
-
-    target_scenario_by_line = [resolve_target_scenario(l) for l in linesLk]
-
-    def include_target_row(mask, scenario):
-        if (mask & 16) == 0:
-            return True
-        if schemaVersion < 3:
-            return True
-        is_shortage = (mask & 64) > 0
-        is_official = (mask & 32) > 0
-        if scenario == 'shortage':
-            return is_shortage
-        if scenario == 'official':
-            return is_official and not is_shortage
-        return (not is_official) and not is_shortage  # 'working'
-
-    rep_sales_month = defaultdict(lambda: dict(val=0, tgtVal=0))
-    # National, line-level val/target totals for the eval month -- used to
-    # auto-calculate each Brand Manager's National Sales Achievement from
-    # the specific line/brand they're responsible for (see Step 7).
-    line_sales_month = defaultdict(lambda: dict(val=0, tgtVal=0))
-    # Per-rep line-row counts + original display casing -- ADDED 2026-09-12
-    # for the Sales Average widening in Step 4b below (every territory,
-    # including vacant, per Ahmed's confirmation). A rep who never enters
-    # reps_coverage (Step 1) has no `team`/canon line from the Coverage
-    # cube, so Step 4b resolves their line from the Sales cache's own line
-    # field instead -- majority line by row count, for the rare case a
-    # rep's rows span more than one line this month (same majority-vote
-    # pattern already used for a manager's primary_line in
-    # score_hierarchy_tier() below). rep_display_name preserves the Sales
-    # cache's own casing (incl. literal "VACANT <territory>" placeholders)
-    # for the name shown on these new records, since rep_sales_month/
-    # rep_lines_seen are keyed by the upper-cased norm_name().
-    rep_lines_seen = defaultdict(Counter)
-    rep_display_name = {}
-    for r in sales_cache['rows']:
-        if (r[MASK] & 2) > 0:
-            continue
-        month_str = monthsLk[r[MONTH]] if r[MONTH] is not None and r[MONTH] < len(monthsLk) else None
-        if month_str != EVAL_MONTH_STR:
-            continue
-        want_official = include_target_row(r[MASK], target_scenario_by_line[r[LINE]])
-        la = line_sales_month[r[LINE]]
-        la['val'] += r[VAL] or 0
-        if want_official:
-            la['tgtVal'] += r[TGT_VAL] or 0
-        repName = repsLk[r[REP]] if r[REP] is not None and r[REP] < len(repsLk) else None
-        if not repName:
-            continue
-        key = norm_name(repName)
-        a = rep_sales_month[key]
-        a['val'] += r[VAL] or 0
-        if want_official:
-            a['tgtVal'] += r[TGT_VAL] or 0
-        rep_lines_seen[key][linesLk[r[LINE]]] += 1
-        rep_display_name.setdefault(key, repName)
+    # Target-scenario resolution + month aggregation moved UNCHANGED to
+    # etl/sprint_sales.py (2026-11-13) so the Q3 rollup reads the Sales cache
+    # with exactly the same rules (tender excluded, CHC pinned to Working,
+    # shortage -> official -> working). See that module for the full notes.
+    _ss = sprint_sales.aggregate(sales_cache, [EVAL_MONTH_STR], normalize_line, norm_name)
+    target_scenario_by_line = _ss['target_scenario_by_line']
+    rep_sales_month = _ss['rep'][EVAL_MONTH_STR]
+    line_sales_month = _ss['line'][EVAL_MONTH_STR]
+    rep_lines_seen = _ss['rep_lines_seen']
+    rep_display_name = _ss['rep_display_name']
 
     def line_sales_totals(sales_line_name):
         """(actual value, target value) for a Sales-cache line this month --

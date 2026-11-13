@@ -204,7 +204,10 @@ const Analytics = (() => {
       const isExempt = !!row[F.isExempt];
 
       if (!isExempt) {
-        const isRightFreq = (proratedTgt >= 0) ? (visits >= proratedTgt ? 1 : 0) : row[F.rightFreq];
+        // 2026-11-13: refresh.py already bakes the prorated target into the Right Freq
+        // column (apply_sick_leave_rules: upgrade only when prorated target > 0). Use it
+        // as-is so client and server never disagree (Analytics.selfCheck).
+        const isRightFreq = row[F.rightFreq];
 
         group.evalCoveredSum += row[F.coveredDoctor];
         group.evalRightFreqSum += isRightFreq;
@@ -526,10 +529,10 @@ const Analytics = (() => {
         if (docInfo.area) uAgg.areas.add(docInfo.area);
 
         if (!isExempt) {
-          const isRightFreq = (proratedTgt >= 0) ? (actualVisits >= proratedTgt ? 1 : 0) : row[F.rightFreq];
+          const isRightFreq = row[F.rightFreq]; // 2026-11-13: ETL Right Freq is authoritative (prorating already applied)
           if (isRightFreq === 0) {
             const missed = Math.max(0, effectiveTarget - actualVisits);
-            if (missed === 1) {
+            if (missed <= 1) { // 2026-11-13: RF not met with 0 calls short (prorated target floored to 0) counts as tier 1, so belowFreqCount == Right Freq 0 rows (matches refresh.py)
               atRiskTiers.tier1.count++;
               atRiskTiers.tier1.list.push(docInfo);
             } else if (missed === 2) {
@@ -690,16 +693,20 @@ const Analytics = (() => {
     // roster["AvgFrequencyAchievement"].mean() (mean-of-means, unweighted
     // by customer count), NOT the row-weighted approach used for
     // Coverage%/Right Freq% above.
+    // 2026-11-13 Sick Leave Impact Rule: Avg Frequency Achievement is a RATE, so
+    // flagged (>15-day Sick / Maternity) rep-periods are left out -- mirrors
+    // refresh.py eval_roster. Headcount / avg visits keep counting every active rep.
     const employeeFreqMeans = [];
     let totalVisitsForAvg = 0;
+    let kpiHeadcount = 0; // active employees within kpiPeriodIdx specifically
     byEmployeePeriod.forEach((g) => {
       if (g.isActive && g.periodIdx === kpiPeriodIdx) {
-        employeeFreqMeans.push(g.actualPlanSum / g.customerCount);
+        kpiHeadcount++;
         totalVisitsForAvg += g.visitsSum;
+        if (!g.isExempt) employeeFreqMeans.push(g.actualPlanSum / g.customerCount);
       }
     });
     const avgFrequencyAchievement = employeeFreqMeans.length ? average(employeeFreqMeans) : 0;
-    const kpiHeadcount = employeeFreqMeans.length; // active employees within kpiPeriodIdx specifically
     const avgVisits = kpiHeadcount ? totalVisitsForAvg / kpiHeadcount : 0;
     const kpiPeriodGroup = byPeriod.get(kpiPeriodIdx) || emptyGroup();
     const customersPerRep = kpiHeadcount ? kpiPeriodGroup.evalRowCount / kpiHeadcount : 0;
