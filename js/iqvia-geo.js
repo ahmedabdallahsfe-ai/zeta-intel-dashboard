@@ -227,6 +227,31 @@ const MEDL=new WeakMap(); // median brick market per line (non-low bricks), for 
 function medOfLine(C,L){let m=MEDL.get(C); if(!m){m={};MEDL.set(C,m);} if(m[L]==null){const a=C.byL[L]?[...C.byL[L].mk].filter((v,k)=>v>0&&!C.rows[k].low).sort((x,y)=>x-y):[]; m[L]=a.length?a[Math.floor(a.length/2)]:C.med;} return m[L];}
 const segOf=(C,mk,idx,gm,low,L)=>low?'Low':mk>=(L!=null?medOfLine(C,L):C.med)?(idx==null?'Maintain':idx<90?'Grow':idx>110?'Defend':'Maintain'):((gm!=null&&C.N.gm!=null&&gm>C.N.gm)?'Develop':'Monitor');
 const goalTd=g=>!g?'<td class="r num zc"><span class="muted">–</span></td>':`<td class="r num zc gl" title="${esc(g.why)}">${g.t==null?'':`<b>${pct(g.t)}</b>${g.d>0.00005?` <small class="up">+${(g.d*100).toFixed(1)}</small>`:''}<br>`}<span class="chip s-${GOAL_CHIP[g.rule]||'Monitor'}" style="font-size:10px;padding:0 6px">${esc(g.rule)}</span></td>`;
+/* line-level brick goal (same numbers as the brick row) and position goal = Σ brick goal gain × allocation ÷ position market (2026-11-23, Ahmed: goal on the position row) */
+const NSL=new WeakMap();
+function natShOf(C,L){let m=NSL.get(C); if(!m){m={};NSL.set(C,m);} if(m[L]==null){const b=C.byL[L]; let T=0,Z=0; if(b) for(let k=0;k<b.mk.length;k++){T+=b.mk[k];Z+=b.z[k];} m[L]=T>0?Z/T:0;} return m[L];}
+function brickGoalL(C,b,L,x){
+  if(!C.hasZ||C.ancOnly.has(L)) return null; x=x||lineBrick(C,b,L); const natSh=natShOf(C,L);
+  const sh=x.mk>0?x.z/x.mk:null, idx=(sh!=null&&natSh>0)?sh/natSh*100:null, gm=gr(x.mk,x.mkp), gz=gr(x.z,x.zp), ei=(gz!=null&&gm!=null)?100*(1+gz)/(1+gm):null;
+  const low=(C.rows[b]&&C.rows[b].low)||(ST.meas==='v'&&x.mk<C.thr);
+  return goalOf({ps:false,low,sh,shp:(HASPREV&&x.mkp>0)?x.zp/x.mkp:null,idx:low?null:idx,ei:low?null:ei,gm,seg:segOf(C,x.mk,idx,gm,low,L),mkE:x.mk},natSh,C.N.gm,HASPREV);
+}
+const PGOAL=new WeakMap();
+function posGoal(C,o){
+  if(!C.hasZ||C.ancOnly.has(o.line)||!(o.pot>0)) return null;
+  const hit=PGOAL.get(o); if(hit!==undefined) return hit;
+  let gain=0, n=0; const up=[], rules={}, byRule={};
+  for(const [b,al] of o.br){const x=lineBrick(C,b,o.line), g=brickGoalL(C,b,o.line,x); if(!g) continue; n++; rules[g.rule]=(rules[g.rule]||0)+1;
+    if(g.t!=null&&g.d>0){const v=g.d*x.mk*al; gain+=v; byRule[g.rule]=(byRule[g.rule]||0)+v; up.push([D.bricks[b].n,v,g.rule]);}}
+  if(!n){PGOAL.set(o,null); return null;}
+  up.sort((a,b)=>b[1]-a[1]); const d=gain/o.pot, t=o.sh+d, P_=v=>(v*100).toFixed(1)+'%';
+  const rule=up.length?Object.entries(byRule).sort((a,b)=>b[1]-a[1])[0][0]:'Hold';
+  const mix=Object.entries(rules).sort((a,b)=>b[1]-a[1]).map(([k,v])=>v+' × '+k).join(' · ');
+  const why=up.length
+    ?`${n===1?'Goal of its only brick':'Sum of the goals of its '+n+' bricks, weighted by allocation'}: ${P_(o.sh)} → ${P_(t)} (+${(d*100).toFixed(1)} pts, +${fmt(gain)} ${UL()}). Biggest levers: ${up.slice(0,3).map(u=>u[0]+' ('+u[2]+', +'+fmt(u[1])+')').join(', ')}. Bricks: ${mix}.`
+    :`${n===1?'Its only brick needs':'None of its '+n+' bricks needs'} no increase (${mix}). Goal = hold ${P_(o.sh)}.`;
+  const g={t,d,val:gain,rule,why}; PGOAL.set(o,g); return g;
+}
 const goalCell=r=>{const g=r.goal; if(!g||g.t==null) return '<span class="muted">–</span>'; return `<b>${pct(g.t)}</b>${g.d>0.00005?` <small class="up">+${(g.d*100).toFixed(1)}</small>`:''}`;};
 const goalWhy=r=>{const g=r.goal; if(!g) return '<span class="muted">–</span>'; return `<span class="chip s-${GOAL_CHIP[g.rule]||'Monitor'}" title="${esc(g.why)}">${esc(g.rule)}</span>`;};
 
@@ -461,7 +486,7 @@ function renderPos(C,P){
   renderPosRegions();
   const comps=(LASTS&&LASTS.comp?LASTS.comp:[]).slice(0,5), zbs=C.zBrands, ul=UL();
   const nat={}; for(const L in C.byL){nat[L]={mk:C.byL[L].mk.reduce((t,v)=>t+v,0),z:C.byL[L].z.reduce((t,v)=>t+v,0)};}
-  const SK={name:o=>o.name,rep:o=>o.vac!=='Filled'?'~':o.rep,pot:o=>o.pot,gm:o=>o.gm,pn:o=>nat[o.line]&&nat[o.line].mk>0?o.pot/nat[o.line].mk:null,z:o=>o.z,gz:o=>o.gzNat?null:o.gz,sh:o=>o.sh,idx:o=>o.idx,ei:o=>o.ei,zn:o=>nat[o.line]&&nat[o.line].z>0?o.z/nat[o.line].z:null,gap:o=>o.gap};
+  const SK={gl:o=>{const g=posGoal(C,o); return g?g.t:null;},name:o=>o.name,rep:o=>o.vac!=='Filled'?'~':o.rep,pot:o=>o.pot,gm:o=>o.gm,pn:o=>nat[o.line]&&nat[o.line].mk>0?o.pot/nat[o.line].mk:null,z:o=>o.z,gz:o=>o.gzNat?null:o.gz,sh:o=>o.sh,idx:o=>o.idx,ei:o=>o.ei,zn:o=>nat[o.line]&&nat[o.line].z>0?o.z/nat[o.line].z:null,gap:o=>o.gap};
   const SLAB=[['pot','Market size'],['gm','Market growth'],['pn','Market Geo Share %'],['z','Zeta sales'],['gz','Zeta growth'],['sh','Zeta share'],['idx','Fair Share Index'],['gap','Gap to fair share'],['ei','Evolution Index'],['zn',zLab(C)+' Contribution %'],['name','Position name'],['rep','Medical rep']];
   const skey=ST.pSort||'pot', sval=skey[0]==='c'&&/^c\d+$/.test(skey)?(bi=>o=>{const v=o.cb.get(bi); return o.pot>0&&v?v[0]/o.pot:0;})(+skey.slice(1)):(SK[skey]||SK.pot);
   P=P.slice().sort((a,b)=>{const x=sval(a),y=sval(b); if(x==null&&y==null)return b.pot-a.pot; if(x==null)return 1; if(y==null)return -1; return (typeof x==='string'?x.localeCompare(y):x-y)*(ST.pDir||-1)||b.pot-a.pot;});
@@ -490,7 +515,7 @@ function renderPos(C,P){
   const head=`<thead><tr><th colspan="3" ${gth}>Position</th><th colspan="3" ${gth}>Market · ${ul}</th><th colspan="7" class="zh" ${gth}>${zl} performance</th><th colspan="${nComp}" ${gth} title="Each cell: share of the position's market · FSI = Fair Share Index vs the brand's national share (100 = national) · pts = change vs same months last year · gr = growth">Share of this position's market — vs competitors</th></tr>
     <tr><th></th><th data-ps="name">Position / brick${ar('name')}</th><th data-ps="rep">Medical rep / allocation${ar('rep')}</th>
     <th class="r" title="Position market (bricks × organogram allocation)" data-ps="pot">Size${ar('pot')}</th><th class="r" title="vs same months last year" data-ps="gm">Growth${ar('gm')}</th><th class="r pnh" title="Part of the national market of the line that sits in this position (bar, shared scale)" data-ps="pn">Market Geo<br>Share %${ar('pn')}</th>
-    <th class="r zh" title="${zn}" data-ps="z">Sales${ar('z')}</th><th class="r zh" title="vs same months last year" data-ps="gz">Growth${ar('gz')}</th><th class="r zh" title="${zl} ÷ position market · pts = change vs same months last year" data-ps="sh">Share${ar('sh')}</th><th class="r zh" title="Fair Share Index = share here ÷ national share × 100 · 100 = national level · below 90 weak · above 110 strong" data-ps="idx">Fair Share<br>Index${ar('idx')}</th><th class="r zh" title="Evolution Index = 100 × (1 + product growth) ÷ (1 + market growth) · above 100 = growing faster than the market" data-ps="ei">Evolution<br>Index${ar('ei')}</th><th class="r zh pnh" title="Part of national Zeta sales that sits in this position; tick = market % of national; ▲/▼ = Zeta % minus market % in points" data-ps="zn">${zl}<br>Contribution %${ar('zn')}</th><th class="r zh" title="Suggested share goal per brick (planning guide, not an incentive or rep target). Open a position to see each brick's goal; hover a goal for the reason.">Share goal<br><small class="muted">per brick</small></th>
+    <th class="r zh" title="${zn}" data-ps="z">Sales${ar('z')}</th><th class="r zh" title="vs same months last year" data-ps="gz">Growth${ar('gz')}</th><th class="r zh" title="${zl} ÷ position market · pts = change vs same months last year" data-ps="sh">Share${ar('sh')}</th><th class="r zh" title="Fair Share Index = share here ÷ national share × 100 · 100 = national level · below 90 weak · above 110 strong" data-ps="idx">Fair Share<br>Index${ar('idx')}</th><th class="r zh" title="Evolution Index = 100 × (1 + product growth) ÷ (1 + market growth) · above 100 = growing faster than the market" data-ps="ei">Evolution<br>Index${ar('ei')}</th><th class="r zh pnh" title="Part of national Zeta sales that sits in this position; tick = market % of national; ▲/▼ = Zeta % minus market % in points" data-ps="zn">${zl}<br>Contribution %${ar('zn')}</th><th class="r zh" data-ps="gl" title="Suggested share goal (planning guide, not an incentive or rep target). Position = sum of its bricks' goals weighted by allocation; open the position (▸) for each brick's goal. Hover a goal for the reason.">Share<br>goal${ar('gl')}</th>
     ${one?'':zbs.map(bi=>`<th class="r zh" data-ps="c${bi}" title="${esc(D.brands[bi].n)} share${D.brands[bi].a?' — ≈ estimated from national IQVIA (directional)':''}"><i class="sw" style="background:var(--s1)"></i>${esc(short(D.brands[bi].n))}${D.brands[bi].a?' ≈':''}${ar('c'+bi)}</th>`).join('')}
     ${comps.map(bi=>`<th class="r" data-ps="c${bi}" title="${esc(D.brands[bi].n)} · ${esc(D.brands[bi].c)} — click to sort by its share"><i class="sw" style="background:${LASTS.col.get(bi)}"></i>${esc(short(D.brands[bi].n))}${ar('c'+bi)}</th>`).join('')}
     <th class="r" title="IQVIA aggregate rows + smaller brands"><i class="sw" style="background:var(--other)"></i>Others</th></tr></thead>`;
@@ -500,13 +525,13 @@ function renderPos(C,P){
     const open=ST.open.has(o.p);
     rows+=`<tr class="prow" data-p="${o.p}"><td class="tog" data-t="${o.p}" title="Show bricks">${open?'▾':'▸'}</td><td><b>${esc(o.name)}</b></td><td>${o.vac!=='Filled'?'<span class="chip s-Grow">Vacant</span>':esc(o.rep)}</td>
       <td class="r num">${fmt(o.pot)}</td><td class="r num">${grH(o.gm)}</td>${pnMk(o.pot,o.line)}
-      <td class="r num zc">${fmt(o.z)}</td><td class="r num zc">${C.hasZ?(o.gzNat?'<span class="muted" title="≈ Estimated sales use a fixed 2026 split, so growth here equals the national trend">nat.</span>':grH(o.gz)):'–'}</td>${C.hasZ?shCell(o.z,o.pot,o.zp,o.potP):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx((nat[o.line]&&nat[o.line].z>0&&o.pot>0)?(o.z/o.pot)/(nat[o.line].z/nat[o.line].mk)*100:null):'–'}</td><td class="r num zc">${o.ei==null?'–':Math.round(o.ei)}</td>${pnZ(o.z,o.pot,o.line)}<td class="r num zc"><span class="muted" title="Open the position (▸) to see the suggested share goal of each brick">${open?'▾ below':'▸ bricks'}</span></td>
+      <td class="r num zc">${fmt(o.z)}</td><td class="r num zc">${C.hasZ?(o.gzNat?'<span class="muted" title="≈ Estimated sales use a fixed 2026 split, so growth here equals the national trend">nat.</span>':grH(o.gz)):'–'}</td>${C.hasZ?shCell(o.z,o.pot,o.zp,o.potP):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx((nat[o.line]&&nat[o.line].z>0&&o.pot>0)?(o.z/o.pot)/(nat[o.line].z/nat[o.line].mk)*100:null):'–'}</td><td class="r num zc">${o.ei==null?'–':Math.round(o.ei)}</td>${pnZ(o.z,o.pot,o.line)}${goalTd(posGoal(C,o))}
       ${shareCells(o.pot,o.potP,o.cb,zbs,comps,NBL[o.line],0,one)}</tr>`;
     if(open){
       const brs=o.br.map(([b,al])=>({b,al,...lineBrick(C,b,o.line)})).sort((a,b)=>b.mk*b.al-a.mk*a.al);
       const n=nat[o.line]||{mk:0,z:0}, natSh=n.mk>0?n.z/n.mk:0;
       for(const x of brs){const sh=x.mk>0?x.z/x.mk:null, idx=(sh!=null&&natSh>0)?sh/natSh*100:null, gm=gr(x.mk,x.mkp), gz=gr(x.z,x.zp), ei=(gz!=null&&gm!=null)?100*(1+gz)/(1+gm):null;
-        const low=(C.rows[x.b]&&C.rows[x.b].low)||(ST.meas==='v'&&x.mk<C.thr), gq=(C.hasZ&&!C.ancOnly.has(o.line))?goalOf({ps:false,low,sh,shp:(HASPREV&&x.mkp>0)?x.zp/x.mkp:null,idx:low?null:idx,ei:low?null:ei,gm,seg:segOf(C,x.mk,idx,gm,low,o.line),mkE:x.mk},natSh,C.N.gm,HASPREV):null;
+        const gq=brickGoalL(C,x.b,o.line,x);
         rows+=`<tr class="brow" data-k="${x.b}"><td></td><td>↳ ${esc(D.bricks[x.b].n)} <span class="muted">${esc(D.bricks[x.b].t)}</span></td><td class="muted">allocation ${pct(x.al,0)}</td>
           <td class="r num">${fmt(x.mk)}</td><td class="r num">${grH(gm)}${gm!=null&&Math.abs(gm)>0.6?' <span title="Possible IQVIA brick re-definition" style="color:var(--warn)">⚠</span>':''}</td>${pnMk(x.mk,o.line,1)}
           ${C.ancOnly.has(o.line)?'<td class="r num zc"><span class="muted" title="Estimated at position level only — no brick split">pos.</span></td>'.repeat(7):`<td class="r num zc">${fmt(x.z)}</td><td class="r num zc">${C.hasZ?grH(gz):'–'}</td>${C.hasZ?shCell(x.z,x.mk,x.zp,x.mkp):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx(idx):'–'}</td><td class="r num zc">${ei==null?'–':Math.round(ei)}</td>${pnZ(x.z,x.mk,o.line,1)}${goalTd(gq)}`}
@@ -544,7 +569,8 @@ function exportPosXlsx(C,P0){
   const compHead=cols.flatMap(([,n])=>[n+' share',n+' FSI',n+' Δ share (pts)',n+' growth']);
   const H=['Level','Position','Line','Region','Medical rep','District manager','NSM','Status','Where to act','Brick','Brick territory','Brick region','Allocation %',
     'Market '+ul,'Market '+ul+' last year','Market growth','Market Geo Share %',
-    zl+' '+ul,zl+' '+ul+' last year',zl+' growth',zl+' share',zl+' Δ share (pts)','Fair Share Index','Evolution Index',zl+' Contribution %','Gap to fair share ('+ul+')',...compHead];
+    zl+' '+ul,zl+' '+ul+' last year',zl+' growth',zl+' share',zl+' Δ share (pts)','Fair Share Index','Evolution Index',zl+' Contribution %','Gap to fair share ('+ul+')','Share goal','Goal change (pts)','Goal value '+ul,'Goal rule','Goal why',...compHead];
+  const gx=g=>g?[g.t,g.d!=null?g.d*100:null,g.val>0?g.val:null,g.rule,g.why]:[null,null,null,'',''];
   let P=P0.slice().sort((a,b)=>a.line.localeCompare(b.line)||b.pot-a.pot);
   if(ST.pq) P=P.filter(o=>(o.name+' '+o.rep+' '+o.dm).toLowerCase().includes(ST.pq));
   const rows=[H], lvl=[]; const brickSet=new Set();
@@ -554,7 +580,7 @@ function exportPosXlsx(C,P0){
     const sh=o.pot>0?o.z/o.pot:null, shp=(HASPREV&&o.potP>0)?o.zp/o.potP:null, fsi=(sh!=null&&natSh>0)?sh/natSh*100:null;
     rows.push(['Position',o.name,o.line,regs,o.vac!=='Filled'?'(vacant)':o.rep,o.dm,o.nsm,o.vac,o.seg,'','','',null,
       num(o.pot),HASPREV?num(o.potP):null,g_(o.pot,o.potP),n.mk>0?o.pot/n.mk:null,
-      C.hasZ?num(o.z):null,C.hasZ&&HASPREV?num(o.zp):null,C.hasZ&&!o.gzNat?g_(o.z,o.zp):null,C.hasZ?num(sh):null,(sh!=null&&shp!=null)?(sh-shp)*100:null,C.hasZ?num(fsi):null,num(o.ei),C.hasZ&&n.z>0?o.z/n.z:null,C.hasZ?num(o.gap):null,
+      C.hasZ?num(o.z):null,C.hasZ&&HASPREV?num(o.zp):null,C.hasZ&&!o.gzNat?g_(o.z,o.zp):null,C.hasZ?num(sh):null,(sh!=null&&shp!=null)?(sh-shp)*100:null,C.hasZ?num(fsi):null,num(o.ei),C.hasZ&&n.z>0?o.z/n.z:null,C.hasZ?num(o.gap):null,...gx(posGoal(C,o)),
       ...shareSet(o.pot,o.potP,o.cb,NBL[o.line],0)]); lvl.push(1);
     const brs=o.br.map(([b,al])=>({b,al,...lineBrick(C,b,o.line)})).sort((a,b)=>b.mk*b.al-a.mk*a.al);
     for(const x of brs){ brickSet.add(x.b);
@@ -562,7 +588,7 @@ function exportPosXlsx(C,P0){
       const pos=C.ancOnly.has(o.line), B=D.bricks[x.b];
       rows.push(['Brick',o.name,o.line,B.r,o.vac!=='Filled'?'(vacant)':o.rep,o.dm,o.nsm,o.vac,'',B.n,B.t,B.r,x.al,
         num(x.mk),HASPREV?num(x.mkp):null,g_(x.mk,x.mkp),n.mk>0?x.mk/n.mk:null,
-        C.hasZ&&!pos?num(x.z):null,C.hasZ&&!pos&&HASPREV?num(x.zp):null,C.hasZ&&!pos?g_(x.z,x.zp):null,C.hasZ&&!pos?num(bsh):null,(!pos&&bsh!=null&&bshp!=null)?(bsh-bshp)*100:null,C.hasZ&&!pos?num(idx):null,pos?null:num(ei),C.hasZ&&!pos&&n.z>0?x.z/n.z:null,C.hasZ&&!pos&&natSh>0&&bsh!=null?Math.max(0,natSh-bsh)*x.mk:null,
+        C.hasZ&&!pos?num(x.z):null,C.hasZ&&!pos&&HASPREV?num(x.zp):null,C.hasZ&&!pos?g_(x.z,x.zp):null,C.hasZ&&!pos?num(bsh):null,(!pos&&bsh!=null&&bshp!=null)?(bsh-bshp)*100:null,C.hasZ&&!pos?num(idx):null,pos?null:num(ei),C.hasZ&&!pos&&n.z>0?x.z/n.z:null,C.hasZ&&!pos&&natSh>0&&bsh!=null?Math.max(0,natSh-bsh)*x.mk:null,...gx(brickGoalL(C,x.b,o.line,x)),
         ...shareSet(x.mk,x.mkp,x.br,NBL[o.line],1)]); lvl.push(2);}
   }
   // Sheet 2: all 148 bricks for the selection (whole selection, every region; positions listed)
@@ -593,7 +619,7 @@ function exportPosXlsx(C,P0){
     ['Competitors','Same top-5 competitors as the page (by national value in the selection) + Others (IQVIA aggregate rows and smaller brands).']];
   // formats
   const PCT='0.0%', NUM='#,##0', IDX='0', PTS='+0.0;-0.0;0.0';
-  const fmtCols=(hdr)=>hdr.map(h=>/ share$|Geo Share %|Contribution %|Allocation %| growth$|Market growth|Suggested share goal/.test(h)?PCT:/FSI$|Fair Share Index|Evolution Index/.test(h)?IDX:/pts\)$/.test(h)?PTS:/ (EGP|units)( last year)?$|Gap to fair share/.test(h)?NUM:null);
+  const fmtCols=(hdr)=>hdr.map(h=>/ share$|Geo Share %|Contribution %|Allocation %| growth$|Market growth|Suggested share goal|^Share goal$/.test(h)?PCT:/FSI$|Fair Share Index|Evolution Index/.test(h)?IDX:/pts\)$/.test(h)?PTS:/ (EGP|units)( last year)?$|Gap to fair share/.test(h)?NUM:null);
   function sheet(aoa,widths){const ws=XLSX.utils.aoa_to_sheet(aoa), f=fmtCols(aoa[0]);
     for(let r=1;r<aoa.length;r++) for(let c=0;c<f.length;c++){ if(!f[c])continue; const ref=XLSX.utils.encode_cell({r,c}); if(ws[ref]&&ws[ref].t==='n') ws[ref].z=f[c]; }
     ws['!cols']=aoa[0].map((h,i)=>({wch:widths&&widths[i]||Math.min(28,Math.max(10,String(h).length+2))}));
