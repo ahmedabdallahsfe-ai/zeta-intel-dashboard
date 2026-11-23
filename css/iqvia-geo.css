@@ -229,3 +229,22 @@ body.tmi-mode #ask-panel-slot:empty{display:none}
 /* 2026-10-15: Excel export of All positions (positions + bricks drilled down) */
 .igeo .xbtn{font:inherit;font-size:12px;font-weight:600;padding:4px 12px;border:1px solid var(--s1);border-radius:6px;background:var(--surface-alt);color:var(--s1);cursor:pointer}
 .igeo .xbtn:hover{background:var(--s1);color:#fff}
+
+/* ══ All positions table — coloured header bands (2026-11-23, Ahmed) ══════════════════════
+   Row 1 = solid group bands; row 2 = light tint of the group colour + 3px top accent.
+   Competitor columns use their own brand colour (--hc, same as the chart swatches). */
+.igeo #ig-pTbl{--g-pos:#475569;--g-mkt:#0e7490;--g-z:var(--s1);--g-cmp:#6d28d9;--g-goal:var(--good)}
+[data-theme="dark"] .igeo #ig-pTbl{--g-pos:#64748b;--g-mkt:#0891b2;--g-cmp:#8b5cf6}
+.igeo #ig-pTbl thead tr.ghr th.gh{color:#fff;font-weight:700;font-size:11px;letter-spacing:.07em;padding:7px 8px;border-bottom:0!important;border-left:2px solid var(--surface);text-shadow:0 1px 1px rgba(0,0,0,.18)}
+.igeo #ig-pTbl thead tr.ghr th.gh-pos{background:linear-gradient(135deg,var(--g-pos),color-mix(in srgb,var(--g-pos) 78%,#000));border-top-left-radius:8px}
+.igeo #ig-pTbl thead tr.ghr th.gh-mkt{background:linear-gradient(135deg,var(--g-mkt),color-mix(in srgb,var(--g-mkt) 75%,#000))}
+.igeo #ig-pTbl thead tr.ghr th.gh-z{background:linear-gradient(135deg,var(--g-z),color-mix(in srgb,var(--g-z) 72%,#000))}
+.igeo #ig-pTbl thead tr.ghr th.gh-cmp{background:linear-gradient(135deg,var(--g-cmp),color-mix(in srgb,var(--g-cmp) 72%,#000));border-top-right-radius:8px}
+.igeo #ig-pTbl thead tr.chr th{border-top:3px solid transparent;font-weight:700}
+.igeo #ig-pTbl thead tr.chr th.hp{background:color-mix(in srgb,var(--g-pos) 13%,var(--surface));border-top-color:var(--g-pos);color:var(--fg)}
+.igeo #ig-pTbl thead tr.chr th.hm{background:color-mix(in srgb,var(--g-mkt) 14%,var(--surface));border-top-color:var(--g-mkt);color:color-mix(in srgb,var(--g-mkt) 70%,var(--fg))}
+.igeo #ig-pTbl thead tr.chr th.zh{background:color-mix(in srgb,var(--g-z) 16%,var(--surface));border-top-color:var(--g-z);color:color-mix(in srgb,var(--g-z) 72%,var(--fg))}
+.igeo #ig-pTbl thead tr.chr th.hg{background:color-mix(in srgb,var(--g-goal) 18%,var(--surface));border-top-color:var(--g-goal);color:var(--g-goal)}
+.igeo #ig-pTbl thead tr.chr th.hc{background:color-mix(in srgb,var(--hc,var(--g-cmp)) 15%,var(--surface));border-top-color:var(--hc,var(--g-cmp));color:var(--fg)}
+.igeo #ig-pTbl thead tr.chr th[data-ps]:hover{filter:brightness(.94)}
+[data-theme="dark"] .igeo #ig-pTbl thead tr.chr th[data-ps]:hover{filter:brightness(1.18)}
