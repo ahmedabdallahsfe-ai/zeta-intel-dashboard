@@ -280,11 +280,11 @@
   <script defer src="js/perf-probe.js?v=20260808_perf2"></script>
 
   <!-- Cache (must load before any module that reads it) -->
-  <script defer src="cache/metadata.data.js?v=20261113_1943_auto"></script>
-  <script defer src="cache/dashboard.data.js?v=20261030_2150_auto"></script>
+  <script defer src="cache/metadata.data.js?v=20261123_1245_auto"></script>
+  <script defer src="cache/dashboard.data.js?v=20261123_1245_auto"></script>
   <script defer src="cache/teamkpis.data.js?v=20260724"></script>
-  <script defer src="cache/records.data.js?v=20261030_2150_auto"></script>
-  <script defer src="cache/organogram.data.js?v=20261030_2150_auto"></script>
+  <script defer src="cache/records.data.js?v=20261123_1245_auto"></script>
+  <script defer src="cache/organogram.data.js?v=20261123_1245_auto"></script>
   <!-- v20260726_hierarchyfix = corrected BUHead/NSM/RM/DM/Rep naming + CM (Emp6) capture (cache/meta.schemaVersion 2).
        js/sales.js checks this schema and shows a pending-refresh placeholder if the cache on disk is still the
        pre-fix version -- safe to deploy this script tag even before the cache file itself is regenerated.
@@ -318,7 +318,7 @@
        this script tag, the sidebar entry, and app.js's Sprint wiring were dropped
        during the same pass that added IMS Rx role-gating; the underlying cache/js/css
        files were never touched, so no rebuild was needed, only re-wiring. -->
-  <script defer src="cache/sprint.data.js?v=20261114_bmq"></script>
+  <script defer src="cache/sprint.data.js?v=20261123_1245_auto"></script>
   <!-- Field Working Days Intelligence cache (2026-09-05, Ahmed "implmement
        to zeta intell"): built by etl/build_working_days_cache.py from the
        Sprint KPI template's DM_DSM/ASM/NSM tabs. Separate from
@@ -326,7 +326,7 @@
        trend from the template's stacked months, independent of whichever
        single month Sprint itself is currently scoring. See that ETL
        script's header for the TOT / Target Working Days formula. -->
-  <script defer src="cache/working_days.data.js?v=20261105_1432_auto"></script>
+  <script defer src="cache/working_days.data.js?v=20261123_1245_auto"></script>
   <!-- IMS Rx cache (2026-08-15): physician-panel Rx-volume audit, via
        etl/build_ims_rx_cache.py, reading "IMS RX TOTAL YEAR 2025.xlsx" with
        Corporation joined in from "IMS 2022 to April 2026.xlsx" (same source
@@ -363,8 +363,8 @@
   <!-- External Market Intelligence cache (2026-09-09): multi-dimensional pharmaceutical
        intelligence (EDA decrees, competitor moves, pricing, clinical, SGLT2/DOAC/PCAB trends)
        built by etl/build_news_cache.py. 100% offline static cache. -->
-  <script defer src="cache/news_latest.data.js?v=20261113_1943_auto"></script>
-  <script defer src="cache/regulatory_pipeline.data.js?v=20261113_1943_auto"></script>
+  <script defer src="cache/news_latest.data.js?v=20261123_1245_auto"></script>
+  <script defer src="cache/regulatory_pipeline.data.js?v=20261123_1245_auto"></script>
   <script defer src="cache/egypt_registration.data.js?v=20260910_v1"></script>
 
   <!-- App-wide authentication roster & loader -->
@@ -383,7 +383,7 @@
   <script defer src="js/semantic-model.js?v=20261105_gitsales"></script>
 
   <!-- Cache Loader for lazy loading heavy optional caches -->
-  <script defer src="js/cache-loader.js?v=20261113_1943_auto"></script>
+  <script defer src="js/cache-loader.js?v=20261123_1245_auto"></script>
 
   <!-- Modules (dependency order: leaf modules first, app.js last) -->
   <script defer src="js/utils.js?v=20260724"></script>

@@ -77,13 +77,13 @@
       file: "cache/coaching.data.js",
       globalVar: "COACHING_CACHE",
       label: "Coaching intelligence",
-      version: "20261113_1535_auto",
+      version: "20261123_1245_auto",
     },
     business_review: {
       file: "cache/business_review.data.js",
       globalVar: "BUSINESS_REVIEW_CACHE",
       label: "BU business review",
-      version: "20261113_1943_auto",
+      version: "20261123_1245_auto",
     },
     list_intel: {
       file: "cache/list_intel.data.js",
@@ -102,7 +102,7 @@
       file: "cache/iqvia_geo.data.js",
       globalVar: "IQVIA_GEO_CACHE",
       label: "Territory market insights (IQVIA geo)",
-      version: "20261113_1943_auto",
+      version: "20261123_1245_auto",
     },
     // Market Growth Forecast (2026-10-12) -- etl/build_market_forecast_v2.py --publish (champion, 2026-10-13)
     market_forecast: {
