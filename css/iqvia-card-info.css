@@ -1,0 +1,28 @@
+/* iqvia-card-info.css (2026-11-23) — "i" info icons on Market Intelligence cards (js/iqvia-card-info.js) */
+.iqvia-dashboard-wrap .iqci-i{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:15px; height:15px; margin-left:6px; border-radius:50%;
+  font:italic 700 10px/1 Georgia,"Times New Roman",serif; text-transform:none; letter-spacing:0;
+  color:var(--txt3,#8a94b0); background:rgba(93,103,140,.16); border:1px solid rgba(93,103,140,.35);
+  cursor:help; vertical-align:middle; flex-shrink:0; user-select:none; transition:all .15s;
+}
+.iqvia-dashboard-wrap .iqci-i:hover, .iqvia-dashboard-wrap .iqci-i:focus{
+  color:#fff; background:var(--acc1,#4c6ef5); border-color:var(--acc1,#4c6ef5); outline:none;
+}
+.iqvia-dashboard-wrap .iqci-pop{
+  display:none; position:fixed; z-index:100000; width:340px; max-width:calc(100vw - 16px);
+  background:var(--bg2,#1b2236); color:var(--txt2,#c5cbe0);
+  border:1px solid var(--bdr,var(--border,rgba(255,255,255,.12))); border-radius:10px;
+  padding:12px 14px; font-size:12px; line-height:1.6; font-weight:400; text-transform:none; letter-spacing:0;
+  box-shadow:0 8px 28px rgba(0,0,0,.28); text-align:left;
+}
+.iqvia-dashboard-wrap .iqci-pop .iqci-t{ font-weight:700; color:var(--txt1,#fff); font-size:13px; margin-bottom:8px; }
+.iqvia-dashboard-wrap .iqci-pop .iqci-en{ margin-bottom:8px; }
+.iqvia-dashboard-wrap .iqci-pop .iqci-ar{
+  border-top:1px dashed var(--bdr,var(--border,rgba(255,255,255,.15))); padding-top:8px;
+  text-align:right; font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic",Arial,sans-serif; font-size:13px; line-height:1.75;
+}
+.iqvia-dashboard-wrap .iqci-pop .iqci-lang{
+  display:inline-block; font-size:9px; font-weight:700; color:var(--acc1,#4c6ef5);
+  border:1px solid currentColor; border-radius:4px; padding:0 4px; margin:0 6px; line-height:14px; vertical-align:1px;
+}
