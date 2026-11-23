@@ -77,6 +77,7 @@
         <tr><td>Fair Share Index</td><td><code>brick share ÷ national share × 100</code></td><td>&lt;90 under-indexed · 90–110 in line · &gt;110 over-indexed.</td></tr>
         <tr><td>Gap to fair share (EGP)</td><td><code>max(0, national share − brick share) × brick market</code></td><td>Value Zeta would add at national share. Summed = opportunity.</td></tr>
         <tr><td>Segment</td><td><code>Large = brick market ≥ median of qualifying bricks</code></td><td>Grow: large &amp; index &lt;90 · Defend: large &amp; &gt;110 · Maintain: large &amp; 90–110 · Develop: small &amp; market growing faster than national · Monitor: other small.</td></tr>
+        <tr><td>Suggested share goal (bricks)</td><td><code>by segment: Grow → share + 50% × (national − share), max +3 pts · Maintain → last year's share if it fell, else + EI momentum (max +1 pt), else hold · Defend → hold · Develop → share + 25% × gap, max +1.5 pts · Monitor → hold · no Zeta in a large brick → 25% × national share</code></td><td>Planning guide for market-share ambition, not an incentive or rep target. Low-base bricks get no goal; ⚠ bricks (growth beyond ±60%) are flagged. Goal value = goal change × brick market of the selected period. Hover the Why chip for the reason.</td></tr>
         <tr><td>Discontinuity flag ⚠</td><td><code>|brick growth| &gt; 60%</code></td><td>Usually an IQVIA brick re-split (e.g. BRICK1/BRICK2 boundary change). Check before acting on growth or EI.</td></tr>
         <tr><td>Low base</td><td><code>brick market value &lt; EGP 250K × months in period ÷ 12</code></td><td>Share, index and segment suppressed (shown as “low base”).</td></tr>
         <tr><td>Region contribution</td><td><code>region value ÷ national value</code> (market and Zeta)</td><td>Region index = Zeta contribution ÷ market contribution × 100 (same as region share ÷ national share).</td></tr>
@@ -165,12 +166,13 @@ function compute(){
     r.ps=!!D.bricks[k].ps; r.gm=gr(r.mk,r.mkp); r.sh=mkE[k]>0?zE[k]/mkE[k]:null; r.low=r.ps||mV[k]<thr;
     r.idx=(!r.low&&hasZE&&r.sh!=null&&N.shE>0)?r.sh/N.shE*100:null;
     const gz=gr(zE[k],zEp[k]), gmE=gr(mkE[k],mkEp[k]); r.ei=(!r.low&&gz!=null&&gmE!=null)?100*(1+gz)/(1+gmE):null;
-    r.gap=(!r.low&&hasZE&&r.sh!=null)?Math.max(0,N.shE-r.sh)*mkE[k]:0; return r;});
+    r.gap=(!r.low&&hasZE&&r.sh!=null)?Math.max(0,N.shE-r.sh)*mkE[k]:0; r.mkE=mkE[k]; r.shp=(PI.ok&&mkEp[k]>0)?zEp[k]/mkEp[k]:null; return r;});
   const q=rows.filter(r=>!r.low).map(r=>r.mk).sort((a,b)=>a-b); const med=q.length?q[Math.floor(q.length/2)]:0;
   rows.forEach(r=>{ if(r.low){r.seg='Low';return;} const big=r.mk>=med;
     if(big&&hasZE) r.seg=r.idx<90?'Grow':r.idx>110?'Defend':'Maintain';
     else if(big) r.seg='Maintain';
     else r.seg=(r.gm!=null&&N.gm!=null&&r.gm>N.gm)?'Develop':'Monitor';});
+  rows.forEach(r=>{ r.goal=hasZE?goalOf(r,N.shE,N.gm,PI.ok):null; r.gl=r.goal&&r.goal.t!=null?r.goal.t:null; r.gw=r.goal?r.goal.rule:null; });
   const zBrands=[...zb].filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
   const zl=b=>lineOfMkt[D.brands[b].m], aL=new Set(zBrands.filter(b=>D.brands[b].a).map(zl)), nL=new Set(zBrands.filter(b=>!D.brands[b].a).map(zl));
   const ancOnly=new Set([...aL].filter(l=>!nL.has(l))), ancM=zBrands.some(b=>D.brands[b].a), allAnc=zBrands.length>0&&zBrands.every(b=>D.brands[b].a);
@@ -181,6 +183,52 @@ const zShort=n=>n.replace(/ Solid Oral.*| Oral cap.*| \(tablets\)/,'');
 const zLab=C=>{let z=(C&&C.zBrands||[]).map(b=>zShort(D.brands[b].n));
   if(!z.length&&C&&C.ms) z=[...new Set(D.brands.filter(b=>C.ms.has(b.m)&&b.in).map(b=>zShort(b.in)))]; // Zeta brand inside an IQVIA aggregate row
   return !z.length?'Zeta':z.length<=3?z.join(' + '):'Zeta brands ('+z.length+')';};
+
+
+/* ---------- suggested share goal per brick (2026-11-23, Ahmed: rules by segment, close 50% of the gap) ----------
+   Planning guide only (IQVIA market-intelligence layer, NOT an incentive / rep target).
+   Basis: brick share vs tracked competitors for the selected period, markets with an IQVIA Zeta track only (same as Fair Share Index).
+   Grow (large, FSI<90)      share + 50% of the gap to national, max +3 pts
+   Maintain (large, 90-110)  recover last year's share if it fell; else EI momentum (max +1 pt); else hold
+   Defend (large, FSI>110)   hold current share
+   Develop (small, faster)   share + 25% of the gap to national, max +1.5 pts
+   Monitor (small, slower)   hold current share
+   No Zeta in a large brick  entry goal = 25% of the national share
+   Low base                  no goal                                                                                 */
+const GOAL={close:0.5, cap:0.03, dev:0.25, devCap:0.015, mom:0.01, entry:0.25};
+const GOAL_CHIP={'Close ½ gap':'Grow','Entry':'Grow','Recover LY':'Develop','Develop':'Develop','Keep momentum':'Maintain','Protect':'Defend','Hold':'Monitor','No goal':'Low'};
+function goalOf(r,n,gN,ok){ // r: {ps,low,sh,shp,idx,ei,gm,seg,mkE}; n = national share; gN = national market growth
+  if(r.ps) return null;
+  if(r.low) return {t:null,d:null,val:null,rule:'No goal',why:'Low base: the brick market is too small for a reliable share goal.'};
+  if(r.sh==null||!(n>0)) return null;
+  const s=r.sh, fsi=r.idx==null?'–':Math.round(r.idx), P=v=>(v*100).toFixed(1)+'%', pts=v=>(v>=0?'+':'')+(v*100).toFixed(1)+' pts';
+  const warn=r.gm!=null&&Math.abs(r.gm)>0.6, fell=ok&&r.shp!=null&&r.shp>s;
+  const big=r.seg==='Grow'||r.seg==='Maintain'||r.seg==='Defend';
+  let t=s, rule='Hold', why;
+  if(s<=0&&big){ t=GOAL.entry*n; rule='Entry'; why=`No Zeta sales yet in a large brick. Entry goal = 25% of the national share (${P(n)}).`; }
+  else if(r.seg==='Grow'){ const g=GOAL.close*(n-s), c=g>GOAL.cap; t=s+Math.min(g,GOAL.cap); rule='Close ½ gap';
+    why=`Large market where Zeta is under-indexed: share ${P(s)} vs national ${P(n)} (FSI ${fsi}). Goal = close 50% of the gap${c?' (capped at +3 pts)':''}.`; }
+  else if(r.seg==='Maintain'){
+    if(fell&&!warn){ t=Math.min(r.shp,s+GOAL.cap); rule='Recover LY'; why=`In line with national (FSI ${fsi}), but share fell ${pts(r.shp-s).replace('+','')} vs last year (${P(r.shp)}). Goal = win back last year's share.`; }
+    else if(r.ei!=null&&r.ei>100){ const m=Math.min(GOAL.mom,s*(r.ei-100)/100); t=s+m; rule='Keep momentum'; why=`In line with national (FSI ${fsi}) and growing faster than the market (EI ${Math.round(r.ei)}). Goal = keep the momentum (${pts(m)}, max +1 pt).`; }
+    else { why=`In line with national (FSI ${fsi}) with no growth momentum (EI ${r.ei==null?'n/a':Math.round(r.ei)}). Goal = hold the share.`; }
+  }
+  else if(r.seg==='Defend'){ rule='Protect'; why=`Zeta is already above national here (FSI ${fsi}). Goal = protect ${P(s)}${fell?` — share fell ${pts(r.shp-s).replace('+','')} vs last year, stop the erosion`:''}.`; }
+  else if(r.seg==='Develop'){
+    if(s<n){ const g=GOAL.dev*(n-s), c=g>GOAL.devCap; t=s+Math.min(g,GOAL.devCap); rule='Develop';
+      why=`Small market growing faster than national (${r.gm==null?'n/a':(r.gm>=0?'+':'')+(r.gm*100).toFixed(0)+'%'} vs ${gN==null?'n/a':(gN>=0?'+':'')+(gN*100).toFixed(0)+'%'} nationally), share ${P(s)} vs national ${P(n)}. Goal = close 25% of the gap${c?' (capped at +1.5 pts)':''}.`; }
+    else why=`Small, fast-growing market where Zeta is already at or above national (FSI ${fsi}). Goal = hold the share.`;
+  }
+  else why=`Small market growing no faster than national. Goal = hold the share; no extra investment.`;
+  if(warn) why+=' ⚠ Brick growth is beyond ±60%: check for an IQVIA brick re-split before using this goal.';
+  const d=t-s; return {t,d,val:d*r.mkE,rule,why};
+}
+const MEDL=new WeakMap(); // median brick market per line (non-low bricks), for line-level brick rows
+function medOfLine(C,L){let m=MEDL.get(C); if(!m){m={};MEDL.set(C,m);} if(m[L]==null){const a=C.byL[L]?[...C.byL[L].mk].filter((v,k)=>v>0&&!C.rows[k].low).sort((x,y)=>x-y):[]; m[L]=a.length?a[Math.floor(a.length/2)]:C.med;} return m[L];}
+const segOf=(C,mk,idx,gm,low,L)=>low?'Low':mk>=(L!=null?medOfLine(C,L):C.med)?(idx==null?'Maintain':idx<90?'Grow':idx>110?'Defend':'Maintain'):((gm!=null&&C.N.gm!=null&&gm>C.N.gm)?'Develop':'Monitor');
+const goalTd=g=>!g?'<td class="r num zc"><span class="muted">–</span></td>':`<td class="r num zc gl" title="${esc(g.why)}">${g.t==null?'':`<b>${pct(g.t)}</b>${g.d>0.00005?` <small class="up">+${(g.d*100).toFixed(1)}</small>`:''}<br>`}<span class="chip s-${GOAL_CHIP[g.rule]||'Monitor'}" style="font-size:10px;padding:0 6px">${esc(g.rule)}</span></td>`;
+const goalCell=r=>{const g=r.goal; if(!g||g.t==null) return '<span class="muted">–</span>'; return `<b>${pct(g.t)}</b>${g.d>0.00005?` <small class="up">+${(g.d*100).toFixed(1)}</small>`:''}`;};
+const goalWhy=r=>{const g=r.goal; if(!g) return '<span class="muted">–</span>'; return `<span class="chip s-${GOAL_CHIP[g.rule]||'Monitor'}" title="${esc(g.why)}">${esc(g.rule)}</span>`;};
 
 /* ---------- controls ---------- */
 function fillSelect(el,opts,val){el.innerHTML=opts.map(o=>`<option value="${esc(o[0])}"${o[0]==val?' selected':''}>${esc(o[1])}</option>`).join('');}
@@ -271,7 +319,7 @@ function renderRegions(){
   $('#ig-regChips').innerHTML=['ALL',...REG].map(r=>`<button class="rchip" data-r="${esc(r)}" aria-pressed="${ST.region===r}">${r==='ALL'?'All regions':esc(r)}</button>`).join('');
   $('#ig-regChips').querySelectorAll('button').forEach(b=>b.onclick=()=>{ST.region=b.dataset.r;render();});
 }
-const BCOLS=[['n','Brick',0],['t','Territory',0],['r','Region',0],['mk','Market',1],['gm','Growth',1],['sh','Zeta share',1],['idx','Index',1],['ei','EI',1],['gap','Gap EGP',1],['seg','Segment',0]];
+const BCOLS=[['n','Brick',0],['t','Territory',0],['r','Region',0],['mk','Market',1],['gm','Growth',1],['sh','Zeta share',1],['idx','Index',1],['ei','EI',1],['gap','Gap EGP',1],['seg','Segment',0],['gl','Suggested share',1],['gw','Why',0]];
 function renderBricks(C){
   let R=C.rows.filter(r=>(ST.region==='ALL'||r.r===ST.region)&&(!ST.bq||(r.n+' '+r.t).toLowerCase().includes(ST.bq)));
   const k=ST.bSort,d=ST.bDir; R=R.slice().sort((a,b)=>{const x=a[k],y=b[k]; if(x==null)return 1; if(y==null)return -1; return (typeof x==='string'?x.localeCompare(y):x-y)*d;});
@@ -281,8 +329,9 @@ function renderBricks(C){
     <td class="r num"><div style="display:flex;gap:6px;align-items:center;justify-content:flex-end"><span>${fmt(r.mk)}</span><div class="bar" style="width:${Math.max(2,50*r.mk/mmax)}px"></div></div></td>
     <td class="r num">${grH(r.gm)}${r.gm!=null&&Math.abs(r.gm)>0.6?' <span title="Growth beyond ±60% — check for an IQVIA brick re-definition before acting" style="color:var(--warn)">⚠</span>':''}</td><td class="r num">${r.low||!C.hasZ?'<span class="muted">–</span>':pct(r.sh)}</td><td class="r">${idxH(r.idx)}</td>
     <td class="r num">${r.ei==null?'<span class="muted">–</span>':Math.round(r.ei)}</td><td class="r num">${r.gap>0?fmt(r.gap):'<span class="muted">–</span>'}</td>
-    <td><span class="chip s-${r.seg}">${r.seg==='Low'?'Low base':r.seg}</span></td></tr>`).join('')}</tbody>`;
-  $('#ig-bTbl').querySelectorAll('th').forEach(th=>th.onclick=()=>{const kk=th.dataset.k; if(ST.bSort===kk)ST.bDir*=-1; else {ST.bSort=kk;ST.bDir=['n','t','r','seg'].includes(kk)?1:-1;} renderBricks(LAST);});
+    <td><span class="chip s-${r.seg}">${r.seg==='Low'?'Low base':r.seg}</span></td>
+    <td class="r num">${goalCell(r)}</td><td>${goalWhy(r)}</td></tr>`).join('')}</tbody>`;
+  $('#ig-bTbl').querySelectorAll('th').forEach(th=>th.onclick=()=>{const kk=th.dataset.k; if(ST.bSort===kk)ST.bDir*=-1; else {ST.bSort=kk;ST.bDir=['n','t','r','seg','gw'].includes(kk)?1:-1;} renderBricks(LAST);});
   $('#ig-bTbl').querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>openBrick(+tr.dataset.k));
 }
 /* ---------- brand colours: fixed slot per entity for the current market selection ---------- */
@@ -438,10 +487,10 @@ function renderPos(C,P){
   const short=n=>n.replace(/ Solid Oral.*| Oral cap.*/,'');
   const zn=esc(zName(C));
   const zl=esc(zLab(C)), one=zbs.length<=1, nComp=(one?0:zbs.length)+comps.length+1, gth='style="position:static;text-align:center;border-bottom:2px solid var(--border-strong);cursor:default"';
-  const head=`<thead><tr><th colspan="3" ${gth}>Position</th><th colspan="3" ${gth}>Market · ${ul}</th><th colspan="6" class="zh" ${gth}>${zl} performance</th><th colspan="${nComp}" ${gth} title="Each cell: share of the position's market · FSI = Fair Share Index vs the brand's national share (100 = national) · pts = change vs same months last year · gr = growth">Share of this position's market — vs competitors</th></tr>
+  const head=`<thead><tr><th colspan="3" ${gth}>Position</th><th colspan="3" ${gth}>Market · ${ul}</th><th colspan="7" class="zh" ${gth}>${zl} performance</th><th colspan="${nComp}" ${gth} title="Each cell: share of the position's market · FSI = Fair Share Index vs the brand's national share (100 = national) · pts = change vs same months last year · gr = growth">Share of this position's market — vs competitors</th></tr>
     <tr><th></th><th data-ps="name">Position / brick${ar('name')}</th><th data-ps="rep">Medical rep / allocation${ar('rep')}</th>
     <th class="r" title="Position market (bricks × organogram allocation)" data-ps="pot">Size${ar('pot')}</th><th class="r" title="vs same months last year" data-ps="gm">Growth${ar('gm')}</th><th class="r pnh" title="Part of the national market of the line that sits in this position (bar, shared scale)" data-ps="pn">Market Geo<br>Share %${ar('pn')}</th>
-    <th class="r zh" title="${zn}" data-ps="z">Sales${ar('z')}</th><th class="r zh" title="vs same months last year" data-ps="gz">Growth${ar('gz')}</th><th class="r zh" title="${zl} ÷ position market · pts = change vs same months last year" data-ps="sh">Share${ar('sh')}</th><th class="r zh" title="Fair Share Index = share here ÷ national share × 100 · 100 = national level · below 90 weak · above 110 strong" data-ps="idx">Fair Share<br>Index${ar('idx')}</th><th class="r zh" title="Evolution Index = 100 × (1 + product growth) ÷ (1 + market growth) · above 100 = growing faster than the market" data-ps="ei">Evolution<br>Index${ar('ei')}</th><th class="r zh pnh" title="Part of national Zeta sales that sits in this position; tick = market % of national; ▲/▼ = Zeta % minus market % in points" data-ps="zn">${zl}<br>Contribution %${ar('zn')}</th>
+    <th class="r zh" title="${zn}" data-ps="z">Sales${ar('z')}</th><th class="r zh" title="vs same months last year" data-ps="gz">Growth${ar('gz')}</th><th class="r zh" title="${zl} ÷ position market · pts = change vs same months last year" data-ps="sh">Share${ar('sh')}</th><th class="r zh" title="Fair Share Index = share here ÷ national share × 100 · 100 = national level · below 90 weak · above 110 strong" data-ps="idx">Fair Share<br>Index${ar('idx')}</th><th class="r zh" title="Evolution Index = 100 × (1 + product growth) ÷ (1 + market growth) · above 100 = growing faster than the market" data-ps="ei">Evolution<br>Index${ar('ei')}</th><th class="r zh pnh" title="Part of national Zeta sales that sits in this position; tick = market % of national; ▲/▼ = Zeta % minus market % in points" data-ps="zn">${zl}<br>Contribution %${ar('zn')}</th><th class="r zh" title="Suggested share goal per brick (planning guide, not an incentive or rep target). Open a position to see each brick's goal; hover a goal for the reason.">Share goal<br><small class="muted">per brick</small></th>
     ${one?'':zbs.map(bi=>`<th class="r zh" data-ps="c${bi}" title="${esc(D.brands[bi].n)} share${D.brands[bi].a?' — ≈ estimated from national IQVIA (directional)':''}"><i class="sw" style="background:var(--s1)"></i>${esc(short(D.brands[bi].n))}${D.brands[bi].a?' ≈':''}${ar('c'+bi)}</th>`).join('')}
     ${comps.map(bi=>`<th class="r" data-ps="c${bi}" title="${esc(D.brands[bi].n)} · ${esc(D.brands[bi].c)} — click to sort by its share"><i class="sw" style="background:${LASTS.col.get(bi)}"></i>${esc(short(D.brands[bi].n))}${ar('c'+bi)}</th>`).join('')}
     <th class="r" title="IQVIA aggregate rows + smaller brands"><i class="sw" style="background:var(--other)"></i>Others</th></tr></thead>`;
@@ -451,15 +500,16 @@ function renderPos(C,P){
     const open=ST.open.has(o.p);
     rows+=`<tr class="prow" data-p="${o.p}"><td class="tog" data-t="${o.p}" title="Show bricks">${open?'▾':'▸'}</td><td><b>${esc(o.name)}</b></td><td>${o.vac!=='Filled'?'<span class="chip s-Grow">Vacant</span>':esc(o.rep)}</td>
       <td class="r num">${fmt(o.pot)}</td><td class="r num">${grH(o.gm)}</td>${pnMk(o.pot,o.line)}
-      <td class="r num zc">${fmt(o.z)}</td><td class="r num zc">${C.hasZ?(o.gzNat?'<span class="muted" title="≈ Estimated sales use a fixed 2026 split, so growth here equals the national trend">nat.</span>':grH(o.gz)):'–'}</td>${C.hasZ?shCell(o.z,o.pot,o.zp,o.potP):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx((nat[o.line]&&nat[o.line].z>0&&o.pot>0)?(o.z/o.pot)/(nat[o.line].z/nat[o.line].mk)*100:null):'–'}</td><td class="r num zc">${o.ei==null?'–':Math.round(o.ei)}</td>${pnZ(o.z,o.pot,o.line)}
+      <td class="r num zc">${fmt(o.z)}</td><td class="r num zc">${C.hasZ?(o.gzNat?'<span class="muted" title="≈ Estimated sales use a fixed 2026 split, so growth here equals the national trend">nat.</span>':grH(o.gz)):'–'}</td>${C.hasZ?shCell(o.z,o.pot,o.zp,o.potP):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx((nat[o.line]&&nat[o.line].z>0&&o.pot>0)?(o.z/o.pot)/(nat[o.line].z/nat[o.line].mk)*100:null):'–'}</td><td class="r num zc">${o.ei==null?'–':Math.round(o.ei)}</td>${pnZ(o.z,o.pot,o.line)}<td class="r num zc"><span class="muted" title="Open the position (▸) to see the suggested share goal of each brick">${open?'▾ below':'▸ bricks'}</span></td>
       ${shareCells(o.pot,o.potP,o.cb,zbs,comps,NBL[o.line],0,one)}</tr>`;
     if(open){
       const brs=o.br.map(([b,al])=>({b,al,...lineBrick(C,b,o.line)})).sort((a,b)=>b.mk*b.al-a.mk*a.al);
       const n=nat[o.line]||{mk:0,z:0}, natSh=n.mk>0?n.z/n.mk:0;
       for(const x of brs){const sh=x.mk>0?x.z/x.mk:null, idx=(sh!=null&&natSh>0)?sh/natSh*100:null, gm=gr(x.mk,x.mkp), gz=gr(x.z,x.zp), ei=(gz!=null&&gm!=null)?100*(1+gz)/(1+gm):null;
+        const low=(C.rows[x.b]&&C.rows[x.b].low)||(ST.meas==='v'&&x.mk<C.thr), gq=(C.hasZ&&!C.ancOnly.has(o.line))?goalOf({ps:false,low,sh,shp:(HASPREV&&x.mkp>0)?x.zp/x.mkp:null,idx:low?null:idx,ei:low?null:ei,gm,seg:segOf(C,x.mk,idx,gm,low,o.line),mkE:x.mk},natSh,C.N.gm,HASPREV):null;
         rows+=`<tr class="brow" data-k="${x.b}"><td></td><td>↳ ${esc(D.bricks[x.b].n)} <span class="muted">${esc(D.bricks[x.b].t)}</span></td><td class="muted">allocation ${pct(x.al,0)}</td>
           <td class="r num">${fmt(x.mk)}</td><td class="r num">${grH(gm)}${gm!=null&&Math.abs(gm)>0.6?' <span title="Possible IQVIA brick re-definition" style="color:var(--warn)">⚠</span>':''}</td>${pnMk(x.mk,o.line,1)}
-          ${C.ancOnly.has(o.line)?'<td class="r num zc"><span class="muted" title="Estimated at position level only — no brick split">pos.</span></td>'.repeat(6):`<td class="r num zc">${fmt(x.z)}</td><td class="r num zc">${C.hasZ?grH(gz):'–'}</td>${C.hasZ?shCell(x.z,x.mk,x.zp,x.mkp):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx(idx):'–'}</td><td class="r num zc">${ei==null?'–':Math.round(ei)}</td>${pnZ(x.z,x.mk,o.line,1)}`}
+          ${C.ancOnly.has(o.line)?'<td class="r num zc"><span class="muted" title="Estimated at position level only — no brick split">pos.</span></td>'.repeat(7):`<td class="r num zc">${fmt(x.z)}</td><td class="r num zc">${C.hasZ?grH(gz):'–'}</td>${C.hasZ?shCell(x.z,x.mk,x.zp,x.mkp):'<td class="r num zc">–</td>'}<td class="r num zc">${C.hasZ?zIx(idx):'–'}</td><td class="r num zc">${ei==null?'–':Math.round(ei)}</td>${pnZ(x.z,x.mk,o.line,1)}${goalTd(gq)}`}
           ${shareCells(x.mk,x.mkp,x.br,zbs,comps,NBL[o.line],1,one)}</tr>`;}
     }
   }
@@ -517,10 +567,10 @@ function exportPosXlsx(C,P0){
   }
   // Sheet 2: all 148 bricks for the selection (whole selection, every region; positions listed)
   const posOf=new Map(); for(const [p,b,al] of D.alloc){ if(al<=0)continue; const P_=D.pos[p]; if(![...C.ms].some(i=>lineOfMkt[i]===P_[1]))continue; (posOf.get(b)||posOf.set(b,[]).get(b)).push(P_[0]+(P_[5]!=='Filled'?' (vacant)':'')+' '+Math.round(al*100)+'%'); }
-  const H2=['Brick','Territory','Region','Positions covering (allocation)','Market '+ul,'Market '+ul+' last year','Market growth','Market Geo Share %',zl+' '+ul,zl+' growth',zl+' share','Fair Share Index','Evolution Index','Gap to fair share ('+ul+')','Segment','Low base',...compHead];
+  const H2=['Brick','Territory','Region','Positions covering (allocation)','Market '+ul,'Market '+ul+' last year','Market growth','Market Geo Share %',zl+' '+ul,zl+' growth',zl+' share','Fair Share Index','Evolution Index','Gap to fair share ('+ul+')','Segment','Low base','Suggested share goal','Goal change (pts)','Goal value '+ul,'Goal rule','Why',...compHead];
   const rows2=[H2]; const NM=C.N.mk||0;
   C.rows.slice().sort((a,b)=>(a.ps-b.ps)||a.r.localeCompare(b.r)||b.mk-a.mk).forEach(r=>{   // 148 IQVIA bricks first, then the 6 region-level rows of estimated (≈) Zeta sales
-    rows2.push([r.n,r.t,r.r,(posOf.get(r.k)||[]).join('; '),num(r.mk),HASPREV?num(r.mkp):null,g_(r.mk,r.mkp),NM>0?r.mk/NM:null,C.hasZ?num(r.z):null,C.hasZ?g_(r.z,r.zp):null,C.hasZ?num(r.sh):null,num(r.idx),num(r.ei),C.hasZ?num(r.gap):null,r.seg,r.low?'Yes':'',
+    rows2.push([r.n,r.t,r.r,(posOf.get(r.k)||[]).join('; '),num(r.mk),HASPREV?num(r.mkp):null,g_(r.mk,r.mkp),NM>0?r.mk/NM:null,C.hasZ?num(r.z):null,C.hasZ?g_(r.z,r.zp):null,C.hasZ?num(r.sh):null,num(r.idx),num(r.ei),C.hasZ?num(r.gap):null,r.seg,r.low?'Yes':'',r.goal&&r.goal.t!=null?r.goal.t:null,r.goal&&r.goal.d!=null?r.goal.d*100:null,r.goal&&r.goal.val>0?r.goal.val:null,r.goal?r.goal.rule:'',r.goal?r.goal.why:'',
       ...shareSet(r.mk,r.mkp,C.bb[r.k],NBA,1)]);});
   // Sheet 3: selection + definitions
   const scope=ST.d2?('DM2 '+ST.d2):ST.mkt!==''?D.markets[+ST.mkt].n:ST.line?('Line '+ST.line+' · all markets'):ST.bu?('BU '+ST.bu):'All Zeta markets';
@@ -537,12 +587,13 @@ function exportPosXlsx(C,P0){
     ['Evolution Index','100 × (1 + Zeta growth) ÷ (1 + market growth). Above 100 = growing faster than the market.'],
     ['Gap to fair share','max(0, national share − share here) × market here: what Zeta would add at its national share.'],
     ['Where to act','Fill vacancy (no rep) · Close the gap (FSI < 90) · Protect (FSI > 110) · On track (90–110).'],
+    ['Suggested share goal (sheet Bricks)','Planning guide, not an incentive or rep target. Grow (large, FSI<90): share + 50% of the gap to national, max +3 pts · Maintain (90–110): recover last year share if it fell, else EI momentum (max +1 pt), else hold · Defend (>110): hold · Develop (small, growing faster than national): + 25% of the gap, max +1.5 pts · Monitor: hold · No Zeta in a large brick: entry = 25% of national share · Low base: no goal. Goal value = goal change × brick market of the period.'],
     ['Brick rows','Brick market and Zeta are shown for the whole brick (the allocation % is a separate column), same as the page.'],
     ['Blank Zeta cells on bricks','≈ Estimated brands exist at position level only (no brick split).'],
     ['Competitors','Same top-5 competitors as the page (by national value in the selection) + Others (IQVIA aggregate rows and smaller brands).']];
   // formats
   const PCT='0.0%', NUM='#,##0', IDX='0', PTS='+0.0;-0.0;0.0';
-  const fmtCols=(hdr)=>hdr.map(h=>/ share$|Geo Share %|Contribution %|Allocation %| growth$|Market growth/.test(h)?PCT:/FSI$|Fair Share Index|Evolution Index/.test(h)?IDX:/pts\)$/.test(h)?PTS:/ (EGP|units)( last year)?$|Gap to fair share/.test(h)?NUM:null);
+  const fmtCols=(hdr)=>hdr.map(h=>/ share$|Geo Share %|Contribution %|Allocation %| growth$|Market growth|Suggested share goal/.test(h)?PCT:/FSI$|Fair Share Index|Evolution Index/.test(h)?IDX:/pts\)$/.test(h)?PTS:/ (EGP|units)( last year)?$|Gap to fair share/.test(h)?NUM:null);
   function sheet(aoa,widths){const ws=XLSX.utils.aoa_to_sheet(aoa), f=fmtCols(aoa[0]);
     for(let r=1;r<aoa.length;r++) for(let c=0;c<f.length;c++){ if(!f[c])continue; const ref=XLSX.utils.encode_cell({r,c}); if(ws[ref]&&ws[ref].t==='n') ws[ref].z=f[c]; }
     ws['!cols']=aoa[0].map((h,i)=>({wch:widths&&widths[i]||Math.min(28,Math.max(10,String(h).length+2))}));
@@ -660,6 +711,9 @@ function openBrick(k){
    <div><div class="sub">${esc(r.r)} › ${esc(r.t)}</div><h1 style="font-size:18px">${esc(r.n)}</h1><span class="chip s-${r.seg}">${r.seg==='Low'?'Low base':r.seg}</span></div>
    <div class="mini"><div><div class="l">Market</div><div class="v">${fmt(r.mk)}</div></div><div><div class="l">Growth</div><div class="v">${grH(r.gm)}</div></div><div><div class="l">${esc(zLab(C))} share</div><div class="v">${C.hasZ&&!r.low?pct(r.sh):'–'}</div></div>
    <div><div class="l">Fair Share Index</div><div class="v">${r.idx==null?'–':Math.round(r.idx)}</div></div><div><div class="l">Evolution index</div><div class="v">${r.ei==null?'–':Math.round(r.ei)}</div></div><div><div class="l">Gap to fair share</div><div class="v">${r.gap>0?fmt(r.gap):'–'}</div></div></div>
+   ${r.goal?`<div class="goalbox" style="border:1px solid var(--line,rgba(127,127,127,.3));border-left:3px solid var(--s1);border-radius:8px;padding:10px 12px"><h2 style="font-size:12px;text-transform:uppercase;color:var(--fg-2);letter-spacing:.05em;margin:0 0 6px">Suggested share goal <span class="chip s-${GOAL_CHIP[r.goal.rule]||'Monitor'}">${esc(r.goal.rule)}</span></h2>
+   ${r.goal.t!=null?`<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:6px"><div><div class="l muted" style="font-size:11px">Now</div><b>${pct(r.sh)}</b></div><div><div class="l muted" style="font-size:11px">Goal</div><b>${pct(r.goal.t)}</b></div><div><div class="l muted" style="font-size:11px">Change</div><b class="${r.goal.d>0.00005?'up':''}">${r.goal.d>0.00005?'+'+(r.goal.d*100).toFixed(1)+' pts':'hold'}</b></div><div><div class="l muted" style="font-size:11px">Value of the goal</div><b>${r.goal.val>0?'+'+fmt(r.goal.val)+' '+(ST.meas==='v'?'EGP':'units'):'–'}</b></div><div><div class="l muted" style="font-size:11px">National share</div><b>${pct(C.N.shE)}</b></div></div>`:''}
+   <p style="margin:0;font-size:12.5px;line-height:1.55">${esc(r.goal.why)}</p><p class="foot" style="margin:6px 0 0">Planning guide for market share, on the selected period's market. Not an incentive or rep target.</p></div>`:''}
    <div><h2 style="font-size:12px;text-transform:uppercase;color:var(--fg-2);letter-spacing:.05em;margin:0 0 6px">Tracked brands in this brick</h2>
    <div class="tbl-wrap" style="max-height:300px"><table class="dt"><thead><tr><th>Brand</th><th>Corporation</th><th class="r">Value</th><th class="r">Share</th><th class="r">Growth</th></tr></thead><tbody>
    ${comp.map(o=>`<tr class="${o.b.z?'zeta':''}"><td>${esc(o.b.n)}${o.b.in?` <span class="chip s-Low" title="Contains ${esc(o.b.in)}">incl. ${esc(o.b.in)}</span>`:''}</td><td class="muted">${esc(o.b.c)}</td><td class="r num">${fmt(o.c)}</td><td class="r num">${pct(r.mk>0?o.c/r.mk:null)}</td><td class="r num">${grH(gr(o.c,o.p))}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">No tracked sales</td></tr>'}
